@@ -87,6 +87,16 @@ export async function enterpriseTenantMaker(h: IntegrationHarness): Promise<() =
       await prisma.organizationMembership.create({
         data: { organizationId: organization.id, userId: p.id, role: "ORG_MEMBER" } as never,
       });
+      // DEC-08 — `member` is the `$User` every member-targeted row names (sessions,
+      // MFA factors). A workspace administers only the accounts its Organization's
+      // directory originated; a self-serve member's account-global sessions are
+      // refused to it. The sweep's control therefore targets a directory identity,
+      // so each such route has a real authorized control and the attacker meets a
+      // target the victim's own administrators really do govern.
+      await prisma.user.update({
+        where: { id: p.id },
+        data: { providerUserId: `scim-${organization.id}:sweep-member-${kit.tag()}` } as never,
+      });
     }
     await enterpriseTeam(team.id, organization.id);
     return { teamId: team.id, orgId: organization.id, owner, admin, admin2, approver, member, viewer };

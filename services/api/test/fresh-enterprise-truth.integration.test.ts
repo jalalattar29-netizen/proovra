@@ -259,12 +259,15 @@ describe("fresh-enterprise repairs (live PostgreSQL)", () => {
           { userId: person.id, teamId, sid, iat: now, exp: now + 3600, ipPreview: "127.0.0.x", authMethod: "PASSWORD", deviceIdHash },
           prisma,
         );
+      // Sign-in scores the session it has just issued ("issuance"); the person is a
+      // self-serve member, whose sessions the workspace does not administer (DEC-08).
       const score = async (id: string) => {
-        await scoring.detectAndScoreSession({ teamId, sessionId: id }, prisma);
+        expect(await scoring.detectAndScoreSession({ teamId, sessionId: id, lookup: "issuance" }, prisma)).not.toBeNull();
         return (await prisma.authenticatedSession.findUniqueOrThrow({ where: { id }, select: { riskScore: true } })).riskScore;
       };
 
       const first = await open(`fet-a-${kit.tag()}`);
+      expect(await scoring.detectAndScoreSession({ teamId, sessionId: first.id }, prisma), "administration scope").toBeNull();
       expect(await score(first.id)).toBe(0);
       const second = await open(`fet-b-${kit.tag()}`);
       expect(await score(second.id), "the web never sends a device hash").toBe(0);

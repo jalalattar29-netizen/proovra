@@ -373,7 +373,7 @@ async function recordSessionFromSignedToken(
     // looked. A session with no workspace yet has nothing to compare against.
     const scoreTeamId = teamId ?? user.currentWorkspaceId ?? null;
     if (!isSso && scoreTeamId) {
-      await detectAndScoreSession({ teamId: scoreTeamId, sessionId: session.id }).catch(() => null);
+      await detectAndScoreSession({ teamId: scoreTeamId, sessionId: session.id, lookup: "issuance" }).catch(() => null);
     }
     return { sessionId: session.id, sid: payload.sid };
   } catch {

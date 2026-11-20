@@ -89,11 +89,24 @@ export async function detectAndScoreSession(
     sessionId: string;
     /** Override "now" for tests. */
     nowUtc?: Date;
+    /**
+     * Who is asking. "administration" (the default: the admin score route, the
+     * runtime re-score sweep) reaches only the sessions the workspace governs
+     * (DEC-08, `sessionsOfWorkspaceWhere`). "issuance" is the platform scoring
+     * the session it has just issued to the person signing in (password,
+     * social, SSO completion): that session is the caller's own, so it is found
+     * by id, whatever account kind the person holds. Scoring ends nothing; the
+     * only terminating consequence (quarantine) keeps the administration scope.
+     */
+    lookup?: "administration" | "issuance";
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<DetectionResult | null> {
   const session = await client.authenticatedSession.findFirst({
-    where: { id: input.sessionId, ...(await sessionsOfWorkspaceWhere(input.teamId, client)) },
+    where:
+      input.lookup === "issuance"
+        ? { id: input.sessionId, revokedAtUtc: null }
+        : { id: input.sessionId, ...(await sessionsOfWorkspaceWhere(input.teamId, client)) },
   });
   if (!session) return null;
 

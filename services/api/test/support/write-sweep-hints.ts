@@ -791,6 +791,31 @@ export const WRITE_SWEEP_HINTS: Record<string, RouteHint> = {
     ...IDENTITY_ADMIN,
     body: { teamId: "$Team", userId: "$User", permission: "evidence.read", reason: "sweep reason" },
   },
+  // DEC-08 — a workspace reaches only the sessions of the accounts its directory
+  // originated (`$User`, see write-sweep-world), never the acting administrator's
+  // own account-global sessions.
+  "POST /v1/admin/identity/sessions/:p/revoke": {
+    klass: "tenant",
+    rows: { AuthenticatedSession: { userId: "$User", sessionIdHash: () => hex64() } },
+  },
+  "POST /v1/admin/identity/sessions/:p/quarantine": {
+    klass: "tenant",
+    rows: { AuthenticatedSession: { userId: "$User", sessionIdHash: () => hex64() } },
+  },
+  "POST /v1/admin/identity/sessions/:p/score": {
+    klass: "tenant",
+    rows: { AuthenticatedSession: { userId: "$User", sessionIdHash: () => hex64() } },
+  },
+  "POST /v1/identity-security/sessions/revoke": {
+    klass: "tenant",
+    rows: { AuthenticatedSession: { userId: "$User", sessionIdHash: () => hex64() } },
+    setup: async (set: RowSet) => {
+      const id = await set.id("AuthenticatedSession");
+      const row = await set.prisma.authenticatedSession.findUnique({ where: { id }, select: { sessionIdHash: true } });
+      set.put("SessionHash", row.sessionIdHash);
+    },
+    body: { teamId: "$Team", userId: "$User", sessionIdHash: "$SessionHash" },
+  },
   "POST /v1/admin/identity/sessions/:p/release": {
     klass: "tenant",
     rows: {

@@ -37,7 +37,7 @@ export async function completeSsoSession(
   const dropSession = () =>
     client.authenticatedSession.delete({ where: { id: input.sessionId } }).catch(() => null);
 
-  await detectAndScoreSession({ teamId: input.teamId, sessionId: input.sessionId }, client).catch(
+  await detectAndScoreSession({ teamId: input.teamId, sessionId: input.sessionId, lookup: "issuance" }, client).catch(
     () => null,
   );
 

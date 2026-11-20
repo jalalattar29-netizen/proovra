@@ -731,7 +731,12 @@ export const CHANGED_PATH_CLASSES = Object.freeze([
       // as the lint and runner configs above. It is not DOCUMENTATION (it is
       // machine-read) and not AUDIT_ARTIFACT (the audit engine does not
       // write it).
-      /^services\/api\/contract\/presentation-contract-routes\.json$/.test(p),
+      /^services\/api\/contract\/presentation-contract-routes\.json$/.test(p) ||
+      // B8-F-401 (classified 2026-11-20) — Vercel's project configuration for the
+      // web: build command and the ignore gate that decides whether a main push
+      // may reach production against the live API. It ships nothing itself, but
+      // it decides whether and when the web is releasable.
+      /^vercel\.json$/.test(p),
   },
   { class: "INFRASTRUCTURE", test: (p) => p.startsWith("infra/") || p.startsWith("deploy/") },
 ]);

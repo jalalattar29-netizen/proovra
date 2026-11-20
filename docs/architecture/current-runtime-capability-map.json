@@ -37394,8 +37394,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/suspicious-session.service.ts#authenticatedSession.update@245",
-      "terminalLocation": "services/api/src/services/access-control/suspicious-session.service.ts:245",
+      "writerId": "services/api/src/services/access-control/suspicious-session.service.ts#authenticatedSession.update@258",
+      "terminalLocation": "services/api/src/services/access-control/suspicious-session.service.ts:258",
       "file": "services/api/src/services/access-control/suspicious-session.service.ts",
       "enclosingDeclaration": "detectAndScoreSession",
       "kind": "DATABASE",
