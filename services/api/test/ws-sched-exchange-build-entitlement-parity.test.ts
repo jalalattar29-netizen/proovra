@@ -34,7 +34,13 @@ const GRANTS: Array<[string, Grant]> = [
 ];
 const STANDINGS: EnterpriseContractStanding[] = ["NOT_ENTERPRISE", "CONTRACT_ACTIVE", "CONTRACT_LAPSED"];
 
-const fakePrisma = (grant: Grant) =>
+// PRO-R3-07 (matrix review NEW-RG-13-2) — the grant's source matters: a
+// product-line (PLAN) grant does not outlive a terminally lapsed paid
+// subscription; a CUSTOM (operator) grant does.
+const SOURCES = ["CUSTOM", "PLAN"] as const;
+const PAID_LAPSED = [false, true] as const;
+
+const fakePrisma = (grant: Grant, source: (typeof SOURCES)[number] = "CUSTOM") =>
   ({
     entitlementGrant: {
       findUnique: async () =>
@@ -42,7 +48,7 @@ const fakePrisma = (grant: Grant) =>
           ? {
               id: "g1",
               key: "FEATURE_EVIDENCE_EXCHANGE",
-              source: "CUSTOM",
+              source,
               productLine: null,
               grantedAtUtc: new Date(NOW - 3_600_000),
               ...grant,
@@ -54,18 +60,41 @@ const fakePrisma = (grant: Grant) =>
 describe("PRO-W1-07 — the Worker's exchange entitlement re-read equals the API engine", () => {
   for (const standing of STANDINGS) {
     for (const [name, grant] of GRANTS) {
-      it(`${standing} / ${name}`, async () => {
-        const engine = await resolveEntitlement({
-          prisma: fakePrisma(grant),
-          teamId: TEAM,
-          key: "FEATURE_EVIDENCE_EXCHANGE",
-          standing,
-        });
-        const worker = await readEvidenceExchangeEntitlement(fakePrisma(grant), { teamId: TEAM, standing });
-        expect(worker).toBe(engine.value === true);
-      });
+      for (const source of SOURCES) {
+        for (const paidLapsed of PAID_LAPSED) {
+          it(`${standing} / ${name} / ${source} grant / paid ${paidLapsed ? "lapsed" : "current"}`, async () => {
+            const engine = await resolveEntitlement({
+              prisma: fakePrisma(grant, source),
+              teamId: TEAM,
+              key: "FEATURE_EVIDENCE_EXCHANGE",
+              standing,
+              paidLapsed,
+            });
+            const worker = await readEvidenceExchangeEntitlement(fakePrisma(grant, source), {
+              teamId: TEAM,
+              standing,
+              paidLapsed,
+            });
+            expect(worker).toBe(engine.value === true);
+          });
+        }
+      }
     }
   }
+
+  it("NEW-RG-13-2: a PLAN grant admits no build after a terminal paid lapse (and does again once paid)", async () => {
+    const granted: Grant = { kind: "FEATURE", valueBool: true, valueNumber: null, expiresAtUtc: null };
+    expect(
+      await readEvidenceExchangeEntitlement(fakePrisma(granted, "PLAN"), { teamId: TEAM, standing: "NOT_ENTERPRISE", paidLapsed: true }),
+    ).toBe(false);
+    expect(
+      await readEvidenceExchangeEntitlement(fakePrisma(granted, "PLAN"), { teamId: TEAM, standing: "NOT_ENTERPRISE", paidLapsed: false }),
+    ).toBe(true);
+    // An operator (CUSTOM) grant is not a product line of the lapsed subscription.
+    expect(
+      await readEvidenceExchangeEntitlement(fakePrisma(granted, "CUSTOM"), { teamId: TEAM, standing: "NOT_ENTERPRISE", paidLapsed: true }),
+    ).toBe(true);
+  });
 
   it("the matrix covers both answers (the pin is not vacuous)", async () => {
     const answers = new Set<boolean>();

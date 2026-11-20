@@ -27,9 +27,16 @@ const teamFindUnique = vi.fn();
 const organizationFindUnique = vi.fn();
 const contractFindUnique = vi.fn();
 const grantFindUnique = vi.fn();
+const subscriptionFindMany = vi.fn();
+const subscriptionFindFirst = vi.fn();
 
 vi.mock("../src/db.js", () => {
   const client = {
+    // NEW-RG-13-2 — the paid lifecycle the exchange admission now reads.
+    subscription: {
+      findMany: (...a: unknown[]) => subscriptionFindMany(...a),
+      findFirst: (...a: unknown[]) => subscriptionFindFirst(...a),
+    },
     entitlement: { findFirst: vi.fn(async () => ({ plan: "FREE", credits: 0, teamSeats: 0 })) },
     planGrant: { findFirst: vi.fn(async () => null) },
     workspaceStorageAddon: { aggregate: vi.fn(async () => ({ _sum: { extraStorageBytes: null } })) },
@@ -107,6 +114,8 @@ beforeEach(() => {
   organizationFindUnique.mockReset().mockResolvedValue({ status: "ACTIVE" });
   contractFindUnique.mockReset().mockResolvedValue(null);
   grantFindUnique.mockReset().mockResolvedValue(null);
+  subscriptionFindMany.mockReset().mockResolvedValue([]);
+  subscriptionFindFirst.mockReset().mockResolvedValue(null);
 });
 
 const lockKeys = () =>
@@ -307,7 +316,8 @@ describe("PRO-W1-07 — the exchange builder asks the workspace again at claim",
     expect(await resolveExchangeBuildAdmission(TEAM)).toEqual({ admitted: true });
     expect(grantFindUnique).toHaveBeenCalledWith({
       where: { teamId_key: { teamId: TEAM, key: "FEATURE_EVIDENCE_EXCHANGE" } },
-      select: { kind: true, valueBool: true, expiresAtUtc: true },
+      // `source` — a PLAN grant is suspended by a terminal paid lapse (NEW-RG-13-2).
+      select: { kind: true, valueBool: true, expiresAtUtc: true, source: true },
     });
     grantFindUnique.mockResolvedValue({ kind: "FEATURE", valueBool: true, expiresAtUtc: new Date(Date.now() - 1000) });
     expect(await resolveExchangeBuildAdmission(TEAM)).toEqual({ admitted: false, reason: "exchange_not_entitled" });
@@ -333,5 +343,50 @@ describe("PRO-W1-07 — the exchange builder asks the workspace again at claim",
     contractFindUnique.mockResolvedValue({ status: "SUSPENDED", storageGb: 100 });
     grantFindUnique.mockResolvedValue({ kind: "FEATURE", valueBool: true, expiresAtUtc: null });
     expect(await resolveExchangeBuildAdmission(TEAM)).toEqual({ admitted: false, reason: "exchange_not_entitled" });
+  });
+
+  it("NEW-RG-13-2: a product-line (PLAN) grant admits no build after the paid subscription terminally lapsed; an operator grant still does", async () => {
+    liveTeam();
+    grantFindUnique.mockResolvedValue({ kind: "FEATURE", valueBool: true, expiresAtUtc: null, source: "PLAN" });
+    // Paid: one live subscription.
+    subscriptionFindMany.mockResolvedValue([{ status: "ACTIVE" }]);
+    expect(await resolveExchangeBuildAdmission(TEAM)).toEqual({ admitted: true });
+    // Terminal lapse: no live row, no PAST_DUE row, the last row cancelled and its period over.
+    subscriptionFindMany.mockResolvedValue([]);
+    subscriptionFindFirst.mockImplementation(async (args: { where?: { status?: unknown } }) =>
+      args?.where?.status === "PAST_DUE"
+        ? null
+        : { status: "CANCELED", currentPeriodEnd: new Date(Date.now() - 86_400_000) },
+    );
+    expect(await resolveExchangeBuildAdmission(TEAM)).toEqual({ admitted: false, reason: "exchange_not_entitled" });
+    grantFindUnique.mockResolvedValue({ kind: "FEATURE", valueBool: true, expiresAtUtc: null, source: "CUSTOM" });
+    expect(await resolveExchangeBuildAdmission(TEAM)).toEqual({ admitted: true });
+  });
+
+  it("NEW-RG-13-2: an Enterprise contract whose term ended grants nothing once term ends take effect (the API's switch)", async () => {
+    liveTeam();
+    teamFindUnique.mockResolvedValue({
+      id: TEAM,
+      ownerUserId: OWNER,
+      organizationId: ORG,
+      billingPlan: "ENTERPRISE",
+      billingStatus: "ACTIVE",
+      includedSeats: 50,
+      storageBytesOverride: null,
+      workspaceKind: "ORGANIZATION",
+      isPersonal: false,
+    });
+    contractFindUnique.mockResolvedValue({ status: "ACTIVE", storageGb: 100, endsAtUtc: new Date(Date.now() - 1000) });
+    const prior = process.env.BILLING_AUTO_PLAN_LOWERING;
+    try {
+      process.env.BILLING_AUTO_PLAN_LOWERING = "on";
+      expect(await resolveExchangeBuildAdmission(TEAM)).toEqual({ admitted: false, reason: "exchange_not_entitled" });
+      // Held (the default): the end date does not take effect, on either host.
+      delete process.env.BILLING_AUTO_PLAN_LOWERING;
+      expect(await resolveExchangeBuildAdmission(TEAM)).toEqual({ admitted: true });
+    } finally {
+      if (prior === undefined) delete process.env.BILLING_AUTO_PLAN_LOWERING;
+      else process.env.BILLING_AUTO_PLAN_LOWERING = prior;
+    }
   });
 });

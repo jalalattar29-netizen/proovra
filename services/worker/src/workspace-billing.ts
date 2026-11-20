@@ -1,6 +1,8 @@
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "./db.js";
 import { resolveEvidenceOutputIssuance } from "./output-issuance.js";
+// NEW-RG-13-2 — the one Worker reader of the entitlement facts (standing + lapse).
+import { workerEntitlementFacts } from "./governance/workspace-entitlement.js";
 import {
   getPlanCapabilities,
   resolveWorkspaceEffectivePlan,
@@ -1007,16 +1009,18 @@ export async function resolveExchangeBuildAdmission(
   if (!organization || organization.status !== "ACTIVE") {
     return { admitted: false, reason: "organization_not_active" };
   }
-  const scope = await getTeamWorkspaceScope(teamId, client);
-  let standing: "NOT_ENTERPRISE" | "CONTRACT_ACTIVE" | "CONTRACT_LAPSED" = "NOT_ENTERPRISE";
-  if (scope.plan === "ENTERPRISE") {
-    const contract = await client.enterpriseContract.findUnique({
-      where: { organizationId: team.organizationId },
-      select: { status: true },
-    });
-    standing = contract?.status === "ACTIVE" ? "CONTRACT_ACTIVE" : "CONTRACT_LAPSED";
+  // Matrix review NEW-RG-13-2 — the standing and the paid lapse come from the
+  // ONE Worker reader every entitlement question uses (contract term end and
+  // PRO-R3-07 lapse included); this admission used to read the contract status
+  // alone and no lapse, so a PLAN grant still admitted a build after a terminal
+  // lapse. A fact that cannot be read admits nothing (fail closed).
+  let facts: Awaited<ReturnType<typeof workerEntitlementFacts>>;
+  try {
+    facts = await workerEntitlementFacts(teamId, client);
+  } catch {
+    return { admitted: false, reason: "exchange_not_entitled" };
   }
-  const entitled = await readEvidenceExchangeEntitlement(client, { teamId, standing });
+  const entitled = await readEvidenceExchangeEntitlement(client, { teamId, ...facts });
   return entitled ? { admitted: true } : { admitted: false, reason: "exchange_not_entitled" };
 }
 
