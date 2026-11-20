@@ -32,7 +32,7 @@ import {
   portalDenialMessage,
   type PortalDenial,
 } from "../../../../src/product/portal";
-import { setPortalToken } from "../../../../src/portal/portal-session";
+import { holdPortalTokenForRoute, setPortalToken } from "../../../../src/portal/portal-session";
 
 type Phase =
   | { kind: "accepting" }
@@ -46,6 +46,19 @@ export default function PortalAcceptScreen() {
     token?: string | string[];
   }>();
   const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+  // NEW-RG-25-5 (M350 pattern) — the link's halves are captured ONCE, then the
+  // bearer is removed from navigation state (which reaches logs and crash
+  // breadcrumbs). Removing it re-renders with no token; the capture keeps it.
+  const [captured] = useState(() => ({ grantId: one(params.grantId), token: one(params.token) }));
+  const routeToken = one(params.token);
+  useEffect(() => {
+    if (!routeToken) return;
+    try {
+      router.setParams({ token: undefined });
+    } catch {
+      /* the screen keeps working with the captured token */
+    }
+  }, [routeToken, router]);
 
   const [phase, setPhase] = useState<Phase>({ kind: "accepting" });
   const started = useRef(false);
@@ -56,10 +69,7 @@ export default function PortalAcceptScreen() {
     if (started.current) return;
     started.current = true;
 
-    const link = parseGrantAcceptLink({
-      grantId: one(params.grantId),
-      token: one(params.token),
-    });
+    const link = parseGrantAcceptLink(captured);
     if (!link) {
       setPhase({ kind: "denied", denial: "NOT_FOUND" });
       return;
@@ -79,12 +89,12 @@ export default function PortalAcceptScreen() {
       // has no emailed-code step. The portal exchange does, and accepts the
       // invitation once the code is verified.
       if (denial === "MFA") {
-        router.replace(`/portal/${encodeURIComponent(link.token)}`);
+        router.replace(holdPortalTokenForRoute(link.token) as never);
         return;
       }
       setPhase({ kind: "denied", denial });
     }
-  }, [params.grantId, params.token, router]);
+  }, [captured, router]);
 
   useEffect(() => {
     void accept();
@@ -115,7 +125,7 @@ export default function PortalAcceptScreen() {
             label="Open my reviews"
             // Straight through with the same token, so the reviewer does not
             // have to go back and find a second email.
-            onPress={() => router.replace(`/portal/${encodeURIComponent(phase.token)}`)}
+            onPress={() => router.replace(holdPortalTokenForRoute(phase.token) as never)}
           />
         </ProovraCard>
       ) : null}
