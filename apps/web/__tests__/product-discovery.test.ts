@@ -175,15 +175,17 @@ test("different surfaces with similar titles both survive", () => {
 // ===========================================================================
 test("Reviewer Criteria requires the reviewer capability it actually needs", () => {
   /*
-   * Every reviewer-criteria API endpoint gates on `review.queue.read`, held by
-   * OWNER / ADMIN / REVIEWER and not by CONTRIBUTOR, VIEWER, or a personal
-   * workspace. The registry declared no capability at all, so the surface was
-   * offered to a brand-new personal FREE account whose first request to it
-   * would 403 — and at `advancedByDefault: false`, it ranked ahead of pages
-   * that account could actually open.
+   * Every reviewer-criteria API endpoint gates on `review.queue.read`, a ROLE
+   * permission held by OWNER / ADMIN / MEMBER (→REVIEWER) and never by VIEWER,
+   * in any workspace kind; the writes add the record-level review plan
+   * capability (PRO and above). PRO-R2-06: REVIEWER_OPS_VIEW (TEAM reviewer
+   * operations) shut out the Pro owner the API serves. The envelope projects
+   * the review.queue.read role ladder as EVIDENCE_MANAGE; navigation follows
+   * the plan (basicRecordReviewIncluded).
    */
   const r = byId("workspace.reviewer_criteria");
-  assert.deepEqual(r.requiredCapabilities, ["REVIEWER_OPS_VIEW"]);
+  assert.deepEqual(r.requiredCapabilities, ["EVIDENCE_MANAGE"]);
+  assert.equal(r.navPlanFeature, "basicRecordReviewIncluded");
 });
 
 test("Organizations stays discoverable — it is the path, not a locked tool", () => {
@@ -290,7 +292,7 @@ test("a platform admin still gets it", () => {
 
 test("Reviewer Criteria stays gated — the tools change did not widen it", () => {
   assert.deepEqual(byId("workspace.reviewer_criteria").requiredCapabilities, [
-    "REVIEWER_OPS_VIEW",
+    "EVIDENCE_MANAGE",
   ]);
 });
 
@@ -315,6 +317,54 @@ test("Reviewer Criteria is HIDDEN without the capability, not merely denied", ()
     planFeatures: null,
   } as never);
   assert.equal(access.canSeeNav, false, "must not appear in the palette corpus");
+  // PRO-R2-06 — with the plan unknown or not including record review the
+  // route is a nav-only gate (navPlanFeature, as for Cases and Intake): a
+  // direct visit loads and the API answers it (a VIEWER's read is refused,
+  // and the page says so). Where the plan includes review, the capability
+  // refuses the load (next tests).
+  assert.equal(access.canLoad, true);
+});
+
+test("PRO-R2-06: a brand-new FREE personal owner still does not see it in navigation (the plan excludes record review)", () => {
+  const access = resolveRouteAccess({
+    route: byId("workspace.reviewer_criteria"),
+    activeSpaceType: "PERSONAL",
+    isPlatformAdmin: false,
+    capabilities: { ACCOUNT_SETTINGS_VIEW: true, EVIDENCE_MANAGE: true },
+    accountPlan: "FREE",
+    isEnterpriseWorkspace: false,
+    planFeatures: { basicRecordReviewIncluded: false },
+  } as never);
+  assert.equal(access.canSeeNav, false, "must not appear in the palette corpus");
+  // A direct visit loads: published criteria stay readable after a downgrade.
+  assert.equal(access.canLoad, true);
+});
+
+test("PRO-R2-06: a Pro personal owner (no reviewer operations) sees and opens it, as the API serves them", () => {
+  const access = resolveRouteAccess({
+    route: byId("workspace.reviewer_criteria"),
+    activeSpaceType: "PERSONAL",
+    isPlatformAdmin: false,
+    capabilities: { ACCOUNT_SETTINGS_VIEW: true, EVIDENCE_MANAGE: true },
+    accountPlan: "PRO",
+    isEnterpriseWorkspace: false,
+    planFeatures: { basicRecordReviewIncluded: true, reviewerOperationsIncluded: false },
+  } as never);
+  assert.equal(access.canSeeNav, true);
+  assert.equal(access.canLoad, true);
+});
+
+test("PRO-R2-06: a VIEWER on a Pro workspace is refused the page (the read is refused)", () => {
+  const access = resolveRouteAccess({
+    route: byId("workspace.reviewer_criteria"),
+    activeSpaceType: "ORGANIZATION",
+    isPlatformAdmin: false,
+    capabilities: { ACCOUNT_SETTINGS_VIEW: true },
+    accountPlan: "PRO",
+    isEnterpriseWorkspace: false,
+    planFeatures: { basicRecordReviewIncluded: true },
+  } as never);
+  assert.equal(access.canSeeNav, false);
   assert.equal(access.canLoad, false);
 });
 
@@ -323,10 +373,10 @@ test("a reviewer-capable workspace still gets it", () => {
     route: byId("workspace.reviewer_criteria"),
     activeSpaceType: "ORGANIZATION",
     isPlatformAdmin: false,
-    capabilities: { REVIEWER_OPS_VIEW: true },
+    capabilities: { EVIDENCE_MANAGE: true },
     accountPlan: null,
     isEnterpriseWorkspace: false,
-    planFeatures: null,
+    planFeatures: { basicRecordReviewIncluded: true },
   } as never);
   assert.equal(access.canSeeNav, true);
   assert.equal(access.canLoad, true);

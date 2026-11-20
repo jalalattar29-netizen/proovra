@@ -2673,34 +2673,31 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
       "Human-authored, versioned reviewer criteria sets — draft, publish (immutable), duplicate, retire.",
     domain: "ACCOUNT",
     /*
-     * REVIEWER_OPS_VIEW, not the empty list this carried.
+     * PRO-R2-06 (DEC-11) — THE API'S AUTHORITY, NOT REVIEWER OPERATIONS.
      *
-     * The API gates every reviewer-criteria endpoint on `review.queue.read`,
-     * held by OWNER, ADMIN and REVIEWER — not CONTRIBUTOR, not VIEWER, and not
-     * a personal workspace, where REVIEWER_OPS_VIEW is not granted at all.
-     * With no capability declared here the surface was offered to everyone,
-     * including a brand-new personal FREE account whose very first request to
-     * it would 403. It also sat at `advancedByDefault: false`, which put it in
-     * the command palette ahead of surfaces the user can actually open.
+     * Every reviewer-criteria read gates on `review.queue.read` (a ROLE
+     * permission: OWNER, ADMIN and MEMBER→REVIEWER, never VIEWER) in ANY
+     * workspace kind, and the writes add OWNER/ADMIN and the record-level
+     * review plan capability (BASIC_RECORD_REVIEW, PRO and above). This route
+     * required REVIEWER_OPS_VIEW (TEAM reviewer operations, never granted on a
+     * Pro personal workspace), so a Pro owner could author criteria through
+     * the API and had no page for them.
      *
-     * Criteria govern reviewer workflows. A workspace with no reviewer
-     * workflow has no consumer for them. This is UX alignment only — the
-     * server gate is unchanged and remains the authority.
+     * The envelope projects exactly the review.queue.read role ladder as
+     * EVIDENCE_MANAGE (every non-VIEWER member), so that is the capability.
+     * The plan half is `navPlanFeature`: offered in navigation where the plan
+     * includes record-level review; a direct visit still loads, because the
+     * API keeps published criteria readable after a downgrade and the page
+     * offers authoring only on the server's own `canManage` answer.
+     * A brand-new FREE personal account therefore still never sees it in the
+     * palette, and a VIEWER never can open it.
      */
-    requiredCapabilities: ["REVIEWER_OPS_VIEW"],
+    requiredCapabilities: ["EVIDENCE_MANAGE"],
+    navPlanFeature: "basicRecordReviewIncluded",
     requiredActiveSpace: "PERSONAL_OR_ORG",
     /*
-     * HIDDEN, not merely denied.
-     *
-     * Adding `REVIEWER_OPS_VIEW` stopped a personal account from OPENING this,
-     * but not from SEEING it: with `fallbackBehavior: "LOAD"` the resolver
-     * answers a missing capability with `canSeeNav: true` and a "request
-     * access" state, so the entry stayed in the command palette for exactly
-     * the brand-new FREE account that reported it. Half the fix.
-     *
-     * Reviewer criteria govern reviewer workflows. A workspace with no
-     * reviewer workflow has nothing to request access TO, so offering the row
-     * teaches nothing and asking an admin for it leads nowhere.
+     * HIDDEN, not merely denied: a VIEWER has no reviewer criteria to request
+     * access to (the read itself is refused), so the row is not offered.
      */
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
 
