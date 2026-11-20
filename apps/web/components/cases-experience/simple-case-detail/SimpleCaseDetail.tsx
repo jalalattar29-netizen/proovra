@@ -82,6 +82,7 @@ import { TeamResponsibilityPanel } from "../../collaboration/TeamResponsibilityP
 // Phase CASES-STATUS-LISTBOX (§22) — accessible custom status listbox
 // replaces the native status dropdown in the Settings tab.
 import { CaseStatusSelect } from "./CaseStatusSelect";
+import { caseNotesPage, caseNotesTruncationMessage, type CaseNotesPage } from "../case-notes-page";
 // D37 — the repo's disabled-reason pattern: the reason is visible text beside
 // the control, its accessible description and its hover title.
 import { ReasonedActionButton } from "../../../app/(app)/evidence/[id]/components/ReasonedActionButton";
@@ -347,6 +348,8 @@ export function SimpleCaseDetail({
   const evidenceTotal =
     typeof evidenceSection.totalCount === "number" ? evidenceSection.totalCount : evidenceItems.length;
   const caseComments = workspace.sections.notes?.caseComments ?? [];
+  // PRO-K1-07 — the notes list is the newest 25; the server sends the true count.
+  const caseNotes = caseNotesPage(workspace.sections.notes ?? null);
   const deliverables = summariseDeliverables(workspace);
   const needsAttention = deriveNeedsAttention(workspace);
   const viewer = workspace.viewer;
@@ -500,6 +503,7 @@ export function SimpleCaseDetail({
         <NotesTab
           caseId={caseId}
           comments={caseComments}
+          notesPage={caseNotes}
           canComment={viewer.canComment}
           canResolveComment={viewer.canResolveComment}
           viewerUserId={viewer.userId}
@@ -2021,6 +2025,7 @@ function ReportsPackagesTab({
 function NotesTab({
   caseId,
   comments,
+  notesPage,
   canComment,
   canResolveComment,
   viewerUserId,
@@ -2030,6 +2035,8 @@ function NotesTab({
 }: {
   caseId: string;
   comments: NonNullable<MatterWorkspaceEnvelope["sections"]["notes"]>["caseComments"];
+  /** PRO-K1-07 — how many notes the case has, and whether the list is cut. */
+  notesPage: CaseNotesPage;
   canComment: boolean;
   canResolveComment: boolean;
   /**
@@ -2206,6 +2213,16 @@ function NotesTab({
       </div>
 
       <div className="cases-panel" style={{ padding: comments.length === 0 ? 24 : 8 }}>
+        {caseNotesTruncationMessage(notesPage) ? (
+          <p
+            className="cc-muted"
+            role="note"
+            data-simple-case-notes-truncated
+            style={{ margin: "4px 8px 8px", color: "#475569", fontSize: 13 }}
+          >
+            {caseNotesTruncationMessage(notesPage)}
+          </p>
+        ) : null}
         {comments.length === 0 ? (
           <div
             data-simple-case-notes-empty

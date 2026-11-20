@@ -84,6 +84,11 @@ import { SiuPanel } from "../../app/(app)/cases/components/SiuPanel";
 import { SiuWorklistPanel } from "../../app/(app)/cases/components/SiuWorklistPanel";
 // O1 — who can open the case, and the grant / revoke controls.
 import { MatterAccessTab } from "./MatterAccessTab";
+import {
+  CASE_NOTES_FILTER_SCOPE_MESSAGE,
+  caseNotesPage,
+  caseNotesTruncationMessage,
+} from "./case-notes-page";
 import type { CaseScope } from "./types";
 import { usePlatformContext } from "../../lib/platform-context";
 import { ReasonedActionButton } from "../../app/(app)/evidence/[id]/components/ReasonedActionButton";
@@ -283,6 +288,9 @@ type MatterEnvelope = {
     };
     notes: {
       status: SectionStatus;
+      /** PRO-K1-07 — the case's comment count; caseComments is the newest 25. Absent on an older API. */
+      caseCommentsTotal?: number;
+      caseCommentsTruncated?: boolean;
       caseComments: ReadonlyArray<{
         id: string;
         authorUserId: string;
@@ -1823,6 +1831,9 @@ function CommunicationsTab({
     filterText,
     (c) => `${c.body ?? ""} ${c.visibility ?? ""}`,
   );
+  // PRO-K1-07 — the list is the newest 25; the count is the case's own.
+  const notesPage = caseNotesPage(n);
+  const notesTruncation = caseNotesTruncationMessage(notesPage);
   const filteredReviewerComments = matchesFilter(
     n.unresolvedReviewerComments,
     filterText,
@@ -1893,7 +1904,16 @@ function CommunicationsTab({
         </ul>
       )}
 
-      <h3>Case-level comments ({filteredCaseComments.length})</h3>
+      <h3>
+        Case-level comments (
+        {filterText.trim() ? filteredCaseComments.length : notesPage.total})
+      </h3>
+      {notesTruncation ? (
+        <p className="app-hint" data-matter-case-comments-truncated role="note">
+          {notesTruncation}
+          {filterText.trim() ? ` ${CASE_NOTES_FILTER_SCOPE_MESSAGE}` : ""}
+        </p>
+      ) : null}
       {filteredCaseComments.length === 0 ? (
         <p className="app-hint">No case-level comments.</p>
       ) : (
