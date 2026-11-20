@@ -33,6 +33,7 @@ describe("GOV-014 access reviews (live PostgreSQL 16)", () => {
   let h: IntegrationHarness;
   let prisma: (typeof import("../src/db.js"))["prisma"];
   let service: typeof import("../src/services/governance/access-review.service.js");
+  let ceremony: ReturnType<(typeof import("./support/step-up-ceremony.js"))["createStepUpCeremony"]>;
 
   const A = () => h.fixtures.teamA;
 
@@ -87,6 +88,11 @@ describe("GOV-014 access reviews (live PostgreSQL 16)", () => {
     h = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
     service = await import("../src/services/governance/access-review.service.js");
+    const { createStepUpCeremony } = await import("./support/step-up-ceremony.js");
+    ceremony = createStepUpCeremony({
+      prisma: prisma as never,
+      inject: (o) => h.app.inject(o as never) as never,
+    });
   }, 900_000);
 
   afterAll(async () => {
@@ -195,5 +201,73 @@ describe("GOV-014 access reviews (live PostgreSQL 16)", () => {
     });
     expect(res.statusCode, res.body).toBe(402);
     expect(await decisionOf(it_.id)).toBe("PENDING");
+  });
+
+  it("PRO-G2-17 (matrix review 6.1): a REVOKED decision through the route needs a target-bound MEMBER_REVOKE step-up; without it 401 STEP_UP_REQUIRED and the grant survives; with it the grant is revoked", async () => {
+    await prisma.user.update({ where: { id: A().ownerUserId }, data: { currentWorkspaceId: A().teamId } });
+    const c = await campaign();
+    const scope = await delegatedScope(A().memberUserId, "REVIEW_ADMIN");
+    const it_ = await item(c.id, A().memberUserId, `delegated_scope:${scope.id}`);
+    const url = `/v1/governance/access-reviews/items/${it_.id}/decision`;
+    const post = (extra: Record<string, string> = {}) =>
+      h.app.inject({
+        method: "POST",
+        url,
+        headers: { authorization: `Bearer ${A().ownerToken}`, "content-type": "application/json", ...extra },
+        payload: { decision: "REVOKED" },
+      });
+    const scopeRevokedAt = async () =>
+      (await prisma.memberDelegatedAdminScope.findUniqueOrThrow({ where: { id: scope.id }, select: { revokedAtUtc: true } }))
+        .revokedAtUtc;
+
+    const bare = await post();
+    expect(bare.statusCode, bare.body).toBe(401);
+    expect((bare.json() as { error: { code: string } }).error.code).toBe("STEP_UP_REQUIRED");
+    await h.handlersSettled();
+    expect(await decisionOf(it_.id)).toBe("PENDING");
+    expect(await scopeRevokedAt()).toBeNull();
+
+    // A step-up approved for a DIFFERENT item does not carry over.
+    const other = await item(c.id, A().memberUserId, "shared-drive-access");
+    const wrongTarget = await ceremony.approvedHeader({
+      token: A().ownerToken,
+      userId: A().ownerUserId,
+      teamId: A().teamId,
+      purpose: "MEMBER_REVOKE",
+      resourceKind: "ACCESS_REVIEW_ITEM",
+      resourceId: other.id,
+    });
+    const misbound = await post(wrongTarget);
+    expect(misbound.statusCode, misbound.body).toBe(401);
+    await h.handlersSettled();
+    expect(await decisionOf(it_.id)).toBe("PENDING");
+    expect(await scopeRevokedAt()).toBeNull();
+
+    const proof = await ceremony.approvedHeader({
+      token: A().ownerToken,
+      userId: A().ownerUserId,
+      teamId: A().teamId,
+      purpose: "MEMBER_REVOKE",
+      resourceKind: "ACCESS_REVIEW_ITEM",
+      resourceId: it_.id,
+    });
+    const ok = await post(proof);
+    expect(ok.statusCode, ok.body).toBe(200);
+    expect(await decisionOf(it_.id)).toBe("REVOKED");
+    expect(await scopeRevokedAt()).not.toBeNull();
+  });
+
+  it("PRO-G2-17 control: a keep (APPROVED) decision through the route asks no step-up", async () => {
+    await prisma.user.update({ where: { id: A().ownerUserId }, data: { currentWorkspaceId: A().teamId } });
+    const c = await campaign();
+    const it_ = await item(c.id, A().memberUserId, "shared-drive-access");
+    const res = await h.app.inject({
+      method: "POST",
+      url: `/v1/governance/access-reviews/items/${it_.id}/decision`,
+      headers: { authorization: `Bearer ${A().ownerToken}`, "content-type": "application/json" },
+      payload: { decision: "APPROVED" },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(await decisionOf(it_.id)).toBe("APPROVED");
   });
 });
