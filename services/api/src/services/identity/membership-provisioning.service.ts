@@ -27,7 +27,10 @@ import {
 import { organizationIdForPolicy } from "./org-security-policy.service.js";
 // ARCH-004 — the ONE lifecycle authority for governance membership. This
 // module composes it; it does not reimplement any transition.
+import { ORG_ROLE_PRECEDENCE } from "../organization/org-access.js";
+import type { OrgRole } from "../organization/organization-resolver.service.js";
 import {
+  organizationMembershipGrantsAccess,
   reviveRevokedOrganizationMembershipByInvitation,
   revokeOrganizationMembership,
   type LifecycleOutcome,
@@ -106,6 +109,8 @@ export { suspendOrganizationWorkspaceAccessTx, restoreOrganizationWorkspaceAcces
 // PRO-T1-03 / NEW-RG-26-1 — the one "records the member still owns" count,
 // for the teams removal preview, removal and leave routes.
 export { countRecordsMemberStillOwns } from "./rbac.service.js";
+// NEW-RG-07-4 / NEW-RG-26-3 (DEC-28) — the invitation acceptance re-check.
+export { workspaceInviterStillAuthorizes } from "./rbac.service.js";
 // PRO-T1-15 / NEW-RG-26-3 — the directory transitions below end the
 // invitations an inviter can no longer issue, as the rbac transitions do.
 import { revokeInvitesBeyondInviterAuthority } from "./rbac.service.js";
@@ -399,6 +404,60 @@ export async function storedInvitationCeilingRefusal(
     inviterOrgRole: input.resenderOrgRole,
     assignments: parsed.assignments,
   });
+}
+
+/**
+ * Matrix review NEW-RG-07-4 / NEW-RG-26-3, acceptance re-check for
+ * ORGANIZATION invitations (DEC-28 — a pending invitation cannot exercise
+ * authority its inviter no longer possesses; DEC-18 — one role ceiling).
+ *
+ * Asked by `acceptOrganizationInvite` inside its transaction, before the
+ * claim. The inviter must, NOW:
+ *   - hold an ACTIVE organization membership (the access predicate every org
+ *     surface uses: status and contract validity) of at least ORG_ADMIN — the
+ *     role the invite routes require — and at least the invited org role;
+ *   - stay within the workspace-assignment ceiling for every assignment the
+ *     invitation carries, read as acceptance grants it (a legacy OWNER
+ *     assignment lands as MEMBER, so it is judged as MEMBER).
+ *
+ * An ORG_OWNER invitation whose inviter never held a membership in this
+ * organization was issued by platform Enterprise provisioning (the operator
+ * route, platform-admin + step-up); that authority is not an organization
+ * role and is not re-judged here. Any other invitation from a non-member is
+ * refused. A malformed stored payload is left to the caller's own refusal.
+ */
+export async function organizationInviterAuthorityRefusal(
+  tx: TxClient,
+  input: {
+    organizationId: string;
+    inviterUserId: string;
+    inviteRole: string;
+    storedAssignments: unknown;
+  },
+): Promise<"inviter_authority_lost" | null> {
+  const membership = await tx.organizationMembership.findFirst({
+    where: { organizationId: input.organizationId, userId: input.inviterUserId },
+    select: { role: true, status: true, validUntilUtc: true },
+  });
+  if (!membership) {
+    return input.inviteRole === "ORG_OWNER" ? null : "inviter_authority_lost";
+  }
+  if (!organizationMembershipGrantsAccess({ status: membership.status, validUntilUtc: membership.validUntilUtc })) {
+    return "inviter_authority_lost";
+  }
+  const inviterRank = ORG_ROLE_PRECEDENCE[membership.role as OrgRole] ?? 0;
+  const invitedRank = ORG_ROLE_PRECEDENCE[input.inviteRole as OrgRole] ?? Number.POSITIVE_INFINITY;
+  if (inviterRank < ORG_ROLE_PRECEDENCE.ORG_ADMIN || invitedRank > inviterRank) {
+    return "inviter_authority_lost";
+  }
+  const parsed = parseWorkspaceAssignments(input.storedAssignments);
+  if (!parsed.ok) return null;
+  const ceiling = await workspaceAssignmentCeilingRefusal(tx, {
+    inviterUserId: input.inviterUserId,
+    inviterOrgRole: membership.role,
+    assignments: parsed.assignments.map((a) => ({ teamId: a.teamId, role: a.role === "OWNER" ? "MEMBER" : a.role })),
+  });
+  return ceiling ? "inviter_authority_lost" : null;
 }
 
 /**

@@ -39,6 +39,7 @@ import { prisma } from "../../db.js";
 import {
   grantOrganizationMembership,
   grantWorkspaceMembership,
+  organizationInviterAuthorityRefusal,
   parseWorkspaceAssignments,
 } from "../identity/membership-provisioning.service.js";
 import { setManagedIdentity } from "../identity/identity-mode.service.js";
@@ -78,6 +79,12 @@ export type OrgInviteAcceptOutcome =
   | { kind: "membership_suspended" }
   /** B-03 — the invitation was issued before the person's removal. */
   | { kind: "invite_superseded" }
+  /**
+   * NEW-RG-07-4 / NEW-RG-26-3 (DEC-28) — the person who issued the invitation
+   * can no longer grant what it carries (demoted, suspended, removed, or above
+   * the role ceiling). Nothing is granted; the invitation stays pending.
+   */
+  | { kind: "inviter_authority_lost" }
   | {
       kind: "ok";
       organizationId: string;
@@ -163,6 +170,7 @@ async function runAcceptance(
         revokedAt: true,
         createdAt: true,
         workspaceAssignments: true,
+        invitedByUserId: true,
       },
     });
 
@@ -174,7 +182,8 @@ async function runAcceptance(
         | "expired"
         | "revoked"
         | "already_accepted"
-        | "not_found",
+        | "not_found"
+        | "inviter_authority_lost",
     ) => {
       if (!invite) return; // no org to scope the event to
       await emitOrgAuditEvent(tx, {
@@ -325,6 +334,22 @@ async function runAcceptance(
       tx as never,
       parsedForLock.assignments.map((a) => a.teamId),
     );
+
+    // Matrix review NEW-RG-07-4 / NEW-RG-26-3 (DEC-28) — the person behind the
+    // invitation must still be able to issue it (org role and workspace
+    // assignment ceiling), asked before the claim: a refusal writes only its
+    // audit row and leaves the invitation pending, so an owner may
+    // re-authorize it by resending.
+    const authority = await organizationInviterAuthorityRefusal(tx as never, {
+      organizationId: invite.organizationId,
+      inviterUserId: invite.invitedByUserId,
+      inviteRole: invite.role,
+      storedAssignments: invite.workspaceAssignments,
+    });
+    if (authority) {
+      await recordRejection("inviter_authority_lost");
+      return { kind: "inviter_authority_lost" as const };
+    }
 
     // §8 concurrency — guarded claim BEFORE any grant. The row lock
     // serializes concurrent transactions; exactly one observes count 1.

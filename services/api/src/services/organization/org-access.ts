@@ -33,7 +33,7 @@ import { organizationMembershipGrantsAccess } from "../identity/org-membership-l
 import type { OrgRole } from "./organization-resolver.service.js";
 
 /** Precedence — `ORG_OWNER` is highest, `ORG_MEMBER` is lowest. */
-const ORG_ROLE_PRECEDENCE: Record<OrgRole, number> = {
+export const ORG_ROLE_PRECEDENCE: Record<OrgRole, number> = {
   ORG_OWNER: 5,
   ORG_ADMIN: 4,
   ORG_SECURITY_ADMIN: 3,

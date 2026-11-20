@@ -128,6 +128,8 @@ for (const [status, code, title, words] of [
   [410, "ORGANIZATION_NOT_ACCEPTING_MEMBERS", "This organization isn't accepting members", "It is archived or suspended. Ask an organization administrator if you still need access."],
   [409, "MEMBERSHIP_SUSPENDED", "Your membership in this organization is suspended", "Ask an organization administrator to reinstate it. A new invitation does not lift a suspension."],
   [409, "INVITE_SUPERSEDED", "This invitation is no longer valid", "It was issued before your access to this organization ended. Ask for a new invitation."],
+  // NEW-RG-07-4 / NEW-RG-26-3 (DEC-28) — the inviter can no longer grant it.
+  [409, "INVITE_INVITER_AUTHORITY_LOST", "This invitation needs to be sent again", "The person who sent it can no longer grant this access, so nothing was changed. Ask an organization administrator to send the invitation again."],
 ]) {
   test(`B-16: ${code} says "${title}"`, async () => {
     accept = () => ({ status, body: { error: { code }, message: "server sentence" } });

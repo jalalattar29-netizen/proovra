@@ -49,6 +49,7 @@ import {
   invitationCannotReviveMembership,
   mayGrantWorkspaceRole,
   provisionMembership,
+  workspaceInviterStillAuthorizes,
 } from "./membership-provisioning.service.js";
 import {
   claimWorkspaceSeatTx,
@@ -444,6 +445,10 @@ export async function resendWorkspaceInvitation(
         ),
         lastResentAt: new Date(),
         resendCount: { increment: 1 },
+        // NEW-RG-07-4 / NEW-RG-26-3 (DEC-28) — the resender passed the role
+        // ceiling above, so the resend re-authorizes the invitation in their
+        // name: acceptance re-checks the authority of the person behind it.
+        ...(input.actorUserId ? { invitedByUserId: input.actorUserId } : {}),
       },
     });
     await tx.teamActivity.create({
@@ -896,6 +901,27 @@ export async function acceptWorkspaceInvitation(
       }),
       invite.createdAt,
     );
+
+    // Matrix review NEW-RG-07-4 / NEW-RG-26-3 (DEC-28) — the invitation is
+    // standing authority of the person behind it. Demotion and suspension
+    // revoke it going forward, but one issued before that (or an ADMIN
+    // invitation from an ADMIN, issued before the PRO-T1-04 ceiling) was still
+    // accepted at its stored role. Asked here, under the seat lock and before
+    // the claim, so a refusal writes nothing and the invitation stays pending:
+    // an owner may re-authorize it by resending within the ceiling.
+    if (
+      !(await workspaceInviterStillAuthorizes(tx, {
+        teamId: invite.teamId,
+        inviterUserId: invite.invitedByUserId,
+        role: invite.role,
+      }))
+    ) {
+      throw new WorkspaceInvitationError(
+        "INVITE_INVITER_AUTHORITY_LOST",
+        "The person who sent this invitation can no longer grant this role. Ask a workspace owner or administrator to send it again.",
+        409,
+      );
+    }
 
     // The claim re-checks the token and the expiry it was accepted under
     // (members audit INV-08): a resend that rotated the token, or an expiry

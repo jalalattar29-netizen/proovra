@@ -135,6 +135,10 @@ describe("organization invite — concurrent acceptance cannot exceed the seat l
       },
     });
 
+    // The inviter holds the organization role the invite routes require (NEW-RG-07-4 /
+    // NEW-RG-26-3: acceptance re-checks the authority behind the invitation).
+    await prisma.organizationMembership.create({ data: { organizationId: orgId, userId: ownerId, role: "ORG_OWNER" } });
+
     // The contract that states the seats.
     await prisma.enterpriseContract.create({
       data: { organizationId: orgId, status: "ACTIVE", seatCount: SEAT_LIMIT },
@@ -278,7 +282,8 @@ describe("organization invite — concurrent acceptance cannot exceed the seat l
     // EVERY caller becomes an organization member: a full WORKSPACE must not
     // cost somebody the GOVERNANCE membership they were validly invited to.
     expect(
-      await db.organizationMembership.count({ where: { organizationId: orgId } }),
+      // The contenders only: the inviter holds its own ORG_OWNER membership.
+      await db.organizationMembership.count({ where: { organizationId: orgId, userId: { in: contenderIds } } }),
     ).toBe(CONTENDERS);
 
     // THE INVARIANT. Exactly the free seats were allocated — no more.

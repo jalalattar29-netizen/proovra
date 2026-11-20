@@ -194,6 +194,8 @@ export type InvitationViewKind =
   | "membership-suspended"
   /** F-26e — issued before the reader's access ended; a new invitation is needed. */
   | "superseded"
+  /** NEW-RG-07-4 / NEW-RG-26-3 — the sender can no longer grant this role; it must be sent again. */
+  | "inviter-authority-lost"
   /** F-26e — the workspace's plan or contract admits no new member right now. */
   | "workspace-plan-inactive"
   /** F-26e — the account must accept the current legal terms first (428). */
@@ -467,6 +469,11 @@ function fromRefusal(
       // Issued before the reader's access ended: the access it described is
       // the access that was ended. A new invitation is the way back.
       return view("superseded", null, terminalActions(auth), null, "info");
+    case "INVITE_INVITER_AUTHORITY_LOST":
+      // DEC-28 — the invitation was standing authority of a person who no
+      // longer holds it. Nothing was granted; an owner or administrator can
+      // send it again, which is the way in.
+      return view("inviter-authority-lost", null, terminalActions(auth), null, "warning");
     case "ENTERPRISE_CONTRACT_REQUIRED":
     case "SUBSCRIPTION_INACTIVE":
       // A condition of the INVITING workspace's plan or contract — never the

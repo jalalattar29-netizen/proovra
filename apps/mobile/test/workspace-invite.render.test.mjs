@@ -160,3 +160,17 @@ test("EMAIL_NOT_VERIFIED renders its own state with a verification action", asyn
   assert.ok(!r.hasText("We couldn't check this invitation"));
   assert.equal(r.byLabel("Send verification email").length, 1);
 });
+
+// NEW-RG-07-4 / NEW-RG-26-3 (DEC-28) — the person who sent the invitation can
+// no longer grant its role: the screen says it must be sent again, with no
+// Accept left to press.
+test("INVITE_INVITER_AUTHORITY_LOST renders its own state and offers no second accept", async () => {
+  routes["/v1/teams/invites/accept"] = () => ({ status: 409, body: { error: { code: "INVITE_INVITER_AUTHORITY_LOST" } } });
+  const r = await render();
+  await r.press("Accept invitation");
+  await settle();
+  assert.ok(r.hasText("This invitation needs to be sent again"), r.texts().join(" | "));
+  assert.ok(r.hasText("The person who sent it can no longer grant this role, so nothing was changed. Ask a workspace owner or administrator to send the invitation again."));
+  assert.ok(!r.hasText("We couldn't check this invitation"));
+  assert.equal(r.byLabel("Accept invitation").length, 0);
+});

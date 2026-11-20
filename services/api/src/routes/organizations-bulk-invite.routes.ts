@@ -1100,7 +1100,16 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
           if (claimed.count !== 1) return { kind: "cooldown" as const };
           const updated = await tx.organizationInvite.update({
             where: { id: invite.id },
-            data: { lastResentAt: new Date(), resendCount: { increment: 1 }, expiresAt: inviteExpiresAt() },
+            data: {
+              lastResentAt: new Date(),
+              resendCount: { increment: 1 },
+              expiresAt: inviteExpiresAt(),
+              // NEW-RG-07-4 / NEW-RG-26-3 (DEC-28) — as the single resend: a
+              // resender who may issue this invitation re-authorizes it.
+              ...(ORG_ROLE_PRECEDENCE[invite.role as OrgRoleValue] <= ORG_ROLE_PRECEDENCE[ctx.role as OrgRoleValue]
+                ? { invitedByUserId: ctx.userId }
+                : {}),
+            },
             select: { expiresAt: true, resendCount: true },
           });
           await emitOrgAuditEvent(tx, {

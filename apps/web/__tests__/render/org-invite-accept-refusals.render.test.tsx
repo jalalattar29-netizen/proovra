@@ -131,6 +131,8 @@ describe("B-16 — each refusal says what to do", () => {
     ["ORGANIZATION_NOT_ACCEPTING_MEMBERS", 410, "This organization isn't accepting members", /archived or suspended/],
     ["MEMBERSHIP_SUSPENDED", 409, "Your membership in this organization is suspended", /does not lift a suspension/],
     ["INVITE_SUPERSEDED", 409, "This invitation is no longer valid", /before your access to this organization ended/],
+    // NEW-RG-07-4 / NEW-RG-26-3 (DEC-28).
+    ["INVITE_INVITER_AUTHORITY_LOST", 409, "This invitation needs to be sent again", /can no longer grant this access, so nothing was changed/],
   ];
   for (const [code, status, title, message] of cases) {
     it(`${code} → "${title}"`, async () => {

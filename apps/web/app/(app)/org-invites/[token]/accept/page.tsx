@@ -490,6 +490,15 @@ function orgInviteRefusal(
         title: "This invitation is no longer valid",
         message: "It was issued before your access to this organization ended. Ask for a new invitation.",
       };
+    // NEW-RG-07-4 / NEW-RG-26-3 (DEC-28) — nothing was granted; the invitation
+    // stays pending until an administrator sends it again.
+    case "INVITE_INVITER_AUTHORITY_LOST":
+      return {
+        kind: "invitation-invalid",
+        title: "This invitation needs to be sent again",
+        message:
+          "The person who sent it can no longer grant this access, so nothing was changed. Ask an organization administrator to send the invitation again.",
+      };
     case "WORKSPACE_SEAT_CONTENTION":
       return {
         kind: "invitation-invalid",
