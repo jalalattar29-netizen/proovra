@@ -629,6 +629,163 @@ export async function runMasterReconcile(): Promise<ReconcileSummary> {
   };
 }
 
+// NEW-RG-22-7 (RG-22 / DEC-20 "control probe cost") — `/readyz` is anonymous
+// and exempt from overload shedding, and each evaluation costs several
+// database round trips plus the Redis and storage probes. Concurrent calls
+// now SHARE one in-flight evaluation (single-flight); a call that arrives
+// after it settled runs its own, so readiness is never answered from a
+// stale result and an outage turns readiness red at once.
+type ReadinessAnswer = { code: number; body: unknown };
+type ReadinessLog = { error: (obj: object, msg: string) => void } | undefined;
+
+function answer(code: number, body: unknown): ReadinessAnswer {
+  return { code, body };
+}
+
+let readinessInFlight: Promise<ReadinessAnswer> | null = null;
+
+function sharedReadiness(log: ReadinessLog): Promise<ReadinessAnswer> {
+  readinessInFlight ??= evaluateReadiness(log).finally(() => {
+    readinessInFlight = null;
+  });
+  return readinessInFlight;
+}
+
+async function evaluateReadiness(log: ReadinessLog): Promise<ReadinessAnswer> {
+  const violations = collectStartupViolations();
+  if (violations.length > 0 && process.env.NODE_ENV === "production") {
+    return answer(503, {
+      status: "degraded",
+      reason: "production_config_violations",
+    });
+  }
+  // AUD-023 — bounded: a database that stops answering (paused, partitioned)
+  // must turn readiness red within seconds, not hang the probe until the
+  // orchestrator's own timeout reads it as a crash.
+  try {
+    let timer: NodeJS.Timeout | null = null;
+    await Promise.race([
+      prisma.$queryRaw`SELECT 1`,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("db probe timed out")), 2_000);
+      }),
+    ]).finally(() => {
+      if (timer) clearTimeout(timer);
+    });
+  } catch {
+    return answer(503, { status: "degraded", reason: "db_unreachable" });
+  }
+  // Required-schema gate — migrations must be applied before this
+  // instance reports ready. `notification_schedule_settings`
+  // (migration 20270916000000_operations_center_history_and_schedule)
+  // is the canary: the notification-preferences routes and the digest
+  // scheduler fail without it. The `SELECT 1` above already
+  // succeeded, so a throw here means the table is missing (Prisma
+  // P2021 / Postgres 42P01) — i.e. `pnpm prisma:migrate` has not been
+  // run against this database yet. Fail readiness, NEVER the process:
+  // startup schema validation registers these objects at `important`
+  // severity (see runtime/schema-validation.ts) so the api still
+  // boots and an operator can exec in to apply the migration.
+  try {
+    await prisma.$queryRaw`SELECT 1 FROM "notification_schedule_settings" LIMIT 1`;
+  } catch {
+    return answer(503, {
+      status: "degraded",
+      reason: "required_schema_missing",
+    });
+  }
+  // THE OPERATIONS WRITER CONTRACT.
+  //
+  // The canary above proves one table exists. It cannot prove that the
+  // writer's tables have every COLUMN this image's Prisma model declares,
+  // and that gap is not theoretical: a production workspace reported six
+  // failed Operations sources and zero recorded conditions while `/readyz`
+  // answered ok, `SELECT 1` answered ok and the canary table was present.
+  // An image that cannot record an operational condition is not ready to
+  // receive traffic, and saying so here is what stops it claiming otherwise.
+  //
+  // Bounded reason only. The detail goes to the operator's logs, never to a
+  // load balancer's response body.
+  const writerContract = await checkWriterSchemaContract();
+  if (!writerContract.ok) {
+    log?.error(
+      { writerContract: writerContract.detail },
+      "operations writer schema contract unsatisfied",
+    );
+    return answer(503, {
+      status: "degraded",
+      reason: "operations_writer_schema_mismatch",
+    });
+  }
+  // AUD-023 — THE DEPENDENCIES A REQUEST NEEDS. Redis carries every job this
+  // API enqueues (reports, packages, anchoring, notifications) and evidence
+  // storage serves every upload and download; an instance that cannot reach
+  // either is not ready, however healthy its database is. Bounded probes
+  // (Redis PING within ~1s, HeadBucket within 2s, and in production the
+  // bucket's Object Lock configuration) — the SAME probes admin readiness
+  // reports, not a second readiness system. Each failure is its own bounded
+  // reason. Outside production an UNCONFIGURED dependency (a local run with
+  // no Redis or S3 at all) is not a refusal; a configured-but-unreachable one
+  // is, everywhere.
+  {
+    const { checkRedis, checkEvidenceStorage } = await import("../runtime/runtime-readiness.js");
+    const production = process.env.NODE_ENV === "production";
+    const [redis, storage] = await Promise.all([checkRedis(), checkEvidenceStorage()]);
+    const redisUnconfigured = redis.reasonCode === "redis_not_configured";
+    if (redis.status !== "HEALTHY" && (production || !redisUnconfigured)) {
+      log?.error({ redis: redis.reasonCode, detail: redis.detail }, "readyz.redis_not_ready");
+      return answer(503, { status: "degraded", reason: redis.reasonCode });
+    }
+    const storageUnconfigured =
+      storage.reasonCode === "s3_env_missing" || storage.reasonCode === "bucket_not_configured";
+    if (storage.status === "CRITICAL" && (production || !storageUnconfigured)) {
+      log?.error({ storage: storage.reasonCode, detail: storage.detail }, "readyz.storage_not_ready");
+      return answer(503, { status: "degraded", reason: storage.reasonCode });
+    }
+  }
+  // UC-TRUST-006 — RFC 3161 trust configuration. In production a TSA that is
+  // enabled without a usable trust bundle records every new timestamp FAILED,
+  // so the instance is not ready. Only the MINIMUM secure configuration is
+  // required (a readable official bundle with a root, satisfying the pin when
+  // one is set); the policy allowlist and the pin are optional. The response
+  // names the exact issue — a bounded code, never a path or a value — so an
+  // operator is not left with "incomplete".
+  {
+    const { isTsaProductionEnv, tsaTrustConfigurationIssues, inspectTsaTrustBundle } = await import(
+      "../services/timestamp/validate-tsa-token.js"
+    );
+    if (isTsaProductionEnv(process.env)) {
+      const issues = await tsaTrustConfigurationIssues(process.env);
+      if (issues.length > 0) {
+        const inspection = await inspectTsaTrustBundle(process.env);
+        log?.error(
+          {
+            tsaTrustIssues: issues,
+            // Public certificate fingerprints only — what a pin must name.
+            tsaTrustBundleRootSha256: inspection.ok ? inspection.rootSha256 : (inspection.rootSha256 ?? []),
+          },
+          "tsa trust configuration incomplete",
+        );
+        return answer(503, { status: "degraded", reason: "tsa_trust_configuration_incomplete", issues });
+      }
+    }
+  }
+  // CRYPTO-004 — a KMS signer cannot register itself, so an identity that is
+  // not in signing_keys read ready and then failed every completion. The
+  // instance says so here, before it takes traffic, and also when the key
+  // behind KMS_KEY_ID is not the registered key (GetPublicKey, cached).
+  // Bounded code only.
+  if (process.env.NODE_ENV === "production") {
+    const { signerIdentityIssue } = await import("../services/operations/signer-identity-readiness.js");
+    const issue = await signerIdentityIssue(prisma);
+    if (issue) {
+      log?.error({ issue }, "readyz.signer_identity_not_ready");
+      return answer(503, { status: "degraded", reason: issue });
+    }
+  }
+  return answer(200, { status: "ok" });
+}
+
 // -----------------------------------------------------------------------------
 // Routes
 // -----------------------------------------------------------------------------
@@ -648,140 +805,8 @@ export async function opsRoutes(app: FastifyInstance) {
   // orchestrators should use this for "should new traffic be sent to
   // this instance".
   app.get("/readyz", async (req, reply) => {
-    const violations = collectStartupViolations();
-    if (violations.length > 0 && process.env.NODE_ENV === "production") {
-      return reply.code(503).send({
-        status: "degraded",
-        reason: "production_config_violations",
-      });
-    }
-    // AUD-023 — bounded: a database that stops answering (paused, partitioned)
-    // must turn readiness red within seconds, not hang the probe until the
-    // orchestrator's own timeout reads it as a crash.
-    try {
-      let timer: NodeJS.Timeout | null = null;
-      await Promise.race([
-        prisma.$queryRaw`SELECT 1`,
-        new Promise((_, reject) => {
-          timer = setTimeout(() => reject(new Error("db probe timed out")), 2_000);
-        }),
-      ]).finally(() => {
-        if (timer) clearTimeout(timer);
-      });
-    } catch {
-      return reply.code(503).send({ status: "degraded", reason: "db_unreachable" });
-    }
-    // Required-schema gate — migrations must be applied before this
-    // instance reports ready. `notification_schedule_settings`
-    // (migration 20270916000000_operations_center_history_and_schedule)
-    // is the canary: the notification-preferences routes and the digest
-    // scheduler fail without it. The `SELECT 1` above already
-    // succeeded, so a throw here means the table is missing (Prisma
-    // P2021 / Postgres 42P01) — i.e. `pnpm prisma:migrate` has not been
-    // run against this database yet. Fail readiness, NEVER the process:
-    // startup schema validation registers these objects at `important`
-    // severity (see runtime/schema-validation.ts) so the api still
-    // boots and an operator can exec in to apply the migration.
-    try {
-      await prisma.$queryRaw`SELECT 1 FROM "notification_schedule_settings" LIMIT 1`;
-    } catch {
-      return reply.code(503).send({
-        status: "degraded",
-        reason: "required_schema_missing",
-      });
-    }
-    // THE OPERATIONS WRITER CONTRACT.
-    //
-    // The canary above proves one table exists. It cannot prove that the
-    // writer's tables have every COLUMN this image's Prisma model declares,
-    // and that gap is not theoretical: a production workspace reported six
-    // failed Operations sources and zero recorded conditions while `/readyz`
-    // answered ok, `SELECT 1` answered ok and the canary table was present.
-    // An image that cannot record an operational condition is not ready to
-    // receive traffic, and saying so here is what stops it claiming otherwise.
-    //
-    // Bounded reason only. The detail goes to the operator's logs, never to a
-    // load balancer's response body.
-    const writerContract = await checkWriterSchemaContract();
-    if (!writerContract.ok) {
-      req.log?.error(
-        { writerContract: writerContract.detail },
-        "operations writer schema contract unsatisfied",
-      );
-      return reply.code(503).send({
-        status: "degraded",
-        reason: "operations_writer_schema_mismatch",
-      });
-    }
-    // AUD-023 — THE DEPENDENCIES A REQUEST NEEDS. Redis carries every job this
-    // API enqueues (reports, packages, anchoring, notifications) and evidence
-    // storage serves every upload and download; an instance that cannot reach
-    // either is not ready, however healthy its database is. Bounded probes
-    // (Redis PING within ~1s, HeadBucket within 2s, and in production the
-    // bucket's Object Lock configuration) — the SAME probes admin readiness
-    // reports, not a second readiness system. Each failure is its own bounded
-    // reason. Outside production an UNCONFIGURED dependency (a local run with
-    // no Redis or S3 at all) is not a refusal; a configured-but-unreachable one
-    // is, everywhere.
-    {
-      const { checkRedis, checkEvidenceStorage } = await import("../runtime/runtime-readiness.js");
-      const production = process.env.NODE_ENV === "production";
-      const [redis, storage] = await Promise.all([checkRedis(), checkEvidenceStorage()]);
-      const redisUnconfigured = redis.reasonCode === "redis_not_configured";
-      if (redis.status !== "HEALTHY" && (production || !redisUnconfigured)) {
-        req.log?.error({ redis: redis.reasonCode, detail: redis.detail }, "readyz.redis_not_ready");
-        return reply.code(503).send({ status: "degraded", reason: redis.reasonCode });
-      }
-      const storageUnconfigured =
-        storage.reasonCode === "s3_env_missing" || storage.reasonCode === "bucket_not_configured";
-      if (storage.status === "CRITICAL" && (production || !storageUnconfigured)) {
-        req.log?.error({ storage: storage.reasonCode, detail: storage.detail }, "readyz.storage_not_ready");
-        return reply.code(503).send({ status: "degraded", reason: storage.reasonCode });
-      }
-    }
-    // UC-TRUST-006 — RFC 3161 trust configuration. In production a TSA that is
-    // enabled without a usable trust bundle records every new timestamp FAILED,
-    // so the instance is not ready. Only the MINIMUM secure configuration is
-    // required (a readable official bundle with a root, satisfying the pin when
-    // one is set); the policy allowlist and the pin are optional. The response
-    // names the exact issue — a bounded code, never a path or a value — so an
-    // operator is not left with "incomplete".
-    {
-      const { isTsaProductionEnv, tsaTrustConfigurationIssues, inspectTsaTrustBundle } = await import(
-        "../services/timestamp/validate-tsa-token.js"
-      );
-      if (isTsaProductionEnv(process.env)) {
-        const issues = await tsaTrustConfigurationIssues(process.env);
-        if (issues.length > 0) {
-          const inspection = await inspectTsaTrustBundle(process.env);
-          req.log?.error(
-            {
-              tsaTrustIssues: issues,
-              // Public certificate fingerprints only — what a pin must name.
-              tsaTrustBundleRootSha256: inspection.ok ? inspection.rootSha256 : (inspection.rootSha256 ?? []),
-            },
-            "tsa trust configuration incomplete",
-          );
-          return reply
-            .code(503)
-            .send({ status: "degraded", reason: "tsa_trust_configuration_incomplete", issues });
-        }
-      }
-    }
-    // CRYPTO-004 — a KMS signer cannot register itself, so an identity that is
-    // not in signing_keys read ready and then failed every completion. The
-    // instance says so here, before it takes traffic, and also when the key
-    // behind KMS_KEY_ID is not the registered key (GetPublicKey, cached).
-    // Bounded code only.
-    if (process.env.NODE_ENV === "production") {
-      const { signerIdentityIssue } = await import("../services/operations/signer-identity-readiness.js");
-      const issue = await signerIdentityIssue(prisma);
-      if (issue) {
-        req.log?.error({ issue }, "readyz.signer_identity_not_ready");
-        return reply.code(503).send({ status: "degraded", reason: issue });
-      }
-    }
-    return reply.code(200).send({ status: "ok" });
+    const result = await sharedReadiness(req.log);
+    return reply.code(result.code).send(result.body);
   });
 
   // /v1/ops/health — authenticated detailed health for the operator UI.

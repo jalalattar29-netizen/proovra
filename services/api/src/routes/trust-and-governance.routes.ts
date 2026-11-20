@@ -50,6 +50,7 @@ import { requireAuth } from "../middleware/auth.js";
 import {
   authorizeOrFail,
   evaluateCurrentWorkspace,
+  sendDenyResponse,
 } from "../middleware/authorize.js";
 import { provenRequestWorkspace } from "../services/access/request-workspace.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
@@ -255,6 +256,13 @@ async function resolveWorkspace(
     permission: "governance.policy.read",
   });
   if (!outcome.allowed) {
+    // NEW-RG-22-5 (RG-22 / DEC-20) — an evaluator outage (503) or an
+    // unauthenticated context (401) is not "no workspace": answer it the way
+    // the canonical authority does, so clients retry.
+    if (outcome.httpStatus === 503 || outcome.httpStatus === 401) {
+      sendDenyResponse(reply, outcome);
+      return null;
+    }
     reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
     return null;
   }

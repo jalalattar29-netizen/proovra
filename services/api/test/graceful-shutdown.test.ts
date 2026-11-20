@@ -5,6 +5,14 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+// NEW-RG-22-8 — the shared run registry is the process boundary here.
+const H = vi.hoisted(() => ({
+  interrupt: async (): Promise<number> => 0,
+}));
+vi.mock("@proovra/shared-runtime", () => ({
+  markActiveReconciliationRunsInterrupted: () => H.interrupt(),
+}));
+
 import { installGracefulShutdown, SHUTDOWN_DEADLINE_MS } from "../src/graceful-shutdown.js";
 
 function harness(close: () => Promise<unknown>) {
@@ -100,5 +108,49 @@ describe("installGracefulShutdown", () => {
     finishFlush();
     await new Promise((r) => setTimeout(r, 10));
     expect(order).toEqual(["close", "pool", "flush:start", "flush:end", "exit:0"]);
+  });
+});
+
+describe("NEW-RG-22-8 — the API closes the reconciliation runs it still holds", () => {
+  function run(deps: { interrupt?: () => Promise<number>; boundMs?: number }) {
+    const order: string[] = [];
+    const handlers = new Map<string, () => void>();
+    const warn = vi.fn();
+    installGracefulShutdown(
+      { close: async () => { order.push("close"); }, log: { info: vi.fn(), warn } },
+      {
+        closePool: async () => { order.push("pool"); },
+        exit: (code) => { order.push(`exit:${code}`); },
+        on: (signal, handler) => handlers.set(signal, handler),
+        deadlineMs: 5_000,
+        ...(deps.boundMs !== undefined ? { interruptRunsBoundMs: deps.boundMs } : {}),
+      },
+    );
+    H.interrupt = deps.interrupt ?? (async () => { order.push("interrupt"); return 0; });
+    return { order, handlers, warn };
+  }
+
+  it("by default it calls markActiveReconciliationRunsInterrupted after the server closed and before the pool", async () => {
+    const h = run({ interrupt: async () => { h.order.push("interrupt"); return 2; } });
+    h.handlers.get("SIGTERM")!();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(h.order).toEqual(["close", "interrupt", "pool", "exit:0"]);
+    expect(h.warn).toHaveBeenCalledWith({ interrupted: 2 }, "api.shutdown_runs_interrupted");
+  });
+
+  it("a failing interruption is logged, never thrown: the pool still closes and the exit is 0", async () => {
+    const h = run({ interrupt: async () => { throw new Error("db gone"); } });
+    h.handlers.get("SIGTERM")!();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(h.order).toEqual(["close", "pool", "exit:0"]);
+    expect(h.warn).toHaveBeenCalledWith(expect.objectContaining({ err: "db gone" }), "api.shutdown_runs_interrupt_failed");
+  });
+
+  it("a hung interruption is bounded: the drain moves on to the pool", async () => {
+    const h = run({ interrupt: () => new Promise<number>(() => undefined), boundMs: 30 });
+    h.handlers.get("SIGTERM")!();
+    await new Promise((r) => setTimeout(r, 120));
+    expect(h.order).toEqual(["close", "pool", "exit:0"]);
+    expect(h.warn).toHaveBeenCalledWith({ boundMs: 30 }, "api.shutdown_runs_interrupt_timed_out");
   });
 });

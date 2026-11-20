@@ -14,7 +14,46 @@
  * The deadline is derived from that 10 s default, not tuned: the process exits
  * on its own before Docker kills it, so the exit code says whether it drained.
  */
+import { markActiveReconciliationRunsInterrupted } from "@proovra/shared-runtime";
+
 export const SHUTDOWN_DEADLINE_MS = 8_000;
+
+/**
+ * NEW-RG-22-8 (RG-22) — the API also holds reconciliation runs (workspace
+ * operations, search reconcile). Like the worker (PRO-W2-09), a stopping API
+ * closes every run it still holds as FAILED(interrupted_by_shutdown), so the
+ * next replica's tick takes the slot at once instead of after the 5-minute
+ * heartbeat staleness. Bounded so a dead database cannot spend the drain
+ * budget; a failure is logged, never thrown (the staleness rule still frees
+ * the slot).
+ */
+export const INTERRUPT_RUNS_BOUND_MS = 1_500;
+
+async function interruptActiveRuns(app: DrainableServer, boundMs: number): Promise<void> {
+  let timer: NodeJS.Timeout | null = null;
+  const timedOut = Symbol("timed_out");
+  try {
+    const outcome = await Promise.race([
+      markActiveReconciliationRunsInterrupted(),
+      new Promise<typeof timedOut>((resolve) => {
+        timer = setTimeout(() => resolve(timedOut), boundMs);
+        timer.unref?.();
+      }),
+    ]);
+    if (outcome === timedOut) {
+      app.log.warn({ boundMs }, "api.shutdown_runs_interrupt_timed_out");
+    } else if (outcome > 0) {
+      app.log.warn({ interrupted: outcome }, "api.shutdown_runs_interrupted");
+    }
+  } catch (err) {
+    app.log.warn(
+      { err: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200) },
+      "api.shutdown_runs_interrupt_failed",
+    );
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 export type DrainableServer = {
   close: () => Promise<unknown>;
@@ -36,6 +75,8 @@ export function installGracefulShutdown(
     exit: (code: number) => void;
     on: (signal: "SIGTERM" | "SIGINT", handler: () => void) => void;
     deadlineMs?: number;
+    /** Bound for closing the held reconciliation runs (NEW-RG-22-8). */
+    interruptRunsBoundMs?: number;
   },
 ): { shutdown: (signal: string) => Promise<void> } {
   let draining: Promise<void> | null = null;
@@ -50,6 +91,7 @@ export function installGracefulShutdown(
     draining = app
       .close()
       .then(() => (deps.drainBackground ? deps.drainBackground() : undefined))
+      .then(() => interruptActiveRuns(app, deps.interruptRunsBoundMs ?? INTERRUPT_RUNS_BOUND_MS))
       .then(() => deps.closePool())
       .then(() => (deps.flushTelemetry ? deps.flushTelemetry() : undefined))
       .then(

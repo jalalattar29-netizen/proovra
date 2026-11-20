@@ -196,7 +196,9 @@ describe("commercial subject — the workspace, never the actor's own plan", () 
      */
     const src = read("services/api/src/routes/ai.routes.ts");
     const code = codeOnly(src);
-    expect(code).toContain("resolveAiCommercialScope(req, userId)");
+    // NEW-RG-22-6 — the resolver also receives the reply, so an evaluator
+    // outage answers the canonical 503 instead of the personal fallback.
+    expect(code).toContain("resolveAiCommercialScope(req, reply, userId)");
     expect(code).not.toContain(
       'resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId })).scope',
     );
@@ -210,6 +212,8 @@ describe("commercial subject — the workspace, never the actor's own plan", () 
     expect(body).toMatch(/if \(current\.allowed\)/);
     expect(body).toContain("teamId: current.context.workspaceId");
     expect(body).not.toContain("currentWorkspaceId");
+    expect(body).toContain("current.httpStatus === 503");
+    expect(body).toContain("sendDenyResponse(reply, current)");
   });
 
   it("the workspace-subject readers resolve the workspace, not the requester", () => {
