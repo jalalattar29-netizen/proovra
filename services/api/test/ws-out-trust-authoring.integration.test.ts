@@ -337,4 +337,28 @@ describe("WS-OUT RG-20 — trust authoring, seeds and governance reads (live Pos
     expect(res.body).not.toContain("PLATFORM-SECRET-ERROR");
     expect(res.body).toContain(own.id);
   });
+
+  it("PRO-G2-07: another workspace's owner naming this workspace is refused, and this workspace's list never carries another workspace's run", async () => {
+    const t = await tenant("PRO");
+    const other = await tenant("PRO");
+    const mine = await prisma.governanceReconciliationRun.create({
+      data: { lockKey: `mine-${tag()}`, kind: "RETENTION", trigger: "SCHEDULED", status: "FAILED", teamId: t.teamId, errorSummary: "MINE-ERROR" } as never,
+      select: { id: true },
+    });
+    const theirs = await prisma.governanceReconciliationRun.create({
+      data: { lockKey: `theirs-${tag()}`, kind: "RETENTION", trigger: "SCHEDULED", status: "FAILED", teamId: other.teamId, errorSummary: "THEIRS-ERROR" } as never,
+      select: { id: true },
+    });
+    const foreign = await call("GET", `/v1/governance/reconciliation-runs?teamId=${t.teamId}`, other.owner, undefined, ws(t.teamId));
+    // Anti-enumeration: a non-member is told the workspace is not found.
+    expect(foreign.statusCode, foreign.body).toBe(404);
+    expect(foreign.json()).toEqual({ error: { code: "not_found" } });
+    expect(foreign.body).not.toContain(mine.id);
+    expect(foreign.body).not.toContain("MINE-ERROR");
+    const own = await call("GET", `/v1/governance/reconciliation-runs?teamId=${t.teamId}`, t.owner, undefined, ws(t.teamId));
+    expect(own.statusCode, own.body).toBe(200);
+    expect(own.body).toContain(mine.id);
+    expect(own.body).not.toContain(theirs.id);
+    expect(own.body).not.toContain("THEIRS-ERROR");
+  });
 });

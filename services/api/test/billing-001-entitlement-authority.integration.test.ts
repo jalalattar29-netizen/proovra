@@ -184,4 +184,37 @@ describe("BILLING-001 — the entitlement authority (live PostgreSQL)", () => {
       }),
     ).toBe(1);
   });
+
+  it("PRO-R3-07 / DEC-12 — an operator's product line needs a future expiry: missing or past is refused 400 and writes nothing; with one, every grant carries it", async () => {
+    const operator = await stepUp.seedOperator(h, deps(), prisma);
+    const personal = await fixtures.seedPersonalTenant(deps(), "FREE");
+    const target = personal.personalTeamId;
+    const base = { teamId: operator.stepUpTeamId, targetWorkspaceId: target, line: "ENTERPRISE" };
+    const apply = (payload: Record<string, unknown>, headers: Record<string, string> = {}) =>
+      h.app.inject({
+        method: "POST",
+        url: "/v1/packaging/entitlements/apply-product-line",
+        headers: { ...bearer(operator.token), ...headers },
+        payload,
+      });
+
+    const missing = await apply(base);
+    expect(missing.statusCode, missing.body).toBe(400);
+    const past = await apply({ ...base, expiresAtUtc: new Date(Date.now() - 60_000).toISOString() });
+    expect(past.statusCode, past.body).toBe(400);
+    expect(past.json()).toMatchObject({ error: { code: "ENTITLEMENT_GRANT_EXPIRY_REQUIRED" } });
+    expect(await prisma.entitlementGrant.count({ where: { teamId: target } })).toBe(0);
+
+    const expiresAtUtc = new Date(Date.now() + 30 * 86_400_000);
+    const challengeId = await stepUp.approvedStepUp(h, operator, "CAPABILITY_GRANT", "workspace", target);
+    const ok = await apply(
+      { ...base, expiresAtUtc: expiresAtUtc.toISOString() },
+      { "x-proovra-step-up-challenge-id": challengeId },
+    );
+    expect(ok.statusCode, ok.body).toBe(200);
+    expect(ok.json().granted).toBeGreaterThan(0);
+    const rows = await prisma.entitlementGrant.findMany({ where: { teamId: target }, select: { expiresAtUtc: true } });
+    expect(rows.length).toBe(ok.json().granted);
+    for (const r of rows) expect(r.expiresAtUtc?.toISOString()).toBe(expiresAtUtc.toISOString());
+  });
 });
