@@ -340,10 +340,14 @@ async function transition(
  * (`invalid_transition`) and writes only if the row still holds the status —
  * and, for the counters, the value — it was decided against; a lost race is
  * `stale_workflow_state` and writes nothing (mirrors transitionIncident).
+ *
+ * NEW-RG-32-3 — exported so the machine writer (the incident sweep's reopen,
+ * dashboard/workflow-generator.service.ts) uses this same compare-and-set
+ * instead of an update by primary key.
  */
-async function casUpdate(
+export async function casUpdate(
   client: PrismaClient,
-  existing: prismaPkg.OperationalWorkflow,
+  existing: Pick<prismaPkg.OperationalWorkflow, "id" | "teamId" | "status">,
   action: WorkflowActionKey,
   guard: Partial<Pick<prismaPkg.OperationalWorkflow, "assignedOwnerUserId" | "escalationLevel" | "retryCount">>,
   data: prismaPkg.Prisma.OperationalWorkflowUpdateManyMutationInput,
