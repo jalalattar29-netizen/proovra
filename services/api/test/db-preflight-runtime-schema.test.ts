@@ -20,12 +20,14 @@
  * exposes, and the SQL it hands back is asserted separately to be read-only.
  */
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import * as requirementsModule from "../scripts/runtime-schema-requirements.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MODULE_PATH = resolve(HERE, "../scripts/runtime-schema-requirements.mjs");
+const MIGRATIONS_DIR = resolve(HERE, "../prisma/migrations");
 
 type Requirement = {
   id: string;
@@ -50,7 +52,44 @@ type Mod = {
   }) => string;
 };
 
-const load = (): Promise<Mod> => import(`file://${MODULE_PATH}`) as Promise<Mod>;
+// Statically imported (an in-test dynamic import can time out under load);
+// `load` keeps the call sites' shape.
+const load = async (): Promise<Mod> => requirementsModule as unknown as Mod;
+
+/**
+ * 20281121* — the 0376721d9 remediation release, object by object. Each entry
+ * is the requirement id and the SQL shape its probe must have; matched before
+ * every older matcher, several of which would otherwise claim these probes
+ * (e.g. any `report_generation_requests` probe, any `authenticated_sessions`
+ * column, any `disclosure_profile` column).
+ */
+const RELEASE_0376721_OBJECTS: ReadonlyArray<readonly [string, RegExp]> = [
+  ["external_identity_mappings.link_source", /table_name = 'external_identity_mappings'\s+AND column_name = 'link_source'/],
+  ["authenticated_sessions.parent_session_id_hash", /table_name = 'authenticated_sessions'\s+AND column_name = 'parent_session_id_hash'/],
+  ["authenticated_sessions_user_id_parent_session_id_hash_idx", /indexname = 'authenticated_sessions_user_id_parent_session_id_hash_idx'/],
+  ["subscriptions.provider_intent_key", /table_name = 'subscriptions'\s+AND column_name = 'provider_intent_key'/],
+  ["subscriptions.provider_intent_at_utc", /table_name = 'subscriptions'\s+AND column_name = 'provider_intent_at_utc'/],
+  ["subscriptions.customer_cancel_requested_at_utc", /table_name = 'subscriptions'\s+AND column_name = 'customer_cancel_requested_at_utc'/],
+  ["evidence_exchange_packages.disclosure_profile", /table_name = 'evidence_exchange_packages'\s+AND column_name = 'disclosure_profile'/],
+  ["evidence_extracted_texts.source_part_id", /table_name = 'evidence_extracted_texts'\s+AND column_name = 'source_part_id'/],
+  ["evidence_extracted_texts_part_claim_uniq", /x\.relname = 'evidence_extracted_texts_part_claim_uniq'/],
+  ["evidence.released_objects_removed_at_utc", /table_name = 'evidence'\s+AND column_name = 'released_objects_removed_at_utc'/],
+  ["case_siu_exports.includes_pii", /table_name = 'case_siu_exports'\s+AND column_name = 'includes_pii'/],
+  ["case_siu_exports.included_evidence_ids", /table_name = 'case_siu_exports'\s+AND column_name = 'included_evidence_ids'/],
+  ["workspace_ownership_offers.table", /information_schema\.tables[\s\S]*table_name = 'workspace_ownership_offers'/],
+  ["coding_value_history.table", /information_schema\.tables[\s\S]*table_name = 'coding_value_history'/],
+  ["redaction_page_previews.table", /information_schema\.tables[\s\S]*table_name = 'redaction_page_previews'/],
+  ["redaction_page_previews_project_id_page_index_key", /x\.relname = 'redaction_page_previews_project_id_page_index_key'/],
+  ["governance_reconciliation_runs.heartbeat_at_utc", /table_name = 'governance_reconciliation_runs'\s+AND column_name = 'heartbeat_at_utc'/],
+  ["evidence_exchange_packages.quota_reserved_period_start_utc", /table_name = 'evidence_exchange_packages'\s+AND column_name = 'quota_reserved_period_start_utc'/],
+  ["governance_reconciliation_kind.archive_restore", /typname = 'GovernanceReconciliationKind'\s+AND e\.enumlabel = 'ARCHIVE_RESTORE'/],
+  ["report_generation_requests.storage_reserved_bytes", /table_name = 'report_generation_requests'\s+AND column_name = 'storage_reserved_bytes'/],
+  ["operational_workflow_events.idempotency_token", /table_name = 'operational_workflow_events'\s+AND column_name = 'idempotency_token'/],
+  ["operational_workflow_events_team_id_idempotency_token_key", /x\.relname = 'operational_workflow_events_team_id_idempotency_token_key'/],
+  ["bulk_operational_action_runs.idempotency_token", /table_name = 'bulk_operational_action_runs'\s+AND column_name = 'idempotency_token'/],
+  ["bulk_operational_action_runs_team_id_idempotency_token_key", /x\.relname = 'bulk_operational_action_runs_team_id_idempotency_token_key'/],
+];
+const RELEASE_0376721_IDS = RELEASE_0376721_OBJECTS.map(([id]) => id);
 
 /**
  * A database in a given state, expressed as the objects it HAS.
@@ -108,8 +147,12 @@ function databaseWith(present: {
   commercialRemediation?: boolean;
   // 20281102000000 — destruction governance truth.
   destructionTruth?: boolean;
+  // 20281121* — the ids (RELEASE_0376721_OBJECTS) of the objects present.
+  release0376721?: ReadonlyArray<string>;
 }) {
   return async (sql: string): Promise<boolean> => {
+    const release = RELEASE_0376721_OBJECTS.find(([, shape]) => shape.test(sql));
+    if (release) return (present.release0376721 ?? []).includes(release[0]);
     if (/'client_secret_sealed'/.test(sql)) return present.sealedClientSecret === true;
     if (COMMERCIAL_REMEDIATION_COLUMNS.test(sql)) {
       return present.commercialRemediation === true;
@@ -333,6 +376,7 @@ const FULLY_MIGRATED = {
   captureClientAttempt: true,
   disclosurePolicy: true,
   combinedRecording: { runKind: true, assetKind: true, sizeCeiling: true },
+  release0376721: RELEASE_0376721_IDS,
 };
 
 describe("runtime schema requirements", () => {
@@ -777,6 +821,97 @@ describe("runtime schema requirements — combined screen recording (20281029000
       expect(sql).toContain("pg_get_constraintdef");
       expect(sql).toContain(needle);
     }
+  });
+});
+
+/**
+ * 20281121* — THE 0376721d9 REMEDIATION RELEASE. It shipped sixteen migrations
+ * and declared none of them, so the gate passed against the previous schema
+ * and the deploy script replaced the API before the worker's head check
+ * refused to start.
+ */
+describe("runtime schema requirements — the 0376721d9 release (20281121*)", () => {
+  it("none of its objects present is REFUSED, every one named with its migration", async () => {
+    const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } = await load();
+    const result = await checkRuntimeSchemaRequirements(databaseWith({ ...FULLY_MIGRATED, release0376721: [] }));
+    expect(result.ok).toBe(false);
+    expect(result.indeterminate).toEqual([]);
+    expect(result.missing.map((m) => m.id).sort()).toEqual([...RELEASE_0376721_IDS].sort());
+    expect(result.missing.every((m) => /^20281121\d{6}_/.test(m.suppliedBy))).toBe(true);
+    const reason = describeRuntimeSchemaFailure(result);
+    expect(reason).toContain('column public."subscriptions"."provider_intent_key" must exist');
+    expect(reason).toContain("20281121030000_subscription_provider_intent_key");
+    expect(reason).toContain("20281121140000_ops_idempotency_reservation");
+  });
+
+  it("every one of the sixteen migrations is named by at least one requirement", () => {
+    const supplied = new Set(requirementsModule.RUNTIME_SCHEMA_REQUIREMENTS.map((r) => r.suppliedBy));
+    const release = readdirSync(MIGRATIONS_DIR).filter((d) => /^20281121\d{6}_/.test(d));
+    expect(release).toHaveLength(16);
+    expect(release.filter((m) => !supplied.has(m))).toEqual([]);
+  });
+
+  it.each(RELEASE_0376721_IDS)("only %s absent is REFUSED, and only it is reported", async (id) => {
+    const { checkRuntimeSchemaRequirements } = await load();
+    const result = await checkRuntimeSchemaRequirements(
+      databaseWith({ ...FULLY_MIGRATED, release0376721: RELEASE_0376721_IDS.filter((x) => x !== id) }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.missing.map((m) => m.id)).toEqual([id]);
+  });
+
+  it("the raw-owned part-claim index is asserted UNIQUE and PARTIAL, the idempotency keys UNIQUE", async () => {
+    const { checkRuntimeSchemaRequirements } = await load();
+    const seen: string[] = [];
+    await checkRuntimeSchemaRequirements(async (sql) => {
+      seen.push(sql);
+      return true;
+    });
+    const partClaim = seen.find((s) => s.includes("'evidence_extracted_texts_part_claim_uniq'"));
+    expect(partClaim).toContain("i.indisunique");
+    expect(partClaim).toContain("i.indpred IS NOT NULL");
+    for (const name of [
+      "operational_workflow_events_team_id_idempotency_token_key",
+      "bulk_operational_action_runs_team_id_idempotency_token_key",
+      "redaction_page_previews_project_id_page_index_key",
+    ]) {
+      const sql = seen.find((s) => s.includes(`'${name}'`));
+      expect(sql, name).toContain("i.indisunique");
+    }
+  });
+});
+
+/**
+ * THE GUARD. From the 0376721d9 release on, every new migration must be named
+ * by at least one runtime requirement — or be listed here with the reason the
+ * running code needs nothing from it (e.g. a pure backfill). A migration that
+ * adds a column the image maps and is declared nowhere is exactly how the gate
+ * came to pass an unmigrated database twice (20281028000000, then 20281121*).
+ */
+const GUARD_FROM = "20281121000000";
+const NOT_A_RUNTIME_REQUIREMENT: Readonly<Record<string, string>> = {};
+
+describe("runtime schema requirements — every new migration is declared", () => {
+  it(`every migration from ${GUARD_FROM} on is supplied to a requirement or exempted with a reason`, () => {
+    const supplied = new Set(requirementsModule.RUNTIME_SCHEMA_REQUIREMENTS.map((r) => r.suppliedBy));
+    const guarded = readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && /^\d{14}_/.test(d.name) && d.name.slice(0, 14) >= GUARD_FROM)
+      .map((d) => d.name);
+    expect(guarded.length).toBeGreaterThan(0);
+    const undeclared = guarded.filter((m) => !supplied.has(m) && !(m in NOT_A_RUNTIME_REQUIREMENT));
+    expect(
+      undeclared,
+      "declare what the migration creates in scripts/runtime-schema-requirements.mjs, " +
+        "or add it to NOT_A_RUNTIME_REQUIREMENT with the reason the code needs nothing from it",
+    ).toEqual([]);
+  });
+
+  it("every suppliedBy names a migration folder that exists", () => {
+    const folders = new Set(readdirSync(MIGRATIONS_DIR));
+    const unknown = requirementsModule.RUNTIME_SCHEMA_REQUIREMENTS.map((r) => r.suppliedBy).filter(
+      (s) => !folders.has(s),
+    );
+    expect(unknown).toEqual([]);
   });
 });
 

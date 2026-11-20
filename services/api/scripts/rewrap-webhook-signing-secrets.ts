@@ -48,8 +48,22 @@ import {
   wrapWebhookSigningSecret,
 } from "@proovra/shared-runtime/outbound";
 import { getSecret } from "../src/config/runtime-secrets.js";
+import { initSecretsManager, stopSecretsAuthority } from "../src/config/secrets-manager.js";
 
 const APPLY = process.argv.includes("--apply");
+
+/**
+ * ROLLOUT-HANDOFF D5 — the key must come from the SAME authority the running
+ * API and Worker read (Secrets Manager when the deployment declares it, else
+ * the environment). Without hydration `getSecret` falls back to the env value,
+ * and a deployment whose AUTH_JWT_SECRET lives in the bundle would re-wrap
+ * every row under a key neither service holds. In `required` mode a failed
+ * hydration throws here, before any row is read. Bounded log fields only.
+ */
+const secretsLog = {
+  info: (obj: Record<string, unknown>, msg: string) => console.error(JSON.stringify({ msg, ...obj })),
+  warn: (obj: Record<string, unknown>, msg: string) => console.error(JSON.stringify({ msg, ...obj })),
+};
 
 type Tally = { scanned: number; alreadyWrapped: number; rewrapped: number; wouldRewrap: number; unreadable: number; changedMeanwhile: number };
 const tally = (): Tally => ({ scanned: 0, alreadyWrapped: 0, rewrapped: 0, wouldRewrap: 0, unreadable: 0, changedMeanwhile: 0 });
@@ -102,6 +116,7 @@ async function lifecycle(): Promise<Tally> {
 }
 
 async function main(): Promise<void> {
+  await initSecretsManager(secretsLog);
   keyMaterial();
   const result = { mode: APPLY ? "apply" : "dry-run", automation: await automation(), lifecycle: await lifecycle() };
   // Counts only.
@@ -113,4 +128,7 @@ main()
     console.error(err instanceof Error ? err.message : "rewrap_failed");
     process.exitCode = 1;
   })
-  .finally(() => prisma.$disconnect());
+  .finally(() => {
+    stopSecretsAuthority();
+    return prisma.$disconnect();
+  });

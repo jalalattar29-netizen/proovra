@@ -18,14 +18,15 @@ Apply migrations first, through the migration runbook. Then, on the server:
 
 ```bash
 GHCR_OWNER=<owner> RELEASE_SHA=<40-hex commit> IMAGE_TAG=sha-<first 7> \
-  ./scripts/deploy-prod-pull.sh --plan      # prints what would happen, changes nothing
+  bash scripts/deploy-prod-pull.sh --plan      # prints what would happen, changes nothing
 GHCR_OWNER=<owner> RELEASE_SHA=<40-hex commit> IMAGE_TAG=sha-<first 7> \
-  ./scripts/deploy-prod-pull.sh
+  bash scripts/deploy-prod-pull.sh
 ```
 
-It proves each image's revision, gates on the database schema, recreates the API
-then the worker, waits for each to be ready, and writes the release record. The web
-deploys through Vercel.
+It proves each image's revision, gates on the database schema, recreates the worker
+then the API (a rollback: the API then the worker; `DEPLOY_ORDER` overrides), waits
+for each to be ready, and writes the release record. The web deploys through Vercel.
+The file is mode 644 on the host, so it is run through `bash`.
 
 If the workflow cannot publish images, fix that. Do not build on the server: a
 hand-built image carries no revision label, and the deploy refuses it.
@@ -99,8 +100,8 @@ a deploy, so a rollback cannot start an image that fails them. Add `--plan` firs
 see what it would do.
 
 ```bash
-GHCR_OWNER=<owner> ./scripts/deploy-prod-pull.sh --rollback --plan
-GHCR_OWNER=<owner> ./scripts/deploy-prod-pull.sh --rollback
+GHCR_OWNER=<owner> bash scripts/deploy-prod-pull.sh --rollback --plan
+GHCR_OWNER=<owner> bash scripts/deploy-prod-pull.sh --rollback
 ```
 
 This redeploys the release recorded in `.deploy-state/previous-release` by the last
@@ -109,7 +110,7 @@ is missing, or you need an older release, name it the same way as a deploy:
 
 ```bash
 GHCR_OWNER=<owner> RELEASE_SHA=<40-hex commit> IMAGE_TAG=sha-<first 7> \
-  ./scripts/deploy-prod-pull.sh
+  bash scripts/deploy-prod-pull.sh
 ```
 
 A rollback restores code only. Migrations are forward-only, and the script refuses

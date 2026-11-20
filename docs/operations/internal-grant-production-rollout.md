@@ -156,12 +156,15 @@ be healthy. **Do not create the grant yet.**
    Vercel production deployment of the web app.
 3. Deploy — the script records the running release as the rollback point, checks out the
    compose file at `$RELEASE_SHA`, pulls, proves each image's revision label, runs the schema
-   gate from the new image, then recreates the API (waits for health + `/readyz`) and then the
-   worker (health). It prints the image/tag/SHA first and never prints env values.
+   gate from the new image, then recreates the worker (waits for health + `/readyz`) and then
+   the API (health + `/readyz`) — worker first, so an old worker never acts on a request only
+   the new API writes; `--rollback` reverses it, and `DEPLOY_ORDER=api-first|worker-first`
+   overrides it. It prints the image/tag/SHA and the order first and never prints env values.
+   The file is mode 644 on the host, so run it through `bash`:
 
 ```bash
-./scripts/deploy-prod-pull.sh --plan      # review: selected release + current rollback point
-./scripts/deploy-prod-pull.sh
+bash scripts/deploy-prod-pull.sh --plan      # review: selected release, order, current rollback point
+bash scripts/deploy-prod-pull.sh
 ```
 
 4. Verify:
@@ -180,7 +183,7 @@ The last command must print nothing. In Sentry, filter the last hour for `P2022`
 `does not exist` and `plan_grants`: no new issues. A FREE and a paid account (yours) must
 still load Billing with their real plan.
 
-**Rollback (code):** `./scripts/deploy-prod-pull.sh --rollback` redeploys the recorded previous
+**Rollback (code):** `bash scripts/deploy-prod-pull.sh --rollback` redeploys the recorded previous
 release with the same proofs. The migrations are forward-only and the old image is compatible
 with them (§1), so a code rollback needs no database change.
 

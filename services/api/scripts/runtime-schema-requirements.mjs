@@ -632,7 +632,212 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
     requiredBy: "every read of an SSO connection selects this column",
     suppliedBy: "20281106000000_sso_client_secret_sealed",
   },
+  /**
+   * THE 20281121* REMEDIATION RELEASE (0376721d9) — sixteen expand-only
+   * migrations, none of which was declared here when the release shipped. The
+   * gate therefore PASSED against the previous schema, the new API would have
+   * answered P2022 on the first mapped column (e.g. subscriptions.
+   * provider_intent_key), and the only remaining guard was the worker's
+   * migration-head check — which runs AFTER the deploy script has already
+   * replaced the API.
+   *
+   * Every mapped column is declared because every Prisma read of its model
+   * selects it. Unique indexes are declared where the code's correctness rests
+   * on them (an upsert key or an insert-first claim), asserted as UNIQUE, and
+   * the partial claim index also as PARTIAL — it is raw-SQL-owned
+   * (docs/architecture/raw-schema-ownership.json), so the datamodel never
+   * declares it and only this check can tell that it is missing.
+   */
+  newColumn(
+    "external_identity_mappings",
+    "link_source",
+    "every identity-mapping read selects it; the self-serve link refusal (PRO-A2-02) reads it",
+    "20281121010000_external_identity_link_source",
+  ),
+  newColumn(
+    "authenticated_sessions",
+    "parent_session_id_hash",
+    "every session read selects it; web sign-out ends the extension sessions it parented",
+    "20281121020000_extension_session_parent",
+  ),
+  {
+    id: "authenticated_sessions_user_id_parent_session_id_hash_idx",
+    kind: "index",
+    detail:
+      'index "authenticated_sessions_user_id_parent_session_id_hash_idx" must exist on public."authenticated_sessions"',
+    requiredBy: "sign-out finds the child extension sessions of a user by (user_id, parent_session_id_hash)",
+    suppliedBy: "20281121020000_extension_session_parent",
+  },
+  newColumn(
+    "subscriptions",
+    "provider_intent_key",
+    "every subscription read selects it; provider calls reuse this idempotency key",
+    "20281121030000_subscription_provider_intent_key",
+  ),
+  newColumn(
+    "subscriptions",
+    "provider_intent_at_utc",
+    "every subscription read selects it",
+    "20281121030000_subscription_provider_intent_key",
+  ),
+  newColumn(
+    "subscriptions",
+    "customer_cancel_requested_at_utc",
+    "every subscription read selects it; the billing sweep holds read it",
+    "20281121030100_subscription_customer_cancel_request",
+  ),
+  newColumn(
+    "evidence_exchange_packages",
+    "disclosure_profile",
+    "every exchange package read selects it; the builder projects EXTERNAL_DISCLOSURE from it",
+    "20281121040000_exchange_package_disclosure_profile",
+  ),
+  newColumn(
+    "evidence_extracted_texts",
+    "source_part_id",
+    "every extracted-text read selects it; per-part extraction claims are keyed on it",
+    "20281121050000_extracted_text_source_part",
+  ),
+  {
+    id: "evidence_extracted_texts_part_claim_uniq",
+    kind: "index",
+    detail:
+      'partial UNIQUE index "evidence_extracted_texts_part_claim_uniq" must exist on public."evidence_extracted_texts"',
+    requiredBy:
+      "of two concurrent extractions of one part exactly one claim may win; raw-owned, so the datamodel never declares it",
+    suppliedBy: "20281121050000_extracted_text_source_part",
+  },
+  newColumn(
+    "evidence",
+    "released_objects_removed_at_utc",
+    "every evidence read selects it; the released-capture reaper records its deletions here",
+    "20281121060000_evidence_released_objects_removed",
+  ),
+  newColumn(
+    "case_siu_exports",
+    "includes_pii",
+    "every SIU export read selects it",
+    "20281121070000_siu_export_disclosure_facts",
+  ),
+  newColumn(
+    "case_siu_exports",
+    "included_evidence_ids",
+    "every SIU export read selects it",
+    "20281121070000_siu_export_disclosure_facts",
+  ),
+  newTable(
+    "workspace_ownership_offers",
+    "workspace ownership transfer creates and reads offers here",
+    "20281121100000_workspace_ownership_offers",
+  ),
+  newTable(
+    "coding_value_history",
+    "every coding value write appends its history here",
+    "20281121110000_coding_value_history",
+  ),
+  newTable(
+    "redaction_page_previews",
+    "redaction page previews are requested and read here",
+    "20281121110100_redaction_page_previews",
+  ),
+  {
+    id: "redaction_page_previews_project_id_page_index_key",
+    kind: "index",
+    detail:
+      'UNIQUE index "redaction_page_previews_project_id_page_index_key" must exist on public."redaction_page_previews"',
+    requiredBy: "a preview request upserts on (project_id, page_index)",
+    suppliedBy: "20281121110100_redaction_page_previews",
+  },
+  newColumn(
+    "governance_reconciliation_runs",
+    "heartbeat_at_utc",
+    "every reconciliation-run read selects it; a live run is judged by its heartbeat",
+    "20281121120000_reconciliation_run_heartbeat",
+  ),
+  newColumn(
+    "evidence_exchange_packages",
+    "quota_reserved_period_start_utc",
+    "every exchange package read selects it; the package quota is reserved at request time",
+    "20281121130000_exchange_package_quota_reservation",
+  ),
+  {
+    id: "governance_reconciliation_kind.archive_restore",
+    kind: "enum_value",
+    detail: 'enum "GovernanceReconciliationKind" must contain ARCHIVE_RESTORE',
+    requiredBy: "the worker's archive-restore sweep claims its run through the shared reconciliation-run authority",
+    suppliedBy: "20281121130100_archive_restore_reconciliation_kind",
+  },
+  newColumn(
+    "report_generation_requests",
+    "storage_reserved_bytes",
+    "every generation request read selects it; storage is reserved at request time",
+    "20281121130200_report_request_storage_reservation",
+  ),
+  newColumn(
+    "operational_workflow_events",
+    "idempotency_token",
+    "every workflow event read selects it",
+    "20281121140000_ops_idempotency_reservation",
+  ),
+  {
+    id: "operational_workflow_events_team_id_idempotency_token_key",
+    kind: "index",
+    detail:
+      'UNIQUE index "operational_workflow_events_team_id_idempotency_token_key" must exist on public."operational_workflow_events"',
+    requiredBy: "a workflow action is reserved by inserting its token first; without uniqueness a retry acts twice",
+    suppliedBy: "20281121140000_ops_idempotency_reservation",
+  },
+  newColumn(
+    "bulk_operational_action_runs",
+    "idempotency_token",
+    "every bulk action run read selects it",
+    "20281121140000_ops_idempotency_reservation",
+  ),
+  {
+    id: "bulk_operational_action_runs_team_id_idempotency_token_key",
+    kind: "index",
+    detail:
+      'UNIQUE index "bulk_operational_action_runs_team_id_idempotency_token_key" must exist on public."bulk_operational_action_runs"',
+    requiredBy: "a bulk run is reserved by inserting its token first; without uniqueness a retry acts twice",
+    suppliedBy: "20281121140000_ops_idempotency_reservation",
+  },
 ]);
+
+/**
+ * One column requirement whose probe is derived from its id (see the
+ * `newColumn` spread at the end of PROBES).
+ *
+ * @param {string} table
+ * @param {string} column
+ * @param {string} requiredBy
+ * @param {string} suppliedBy
+ * @returns {RuntimeSchemaRequirement}
+ */
+function newColumn(table, column, requiredBy, suppliedBy) {
+  return {
+    id: `${table}.${column}`,
+    kind: "column",
+    detail: `column public."${table}"."${column}" must exist`,
+    requiredBy,
+    suppliedBy,
+  };
+}
+
+/**
+ * @param {string} table
+ * @param {string} requiredBy
+ * @param {string} suppliedBy
+ * @returns {RuntimeSchemaRequirement}
+ */
+function newTable(table, requiredBy, suppliedBy) {
+  return {
+    id: `${table}.table`,
+    kind: "table",
+    detail: `table public."${table}" must exist`,
+    requiredBy,
+    suppliedBy,
+  };
+}
 
 /**
  * One 20281028000000 column requirement. Its probe is `columnProbe` below,
@@ -704,6 +909,50 @@ function checkDefinitionProbe(table, conname, likePattern) {
        AND pg_get_constraintdef(c.oid) LIKE '${likePattern}'
      LIMIT 1`;
 }
+
+/** A table, by name, from the catalog. */
+function tableProbe(table) {
+  return `
+    SELECT 1
+      FROM information_schema.tables
+     WHERE table_schema = 'public'
+       AND table_name = '${table}'
+     LIMIT 1`;
+}
+
+/** An index, by name, on a table. */
+function indexProbe(table, index) {
+  return `
+    SELECT 1
+      FROM pg_indexes
+     WHERE schemaname = 'public'
+       AND tablename = '${table}'
+       AND indexname = '${index}'
+     LIMIT 1`;
+}
+
+/**
+ * A UNIQUE index, by name — the name alone would also match a plain index a
+ * hand repair created under it, and the property relied on is the uniqueness.
+ * `partial` additionally requires a predicate: without it the index refuses
+ * rows the code expects to coexist (FAILED claims, legacy NULL parts).
+ */
+function uniqueIndexProbe(table, index, partial = false) {
+  return `
+    SELECT 1
+      FROM pg_index i
+      JOIN pg_class x ON x.oid = i.indexrelid
+      JOIN pg_class t ON t.oid = i.indrelid
+      JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = '${table}'
+       AND x.relname = '${index}'
+       AND i.indisunique${partial ? "\n       AND i.indpred IS NOT NULL" : ""}
+     LIMIT 1`;
+}
+
+/** The suppliers whose `newColumn`/`newTable` probes are derived from their ids. */
+const DERIVED_PROBE_SUPPLIER = /^20281121\d{6}_/;
 
 /**
  * The catalog probes, one per requirement id.
@@ -1066,6 +1315,45 @@ const PROBES = Object.freeze({
       return [r.id, columnProbe(table, column)];
     }),
   ),
+  // 20281121* — the 0376721d9 remediation release. Columns and tables are
+  // derived from their ids (`newColumn` / `newTable`); indexes and the enum
+  // value are written out.
+  ...Object.fromEntries(
+    RUNTIME_SCHEMA_REQUIREMENTS.filter(
+      (r) => (r.kind === "column" || r.kind === "table") && DERIVED_PROBE_SUPPLIER.test(r.suppliedBy),
+    ).map((r) => {
+      const [table, column] = r.id.split(".");
+      return [r.id, r.kind === "table" ? tableProbe(table) : columnProbe(table, column)];
+    }),
+  ),
+  authenticated_sessions_user_id_parent_session_id_hash_idx: indexProbe(
+    "authenticated_sessions",
+    "authenticated_sessions_user_id_parent_session_id_hash_idx",
+  ),
+  evidence_extracted_texts_part_claim_uniq: uniqueIndexProbe(
+    "evidence_extracted_texts",
+    "evidence_extracted_texts_part_claim_uniq",
+    true,
+  ),
+  redaction_page_previews_project_id_page_index_key: uniqueIndexProbe(
+    "redaction_page_previews",
+    "redaction_page_previews_project_id_page_index_key",
+  ),
+  operational_workflow_events_team_id_idempotency_token_key: uniqueIndexProbe(
+    "operational_workflow_events",
+    "operational_workflow_events_team_id_idempotency_token_key",
+  ),
+  bulk_operational_action_runs_team_id_idempotency_token_key: uniqueIndexProbe(
+    "bulk_operational_action_runs",
+    "bulk_operational_action_runs_team_id_idempotency_token_key",
+  ),
+  "governance_reconciliation_kind.archive_restore": `
+    SELECT 1
+      FROM pg_type t
+      JOIN pg_enum e ON e.enumtypid = t.oid
+     WHERE t.typname = 'GovernanceReconciliationKind'
+       AND e.enumlabel = 'ARCHIVE_RESTORE'
+     LIMIT 1`,
 });
 
 /**

@@ -495,6 +495,22 @@ export function getCachedSecret(name: string): string | null {
 }
 
 /**
+ * A named secret resolved the way BOTH services resolve it: the hydrated
+ * secrets bundle first, then the TRIMMED environment value, else null. This is
+ * the order of the API's `getSecret` (services/api/src/config/runtime-secrets.ts,
+ * proven equal in its tests), so a Worker that reads a shared key through here
+ * derives the same key the API derived — e.g. the AUTH_JWT_SECRET-derived wrap
+ * key of lifecycle webhook secrets, where a split means every delivery fails
+ * closed. Never throws, never does I/O, never logs.
+ */
+export function resolveSharedSecretValue(name: string): string | null {
+  const cached = getCachedSecret(name);
+  if (cached !== null) return cached;
+  const fromEnv = (process.env[name] ?? "").trim();
+  return fromEnv.length > 0 ? fromEnv : null;
+}
+
+/**
  * Refuse to answer before hydration has been established.
  *
  * Without this, a consumer that runs before `initSecretsAuthority` sees an

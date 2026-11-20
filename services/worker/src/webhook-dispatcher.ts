@@ -23,6 +23,7 @@ import {
   sendOutboundRequest,
   unwrapWebhookSigningSecret,
 } from "@proovra/shared-runtime/outbound";
+import { resolveSharedSecretValue } from "@proovra/shared-runtime";
 import { createHmac } from "node:crypto";
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
@@ -180,10 +181,15 @@ function computeBackoffSeconds(attemptCount: number): number {
  * it) is opened; a legacy raw row is read as is until re-wrapped. Null when an
  * envelope does not authenticate (or the key is absent) — the delivery then
  * fails closed and nothing is sent.
+ *
+ * The key is resolved through the shared secrets authority (hydrated bundle,
+ * then the trimmed environment) — the API's `getSecret` order. Reading
+ * `process.env` alone split the two sides whenever AUTH_JWT_SECRET came from
+ * Secrets Manager or carried surrounding whitespace (ROLLOUT-HANDOFF D5).
  */
 export function readLifecycleSigningSecret(stored: string): string | null {
   if (isWrappedWebhookSigningSecret(stored)) {
-    const material = process.env["AUTH_JWT_SECRET"];
+    const material = resolveSharedSecretValue("AUTH_JWT_SECRET");
     if (!material) return null;
     return unwrapWebhookSigningSecret(stored, [material], "lifecycle-webhook");
   }

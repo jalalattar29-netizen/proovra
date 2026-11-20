@@ -2,12 +2,15 @@
 # PRODUCTION API + WORKER DEPLOY — server-side, owner-run, on the Production host.
 #
 #   GHCR_OWNER=<owner> RELEASE_SHA=<40-hex commit> IMAGE_TAG=sha-<first 7 of it> \
-#     ./scripts/deploy-prod-pull.sh [--plan]
-#   GHCR_OWNER=<owner> ./scripts/deploy-prod-pull.sh --rollback [--plan]
+#     bash scripts/deploy-prod-pull.sh [--plan]
+#   GHCR_OWNER=<owner> bash scripts/deploy-prod-pull.sh --rollback [--plan]
 #
 #   --plan      validate and print what WOULD be deployed; change nothing.
 #   --rollback  redeploy the release that was running before the last deploy
 #               (recorded in $STATE_DIR/previous-release by that deploy).
+#   DEPLOY_ORDER=worker-first|api-first (env, optional) overrides the default
+#               recreate order: worker-first for a deploy, api-first for a
+#               rollback (see ORDER below).
 #
 # It pulls PREBUILT images (.github/workflows/deploy-images.yml) and recreates
 # the containers. It does NOT build, does NOT run migrations and does NOT print
@@ -22,8 +25,20 @@
 #
 # ORDER: record the running release (rollback point) → check out the compose
 # file at RELEASE_SHA → pull both images → verify revisions → runtime schema gate
-# (from the NEW image, read-only) → recreate proovra-api, wait healthy + /readyz →
-# recreate proovra-worker, wait healthy + /health → verify what is running.
+# (from the NEW image, read-only) → recreate the FIRST service, wait healthy +
+# /readyz → recreate the SECOND, wait healthy + /readyz → verify what is running.
+#
+# WORKER FIRST ON A DEPLOY (ROLLOUT-HANDOFF D2). The API writes rows the worker
+# acts on. A NEW API beside an OLD worker lets the old worker act on a request
+# it does not understand: an exchange package the new API stored as
+# EXTERNAL_DISCLOSURE was built FULL_FORENSIC by the cdcb8aef8 worker (an
+# over-disclosure), and a reserved package quota was metered twice
+# (20281121130000 says "migration, then worker, then API"). An old worker
+# cannot be changed, so the order is the fix. A NEW worker beside the OLD API
+# only meets rows the old API wrote, which every new worker must read anyway.
+# A ROLLBACK reverses it (API first): the old API stops writing what only the
+# new worker understands before the old worker returns. DEPLOY_ORDER overrides
+# both, for a release whose handoff names the other order.
 #
 # The whole body is ONE function, parsed before anything runs: `git checkout`
 # below replaces this very file, and bash otherwise reads a script as it goes.
@@ -104,6 +119,20 @@ main() {
   validate_release "${SHA}" "${TAG}"
   export GHCR_OWNER IMAGE_TAG="${TAG}"
 
+  local ORDER="${DEPLOY_ORDER:-}"
+  if [ -z "${ORDER}" ]; then
+    ORDER="worker-first"
+    [ "${MODE}" = "rollback" ] && ORDER="api-first"
+  fi
+  case "${ORDER}" in
+    worker-first | api-first) ;;
+    *) fail "DEPLOY_ORDER must be 'worker-first' or 'api-first' (got '${ORDER}')." ;;
+  esac
+  local FIRST_SVC="${WORKER_SVC}" FIRST_URL="${WORKER_HEALTH_URL}" SECOND_SVC="${API_SVC}" SECOND_URL="${API_READY_URL}"
+  if [ "${ORDER}" = "api-first" ]; then
+    FIRST_SVC="${API_SVC}" FIRST_URL="${API_READY_URL}" SECOND_SVC="${WORKER_SVC}" SECOND_URL="${WORKER_HEALTH_URL}"
+  fi
+
   local API_IMAGE="ghcr.io/${GHCR_OWNER}/proovra-api:${TAG}"
   local WORKER_IMAGE="ghcr.io/${GHCR_OWNER}/proovra-worker:${TAG}"
 
@@ -114,6 +143,7 @@ main() {
   echo "  worker image = ${WORKER_IMAGE}"
   echo "  compose file = ${COMPOSE_FILE} (checked out at ${SHA})"
   echo "  env file     = ${COMPOSE_ENV_FILE} (values never printed)"
+  echo "  order        = ${ORDER} (${FIRST_SVC}, then ${SECOND_SVC})"
 
   # --- the rollback point: what is running NOW ---------------------------------
   local CUR_SHA="" CUR_TAG="" CUR_REF CUR_CID
@@ -142,7 +172,8 @@ main() {
     mkdir -p "${STATE_DIR}"
     printf 'RELEASE_SHA=%s\nIMAGE_TAG=%s\n' "${CUR_SHA}" "${CUR_TAG}" >"${STATE_DIR}/previous-release"
   fi
-  ROLLBACK_HINT="GHCR_OWNER=${GHCR_OWNER} ./scripts/deploy-prod-pull.sh --rollback"
+  # `bash …`: on the host the file is not executable (mode 644).
+  ROLLBACK_HINT="GHCR_OWNER=${GHCR_OWNER} bash scripts/deploy-prod-pull.sh --rollback"
 
   # --- compose file at exactly the release commit -----------------------------
   git fetch --quiet --tags origin
@@ -167,11 +198,12 @@ main() {
   compose run --rm --no-deps -T --entrypoint node "${API_SVC}" scripts/runtime-schema-gate.mjs ||
     fail "the database does not meet ${TAG}'s schema requirements — apply the migrations first. Nothing was restarted."
 
-  # --- API first, then worker -------------------------------------------------
-  compose up -d --no-deps "${API_SVC}"
-  wait_healthy "${API_SVC}" "${API_READY_URL}"
-  compose up -d --no-deps "${WORKER_SVC}"
-  wait_healthy "${WORKER_SVC}" "${WORKER_HEALTH_URL}"
+  # --- worker first on a deploy, API first on a rollback (ORDER above) --------
+  # A failure of the FIRST service stops here: the second is never touched.
+  compose up -d --no-deps "${FIRST_SVC}"
+  wait_healthy "${FIRST_SVC}" "${FIRST_URL}"
+  compose up -d --no-deps "${SECOND_SVC}"
+  wait_healthy "${SECOND_SVC}" "${SECOND_URL}"
 
   local svc want cid running
   for svc in "${API_SVC}" "${WORKER_SVC}"; do
