@@ -8,6 +8,7 @@ import { runbookDenialHtml } from "./lib/runbooks/denial-page";
 const RUNBOOK_DETAIL_PATH = /^\/admin\/platform\/runbooks\/([^/]+)\/?$/;
 
 import { findSurfaceTierRule } from "./lib/surface/tiers";
+import { REQUEST_PATHNAME_HEADER } from "./lib/request-pathname-header";
 import { isLocalOrPreviewHost } from "./lib/security/request-host";
 import { resolveApprovedTileTemplate } from "@proovra/shared/tile-endpoint-policy";
 
@@ -288,6 +289,8 @@ function applySecurityHeaders(response: NextResponse, csp: string, pathname: str
 function nextWithNonce(req: NextRequest, nonce: string, csp: string) {
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-nonce", nonce);
+  // PRO-PW-10 — the root layout renders <html lang dir> for this path.
+  requestHeaders.set(REQUEST_PATHNAME_HEADER, req.nextUrl.pathname);
   requestHeaders.set("Content-Security-Policy", csp);
   return NextResponse.next({ request: { headers: requestHeaders } });
 }
