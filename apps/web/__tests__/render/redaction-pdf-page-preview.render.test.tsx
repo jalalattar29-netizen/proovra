@@ -65,6 +65,26 @@ const READY: Reply = {
   body: { state: "READY", url: "https://files.test/redactions/t/previews/p1/page-0-abc.png?sig=1", width: 1190, height: 1684, expiresAtUtc: "2026-11-19T12:05:00.000Z" },
 };
 const PENDING: Reply = { status: 200, body: { state: "PENDING" } };
+const addButton = () => screen.getByRole("button", { name: "Add region" }) as HTMLButtonElement;
+const blockedNotice = () => document.querySelector<HTMLElement>("[data-redaction-authoring-blocked]");
+const regionPosts = () => calls.filter((c) => c.method === "POST" && c.path === "/v1/redaction/versions/v1/regions");
+/** Try both blind paths: a drag on the frame and the coordinate form. */
+async function tryBlindAuthoring() {
+  frame().getBoundingClientRect = () =>
+    ({ left: 0, top: 0, width: 100, height: 200, right: 100, bottom: 200, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+  await act(async () => {
+    fireEvent.mouseDown(frame(), { clientX: 10, clientY: 20 });
+  });
+  await act(async () => {
+    fireEvent.mouseMove(frame(), { clientX: 60, clientY: 120 });
+  });
+  await act(async () => {
+    fireEvent.mouseUp(frame(), { clientX: 60, clientY: 120 });
+  });
+  await act(async () => {
+    fireEvent.submit(document.querySelector("[data-redaction-region-coordinate-form]") as HTMLFormElement);
+  });
+}
 /** What a Fastify API without the route answers. */
 const OLD_API_404: Reply = { status: 404, body: { message: "Route GET:/v1/redaction/projects/p1/preview/pages/0 not found", error: "Not Found", statusCode: 404 } };
 
@@ -104,6 +124,15 @@ describe("PRO-R3-04 — the PDF editor shows the page", () => {
     await advance(60_000);
     expect(previewAsks()).toHaveLength(3);
 
+    // WEB-OLD-API-COMPAT — authoring opens only once the page image has loaded.
+    expect(addButton().disabled).toBe(true);
+    await act(async () => {
+      fireEvent.load(image()!);
+    });
+    expect(addButton().disabled).toBe(false);
+    expect(frame().getAttribute("data-redaction-authoring")).toBe("enabled");
+    expect(blockedNotice()).toBeNull();
+
     // A region drawn over the image is still a share of the page.
     frame().getBoundingClientRect = () =>
       ({ left: 0, top: 0, width: 100, height: 200, right: 100, bottom: 200, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
@@ -130,14 +159,16 @@ describe("PRO-R3-04 — the PDF editor shows the page", () => {
     mount();
     await advance(PDF_PREVIEW_SETTLE_MS);
     expect(previewAsks()).toHaveLength(1);
-    expect(document.querySelector("[data-redaction-pdf-no-preview]")?.textContent).toMatch(/Page 1 — the page is not shown here/);
+    expect(document.querySelector("[data-redaction-pdf-no-preview]")?.textContent).toMatch(/Page 1 — the page preview is not available, so regions cannot be added/);
     expect(image()).toBeNull();
     expect(screen.queryByRole("status")).toBeNull();
     expect(frame().style.aspectRatio).toBe("1 / 1.4142");
     await advance(60_000);
     expect(previewAsks()).toHaveLength(1);
-    // The link to the record and the coordinate form are still there.
+    // The link to the record stays; authoring is disabled and says why.
     expect(document.querySelector("[data-redaction-pdf-open-record]")).not.toBeNull();
+    expect(addButton().disabled).toBe(true);
+    expect(blockedNotice()?.getAttribute("data-redaction-authoring-blocked")).toBe("unavailable");
   });
 
   it("a page with no preview, a refusal and a lost answer keep the plain frame", async () => {
@@ -226,6 +257,14 @@ describe("PRO-R3-04 — the PDF editor shows the page", () => {
     expect(previewAsks()).toHaveLength(2);
   });
 
+  it("a locked version shows no authoring notice (nothing can be added anyway)", async () => {
+    handler = () => OLD_API_404;
+    mount({ versionLocked: true });
+    await advance(PDF_PREVIEW_SETTLE_MS);
+    expect(addButton().disabled).toBe(true);
+    expect(blockedNotice()).toBeNull();
+  });
+
   it("without a project id, or for a page past the cap, nothing is asked", async () => {
     handler = () => READY;
     mount({ projectId: undefined });
@@ -239,5 +278,114 @@ describe("PRO-R3-04 — the PDF editor shows the page", () => {
     });
     await advance(5_000);
     expect(previewAsks(200)).toHaveLength(0);
+  });
+});
+
+/**
+ * WEB-OLD-API-COMPAT — against an API without the preview route, or any time
+ * the page is not in view, region authoring is DISABLED with an explicit
+ * message. Neither a drag on the blank frame nor the coordinate form sends a
+ * region. Once the page image has loaded, both work.
+ */
+describe("WEB-OLD-API-COMPAT — no region is added without the page in view", () => {
+  const blindCases: Array<[string, Reply]> = [
+    ["the old API (route 404)", OLD_API_404],
+    ["UNAVAILABLE", { status: 200, body: { state: "UNAVAILABLE", reason: "page_out_of_range" } }],
+    ["a refusal (403)", { status: 403, body: { error: { code: "NOT_PERMITTED", message: "no" } } }],
+    ["READY without a url", { status: 200, body: { state: "READY" } }],
+  ];
+  for (const [label, reply] of blindCases) {
+    it(`${label}: drawing and the coordinate form are disabled, nothing is sent`, async () => {
+      handler = (method, path) => (method === "GET" && path === previewPath(0) ? reply : { status: 201, body: { regionId: "r1" } });
+      mount();
+      await advance(PDF_PREVIEW_SETTLE_MS);
+      expect(previewAsks()).toHaveLength(1);
+      expect(addButton().disabled).toBe(true);
+      expect(frame().getAttribute("data-redaction-authoring")).toBe("disabled");
+      expect(blockedNotice()?.getAttribute("data-redaction-authoring-blocked")).toBe("unavailable");
+      expect(blockedNotice()?.textContent).toMatch(/Regions cannot be added here: the page cannot be shown/);
+      for (const name of ["left", "top", "width", "height"]) {
+        expect((document.querySelector(`[data-redaction-region-coordinate="${name}"]`) as HTMLInputElement).disabled).toBe(true);
+      }
+      await tryBlindAuthoring();
+      expect(regionPosts()).toHaveLength(0);
+      // The page number stays usable: another page may have a preview.
+      expect((document.querySelector("[data-redaction-pdf-page]") as HTMLInputElement).disabled).toBe(false);
+    });
+  }
+
+  it("pending: disabled with a 'waiting' notice; budget exhausted: disabled as unavailable", async () => {
+    handler = (method, path) => (method === "GET" && path === previewPath(0) ? PENDING : { status: 201, body: { regionId: "r1" } });
+    mount();
+    // Before the first answer and while PENDING, nothing can be added.
+    expect(addButton().disabled).toBe(true);
+    await advance(PDF_PREVIEW_SETTLE_MS);
+    expect(screen.getByRole("status").textContent).toBe("Preparing preview…");
+    expect(blockedNotice()?.getAttribute("data-redaction-authoring-blocked")).toBe("waiting");
+    await tryBlindAuthoring();
+    expect(regionPosts()).toHaveLength(0);
+    await advance(PDF_PREVIEW_POLL_BUDGET_MS);
+    expect(document.querySelector("[data-redaction-pdf-no-preview]")).not.toBeNull();
+    expect(addButton().disabled).toBe(true);
+    expect(blockedNotice()?.getAttribute("data-redaction-authoring-blocked")).toBe("unavailable");
+    await tryBlindAuthoring();
+    expect(regionPosts()).toHaveLength(0);
+  });
+
+  it("a lost answer (network error) is disabled as unavailable", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new TypeError("Failed to fetch"))));
+    mount();
+    await advance(PDF_PREVIEW_SETTLE_MS + 5_000);
+    expect(addButton().disabled).toBe(true);
+    expect(blockedNotice()?.getAttribute("data-redaction-authoring-blocked")).toBe("unavailable");
+  });
+
+  it("an image that fails to load closes authoring again", async () => {
+    handler = (method, path) => (method === "GET" && path === previewPath(0) ? READY : { status: 201, body: { regionId: "r1" } });
+    mount();
+    await advance(PDF_PREVIEW_SETTLE_MS);
+    await act(async () => {
+      fireEvent.load(image()!);
+    });
+    expect(addButton().disabled).toBe(false);
+    await act(async () => {
+      fireEvent.error(image()!);
+    });
+    // Re-asked once; until the new image loads nothing can be added.
+    expect(addButton().disabled).toBe(true);
+    await advance(PDF_PREVIEW_SETTLE_MS);
+    await act(async () => {
+      fireEvent.error(image()!);
+    });
+    expect(image()).toBeNull();
+    expect(addButton().disabled).toBe(true);
+    expect(blockedNotice()?.getAttribute("data-redaction-authoring-blocked")).toBe("unavailable");
+    await tryBlindAuthoring();
+    expect(regionPosts()).toHaveLength(0);
+  });
+
+  it("ready and loaded: the coordinate form adds the rectangle it describes", async () => {
+    handler = (method, path) => (method === "GET" && path === previewPath(0) ? READY : { status: 201, body: { regionId: "r1" } });
+    mount();
+    await advance(PDF_PREVIEW_SETTLE_MS);
+    await act(async () => {
+      fireEvent.load(image()!);
+    });
+    expect(blockedNotice()).toBeNull();
+    const set = (name: string, value: string) =>
+      fireEvent.change(document.querySelector(`[data-redaction-region-coordinate="${name}"]`) as HTMLInputElement, { target: { value } });
+    set("left", "25");
+    set("top", "50");
+    set("width", "30");
+    set("height", "20");
+    await act(async () => {
+      fireEvent.submit(document.querySelector("[data-redaction-region-coordinate-form]") as HTMLFormElement);
+    });
+    expect(regionPosts()).toHaveLength(1);
+    expect(regionPosts()[0]!.body).toEqual({
+      kind: "PDF_PAGE_RECT",
+      method: "BLACKOUT",
+      geometry: { pageIndex: 0, rect: { x: 0.25, y: 0.5, width: 0.3, height: 0.2 } },
+    });
   });
 });

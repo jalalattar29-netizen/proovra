@@ -14,6 +14,9 @@
  *   * `trackingId` is optional and bounded — it lets the worker
  *     pipeline keep continuity across frames when a future
  *     tracker is wired in.
+ *   * WEB-OLD-API-COMPAT — the frame below never shows the video (no
+ *     frame preview exists), so free-hand drawing on it is DISABLED: a
+ *     region is never placed over a frame the operator cannot see.
  */
 
 import { regionAddFailureMessage } from "../../lib/redaction/refusal";
@@ -21,6 +24,12 @@ import { AppListbox } from "../app-primitives/AppListbox";
 import { useCallback, useRef, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
+
+/**
+ * WEB-OLD-API-COMPAT — no API version serves a video frame preview to this
+ * editor. Flip only together with a real frame under the canvas.
+ */
+const VIDEO_FRAME_PREVIEW_AVAILABLE: boolean = false;
 
 export function VideoRedactionViewer({
   evidenceId,
@@ -52,19 +61,22 @@ export function VideoRedactionViewer({
 
   void evidenceId;
 
+  // No frame preview is shown, so drawing is never enabled here.
+  const canAuthor = VIDEO_FRAME_PREVIEW_AVAILABLE && !versionLocked;
+
   const onMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (versionLocked) return;
+      if (!canAuthor) return;
       const rect = e.currentTarget.getBoundingClientRect();
       const x = (e.clientX - rect.left) / rect.width;
       const y = (e.clientY - rect.top) / rect.height;
       setDrag({ startX: x, startY: y, x, y, w: 0, h: 0 });
     },
-    [versionLocked],
+    [canAuthor],
   );
   const onMouseMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!drag || versionLocked) return;
+      if (!drag || !canAuthor) return;
       const rect = e.currentTarget.getBoundingClientRect();
       const x = (e.clientX - rect.left) / rect.width;
       const y = (e.clientY - rect.top) / rect.height;
@@ -74,10 +86,13 @@ export function VideoRedactionViewer({
       const minY = Math.min(y, drag.startY);
       setDrag({ ...drag, x: minX, y: minY, w, h });
     },
-    [drag, versionLocked],
+    [drag, canAuthor],
   );
   const onMouseUp = useCallback(async () => {
-    if (!drag || versionLocked) return;
+    if (!drag || !canAuthor) {
+      setDrag(null);
+      return;
+    }
     if (endFrame < startFrame) return;
     const bbox = {
       x: Math.max(0, Math.min(1, drag.x)),
@@ -108,6 +123,7 @@ export function VideoRedactionViewer({
       setAddError(regionAddFailureMessage(err));
     }
   }, [
+    canAuthor,
     drag,
     endFrame,
     method,
@@ -115,7 +131,6 @@ export function VideoRedactionViewer({
     startFrame,
     trackingId,
     versionId,
-    versionLocked,
   ]);
 
   return (
@@ -197,6 +212,8 @@ export function VideoRedactionViewer({
       <div
         ref={containerRef}
         data-redaction-video-canvas
+        data-redaction-authoring={canAuthor ? "enabled" : "disabled"}
+        aria-disabled={canAuthor ? undefined : true}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
@@ -209,7 +226,7 @@ export function VideoRedactionViewer({
           color: "#cbd5e1",
           borderRadius: 8,
           overflow: "hidden",
-          cursor: versionLocked ? "not-allowed" : "crosshair",
+          cursor: canAuthor ? "crosshair" : "not-allowed",
         }}
       >
         <span
@@ -222,7 +239,8 @@ export function VideoRedactionViewer({
             fontSize: 12,
           }}
         >
-          Frame preview · drag to draw a per-frame region · range&nbsp;
+          {canAuthor ? "Frame preview · drag to draw a per-frame region" : "No video frame is shown here"}
+          {" "}· range&nbsp;
           {startFrame}..{endFrame}
         </span>
         {drag ? (
@@ -252,6 +270,16 @@ export function VideoRedactionViewer({
         Regions are recorded across the selected frames. A redacted video
         copy cannot be produced yet; the original video is never modified.
       </small>
+      {!versionLocked && !canAuthor ? (
+        <p
+          role="note"
+          data-redaction-authoring-blocked="unavailable"
+          style={{ margin: "8px 0 0", fontSize: 12, color: "var(--status-warn-fg, #92400e)" }}
+        >
+          Regions cannot be drawn here: no video frame is shown, and a region is never placed
+          without the frame in view.
+        </p>
+      ) : null}
       {addError ? (
         <p role="alert" data-redaction-region-add-error style={{ color: "var(--status-risk-fg, #991b1b)", fontSize: 12.5, margin: "8px 0 0" }}>
           {addError}

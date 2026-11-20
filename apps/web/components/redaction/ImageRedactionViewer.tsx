@@ -15,6 +15,9 @@
  *     it to the actual image dimensions without losing precision.
  *   * `versionLocked` disables drawing once the version is out of
  *     DRAFT.
+ *   * WEB-OLD-API-COMPAT — drawing and the coordinate form are also
+ *     disabled until the record's image has loaded in the frame; a
+ *     region is never placed over an image the operator cannot see.
  */
 
 import { regionAddFailureMessage } from "../../lib/redaction/refusal";
@@ -23,6 +26,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
 import {
+  RegionAuthoringBlockedNotice,
   RegionCoordinateForm,
   isDeliberateDrag,
   useEvidenceImagePreview,
@@ -86,6 +90,9 @@ export function ImageRedactionViewer({
   const [aspect, setAspect] = useState<string | null>(null);
   const [previewBroken, setPreviewBroken] = useState(false);
   const showImage = preview.state === "ready" && !previewBroken;
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const imageShown = showImage && imageLoaded;
+  const canAuthor = !versionLocked && imageShown;
   // Only normalized bounding boxes can be drawn as an overlay rectangle;
   // other region kinds (text spans, audio ranges) are listed in the
   // region panel instead of being painted on the image.
@@ -111,17 +118,17 @@ export function ImageRedactionViewer({
 
   const onMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (versionLocked) return;
+      if (!canAuthor) return;
       const rect = e.currentTarget.getBoundingClientRect();
       const x = (e.clientX - rect.left) / rect.width;
       const y = (e.clientY - rect.top) / rect.height;
       setDrag({ startX: x, startY: y, x, y, w: 0, h: 0 });
     },
-    [versionLocked],
+    [canAuthor],
   );
   const onMouseMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!drag || versionLocked) return;
+      if (!drag || !canAuthor) return;
       const rect = e.currentTarget.getBoundingClientRect();
       const x = (e.clientX - rect.left) / rect.width;
       const y = (e.clientY - rect.top) / rect.height;
@@ -131,9 +138,11 @@ export function ImageRedactionViewer({
       const minY = Math.min(y, drag.startY);
       setDrag({ ...drag, x: minX, y: minY, w, h });
     },
-    [drag, versionLocked],
+    [drag, canAuthor],
   );
   const addRegion = useCallback(async (geometry: NormalizedRect) => {
+    // Never sent without the image in view (the form is disabled too).
+    if (!canAuthor) return;
     try {
       await apiFetch(`/v1/redaction/versions/${versionId}/regions`, {
         method: "POST",
@@ -150,9 +159,12 @@ export function ImageRedactionViewer({
       // used to vanish silently.
       setAddError(regionAddFailureMessage(err));
     }
-  }, [method, onChanged, versionId]);
+  }, [canAuthor, method, onChanged, versionId]);
   const onMouseUp = useCallback(async () => {
-    if (!drag || versionLocked) return;
+    if (!drag || !canAuthor) {
+      setDrag(null);
+      return;
+    }
     setDrag(null);
     // PRO-R3-18 — a click without a drag is not a region.
     if (!isDeliberateDrag(drag.w, drag.h)) return;
@@ -162,7 +174,7 @@ export function ImageRedactionViewer({
       width: Math.max(0.005, Math.min(1 - drag.x, drag.w)),
       height: Math.max(0.005, Math.min(1 - drag.y, drag.h)),
     });
-  }, [addRegion, drag, versionLocked]);
+  }, [addRegion, drag, canAuthor]);
 
   return (
     <section
@@ -203,6 +215,8 @@ export function ImageRedactionViewer({
       <div
         ref={containerRef}
         data-redaction-image-canvas
+        data-redaction-authoring={canAuthor ? "enabled" : "disabled"}
+        aria-disabled={canAuthor ? undefined : true}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
@@ -216,7 +230,7 @@ export function ImageRedactionViewer({
             "repeating-linear-gradient(45deg, #f1f5f9 0 8px, #e2e8f0 8px 16px)",
           borderRadius: 8,
           overflow: "hidden",
-          cursor: versionLocked ? "not-allowed" : "crosshair",
+          cursor: canAuthor ? "crosshair" : "not-allowed",
         }}
       >
         {showImage ? (
@@ -230,8 +244,12 @@ export function ImageRedactionViewer({
               if (el.naturalWidth > 0 && el.naturalHeight > 0) {
                 setAspect(`${el.naturalWidth} / ${el.naturalHeight}`);
               }
+              setImageLoaded(true);
             }}
-            onError={() => setPreviewBroken(true)}
+            onError={() => {
+              setImageLoaded(false);
+              setPreviewBroken(true);
+            }}
             style={{
               position: "absolute",
               inset: 0,
@@ -259,7 +277,7 @@ export function ImageRedactionViewer({
           >
             {preview.state === "loading"
               ? "Loading the image…"
-              : "The image could not be shown here (your access may not include the original). Regions you draw apply to the full image frame."}
+              : "The image could not be shown here (your access may not include the original), so regions cannot be added here."}
           </span>
         )}
         {drag ? (
@@ -294,7 +312,10 @@ export function ImageRedactionViewer({
         ))}
       </div>
 
-      <RegionCoordinateForm disabled={versionLocked} onAdd={addRegion} />
+      <RegionCoordinateForm disabled={!canAuthor} onAdd={addRegion} />
+      {!versionLocked && !imageShown ? (
+        <RegionAuthoringBlockedNotice waiting={preview.state === "loading" || (showImage && !imageLoaded)} subject="image" />
+      ) : null}
 
       <small
         style={{

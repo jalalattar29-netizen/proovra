@@ -104,10 +104,22 @@ describe("B5B-F-200 — projects page", () => {
 
 describe("B5B-F-200 — a refused region is said", () => {
   it("VERSION_LOCKED on region POST shows a notice", async () => {
-    handler = () => ({ status: 409, body: { denial: "VERSION_LOCKED" } });
+    // WEB-OLD-API-COMPAT — the record image must be shown before a region can be drawn.
+    handler = (method, path) =>
+      method === "GET" && path === "/v1/evidence/e1"
+        ? { status: 200, body: { evidence: { id: "e1", contentItems: [{ id: "p1", mimeType: "image/png", viewUrl: "https://files.test/photo.png", isPrimary: true }] } } }
+        : { status: 409, body: { denial: "VERSION_LOCKED" } };
     render(<ImageRedactionViewer evidenceId="e1" versionId="v1" regions={[]} versionLocked={false} onChanged={() => {}} />);
     const target = document.querySelector("[data-redaction-image-canvas]") as HTMLElement;
     target.getBoundingClientRect = () => ({ left: 0, top: 0, width: 100, height: 100, right: 100, bottom: 100, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    const img = await waitFor(() => {
+      const el = document.querySelector<HTMLImageElement>("[data-redaction-image-preview]");
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    await act(async () => {
+      fireEvent.load(img);
+    });
     await act(async () => {
       fireEvent.mouseDown(target, { clientX: 10, clientY: 10 });
     });

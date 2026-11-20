@@ -80,6 +80,37 @@ export function useEvidenceImagePreview(evidenceId: string): EvidenceImagePrevie
   return preview;
 }
 
+/**
+ * WEB-OLD-API-COMPAT — a region is never added "blind". While the page or
+ * image under the frame is not shown (still loading, not released to this
+ * viewer, an API that predates the preview route, a render that never
+ * arrived, an image that failed), drawing and the coordinate form are
+ * DISABLED and this notice says why. A rectangle placed without seeing what
+ * it covers could leave the sensitive content outside it while the version
+ * looks finished.
+ */
+export function RegionAuthoringBlockedNotice({
+  waiting,
+  subject,
+}: {
+  /** True while the preview is still on its way (not a final answer). */
+  waiting: boolean;
+  /** "page" for PDF, "image" for image records. */
+  subject: "page" | "image";
+}) {
+  return (
+    <p
+      role="note"
+      data-redaction-authoring-blocked={waiting ? "waiting" : "unavailable"}
+      style={{ margin: "8px 0 0", fontSize: 12, color: "var(--status-warn-fg, #92400e)" }}
+    >
+      {waiting
+        ? `Adding regions becomes available once the ${subject} is shown.`
+        : `Regions cannot be added here: the ${subject} cannot be shown, and a region is never placed without the ${subject} in view. Existing regions are kept. Try again later or ask an administrator.`}
+    </p>
+  );
+}
+
 export function activateOnKey(run: () => void) {
   return (e: KeyboardEvent<HTMLElement>) => {
     if (e.key === "Enter" || e.key === " ") {
