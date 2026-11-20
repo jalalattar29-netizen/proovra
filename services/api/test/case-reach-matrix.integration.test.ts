@@ -1453,10 +1453,38 @@ describe("restricted-case reach matrix (live PostgreSQL)", () => {
       });
     });
 
-    it("MEMBER (holds the reveal authority) reads the raw contact", async () => {
-      const r = await get(`/v1/evidence-requests/${requestId}`, off);
-      expect(r.statusCode, r.body).toBe(200);
-      expect((r.json() as { request: { recipientEmail: string } }).request.recipientEmail).toBe(RECIPIENT_EMAIL);
+    // NEW-RG-19-1 / DEC-14 — this case used to assert that a reveal-authority
+    // holder read the RAW contact on list/detail, with no audit record. The
+    // intake-link copy of the same contact is masked for every reader and
+    // reaches a holder only through the audited reveal route
+    // (POST /v1/workflow/intake-links/:id/recipient-contact, PRO-I1-08), so
+    // the request projections now follow that one rule: masked for everyone,
+    // the holder told that they may reveal.
+    it("MEMBER (holds the reveal authority): list and detail are masked too, and say the holder may reveal (NEW-RG-19-1)", async () => {
+      for (const url of [`/v1/evidence-requests/${requestId}`, `/v1/evidence-requests?${teamQ()}&caseId=${openCaseId}`]) {
+        const r = await get(url, off);
+        expect(r.statusCode, `${url}: ${r.body}`).toBe(200);
+        expect(r.body).toContain(requestId);
+        expect(r.body).not.toContain(RECIPIENT_EMAIL);
+        expect(r.body).not.toContain("5551234567");
+        expect(r.body).toContain("recipientEmailMasked");
+      }
+      const detail = (await get(`/v1/evidence-requests/${requestId}`, off)).json() as {
+        request: {
+          recipientEmail: unknown;
+          recipientPhone: unknown;
+          hasRecipientEmail: unknown;
+          hasRecipientPhone: unknown;
+          recipientContactRevealAuthorized: unknown;
+        };
+      };
+      expect(detail.request).toMatchObject({
+        recipientEmail: null,
+        recipientPhone: null,
+        hasRecipientEmail: true,
+        hasRecipientPhone: true,
+        recipientContactRevealAuthorized: true,
+      });
     });
   });
 

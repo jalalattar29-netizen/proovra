@@ -55,6 +55,7 @@ import {
 } from "../services/organization/org-access.js";
 import type { OrgRole } from "../services/organization/organization-resolver.service.js";
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
+import { effectiveExternalReviewGrantState } from "../services/external-review/external-review-grant.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { listOrgWorkspaceSeatRows } from "./organizations-governance.routes.js";
 import {
@@ -527,6 +528,7 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
         ).map((g) => [g.id, g] as const),
       );
 
+      const exportedAt = new Date();
       const grants = assignments.map((a) => {
         const lifecycle = lifecycleById.get(a.id) ?? null;
         return {
@@ -535,7 +537,11 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
           // forbids. Until that constraint is applied everywhere, report the
           // absence honestly rather than substituting a default that reads
           // like a real state.
-          grantState: lifecycle?.state ?? "UNKNOWN_NO_GRANT",
+          // NEW-RG-27-1 — the EFFECTIVE state: an INVITED/ACTIVE grant past
+          // its expiry reads EXPIRED, by the grant module's own read rule.
+          grantState: lifecycle
+            ? effectiveExternalReviewGrantState(lifecycle.state, lifecycle.expiresAtUtc, exportedAt)
+            : "UNKNOWN_NO_GRANT",
           expiresAtUtc: lifecycle?.expiresAtUtc ?? null,
           revokedAtUtc: lifecycle?.revokedAtUtc ?? null,
           // Acceptance is the grant's fact too; the sidecar's stamp is the

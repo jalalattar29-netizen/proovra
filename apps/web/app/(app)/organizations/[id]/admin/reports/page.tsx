@@ -146,7 +146,11 @@ const REPORTS: ReadonlyArray<ReportDef> = [
       // PRO-O1-14 — download audits carry the record's workspace, so the
       // organization's downloads ARE listed (an API older than this change
       // answers with a single explanatory row instead).
-      "Report, verification-package and original download events in the organization's workspaces. Bounded to the most recent 5,000 rows; the file says when older events were left out.",
+      // M738 — the CSV body carries no truncation note (its shape stays
+      // stable for spreadsheet / SIEM consumers); the API signals a cap
+      // through response headers, which `download` reads and reports on the
+      // card. The copy promises nothing the file itself does not do.
+      "Report, verification-package and original download events in the organization's workspaces. Bounded to the most recent 5,000 rows.",
     file: "download-audit.csv",
     filename: "org-download-audit.csv",
     minRole: "ORG_AUDITOR",
@@ -189,6 +193,10 @@ function ReportsTab() {
   const { addToast } = useToast();
   const [state, setState] = useState<Loadable<OrgHeader>>({ kind: "loading" });
   const [downloading, setDownloading] = useState<string | null>(null);
+  // M738 — reports whose last download hit the API's row cap, with the cap
+  // the API stated (x-report-truncated / x-report-row-cap). An API that does
+  // not expose those headers cross-origin simply yields no notice.
+  const [truncatedCaps, setTruncatedCaps] = useState<Record<string, number | null>>({});
 
   const load = useCallback(async () => {
     if (!orgId) return;
@@ -258,6 +266,15 @@ function ReportsTab() {
         }
 
         const text = await res.text();
+        const truncated = res.headers.get("x-report-truncated") === "true";
+        const capRaw = Number(res.headers.get("x-report-row-cap"));
+        const cap = Number.isInteger(capRaw) && capRaw > 0 ? capRaw : null;
+        setTruncatedCaps((prev) => {
+          const next = { ...prev };
+          if (truncated) next[report.id] = cap;
+          else delete next[report.id];
+          return next;
+        });
         const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -385,6 +402,17 @@ function ReportsTab() {
                       </Badge>
                     )}
                   </div>
+                  {report.id in truncatedCaps ? (
+                    <p
+                      role="status"
+                      data-testid={`report-truncated-${report.id}`}
+                      style={{ ...mutedText, margin: 0, color: "var(--ink-primary, #0f172a)" }}
+                    >
+                      {truncatedCaps[report.id] != null
+                        ? `Your download holds only the most recent ${truncatedCaps[report.id]!.toLocaleString("en-US")} rows; older entries were left out.`
+                        : "Your download holds only the most recent rows; older entries were left out."}
+                    </p>
+                  ) : null}
                   <div style={{ marginTop: "auto", paddingTop: 4 }}>
                     <Button
                       type="button"

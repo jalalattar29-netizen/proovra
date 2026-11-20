@@ -82,6 +82,7 @@ import {
 } from "@proovra/shared";
 import { canonicalJsonValue } from "@proovra/shared/custody-hash";
 import { appendCustodyEventTx } from "../custody/custody-chain.js";
+import { releaseExportPackageUnit } from "../billing/export-package-meter.js";
 import { evaluateEffectiveLegalHold } from "../governance/effective-legal-hold.js";
 import { reportClaimLiveWhere } from "../reports/report-claim-lease.js";
 import { createHash } from "node:crypto";
@@ -990,6 +991,40 @@ export async function executeEvidenceDestruction(
     // WS-SCHED / PRO-W1C-04 — exchange packages that named this record: their
     // objects are gone and verified gone, so they stop being deliverable. The
     // row stays (history); it no longer points at bytes or serves a link.
+    //
+    // NEW-RG-33-3 — a DRAFT/BUILDING package holding a reserved monthly export
+    // unit never consumed it (PRO-BL2-02): revoking it gives the unit back,
+    // exactly as revokePackage does. Each move is conditional on the state and
+    // reservation read, so the unit is released once, in this transaction.
+    const reservedPackages = await tx.evidenceExchangePackage.findMany({
+      where: {
+        evidenceIds: { array_contains: [evidence.id] },
+        state: { in: ["DRAFT", "BUILDING"] },
+        quotaReservedPeriodStartUtc: { not: null },
+      },
+      select: { id: true, teamId: true, state: true, quotaReservedPeriodStartUtc: true },
+    });
+    for (const pkg of reservedPackages) {
+      if (!pkg.quotaReservedPeriodStartUtc) continue;
+      const moved = await tx.evidenceExchangePackage.updateMany({
+        where: { id: pkg.id, state: pkg.state, quotaReservedPeriodStartUtc: pkg.quotaReservedPeriodStartUtc },
+        data: {
+          state: "REVOKED",
+          revokedAtUtc: now,
+          storageKey: null,
+          signedUrl: null,
+          signedUrlExpiresAtUtc: null,
+          quotaReservedPeriodStartUtc: null,
+        },
+      });
+      if (moved.count === 1) {
+        await releaseExportPackageUnit({
+          prisma: tx,
+          teamId: pkg.teamId,
+          periodStartUtc: pkg.quotaReservedPeriodStartUtc,
+        });
+      }
+    }
     await tx.evidenceExchangePackage.updateMany({
       where: { evidenceIds: { array_contains: [evidence.id] }, state: { not: "REVOKED" } },
       data: { state: "REVOKED", revokedAtUtc: now, storageKey: null, signedUrl: null, signedUrlExpiresAtUtc: null },

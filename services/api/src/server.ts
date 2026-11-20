@@ -716,6 +716,11 @@ allowedHeaders: [
       "x-request-id",
       "retry-after",
       CLIENT_REPORT_ACCEPTED_HEADER,
+      // M738 — an organization report CSV signals that it hit the row cap
+      // only through these (organizations-reports.routes.ts); the web
+      // reports page reads them to tell the user older rows were left out.
+      "x-report-truncated",
+      "x-report-row-cap",
     ],
   });
 

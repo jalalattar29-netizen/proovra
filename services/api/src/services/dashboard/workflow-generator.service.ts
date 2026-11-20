@@ -15,7 +15,10 @@
  *   - Bounded operator-safe summaries — no raw payloads.
  */
 
-import { prisma } from "../../db.js";
+import type { PrismaClient } from "@prisma/client";
+
+import { prisma as defaultPrisma } from "../../db.js";
+import { casUpdate, WorkflowError } from "../observability/workflow.service.js";
 import { workspaceIncidentWhere } from "../observability/incident-scope.js";
 
 type WorkflowType =
@@ -168,7 +171,10 @@ function actionCatalogForType(type: WorkflowType): Array<{
  */
 export async function generateWorkflowsForWorkspace(input: {
   teamId: string;
+  /** Test seam; production uses the API client. */
+  prisma?: PrismaClient;
 }): Promise<{ persisted: number; failed: number; types: string[] }> {
+  const prisma = input.prisma ?? defaultPrisma;
   let persisted = 0;
   let failed = 0;
   const types: string[] = [];
@@ -306,17 +312,37 @@ export async function generateWorkflowsForWorkspace(input: {
         existing.status === "SUPPRESSED"
       ) {
         // Reopen: bump escalationLevel + 1.
-        const reopened = await prisma.operationalWorkflow.update({
-          where: { id: existing.id },
-          data: {
-            status: "OPEN",
-            severity: wfSeverity,
-            priority: wfPriority,
-            escalationLevel: existing.escalationLevel + 1,
-            resolvedAtUtc: null,
-            resolutionSummary: null,
-          },
-        });
+        //
+        // NEW-RG-32-3 — through THE workflow compare-and-set (casUpdate), like
+        // every operator writer: it writes only while the row still holds the
+        // status and escalation level this sweep decided against. A lost race
+        // (an operator reopened/escalated in between) writes nothing and is
+        // skipped; the operator's write stands.
+        let reopened: { id: string };
+        try {
+          reopened = await casUpdate(
+            prisma,
+            { id: existing.id, teamId: input.teamId, status: existing.status as never },
+            "reopen",
+            { escalationLevel: existing.escalationLevel },
+            {
+              status: "OPEN",
+              severity: wfSeverity as never,
+              priority: wfPriority as never,
+              escalationLevel: existing.escalationLevel + 1,
+              resolvedAtUtc: null,
+              resolutionSummary: null,
+            },
+          );
+        } catch (err) {
+          if (
+            err instanceof WorkflowError &&
+            (err.code === "stale_workflow_state" || err.code === "invalid_transition" || err.code === "workflow_not_found")
+          ) {
+            continue;
+          }
+          throw err;
+        }
         workflowId = reopened.id;
         eventType = "REOPENED";
         fromStatus = existing.status;
@@ -453,7 +479,7 @@ export async function listWorkspaceWorkflows(input: {
 > {
   const limit = Math.min(Math.max(input.limit ?? 20, 1), 100);
   try {
-    const rows = await prisma.operationalWorkflow.findMany({
+    const rows = await defaultPrisma.operationalWorkflow.findMany({
       where: {
         teamId: input.teamId,
         status: {

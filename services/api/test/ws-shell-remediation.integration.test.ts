@@ -449,6 +449,13 @@ describe("WS-SHELL remediation regressions (live PostgreSQL)", () => {
   // PRO-P1C-02 / PRO-P1-06 — the writers and the reservations
   // ===========================================================================
   describe("workflow writers and idempotency reservations", () => {
+    // Loaded once (after the harness booted), never inside a test body.
+    let wfGen: typeof import("../src/services/dashboard/workflow-generator.service.js");
+    let wfSvc: typeof import("../src/services/observability/workflow.service.js");
+    beforeAll(async () => {
+      wfGen = await import("../src/services/dashboard/workflow-generator.service.js");
+      wfSvc = await import("../src/services/observability/workflow.service.js");
+    });
     const newWorkflow = async (status: "OPEN" | "RESOLVED" = "OPEN") =>
       (
         await prisma.operationalWorkflow.create({
@@ -506,6 +513,101 @@ describe("WS-SHELL remediation regressions (live PostgreSQL)", () => {
       const reserved = both.find((r) => r.kind === "reserved") as { kind: "reserved"; markerId: string };
       await svc.releaseWorkflowActionIdempotency(reserved.markerId);
       expect((await reserve()).kind).toBe("reserved");
+    });
+
+    // NEW-RG-32-3 — the incident sweep reopens a RESOLVED/SUPPRESSED workflow.
+    // It decided against the state it read; an operator who reopened and
+    // escalated in between must not have that write overwritten.
+    it("NEW-RG-32-3: the incident sweep's reopen is a compare-and-set; a concurrent operator write is not lost", async () => {
+      const W = await tenant("TEAM");
+      const incident = await prisma.operationalIncident.create({
+        data: {
+          teamId: W.teamId,
+          category: "REPORT",
+          severity: "WARNING",
+          status: "OPEN",
+          fingerprint: `rg323-${tag()}`,
+          title: "rg-32-3 incident",
+          safeSummary: "rg-32-3 incident",
+        } as never,
+        select: { id: true },
+      });
+      const { generateWorkflowsForWorkspace } = wfGen;
+      const { reopenWorkflow, escalateWorkflow } = wfSvc;
+
+      await generateWorkflowsForWorkspace({ teamId: W.teamId });
+      const wf = await prisma.operationalWorkflow.findFirstOrThrow({ where: { teamId: W.teamId, sourceIncidentId: incident.id } });
+      await prisma.operationalWorkflow.update({ where: { id: wf.id }, data: { status: "RESOLVED", escalationLevel: 0 } });
+
+      // The sweep reads the workflow RESOLVED at level 0; right after its read,
+      // an operator reopens it and escalates twice (level 2).
+      let raced = false;
+      const operator = async () => {
+        await reopenWorkflow({ workflowId: wf.id, teamId: W.teamId, actorUserId: W.owner.id });
+        await escalateWorkflow({ workflowId: wf.id, teamId: W.teamId, actorUserId: W.owner.id });
+        await escalateWorkflow({ workflowId: wf.id, teamId: W.teamId, actorUserId: W.owner.id });
+      };
+      const bind = <T extends object>(t: T, p: string | symbol) => {
+        const v = Reflect.get(t, p);
+        return typeof v === "function" ? v.bind(t) : v;
+      };
+      const racing = new Proxy(prisma, {
+        get(target, prop) {
+          if (prop !== "operationalWorkflow") return bind(target, prop);
+          const delegate = target.operationalWorkflow;
+          return new Proxy(delegate, {
+            get(d, p) {
+              const read = p === "findMany" || p === "findUnique";
+              if (!read) return bind(d, p);
+              return async (args: unknown) => {
+                const rows = await (d as unknown as Record<string, (a: unknown) => Promise<unknown>>)[p as string]!(args);
+                if (!raced) {
+                  raced = true;
+                  await operator();
+                }
+                return rows;
+              };
+            },
+          });
+        },
+      });
+
+      const reopenedEventsBefore = await prisma.operationalWorkflowEvent.count({ where: { workflowId: wf.id, eventType: "REOPENED" } });
+      await generateWorkflowsForWorkspace({ teamId: W.teamId, prisma: racing as never });
+      expect(raced).toBe(true);
+
+      const after = await prisma.operationalWorkflow.findUniqueOrThrow({ where: { id: wf.id } });
+      expect(after.status).toBe("OPEN");
+      expect(after.escalationLevel, "the operator's two escalations survive the sweep").toBe(2);
+      // The sweep lost the race and wrote nothing: the only new REOPENED event
+      // is the operator's own (the sweep's would make it two).
+      expect(await prisma.operationalWorkflowEvent.count({ where: { workflowId: wf.id, eventType: "REOPENED" } })).toBe(
+        reopenedEventsBefore + 1,
+      );
+    });
+
+    it("NEW-RG-32-3: with no concurrent write the sweep still reopens a RESOLVED workflow at escalationLevel + 1", async () => {
+      const W = await tenant("TEAM");
+      const incident = await prisma.operationalIncident.create({
+        data: {
+          teamId: W.teamId,
+          category: "REPORT",
+          severity: "WARNING",
+          status: "OPEN",
+          fingerprint: `rg323b-${tag()}`,
+          title: "rg-32-3 incident b",
+          safeSummary: "rg-32-3 incident b",
+        } as never,
+        select: { id: true },
+      });
+      const { generateWorkflowsForWorkspace } = wfGen;
+      await generateWorkflowsForWorkspace({ teamId: W.teamId });
+      const wf = await prisma.operationalWorkflow.findFirstOrThrow({ where: { teamId: W.teamId, sourceIncidentId: incident.id } });
+      await prisma.operationalWorkflow.update({ where: { id: wf.id }, data: { status: "RESOLVED", escalationLevel: 1 } });
+      await generateWorkflowsForWorkspace({ teamId: W.teamId });
+      const after = await prisma.operationalWorkflow.findUniqueOrThrow({ where: { id: wf.id } });
+      expect(after).toMatchObject({ status: "OPEN", escalationLevel: 2, resolvedAtUtc: null });
+      expect(await prisma.operationalWorkflowEvent.count({ where: { workflowId: wf.id, eventType: "REOPENED" } })).toBe(1);
     });
   });
 
