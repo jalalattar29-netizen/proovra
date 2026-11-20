@@ -18,12 +18,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 const TOKEN = "tok-0123456789abcdef";
+const nav = vi.hoisted(() => ({
+  pushes: [] as string[],
+  switchAnswer: undefined as boolean | undefined,
+  switchCalls: [] as string[],
+}));
 vi.mock("../../lib/sentry", () => ({ captureException: () => {} }));
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
 }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: () => {}, replace: () => {}, back: () => {} }),
+  useRouter: () => ({ push: (href: string) => nav.pushes.push(href), replace: () => {}, back: () => {} }),
   useParams: () => ({ token: "tok-0123456789abcdef" }),
   usePathname: () => "/org-invites/tok-0123456789abcdef/accept",
 }));
@@ -31,7 +36,14 @@ vi.mock("../../components/navigation/PageRouteGate", () => ({
   PageRouteGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 vi.mock("../../lib/platform-context", () => ({
-  usePlatformContext: () => ({ refresh: async () => {}, envelope: null, switchWorkspace: async () => {} }),
+  usePlatformContext: () => ({
+    refresh: async () => {},
+    envelope: null,
+    switchWorkspace: async (workspaceId: string) => {
+      nav.switchCalls.push(workspaceId);
+      return nav.switchAnswer;
+    },
+  }),
 }));
 
 import OrgInviteAcceptPage from "../../app/(app)/org-invites/[token]/accept/page";
@@ -52,6 +64,9 @@ const requests: Array<{ url: string; method: string; body: string | null }> = []
 
 beforeEach(() => {
   requests.length = 0;
+  nav.pushes.length = 0;
+  nav.switchCalls.length = 0;
+  nav.switchAnswer = undefined;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -145,5 +160,34 @@ describe("B-16 — each refusal says what to do", () => {
     await mountAndAccept();
     expect(screen.getByText("We couldn't accept this invite")).toBeTruthy();
     expect(screen.getByText(/expired, revoked, or already accepted/)).toBeTruthy();
+  });
+});
+
+describe("NEW-RG-15-1 — opening an assigned workspace honours a refused switch", () => {
+  const ACCEPTED = {
+    status: 200,
+    body: { invitationAccepted: true, organizationId: "org-1", role: "ORG_MEMBER", assignedWorkspaceIds: ["ws-9"] },
+  };
+
+  it("a refused switch (false) shows a notice and does not open Home", async () => {
+    acceptReplies = [ACCEPTED];
+    nav.switchAnswer = false;
+    await mountAndAccept();
+    fireEvent.click(screen.getByRole("button", { name: /^Open / }));
+    await settle();
+    expect(nav.switchCalls).toEqual(["ws-9"]);
+    expect(nav.pushes).not.toContain("/home");
+    expect(nav.pushes).toEqual([]);
+    expect(screen.getByText(/could not switch to that workspace/)).toBeTruthy();
+  });
+
+  it("control: a completed switch opens Home with no notice", async () => {
+    acceptReplies = [ACCEPTED];
+    nav.switchAnswer = true;
+    await mountAndAccept();
+    fireEvent.click(screen.getByRole("button", { name: /^Open / }));
+    await settle();
+    expect(nav.pushes).toEqual(["/home"]);
+    expect(screen.queryByText(/could not switch to that workspace/)).toBeNull();
   });
 });
