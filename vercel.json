@@ -3,5 +3,10 @@
   "installCommand": "pnpm install",
   "buildCommand": "pnpm --filter proovra-web build",
   "devCommand": "pnpm --filter proovra-web dev",
-  "ignoreCommand": "node scripts/vercel-ignore-build.mjs"
+  "ignoreCommand": "node scripts/vercel-ignore-build.mjs",
+  "git": {
+    "deploymentEnabled": {
+      "main": false
+    }
+  }
 }

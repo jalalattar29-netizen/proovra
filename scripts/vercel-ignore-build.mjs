@@ -1,34 +1,49 @@
 #!/usr/bin/env node
 /**
- * VERCEL — SKIP A PRODUCT BUILD ONLY WHEN NOTHING THE PRODUCT IS BUILT FROM
- * CHANGED.
+ * VERCEL — DECIDE WHETHER A BUILD MAY RUN.
  *
- * Vercel runs `ignoreCommand` (vercel.json) before every build: exit 0 skips
- * the build, exit 1 builds. Audit and documentation branches — a ledger, a
- * report, a regenerated audit artifact — were each triggering a full product
- * build and preview deployment of an unchanged application.
+ * Vercel runs `ignoreCommand` (vercel.json) before every build of a project
+ * that reads this vercel.json: exit 0 SKIPS the build (the deployment is
+ * cancelled and the current production deployment keeps serving), any other
+ * exit code BUILDS. An uncaught exception therefore builds — so the production
+ * path below catches everything and skips instead.
  *
- * The rule is deliberately narrow, because a skipped build that should have
- * run is a product change nobody previewed:
+ * PREVIEWS (any branch but main, VERCEL_ENV != production) — skipped only when
+ * EVERY changed file is documentation or audit output (NON_PRODUCT_PATHS);
+ * anything unreadable builds. A preview never touches the production domains.
  *
- *   - Production and `main` ALWAYS build. Production deploys only from main,
- *     and main is never skipped, whatever changed.
- *   - A preview is skipped only when EVERY changed file is documentation or
- *     audit output (NON_PRODUCT_PATHS). One product file builds.
- *   - Anything unreadable builds: no previous SHA in the clone, a failed diff,
- *     an empty change set. Uncertainty is never a reason to skip.
+ * PRODUCTION / MAIN — FAIL CLOSED (2026-11-20 release-gate repair, B8-F-401).
+ * The web ships from Vercel on every push to main while the API and worker
+ * ship by hand on their own host. On 2026-11-19 four remediation pushes put a
+ * web build (route epoch 2) live against API cdcb8aef8 (epoch 1): the old gate
+ * built whenever the live API's epoch was UNREADABLE, and a route epoch says
+ * nothing about new fields, enums or behaviour. A production build now runs
+ * only when ALL of these are positively established:
  *
- * B8-F-401 (Free audit 0ea0, residual pass 2026-11-17) — the one exception to
- * "main always builds". The web ships on every push while the API and worker
- * ship by hand later, so a main build whose route table is AHEAD of the live
- * API (this build's PRESENTATION_CONTRACT_ROUTE_EPOCH > the live API's
- * `x-proovra-route-epoch`) would call routes the API does not serve yet. Such
- * a production build is skipped and the current deployment keeps serving; after
- * the API is deployed, redeploy the web (push or Vercel "Redeploy"). The gate
- * skips ONLY on a readable lower epoch: an unreachable API, an absent or
- * malformed header, or an unreadable own epoch all build, and the web's own
- * skew notice (OPS-015 / B8-F-402) covers that case at run time.
- * PROOVRA_WEB_IGNORE_API_EPOCH=1 forces the build (break-glass).
+ *   1. the build's own contract version and route epoch are readable;
+ *   2. the live API's /health answers 2xx within the timeout, with readable
+ *      `x-proovra-contract` and `x-proovra-route-epoch` headers that are not
+ *      lower than the build's;
+ *   3. the live API states its source `revision`, that commit is present in
+ *      this clone, and NOTHING the API and the web share or the API serves
+ *      (API_FACING_PATHS) differs between it and the commit being built —
+ *      i.e. the web is not ahead of the API in any field, enum, route,
+ *      validation rule or behaviour, whatever the epoch says.
+ *
+ * Anything else — missing configuration, a non-https base, a timeout, a
+ * Cloudflare challenge, a 5xx, an absent header, an older epoch or contract,
+ * a revision this clone does not have, a failed diff, an exception — SKIPS,
+ * and the log line says exactly why. After the API is deployed, redeploy the
+ * web (Vercel "Redeploy" of the main deployment, or a new push).
+ *
+ * PROOVRA_WEB_IGNORE_API_EPOCH=1 (a Vercel environment variable, set by the
+ * owner for one deliberate release) forces the build: break-glass.
+ *
+ * This gate is defence in depth. The primary control while a server release is
+ * pending is vercel.json `git.deploymentEnabled.main: false`, which stops
+ * Vercel creating any deployment from main at all; the runtime skew notice
+ * (apps/web/lib/contract-skew.ts) and the client's own degraded states cover a
+ * tab that is open across a release.
  *
  * `docs/` is safe to list because the web app reads nothing under it at build
  * or run time: runbooks reach the product only through the committed,
@@ -49,24 +64,72 @@ export const NON_PRODUCT_PATHS = [
 ];
 
 /**
- * The decision, from the environment, the list of changed paths (null =
- * unreadable) and, for production/main, the build's own route epoch and the
- * live API's (null = unknown).
+ * Source the API serves or shares with the web. A difference here between the
+ * live API's revision and the web build means the web may rely on something
+ * the live API does not do yet. Locale strings are web-only text.
  */
-export function decide({ env, changedFiles, ownRouteEpoch = null, liveApiRouteEpoch = null }) {
-  if (env.VERCEL_ENV === "production" || env.VERCEL_GIT_COMMIT_REF === "main") {
-    if (
-      env.PROOVRA_WEB_IGNORE_API_EPOCH !== "1" &&
-      isEpoch(ownRouteEpoch) &&
-      isEpoch(liveApiRouteEpoch) &&
-      liveApiRouteEpoch < ownRouteEpoch
-    ) {
-      return {
-        build: false,
-        reason: `the live API serves route epoch ${liveApiRouteEpoch} and this build needs ${ownRouteEpoch} — deploy the API first, then redeploy the web`,
-      };
+export const API_FACING_PATHS = [
+  "services/api/src",
+  "services/api/prisma",
+  "services/worker/src",
+  "packages/shared/src",
+  ":(exclude)packages/shared/src/i18n*",
+];
+
+export const LIVE_API_TIMEOUT_MS = 10_000;
+
+function isEpoch(n) {
+  return Number.isInteger(n) && n >= 1;
+}
+
+function isProduction(env) {
+  return env.VERCEL_ENV === "production" || env.VERCEL_GIT_COMMIT_REF === "main";
+}
+
+/**
+ * The decision.
+ *  - changedFiles: preview change set (null = unreadable).
+ *  - own: { contract, routeEpoch } of this build (null fields = unreadable).
+ *  - live: { ok, status, contract, routeEpoch, revision, error } from the live
+ *    API, or null when it was not asked.
+ *  - apiFacingDiff: list of API-facing paths that differ between the live API
+ *    revision and this build; null = could not be established.
+ */
+export function decide({ env, changedFiles, own = null, live = null, apiFacingDiff = null }) {
+  if (isProduction(env)) {
+    if (env.PROOVRA_WEB_IGNORE_API_EPOCH === "1") {
+      return { build: true, reason: "BREAK-GLASS PROOVRA_WEB_IGNORE_API_EPOCH=1: building without the live-API compatibility check" };
     }
-    return { build: true, reason: "production and main always build" };
+    const skip = (why) => ({ build: false, reason: `${why} — deploy the compatible API first, then redeploy the web` });
+    if (!own || !isEpoch(own.contract) || !isEpoch(own.routeEpoch)) {
+      return skip("this build's own contract version / route epoch could not be read");
+    }
+    if (!live) return skip("the live API was not asked");
+    if (live.error) return skip(`the live API could not be read (${live.error})`);
+    if (!live.ok) return skip(`the live API /health answered HTTP ${live.status}`);
+    if (!isEpoch(live.contract)) return skip("the live API sent no readable x-proovra-contract header");
+    if (!isEpoch(live.routeEpoch)) return skip("the live API sent no readable x-proovra-route-epoch header");
+    if (live.contract < own.contract) {
+      return skip(`the live API serves contract ${live.contract} and this build needs ${own.contract}`);
+    }
+    if (live.routeEpoch < own.routeEpoch) {
+      return skip(`the live API serves route epoch ${live.routeEpoch} and this build needs ${own.routeEpoch}`);
+    }
+    if (!/^[0-9a-f]{7,40}$/.test(String(live.revision ?? ""))) {
+      return skip("the live API did not state its source revision");
+    }
+    if (!Array.isArray(apiFacingDiff)) {
+      return skip(`the API-facing source of live revision ${live.revision} could not be compared with this build (commit absent from the clone or diff failed)`);
+    }
+    if (apiFacingDiff.length > 0) {
+      return skip(
+        `${apiFacingDiff.length} API-facing file(s) differ between the live API (${String(live.revision).slice(0, 9)}) and this build, e.g. ${apiFacingDiff[0]}`,
+      );
+    }
+    return {
+      build: true,
+      reason: `the live API (${String(live.revision).slice(0, 9)}, contract ${live.contract}, epoch ${live.routeEpoch}) serves everything this build relies on`,
+    };
   }
   if (!Array.isArray(changedFiles)) {
     return { build: true, reason: "the change set could not be read" };
@@ -84,13 +147,15 @@ export function decide({ env, changedFiles, ownRouteEpoch = null, liveApiRouteEp
   };
 }
 
-function isEpoch(n) {
-  return Number.isInteger(n) && n >= 1;
-}
-
 /** This checkout's route epoch, read from source (the gate runs before install). */
 export function readOwnRouteEpoch(source) {
   const m = /export const PRESENTATION_CONTRACT_ROUTE_EPOCH = (\d+);/.exec(source ?? "");
+  return m ? Number(m[1]) : null;
+}
+
+/** This checkout's presentation contract version, read from source. */
+export function readOwnContractVersion(source) {
+  const m = /export const PRESENTATION_CONTRACT_VERSION = (\d+);/.exec(source ?? "");
   return m ? Number(m[1]) : null;
 }
 
@@ -104,16 +169,85 @@ export function readWebDefaultApiBase(source) {
   return m ? m[1] : null;
 }
 
-/** The live API's route epoch from its /health response header, or null. */
-export async function readLiveApiRouteEpoch(env, fetchImpl = globalThis.fetch, fallbackBase = null) {
+function headerInt(res, name) {
+  const raw = res.headers?.get?.(name);
+  if (raw === null || raw === undefined) return null;
+  const n = Number(String(raw).trim());
+  return isEpoch(n) ? n : null;
+}
+
+/**
+ * What the live API states about itself. Never throws: every failure is
+ * returned in `error` (and fails the production gate closed).
+ */
+export async function readLiveApi(env, fetchImpl = globalThis.fetch, fallbackBase = null) {
   const configured = String(env.NEXT_PUBLIC_API_BASE ?? "").trim();
   const base = (configured || String(fallbackBase ?? "").trim()).replace(/\/+$/, "");
-  if (!/^https:\/\//.test(base) || typeof fetchImpl !== "function") return null;
+  if (!base) return { error: "no API base: NEXT_PUBLIC_API_BASE is unset and no default was found" };
+  if (!/^https:\/\//.test(base)) return { error: `API base ${base} is not https` };
+  if (typeof fetchImpl !== "function") return { error: "fetch is unavailable in this Node runtime" };
+  const url = `${base}/health`;
   try {
-    const res = await fetchImpl(`${base}/health`, { signal: AbortSignal.timeout(5_000) });
-    const raw = res.headers.get("x-proovra-route-epoch");
-    const n = raw === null ? NaN : Number(String(raw).trim());
-    return isEpoch(n) ? n : null;
+    const res = await fetchImpl(url, {
+      signal: AbortSignal.timeout(LIVE_API_TIMEOUT_MS),
+      headers: { accept: "application/json", "user-agent": "proovra-vercel-ignore-build" },
+    });
+    const status = Number(res.status ?? 0);
+    const ok = status >= 200 && status < 300;
+    let revision = null;
+    if (ok && typeof res.json === "function") {
+      try {
+        const body = await res.json();
+        revision = typeof body?.revision === "string" ? body.revision.trim() : null;
+      } catch {
+        revision = null;
+      }
+    }
+    return {
+      url,
+      ok,
+      status,
+      contract: headerInt(res, "x-proovra-contract"),
+      routeEpoch: headerInt(res, "x-proovra-route-epoch"),
+      revision,
+    };
+  } catch (e) {
+    const name = e && typeof e === "object" && "name" in e ? String(e.name) : "Error";
+    return { url, error: name === "TimeoutError" ? `timeout after ${LIVE_API_TIMEOUT_MS} ms` : `${name}: ${String(e?.message ?? e)}` };
+  }
+}
+
+/** Back-compatible reader for the epoch alone (null = unknown). */
+export async function readLiveApiRouteEpoch(env, fetchImpl = globalThis.fetch, fallbackBase = null) {
+  const live = await readLiveApi(env, fetchImpl, fallbackBase);
+  return live.error || !live.ok ? null : live.routeEpoch;
+}
+
+/**
+ * API-facing paths that differ between `revision` and HEAD, or null when that
+ * cannot be established (the commit is not in this clone, git failed).
+ */
+export function readApiFacingDiff(
+  revision,
+  run = (args) => execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 60_000 }),
+) {
+  if (!/^[0-9a-f]{7,40}$/.test(String(revision ?? ""))) return null;
+  try {
+    run(["cat-file", "-e", `${revision}^{commit}`]);
+  } catch {
+    try {
+      // Vercel clones shallowly; ask for the one commit before giving up.
+      run(["fetch", "--quiet", "--depth=1", "origin", revision]);
+      run(["cat-file", "-e", `${revision}^{commit}`]);
+    } catch {
+      return null;
+    }
+  }
+  try {
+    return run(["diff", "--name-only", revision, "HEAD", "--", ...API_FACING_PATHS])
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
   } catch {
     return null;
   }
@@ -132,36 +266,43 @@ function readChangedFiles(env) {
   }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const env = process.env;
-  const productionBuild = env.VERCEL_ENV === "production" || env.VERCEL_GIT_COMMIT_REF === "main";
-  let ownRouteEpoch = null;
-  let liveApiRouteEpoch = null;
-  if (productionBuild) {
-    try {
-      const here = dirname(fileURLToPath(import.meta.url));
-      ownRouteEpoch = readOwnRouteEpoch(
-        readFileSync(resolve(here, "..", "packages", "shared", "src", "release-contract.ts"), "utf8"),
-      );
-    } catch {
-      ownRouteEpoch = null;
-    }
-    let fallbackBase = null;
-    try {
-      const here = dirname(fileURLToPath(import.meta.url));
-      fallbackBase = readWebDefaultApiBase(
-        readFileSync(resolve(here, "..", "apps", "web", "lib", "api.ts"), "utf8"),
-      );
-    } catch {
-      fallbackBase = null;
-    }
-    liveApiRouteEpoch = await readLiveApiRouteEpoch(env, globalThis.fetch, fallbackBase);
-    // Written to the Vercel build log, so each deploy records what it compared.
-    console.log(
-      `vercel-ignore-build: route epoch — build ${ownRouteEpoch ?? "unknown"}, live API ${liveApiRouteEpoch ?? "unknown"}`,
-    );
+function readRepoFile(...parts) {
+  try {
+    const here = dirname(fileURLToPath(import.meta.url));
+    return readFileSync(resolve(here, "..", ...parts), "utf8");
+  } catch {
+    return null;
   }
-  const d = decide({ env, changedFiles: readChangedFiles(env), ownRouteEpoch, liveApiRouteEpoch });
+}
+
+export async function main(env = process.env) {
+  if (!isProduction(env)) {
+    return decide({ env, changedFiles: readChangedFiles(env) });
+  }
+  const contractSrc = readRepoFile("packages", "shared", "src", "release-contract.ts");
+  const own = { contract: readOwnContractVersion(contractSrc), routeEpoch: readOwnRouteEpoch(contractSrc) };
+  const live = await readLiveApi(env, globalThis.fetch, readWebDefaultApiBase(readRepoFile("apps", "web", "lib", "api.ts")));
+  const apiFacingDiff = live && !live.error && live.ok && live.revision ? readApiFacingDiff(live.revision) : null;
+  // Written to the Vercel build log, so each deploy records what it compared.
+  console.log(
+    `vercel-ignore-build: VERCEL_ENV=${env.VERCEL_ENV ?? "-"} ref=${env.VERCEL_GIT_COMMIT_REF ?? "-"} sha=${String(env.VERCEL_GIT_COMMIT_SHA ?? "-").slice(0, 9)} ` +
+      `build contract ${own.contract ?? "unknown"} epoch ${own.routeEpoch ?? "unknown"}; ` +
+      `live API ${live.url ?? "-"} ${live.error ? `error ${live.error}` : `HTTP ${live.status} contract ${live.contract ?? "unknown"} epoch ${live.routeEpoch ?? "unknown"} revision ${live.revision ?? "unknown"}`}; ` +
+      `API-facing diff ${Array.isArray(apiFacingDiff) ? apiFacingDiff.length : "unknown"}`,
+  );
+  return decide({ env, changedFiles: null, own, live, apiFacingDiff });
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  let d;
+  try {
+    d = await main(process.env);
+  } catch (e) {
+    // An uncaught error would exit non-zero, which Vercel reads as BUILD.
+    d = isProduction(process.env)
+      ? { build: false, reason: `the gate failed (${String(e?.message ?? e)}); production fails closed` }
+      : { build: true, reason: `the gate failed (${String(e?.message ?? e)}); previews build` };
+  }
   console.log(`vercel-ignore-build: ${d.build ? "BUILD" : "SKIP"} — ${d.reason}`);
   process.exit(d.build ? 1 : 0);
 }
