@@ -35,6 +35,8 @@ const reviewerOpsSrc = read("../src/routes/reviewer-ops.routes.ts");
 const reviewerWorkspaceSrc = read("../src/routes/reviewer-workspace.routes.ts");
 const governanceSrc = read("../src/services/governance.service.ts");
 const accessPolicySrc = read("../src/services/identity/access-policy.service.ts");
+// NEW-RG-07-1 — the engine's MEMBER decision is the shared one it delegates to.
+const memberDecisionSrc = read("../../../packages/shared-runtime/src/standing-creator-authority.ts");
 
 describe("Phase R5 — reviewer bulk capability consolidation (F38)", () => {
   it("canonical model: REVIEWER lacks review.bulk/review.assign; SUPERVISOR & REVIEW_ADMIN hold review.bulk", () => {
@@ -104,7 +106,9 @@ describe("Phase R5 — reviewer bulk capability consolidation (F38)", () => {
   it("A ≡ B: both engines derive the reviewer permission from the same roleHasPermission catalog", () => {
     // review-operations (Engine B) via requirePermission → roleHasPermission
     expect(governanceSrc).toContain("roleHasPermission");
-    // reviewer-ops (Engine A) via evaluateMemberAccess → evaluateAccess → roleHasPermission
-    expect(accessPolicySrc).toContain("roleHasPermission");
+    // reviewer-ops (Engine A) via evaluateMemberAccess → evaluateAccess →
+    // decideMemberPermission (shared-runtime, NEW-RG-07-1) → roleHasPermission
+    expect(accessPolicySrc).toContain("return decideMemberPermission(actor, permission, now);");
+    expect(memberDecisionSrc).toContain("roleHasPermission");
   });
 });

@@ -120,8 +120,12 @@ describe("Phase O Stream C — Sentry NODE-1K /v1/packaging/entitlements/apply-p
       expect(src, name).not.toMatch(/delegatedAdminGrant/);
       expect(src, name).not.toMatch(/hasDelegatedTier/);
     }
-    // The snapshot loader reads the canonical scope relation instead.
-    expect(ACCESS_POLICY_SERVICE).toMatch(/delegatedAdminScopes:\s*\{\s*select:/);
+    // The snapshot loader reads the canonical scope relation instead — through
+    // the shared one-read loader it delegates to (NEW-RG-07-1).
+    expect(ACCESS_POLICY_SERVICE).toContain("return loadMemberPermissionFacts(client, input);");
+    const sharedLoader = readApi("../../packages/shared-runtime/src/standing-creator-authority.ts");
+    expect(sharedLoader).toMatch(/delegatedAdminScopes:\s*\{\s*select:/);
+    expect(sharedLoader).not.toMatch(/delegatedAdminGrant/);
   });
 
   it("the route handler returns degraded 200 on P2022/P2021 instead of 500", () => {

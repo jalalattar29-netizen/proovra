@@ -32,8 +32,13 @@
 import type { PrismaClient } from "@prisma/client";
 import type { Permission } from "@proovra/shared";
 
+import {
+  CREATOR_LOST_AUTHORITY_REASON,
+  evaluateStandingCreatorAuthority,
+  type CreatorAuthorityVerdict,
+} from "@proovra/shared-runtime";
+
 import { prisma as defaultPrisma } from "../../db.js";
-import { evaluateAccess, loadMemberAccessSnapshot } from "../identity/access-policy.service.js";
 import { revokeCreatorShareGrantsTx } from "./creator-share-grants.js";
 
 /** The permission that let a member create each kind of standing credential. */
@@ -50,16 +55,11 @@ export const STANDING_CREDENTIAL_PERMISSION = {
   lifecycleWebhook: "integration.lifecycle_webhook.manage",
 } as const satisfies Record<string, Permission>;
 
-/** The reason recorded on a credential ended because its creator lost the authority. */
-export const CREATOR_LOST_AUTHORITY_REASON = "creator_lost_authority";
-
-export type CreatorAuthorityVerdict =
-  | { verdict: "HOLDS" }
-  | { verdict: "LOST"; reason: string }
-  | { verdict: "WORKSPACE_BLOCKED"; reason: string }
-  | { verdict: "INDETERMINATE" };
-
-const WORKSPACE_REASONS = new Set(["workspace_kind_unresolved", "organization_not_active"]);
+/**
+ * The reason recorded on a credential ended because its creator lost the
+ * authority, and the verdict shape — both from the shared decision.
+ */
+export { CREATOR_LOST_AUTHORITY_REASON, type CreatorAuthorityVerdict };
 
 /**
  * Does the creator still hold `permission` in this workspace, by the canonical
@@ -69,21 +69,11 @@ export async function evaluateCreatorAuthority(
   input: { teamId: string; userId: string; permission: Permission },
   client: PrismaClient = defaultPrisma,
 ): Promise<CreatorAuthorityVerdict> {
-  let snapshot;
-  try {
-    snapshot = await loadMemberAccessSnapshot({ teamId: input.teamId, userId: input.userId }, client);
-  } catch {
-    return { verdict: "INDETERMINATE" };
-  }
-  if (!snapshot) return { verdict: "LOST", reason: "no_membership" };
-  // A2-26 — expiry is not a loss of authority for a standing credential.
-  const actor = { kind: "MEMBER" as const, member: { ...snapshot, accessExpiresAtUtc: null } };
-  const decision = evaluateAccess(actor, { permission: input.permission });
-  if (decision.allowed) return { verdict: "HOLDS" };
-  if (WORKSPACE_REASONS.has(decision.reason)) {
-    return { verdict: "WORKSPACE_BLOCKED", reason: decision.reason };
-  }
-  return { verdict: "LOST", reason: decision.reason };
+  // THE canonical member decision over one read of the membership
+  // (`evaluateStandingCreatorAuthority`, @proovra/shared-runtime): the same
+  // rule the API engine applies to a MEMBER, asked identically by the Worker
+  // at send (matrix review NEW-RG-07-1).
+  return evaluateStandingCreatorAuthority(client, input);
 }
 
 /** The permission an intake link's creator must still hold: request-bound links answer to the request permission. */

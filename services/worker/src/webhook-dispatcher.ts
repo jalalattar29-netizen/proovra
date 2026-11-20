@@ -23,6 +23,12 @@ import {
   sendOutboundRequest,
   unwrapWebhookSigningSecret,
 } from "@proovra/shared-runtime/outbound";
+import {
+  CREATOR_LOST_AUTHORITY_REASON,
+  evaluateStandingCreatorAuthority,
+  machineEgressRestricted,
+  machineEgressTargetOf,
+} from "@proovra/shared-runtime";
 import { createHmac } from "node:crypto";
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
@@ -343,6 +349,8 @@ type EndpointRow = {
   url: string;
   state: string;
   secret: string;
+  /** NEW-RG-07-1 — the member the endpoint acts for. */
+  createdByUserId: string;
 };
 
 function deliveryFindUnique(id: string): Promise<DeliveryRow | null> {
@@ -408,7 +416,7 @@ function endpointFindUnique(id: string): Promise<EndpointRow | null> {
     a: { where: { id: string }; select: Record<string, true> }
   ) => Promise<EndpointRow | null>)({
     where: { id },
-    select: { id: true, url: true, state: true, secret: true },
+    select: { id: true, url: true, state: true, secret: true, createdByUserId: true },
   });
 }
 
@@ -472,6 +480,74 @@ async function dispatchOne(
       },
     }).catch(() => null);
     logger.info({ deliveryId }, "webhook.dispatcher.withheld_not_entitled");
+    return;
+  }
+
+  // PRO-LEAD-01 / PRO-G1Z-01 / DEC-09 (matrix review NEW-RG-07-1) — the
+  // endpoint acts in its creator's name: it sends only while the creator still
+  // holds integration.lifecycle_webhook.manage by the canonical member
+  // decision (role, live capability grant or delegated scope; access-window
+  // expiry set aside, A2-26), the same shared authority the API's emit, its
+  // integration sends and its retries ask. A capability or scope that expired
+  // is ended by no transition, so this use-time check is what stops a queued
+  // or retrying delivery. LOST deactivates the endpoint (as the emit does) and
+  // settles the delivery FAILED with the reason; an unreadable or
+  // workspace-blocked answer defers it without sending or counting an attempt.
+  const creator = await evaluateStandingCreatorAuthority(prisma as never, {
+    teamId: delivery.teamId,
+    userId: endpoint.createdByUserId,
+    permission: "integration.lifecycle_webhook.manage",
+  });
+  if (creator.verdict === "LOST") {
+    await (prisma.lifecycleWebhookEndpoint.updateMany as unknown as (a: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }) => Promise<unknown>)({
+      where: { id: endpoint.id, state: "ACTIVE" },
+      data: { state: "DEACTIVATED", deactivatedAtUtc: new Date() },
+    }).catch(() => null);
+    await webhookDeliveryUpdate({
+      where: { id: deliveryId },
+      data: {
+        state: "FAILED",
+        responseBodyPreview: CREATOR_LOST_AUTHORITY_REASON,
+        lastAttemptAtUtc: new Date(),
+      },
+    }).catch(() => null);
+    logger.info({ deliveryId, reason: creator.reason }, "webhook.dispatcher.creator_lost_authority");
+    return;
+  }
+  if (creator.verdict !== "HOLDS") {
+    await webhookDeliveryUpdate({
+      where: { id: deliveryId },
+      data: {
+        state: "RETRYING",
+        nextAttemptAtUtc: new Date(Date.now() + NOT_OPERATING_DEFER_MS),
+      },
+    }).catch(() => null);
+    logger.info({ deliveryId, verdict: creator.verdict }, "webhook.dispatcher.creator_authority_deferred");
+    return;
+  }
+
+  // PRO-LEAD-02 / AZ-R04 (matrix review NEW-RG-11-2) — the machine-egress rule
+  // is asked again at send, as the integration retry processor does: a
+  // delivery queued before its record or case became closed by a restricted
+  // case does not leave. Withheld, terminal, with its reason; the endpoint
+  // stays ACTIVE (new events about open records still deliver). Fails closed.
+  const egressPayload =
+    delivery.payload && typeof delivery.payload === "object" && !Array.isArray(delivery.payload)
+      ? (delivery.payload as Record<string, unknown>)
+      : {};
+  if (await machineEgressRestricted(machineEgressTargetOf(egressPayload), prisma as never)) {
+    await webhookDeliveryUpdate({
+      where: { id: deliveryId },
+      data: {
+        state: "WITHHELD",
+        responseBodyPreview: "withheld:machine_egress_restricted",
+        lastAttemptAtUtc: new Date(),
+      },
+    }).catch(() => null);
+    logger.info({ deliveryId }, "webhook.dispatcher.withheld_machine_egress");
     return;
   }
 

@@ -36,17 +36,17 @@ import {
   type Permission,
   type DelegatedAdminScopeKind,
   type TeamMemberStatus,
-  listPermissionsForDelegatedAdminScope,
-  mapTeamRoleToCanonical,
-  roleHasPermission,
-  teamMemberStatusGrantsAccess,
 } from "@proovra/shared";
+import {
+  decideMemberPermission,
+  loadMemberPermissionFacts,
+  memberWorkspaceLifecycleDenial,
+} from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { gateRequestSessionForWorkspace } from "./workspace-session-gate.service.js";
 import {
-  organizationLifecycleApplies,
   resolveWorkspaceKind,
   type ResolvedWorkspaceKind,
 } from "./workspace-kind.js";
@@ -198,73 +198,19 @@ export type AccessEvaluationContext = {
 
 const NOW = (): Date => new Date();
 
-function isActiveGrant(
-  grant: { expiresAtUtc: Date | null; revokedAtUtc: Date | null },
-  now: Date,
-): boolean {
-  if (grant.revokedAtUtc !== null) return false;
-  if (grant.expiresAtUtc !== null && grant.expiresAtUtc.getTime() <= now.getTime()) {
-    return false;
-  }
-  return true;
-}
-
+/**
+ * The MEMBER branch of the engine. Its decision — status, access window,
+ * workspace lifecycle (fail closed), role floor, live capability grants, live
+ * delegated scopes — is THE shared one (`decideMemberPermission`,
+ * @proovra/shared-runtime), so the Worker's use-time creator-authority check
+ * (matrix review NEW-RG-07-1) asks exactly this rule, not a copy.
+ */
 function evaluateMember(
   actor: MemberAccessSnapshot,
   permission: Permission,
   now: Date,
 ): AccessDecision {
-  if (!teamMemberStatusGrantsAccess(actor.status)) {
-    return { allowed: false, reason: "member_not_active", detail: actor.status };
-  }
-  if (
-    actor.accessExpiresAtUtc !== null &&
-    actor.accessExpiresAtUtc.getTime() <= now.getTime()
-  ) {
-    return { allowed: false, reason: "member_access_expired" };
-  }
-  // PHASE 1 (2026-07-21, corrected) — Workspace-kind + Organization-lifecycle
-  // gate. FAIL CLOSED throughout; there is no "null means skip" path.
-  //
-  //   * UNKNOWN kind (team row/fields unprovable) → DENY.
-  //   * ORGANIZATION workspace → the parent CUSTOMER Organization must be
-  //     loaded AND ACTIVE. Missing org, missing/null status, SUSPENDED, or
-  //     ARCHIVED all DENY.
-  //   * PERSONAL / OWNED workspace → backed by an internal SYSTEM container;
-  //     CUSTOMER-org lifecycle is explicitly NOT applicable → continue.
-  const lifecycleDenial = workspaceLifecycleDenial(actor);
-  if (lifecycleDenial) return lifecycleDenial;
-  // 1) Canonical role floor.
-  const canonical = mapTeamRoleToCanonical(actor.role);
-  if (roleHasPermission(canonical, permission)) {
-    return { allowed: true, via: { kind: "role", role: canonical } };
-  }
-  // 2) Active capability grants.
-  for (const grant of actor.capabilityGrants) {
-    if (!isActiveGrant(grant, now)) continue;
-    if (grant.permission === permission) {
-      return {
-        allowed: true,
-        via: { kind: "capability_grant", grantId: grant.id },
-      };
-    }
-  }
-  // 3) Active delegated admin scopes.
-  for (const scope of actor.delegatedAdminScopes) {
-    if (!isActiveGrant(scope, now)) continue;
-    const granted = listPermissionsForDelegatedAdminScope(scope.scopeKind);
-    if (granted.includes(permission)) {
-      return {
-        allowed: true,
-        via: {
-          kind: "delegated_admin",
-          scope: scope.scopeKind,
-          scopeId: scope.id,
-        },
-      };
-    }
-  }
-  return { allowed: false, reason: "permission_not_granted" };
+  return decideMemberPermission(actor, permission, now);
 }
 
 function evaluateServiceAccount(
@@ -343,84 +289,12 @@ export async function loadMemberAccessSnapshot(
   input: { teamId: string; userId: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<MemberAccessSnapshot | null> {
-  const row = await client.teamMember.findUnique({
-    where: { teamId_userId: { teamId: input.teamId, userId: input.userId } },
-    include: {
-      // PHASE 1 (2026-07-21, corrected) — Workspace kind + parent-Organization
-      // lifecycle. `workspaceKind`/`isPersonal`/`billingPlan` drive the
-      // canonical kind classification; `organization.status` drives the
-      // CUSTOMER-org lifecycle gate for ORGANIZATION workspaces.
-      team: {
-        select: {
-          isPersonal: true,
-          workspaceKind: true,
-          billingPlan: true,
-          organizationId: true,
-          // WORKSPACE-SCOPE CONVERGENCE — the owner id that binds a personal
-          // workspace's legacy NULL-team rows. Selected here so the canonical
-          // scope and the canonical permission come from ONE read of ONE row.
-          ownerUserId: true,
-          organization: { select: { status: true } },
-        },
-      },
-      capabilityGrants: {
-        select: {
-          id: true,
-          permission: true,
-          expiresAtUtc: true,
-          revokedAtUtc: true,
-        },
-      },
-      delegatedAdminScopes: {
-        select: {
-          id: true,
-          scopeKind: true,
-          expiresAtUtc: true,
-          revokedAtUtc: true,
-        },
-      },
-    },
-  });
-  if (!row) return null;
-  const team = (row as {
-    team?: {
-      isPersonal?: boolean;
-      workspaceKind?: string | null;
-      billingPlan?: string | null;
-      organizationId?: string | null;
-      ownerUserId?: string | null;
-      organization?: { status?: string | null } | null;
-    } | null;
-  }).team;
-  return {
-    teamMemberId: row.id,
-    teamId: row.teamId,
-    userId: row.userId,
-    role: row.role,
-    status: row.status,
-    accessExpiresAtUtc: row.accessExpiresAtUtc,
-    workspaceKind: resolveWorkspaceKind({
-      workspaceKind: team?.workspaceKind ?? null,
-      isPersonal: team?.isPersonal ?? null,
-      billingPlan: team?.billingPlan ?? null,
-      teamLoaded: team != null,
-    }),
-    workspaceOwnerUserId: team?.ownerUserId ?? null,
-    organizationStatus: team?.organization?.status ?? null,
-    organizationId: team?.organizationId ?? null,
-    capabilityGrants: row.capabilityGrants.map((g) => ({
-      id: g.id,
-      permission: g.permission,
-      expiresAtUtc: g.expiresAtUtc,
-      revokedAtUtc: g.revokedAtUtc,
-    })),
-    delegatedAdminScopes: row.delegatedAdminScopes.map((s) => ({
-      id: s.id,
-      scopeKind: s.scopeKind,
-      expiresAtUtc: s.expiresAtUtc,
-      revokedAtUtc: s.revokedAtUtc,
-    })),
-  };
+  // PHASE 1 (2026-07-21, corrected) — Workspace kind + parent-Organization
+  // lifecycle and WORKSPACE-SCOPE CONVERGENCE (the owner id), loaded with the
+  // membership in ONE read of ONE row. The read is the shared one
+  // (`loadMemberPermissionFacts`, @proovra/shared-runtime) the Worker's
+  // creator-authority check uses too (NEW-RG-07-1).
+  return loadMemberPermissionFacts(client, input);
 }
 
 export async function loadServiceAccountSnapshot(
@@ -486,17 +360,8 @@ export function workspaceLifecycleDenial(state: {
   workspaceKind: ReturnType<typeof resolveWorkspaceKind>;
   organizationStatus: string | null;
 }): { allowed: false; reason: "workspace_kind_unresolved" | "organization_not_active"; detail?: string } | null {
-  if (state.workspaceKind === "UNKNOWN") {
-    return { allowed: false, reason: "workspace_kind_unresolved" };
-  }
-  if (organizationLifecycleApplies(state.workspaceKind) && state.organizationStatus !== "ACTIVE") {
-    return {
-      allowed: false,
-      reason: "organization_not_active",
-      detail: state.organizationStatus ?? "missing",
-    };
-  }
-  return null;
+  // The member decision's own gate (shared with the Worker, NEW-RG-07-1).
+  return memberWorkspaceLifecycleDenial(state);
 }
 
 /** The lifecycle facts of one workspace, loaded exactly as the member snapshot loads them. */

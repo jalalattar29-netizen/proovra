@@ -21,7 +21,12 @@
  */
 import type { Prisma, PrismaClient } from "@prisma/client";
 
-import { workspaceCaseWhere, workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import {
+  machineEgressRestricted as sharedMachineEgressRestricted,
+  workspaceCaseWhere,
+  workspaceEvidenceWhere,
+  type MachineEgressTarget,
+} from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { listAccessibleWorkspaces } from "./accessible-workspaces.js";
@@ -298,109 +303,16 @@ export function evidenceReachWhere(
 }
 
 /**
- * PRO-LEAD-02 / B7B-F01 — THE ONE MACHINE-EGRESS RULE (AZ-R04). A machine
- * channel (integration webhook, lifecycle webhook, automation webhook) is on no
- * access list: an event naming, directly or through the object it is about, a
- * record or case a restricted case closes to "nobody" (`null`) does not leave.
- * Resolves every id kind a channel carries: a record, a case, a legal hold (its
- * record or case), an exchange package (its records and case), a review
- * workflow or escalation (its record), an external-review grant (its record,
- * case or package's record). Fails closed: a reach that cannot be read withholds.
+ * PRO-LEAD-02 / B7B-F01 — THE ONE MACHINE-EGRESS RULE (AZ-R04), re-exported
+ * from @proovra/shared-runtime (`machine-egress.ts`) so the Worker's
+ * lifecycle-webhook dispatcher asks the same implementation at send (matrix
+ * review NEW-RG-11-2). This module keeps the API's default client.
  */
-export type MachineEgressTarget = {
-  evidenceId?: string | null;
-  caseId?: string | null;
-  /** A scope-generic target (legal hold); its kind is tried as a record and a case. */
-  scopeTargetId?: string | null;
-  holdId?: string | null;
-  packageId?: string | null;
-  workflowId?: string | null;
-  escalationId?: string | null;
-  grantId?: string | null;
-};
-
-export function machineEgressTargetOf(payload: Record<string, unknown>): MachineEgressTarget {
-  const str = (k: string) => (typeof payload[k] === "string" ? (payload[k] as string) : null);
-  return {
-    evidenceId: str("evidenceId"),
-    caseId: str("caseId"),
-    scopeTargetId: str("scopeTargetId"),
-    holdId: str("holdId"),
-    packageId: str("packageId"),
-    workflowId: str("workflowId"),
-    escalationId: str("escalationId"),
-    grantId: str("grantId"),
-  };
-}
+export { machineEgressTargetOf, type MachineEgressTarget } from "@proovra/shared-runtime";
 
 export async function machineEgressRestricted(
   target: MachineEgressTarget,
   client: PrismaClient = defaultPrisma,
 ): Promise<boolean> {
-  try {
-    const evidenceIds = new Set<string>();
-    const caseIds = new Set<string>();
-    if (target.evidenceId) evidenceIds.add(target.evidenceId);
-    if (target.caseId) caseIds.add(target.caseId);
-    if (target.scopeTargetId) {
-      evidenceIds.add(target.scopeTargetId);
-      caseIds.add(target.scopeTargetId);
-    }
-    if (target.holdId) {
-      const hold = await client.evidenceLegalHold.findUnique({
-        where: { id: target.holdId },
-        select: { evidenceId: true, caseId: true },
-      });
-      if (hold?.evidenceId) evidenceIds.add(hold.evidenceId);
-      if (hold?.caseId) caseIds.add(hold.caseId);
-    }
-    if (target.packageId) {
-      const pkg = await client.evidenceExchangePackage.findUnique({
-        where: { id: target.packageId },
-        select: { evidenceIds: true, caseId: true },
-      });
-      if (pkg) {
-        for (const id of Array.isArray(pkg.evidenceIds) ? (pkg.evidenceIds as unknown[]) : []) {
-          if (typeof id === "string") evidenceIds.add(id);
-        }
-        if (pkg.caseId) caseIds.add(pkg.caseId);
-      } else {
-        const vp = await client.verificationPackage.findUnique({
-          where: { id: target.packageId },
-          select: { evidenceId: true },
-        });
-        if (vp?.evidenceId) evidenceIds.add(vp.evidenceId);
-      }
-    }
-    const workflowIds = new Set<string>();
-    if (target.workflowId) workflowIds.add(target.workflowId);
-    if (target.escalationId) {
-      const esc = await client.reviewEscalation.findUnique({
-        where: { id: target.escalationId },
-        select: { workflowId: true },
-      });
-      if (esc?.workflowId) workflowIds.add(esc.workflowId);
-    }
-    for (const wid of workflowIds) {
-      const wf = await client.evidenceReviewWorkflow.findUnique({ where: { id: wid }, select: { evidenceId: true } });
-      if (wf?.evidenceId) evidenceIds.add(wf.evidenceId);
-    }
-    if (target.grantId) {
-      const rows = await client.$queryRaw<Array<{ evidence_id: string | null; case_id: string | null; package_id: string | null }>>`
-        SELECT "evidence_id", "case_id", "package_id" FROM "external_review_grants" WHERE "id" = ${target.grantId}::uuid
-      `;
-      const g = rows[0];
-      if (g?.evidence_id) evidenceIds.add(g.evidence_id);
-      if (g?.case_id) caseIds.add(g.case_id);
-      if (g?.package_id) {
-        const vp = await client.verificationPackage.findUnique({ where: { id: g.package_id }, select: { evidenceId: true } });
-        if (vp?.evidenceId) evidenceIds.add(vp.evidenceId);
-      }
-    }
-    for (const id of evidenceIds) if (await evidenceClosedTo(id, null, client)) return true;
-    for (const id of caseIds) if (await caseClosedTo(id, null, client)) return true;
-    return false;
-  } catch {
-    return true;
-  }
+  return sharedMachineEgressRestricted(target, client);
 }
