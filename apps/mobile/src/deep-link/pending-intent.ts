@@ -124,3 +124,16 @@ export function takePendingIntent(): { route: string; url: string | null } | nul
   const route = takePendingRoute();
   return route ? { route, url } : null;
 }
+
+/**
+ * PRO-NA-04 — the sign-in legal gate resumes a waiting RECORD link: take its
+ * original URL (and clear the intent) only when one is pending. A plain route
+ * (an invitation, a tab) is left where it is.
+ */
+export function takePendingRecordLink(): string | null {
+  if (!pendingUrl) return null;
+  const url = pendingUrl;
+  pendingUrl = null;
+  takePendingRoute();
+  return url;
+}

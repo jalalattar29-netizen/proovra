@@ -15,6 +15,7 @@ import { apiFetch } from "../api";
 import { resolveMobileDeepLink } from "../deep-link";
 import { adoptSwitchedWorkspace } from "../product/platform-context";
 import { SWITCH_WORKSPACE_PATH, buildSwitchWorkspaceBody } from "../product/spaces";
+import { workspaceSwitchBlocked } from "../product/workspace-switch-guard";
 
 export const RECORD_LINK_SWITCH_NOTICE = "Opened in the record's workspace — you are now working there.";
 
@@ -58,4 +59,22 @@ export async function openRecordLinkInItsWorkspace(
   else if (outcome.status === "offline") Alert.alert("You appear to be offline", "Connect to the internet, then open the link again.");
   else if (outcome.status === "blocked_busy") Alert.alert("Capture in progress", "Finish or pause the current capture before opening links.");
   return outcome.status;
+}
+
+/**
+ * PRO-NA-04 — the ONE post-sign-in replay of a record link, used by the
+ * sign-in flow and by the legal gate it may pass through first: the server
+ * resolve, the workspace switch and the announcement, never the raw route.
+ * The active workspace is unknown right after sign-in, so a returned
+ * workspace is switched to.
+ */
+export function replayRecordLinkAfterSignIn(
+  url: string,
+  navigate: (route: string) => void,
+): ReturnType<typeof openRecordLinkInItsWorkspace> {
+  return openRecordLinkInItsWorkspace(url, {
+    navigate,
+    hasActiveWork: workspaceSwitchBlocked,
+    activeTeamId: null,
+  });
 }
