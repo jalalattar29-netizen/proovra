@@ -306,6 +306,106 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
   });
 
   // ===========================================================================
+  // Matrix review NEW-RG08-1 / NEW-RG08-2 (DEC-08) — the security-center doors
+  // end sessions in the same scope as the admin console
+  // ===========================================================================
+  describe("DEC-08: /v1/identity-security/sessions/revoke and /revoke-all stay inside the workspace's authority", () => {
+    async function memberWithSessions(label: string) {
+      const u = await person(label, { role: "MEMBER" });
+      const session = (teamId: string | null) =>
+        prisma.authenticatedSession.create({
+          data: {
+            userId: u.userId,
+            teamId,
+            sessionIdHash: createHash("sha256").update(randomUUID()).digest("hex"),
+            expiresAtUtc: future(),
+          },
+          select: { id: true, sessionIdHash: true },
+        });
+      return { u, startedHere: await session(A().teamId), personalSpace: await session(null) };
+    }
+    const revokeAllProof = (userId: string) =>
+      ceremony.approvedHeader({
+        token: owner(),
+        userId: A().ownerUserId,
+        teamId: A().teamId,
+        purpose: "CONTRIBUTOR_SESSION_REVOKE",
+        resourceKind: "user",
+        resourceId: userId,
+      });
+
+    it("revoke-all on an independent member ends only the session started here; their Personal Space survives", async () => {
+      const { u, startedHere, personalSpace } = await memberWithSessions("g2-dec08-indep");
+      const res = await call(
+        "POST",
+        "/v1/identity-security/sessions/revoke-all",
+        owner(),
+        { teamId: A().teamId, userId: u.userId },
+        { "x-proovra-workspace-id": A().teamId, ...(await revokeAllProof(u.userId)) },
+      );
+      expect(res.statusCode, res.body).toBe(200);
+      expect(json(res).revokedCount).toBe(1);
+      expect(await prisma.revokedSession.count({ where: { userId: u.userId, scope: "ALL_FOR_USER" } })).toBe(0);
+      expect(
+        await prisma.revokedSession.count({ where: { userId: u.userId, sessionIdHash: personalSpace.sessionIdHash } }),
+      ).toBe(0);
+      expect(
+        await prisma.revokedSession.count({ where: { userId: u.userId, sessionIdHash: startedHere.sessionIdHash } }),
+      ).toBe(1);
+      expect(
+        (await prisma.authenticatedSession.findUniqueOrThrow({ where: { id: personalSpace.id }, select: { revokedAtUtc: true } }))
+          .revokedAtUtc,
+      ).toBeNull();
+    });
+
+    it("revoke-all on an identity the Organization's directory originated ends every session (ALL_FOR_USER)", async () => {
+      const { u, personalSpace } = await memberWithSessions("g2-dec08-managed");
+      await prisma.user.update({
+        where: { id: u.userId },
+        data: { providerUserId: `scim-${orgId}:g2-dec08-${randomUUID().slice(0, 8)}` },
+      });
+      const res = await call(
+        "POST",
+        "/v1/identity-security/sessions/revoke-all",
+        owner(),
+        { teamId: A().teamId, userId: u.userId },
+        { "x-proovra-workspace-id": A().teamId, ...(await revokeAllProof(u.userId)) },
+      );
+      expect(res.statusCode, res.body).toBe(200);
+      expect(await prisma.revokedSession.count({ where: { userId: u.userId, scope: "ALL_FOR_USER" } })).toBe(1);
+      expect(
+        (await prisma.authenticatedSession.findUniqueOrThrow({ where: { id: personalSpace.id }, select: { revokedAtUtc: true } }))
+          .revokedAtUtc,
+      ).not.toBeNull();
+    });
+
+    it("single revoke: a member's Personal-Space session hash answers 404 and nothing is written; the session started here is revoked", async () => {
+      const { u, startedHere, personalSpace } = await memberWithSessions("g2-dec08-single");
+      const refused = await call(
+        "POST",
+        "/v1/identity-security/sessions/revoke",
+        owner(),
+        { teamId: A().teamId, userId: u.userId, sessionIdHash: personalSpace.sessionIdHash },
+        { "x-proovra-workspace-id": A().teamId },
+      );
+      expect(refused.statusCode, refused.body).toBe(404);
+      expect(await prisma.revokedSession.count({ where: { userId: u.userId } })).toBe(0);
+
+      const done = await call(
+        "POST",
+        "/v1/identity-security/sessions/revoke",
+        owner(),
+        { teamId: A().teamId, userId: u.userId, sessionIdHash: startedHere.sessionIdHash },
+        { "x-proovra-workspace-id": A().teamId },
+      );
+      expect(done.statusCode, done.body).toBe(200);
+      expect(
+        await prisma.revokedSession.count({ where: { userId: u.userId, sessionIdHash: startedHere.sessionIdHash } }),
+      ).toBe(1);
+    });
+  });
+
+  // ===========================================================================
   // B3A-F-001 — the org roster's contact details follow the directory rule
   // ===========================================================================
   describe("B3A-F-001: ORG_MEMBER sees no addresses and cannot search by address", () => {

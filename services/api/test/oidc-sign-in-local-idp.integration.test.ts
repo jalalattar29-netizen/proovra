@@ -105,6 +105,7 @@ describe("OIDC sign-in against a local stand-in provider (live PostgreSQL)", () 
   let signJwt: typeof import("../src/services/jwt.js")["signJwt"];
   let sso: typeof import("../src/services/access-control/sso.service.js");
   let hardening: typeof import("../src/services/access-control/sso-hardening.service.js");
+  let sealSecret: typeof import("../src/services/security/mfa-secret-storage.js")["sealSecret"];
   let deps: FixtureDeps;
   const idp = new LocalIdp();
   const tag = `oidc-${Date.now().toString(36)}-${randomUUID().slice(0, 6)}`;
@@ -217,6 +218,7 @@ describe("OIDC sign-in against a local stand-in provider (live PostgreSQL)", () 
     ({ signJwt } = await import("../src/services/jwt.js"));
     sso = await import("../src/services/access-control/sso.service.js");
     hardening = await import("../src/services/access-control/sso-hardening.service.js");
+    ({ sealSecret } = await import("../src/services/security/mfa-secret-storage.js"));
     deps = { prisma: prisma as never, tag, mintToken: mint };
     await idp.start();
   }, 180_000);
@@ -451,6 +453,62 @@ describe("OIDC sign-in against a local stand-in provider (live PostgreSQL)", () 
 
     await prisma.ssoConnection.update({ where: { id }, data: { status: "DISABLED" } });
     expect(await discover(`a@${domain}`)).toEqual({ sso: false });
+  });
+
+  it("matrix review M049 (RG-09): a second-factor lockout at the OIDC callback says mfa_temporarily_locked and is not counted as an IdP fault", async () => {
+    const org = await seedOrganizationTenant(deps, {});
+    const id = await activeConnection(org);
+    // Control: the first sign-in provisions the account and completes.
+    const first = await initiate(id, "/home");
+    expect(String((await callback(first.state, first.cookie)).headers.location)).toBe("https://web.example.test/home");
+    const user = await prisma.user.findFirstOrThrow({ where: { email: idp.email }, select: { id: true } });
+
+    // The account now has an active second factor and is inside the lockout
+    // window: ten failed second-factor answers on recent sign-in challenges.
+    const sealed = sealSecret(Buffer.alloc(20, 7));
+    const now = new Date();
+    await prisma.mfaFactor.create({
+      data: {
+        userId: user.id,
+        kind: "TOTP",
+        status: "ACTIVE",
+        label: "Authenticator",
+        secretCiphertext: Buffer.from(sealed.ciphertext),
+        secretIv: Buffer.from(sealed.iv),
+        secretAuthTag: Buffer.from(sealed.authTag),
+        secretKekId: sealed.kekId,
+        verifiedAtUtc: now,
+        enrolledAt: now,
+      },
+    });
+    await prisma.mfaPendingChallenge.createMany({
+      data: [0, 1].map(() => ({
+        jti: randomUUID().replace(/-/g, ""),
+        userId: user.id,
+        purpose: "LOGIN" as const,
+        expiresAt: new Date(Date.now() + 300_000),
+        failureCount: 5,
+      })),
+    });
+    const before = await prisma.ssoConnection.findUniqueOrThrow({
+      where: { id },
+      select: { consecutiveFailureCount: true },
+    });
+
+    const again = await initiate(id, "/home");
+    const locked = await callback(again.state, again.cookie);
+    expect(locked.statusCode).toBe(302);
+    expect(String(locked.headers.location)).toContain("sso_error=mfa_temporarily_locked");
+    expect(setCookie(locked)).not.toContain("proovra_session=");
+    // A user's lockout says nothing about the provider's health.
+    expect(
+      (await prisma.ssoConnection.findUniqueOrThrow({ where: { id }, select: { consecutiveFailureCount: true } }))
+        .consecutiveFailureCount,
+    ).toBe(before.consecutiveFailureCount);
+    expect(
+      (await prisma.ssoCallbackAttempt.findUniqueOrThrow({ where: { stateHash: hardening.hashStateToken(again.state) } }))
+        .status,
+    ).not.toBe("PENDING");
   });
 
   it("an abandoned attempt is swept once it is long past its expiry", async () => {

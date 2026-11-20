@@ -19,6 +19,7 @@ import { isIntegrationsFeatureEnabled } from "./api-keys.service.js";
 import { NOT_OPERATING_DEFER_MS, attemptDelivery } from "./webhook-dispatcher.js";
 import { isLiveOperatingWorkspace } from "../workspace/operating-workspace.js";
 import { resolveEntitlement } from "../packaging/entitlement.service.js";
+import { machineEgressRestricted, machineEgressTargetOf } from "../access/record-reach.js";
 
 export type ProcessWebhookRetriesSummary = {
   pickedUp: number;
@@ -179,6 +180,29 @@ export async function processDueWebhookRetries(
           data: {
             status: "CANCELLED",
             errorMessage: "endpoint_inactive",
+            failedAtUtc: new Date(),
+            nextAttemptAtUtc: null,
+          },
+        })
+        .catch(() => null);
+      summary.failed += 1;
+      continue;
+    }
+
+    // RG-11 / AZ-R04 (matrix review NEW-RG-11-1) — the machine-egress rule is
+    // asked again at send: a delivery queued before its record or case became
+    // restricted does not leave on a retry (the automation channel re-checks
+    // on every send the same way). Fails closed; the row says why.
+    const payload = (refreshed.payloadJson ?? {}) as { data?: unknown };
+    const data =
+      payload.data && typeof payload.data === "object" ? (payload.data as Record<string, unknown>) : {};
+    if (await machineEgressRestricted(machineEgressTargetOf(data), client)) {
+      await client.integrationWebhookDelivery
+        .update({
+          where: { id: refreshed.id },
+          data: {
+            status: "CANCELLED",
+            errorMessage: "withheld:target_restricted",
             failedAtUtc: new Date(),
             nextAttemptAtUtc: null,
           },

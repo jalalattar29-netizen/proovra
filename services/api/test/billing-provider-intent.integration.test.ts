@@ -314,6 +314,17 @@ describe("PRO-BL1-01 — provider intent identity (live PostgreSQL)", () => {
       payload: "{}",
     });
     expect(none.statusCode).toBe(404);
+
+    // Matrix review Task B — an anonymous caller gets no provider session.
+    const portalCallsBefore = FAKE.portalCustomers.length;
+    const anonymous = await harness.app.inject({
+      method: "POST",
+      url: "/v1/billing/subscription/payment-management",
+      headers: { "content-type": "application/json" },
+      payload: "{}",
+    });
+    expect(anonymous.statusCode, anonymous.body).toBe(401);
+    expect(FAKE.portalCustomers).toHaveLength(portalCallsBefore);
   });
 
   it("a renewing fact against a confirmed customer cancellation is never silent", async () => {

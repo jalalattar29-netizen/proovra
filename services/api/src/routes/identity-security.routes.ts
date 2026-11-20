@@ -82,9 +82,12 @@ import {
   hashSessionId,
   listRevocationsForTeam,
   projectRevokedSession,
-  revokeAllSessionsForUser,
   revokeSession,
 } from "../services/identity-security/session-revocation.service.js";
+import {
+  revokeAllSessionsForUserAdmin,
+  sessionsOfWorkspaceWhere,
+} from "../services/access-control/session-inventory.service.js";
 import {
   listTrustedDevicesForTeam,
   markDeviceTrusted,
@@ -476,6 +479,23 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
       if (!(await isSessionRevocationTarget(body.teamId, body.userId))) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
+      // DEC-08 (matrix review NEW-RG08-2) — the session must be one this
+      // workspace answers for (started here, signed in through its
+      // Organization's SSO, or an identity the Organization governs). A
+      // member's Personal-Space or other-workspace session is not this door's
+      // to end; the answer is the same 404 as an unknown hash.
+      const inScope = await prisma.authenticatedSession.findFirst({
+        where: {
+          AND: [
+            { userId: body.userId, sessionIdHash: body.sessionIdHash },
+            await sessionsOfWorkspaceWhere(body.teamId),
+          ],
+        },
+        select: { id: true },
+      });
+      if (!inScope) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
       const result = await revokeSession({
         teamId: body.teamId,
         userId: body.userId,
@@ -520,15 +540,17 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
         resourceId: body.userId,
       });
       if (gate.sent) return;
-      const row = await revokeAllSessionsForUser({
+      // DEC-08 (matrix review NEW-RG08-1) — the same scope as the admin
+      // console's revoke-all: an identity the Organization governs loses every
+      // session (ALL_FOR_USER); an independent (self-serve) member loses only
+      // the sessions this workspace answers for, never their Personal Space.
+      const result = await revokeAllSessionsForUserAdmin({
         teamId: body.teamId,
         userId: body.userId,
         reason: (body.reason ?? "OPERATOR_REVOKED") as never,
         actorUserId: actor.userId,
-        ipAddress: requestIp(req),
-        userAgent: requestUa(req),
       });
-      return reply.code(200).send({ revoked: projectRevokedSession(row) });
+      return reply.code(200).send(result);
     },
   );
 

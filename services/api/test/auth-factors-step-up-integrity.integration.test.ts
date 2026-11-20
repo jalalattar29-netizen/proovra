@@ -565,6 +565,33 @@ describe("Round 3 auth-factors — factors, step-up and recovery integrity (live
       const read = await call("GET", "/v1/auth/me", admin.token);
       expect(read.statusCode, read.body).toBe(200);
     });
+
+    it("matrix review NEW-RG-20-1: opening a destruction review is refused from a quarantined session (no step-up on that door)", async () => {
+      const o = await org(1);
+      const admin = o.members[0]!;
+      await makeAdmin(o, admin);
+      const { hashSessionId } = revocation;
+      const sid = (t: string) =>
+        (JSON.parse(Buffer.from(t.split(".")[1]!, "base64url").toString("utf8")) as { sid: string }).sid;
+      const adminSession = await prisma.authenticatedSession.findFirstOrThrow({
+        where: { userId: admin.userId, sessionIdHash: hashSessionId(sid(admin.token)) },
+      });
+      const body = { teamId: o.workspaceId, evidenceId: randomUUID(), reason: "manual_review" };
+      const open = () => call("POST", "/v1/governance/destruction-reviews", admin.token, body);
+      const reviews = () => prisma.destructionReview.count({ where: { teamId: o.workspaceId } });
+
+      // Control: a clean session is answered by the route's own rules, not the quarantine refusal.
+      const clean = await open();
+      expect(errorCode(clean), clean.body).not.toBe("session_quarantined");
+
+      const q = await quarantineAsOwner(o, adminSession.id);
+      expect(q.statusCode, q.body).toBe(200);
+
+      const blocked = await open();
+      expect(blocked.statusCode, blocked.body).toBe(403);
+      expect(errorCode(blocked)).toBe("session_quarantined");
+      expect(await reviews()).toBe(0);
+    });
   });
 
   // ===========================================================================

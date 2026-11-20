@@ -238,6 +238,29 @@ describe("WS-WSP — lifecycle and collaboration regressions (live PostgreSQL)",
     ).toBe(1);
   });
 
+  it("M771 — a named @mention of a SUSPENDED workspace member (group row still ACTIVE) creates no mention", async () => {
+    const teamId = await groupInPersonal();
+    const sam = await person(P().teamId, "MEMBER", { displayName: "Sam Suspended" });
+    const kim = await person(P().teamId, "MEMBER", { displayName: "Kim Active" });
+    await ct.addExistingMember({ teamId, actorUserId: P().userId, userIdToAdd: sam.id, role: "MEMBER" });
+    await ct.addExistingMember({ teamId, actorUserId: P().userId, userIdToAdd: kim.id, role: "MEMBER" });
+    // The workspace membership is suspended; the group row stays ACTIVE (as rbac suspension leaves it).
+    await prisma.teamMember.update({ where: { id: sam.memberId as string }, data: { status: "SUSPENDED" } });
+    expect(
+      (await prisma.collaborationTeamMember.findFirstOrThrow({ where: { teamId, userId: sam.id } })).status,
+    ).toBe("ACTIVE");
+    const res = await h.app.inject({
+      method: "POST",
+      url: `/v1/collaboration-teams/${teamId}/comments`,
+      headers: bearer(P().token, P().teamId),
+      payload: { targetType: "TEAM", body: "ping @sam.suspended and @kim.active" },
+    });
+    expect(res.statusCode, res.body).toBe(201);
+    expect((res.json() as { unresolvedMentions?: string[] }).unresolvedMentions).toEqual(["sam.suspended"]);
+    expect(await prisma.collaborationTeamCommentMention.count({ where: { teamId, mentionedUserId: sam.id } })).toBe(0);
+    expect(await prisma.collaborationTeamCommentMention.count({ where: { teamId, mentionedUserId: kim.id } })).toBe(1);
+  });
+
   it("PRO-K2-06 — a removed group member's Teams list no longer carries the team", async () => {
     const teamId = await groupInPersonal();
     const m = await person(P().teamId, "MEMBER");
@@ -440,6 +463,62 @@ describe("WS-WSP — lifecycle and collaboration regressions (live PostgreSQL)",
     const team = await prisma.team.findUniqueOrThrow({ where: { id: w.teamId } });
     expect(team.ownerUserId).toBe(heir.id);
     expect(team.billingOwnerUserId).toBe(heir.id);
+  });
+
+  it("PRO-T1-06 (matrix review Task B) — the pending offer is read only by its two parties; only the recipient declines, only the owner cancels", async () => {
+    const offerTo = async () => {
+      const w = await ownedWorkspace();
+      const heir = await person(w.teamId, "MEMBER");
+      const pw = await withPassword(w.owner.id);
+      const offered = await h.app.inject({
+        method: "POST",
+        url: `/v1/teams/${w.teamId}/transfer-ownership`,
+        headers: bearer(w.owner.token),
+        payload: { newOwnerUserId: heir.id, stepUp: { method: "password", currentPassword: pw } },
+      });
+      expect(offered.statusCode, offered.body).toBe(202);
+      return { w, heir, offerId: (offered.json() as { offer: { id: string } }).offer.id };
+    };
+    const read = (teamId: string, token: string) =>
+      h.app.inject({ method: "GET", url: `/v1/teams/${teamId}/ownership-offer`, headers: bearer(token) });
+    const settle = (teamId: string, offerId: string, suffix: "decline" | "cancel", token: string) =>
+      h.app.inject({ method: "POST", url: `/v1/teams/${teamId}/ownership-offer/${offerId}/${suffix}`, headers: bearer(token), payload: {} });
+    const status = async (offerId: string) =>
+      (await prisma.workspaceOwnershipOffer.findUniqueOrThrow({ where: { id: offerId }, select: { status: true } })).status;
+
+    const { w, heir, offerId } = await offerTo();
+    const stranger = await person(w.teamId, "ADMIN");
+    for (const token of [w.owner.token, heir.token]) {
+      const r = await read(w.teamId, token);
+      expect(r.statusCode, r.body).toBe(200);
+      expect((r.json() as { offer: { id: string } | null }).offer?.id).toBe(offerId);
+    }
+    const hidden = await read(w.teamId, stranger.token);
+    expect(hidden.statusCode, hidden.body).toBe(200);
+    expect((hidden.json() as { offer: unknown }).offer).toBeNull();
+
+    // Decline: the owner and a third member are refused; the recipient declines.
+    for (const token of [w.owner.token, stranger.token]) {
+      const refused = await settle(w.teamId, offerId, "decline", token);
+      expect(refused.statusCode, refused.body).toBe(404);
+    }
+    expect(await status(offerId)).toBe("PENDING");
+    const declined = await settle(w.teamId, offerId, "decline", heir.token);
+    expect(declined.statusCode, declined.body).toBe(200);
+    expect(await status(offerId)).toBe("DECLINED");
+
+    // Cancel: the recipient and a third member are refused; the owner cancels.
+    const second = await offerTo();
+    const outsider = await person(second.w.teamId, "ADMIN");
+    for (const token of [second.heir.token, outsider.token]) {
+      const refused = await settle(second.w.teamId, second.offerId, "cancel", token);
+      expect(refused.statusCode, refused.body).toBe(404);
+    }
+    expect(await status(second.offerId)).toBe("PENDING");
+    const cancelled = await settle(second.w.teamId, second.offerId, "cancel", second.w.owner.token);
+    expect(cancelled.statusCode, cancelled.body).toBe(200);
+    expect(await status(second.offerId)).toBe("CANCELLED");
+    expect((await prisma.team.findUniqueOrThrow({ where: { id: second.w.teamId } })).ownerUserId).toBe(second.w.owner.id);
   });
 
   it("PRO-T1-14 — the invitee declines with the token; another account cannot", async () => {

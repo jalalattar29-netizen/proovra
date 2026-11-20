@@ -313,6 +313,13 @@ const GATED: Gated[] = [
   { file: "product-and-lifecycle.routes.ts", method: "post", path: "/v1/lifecycle/retention/policies", actions: ["RETENTION_POLICY_UPDATE"] },
   { file: "product-and-lifecycle.routes.ts", method: "post", path: "/v1/lifecycle/retention/policies/:id/release", actions: ["RETENTION_POLICY_UPDATE"] },
   { file: "organizations-governance.routes.ts", method: "post", path: "/v1/orgs/:id/policies/retention", actions: ["RETENTION_POLICY_UPDATE"] },
+  // Governance transitions (PRO-G2-16 / RG-20; matrix review NEW-RG-20-1 added the
+  // destruction request, rejection and review-open doors)
+  { file: "governance-lifecycle.routes.ts", method: "post", path: "/v1/governance/destruction-reviews", actions: ["WORKSPACE_GOVERNANCE_UPDATE"] },
+  { file: "governance-lifecycle.routes.ts", method: "post", path: "/v1/governance/destruction-reviews/:id/transition", actions: ["WORKSPACE_GOVERNANCE_UPDATE"] },
+  { file: "governance-lifecycle.routes.ts", method: "post", path: "/v1/governance/lifecycle/evidence/:id/transition", actions: ["WORKSPACE_GOVERNANCE_UPDATE"] },
+  { file: "product-and-lifecycle.routes.ts", method: "post", path: "/v1/lifecycle/destruction/requests", actions: ["WORKSPACE_GOVERNANCE_UPDATE"] },
+  { file: "product-and-lifecycle.routes.ts", method: "post", path: "/v1/lifecycle/destruction/requests/:id/reject", actions: ["WORKSPACE_GOVERNANCE_UPDATE"] },
   // Exports, reports, packages
   // NOT YET: POST /v1/evidence/:id/reports/regenerate and GET
   // /v1/evidence/:id/original (evidence.routes.ts). The Phase 26.75 invariant

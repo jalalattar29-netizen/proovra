@@ -177,6 +177,30 @@ describe("UC-1 extension OAuth (PKCE) — live PostgreSQL 16", () => {
     expect(ordinary.statusCode).not.toBe(403);
   });
 
+  it("PRO-X1-01 (matrix review Task B): POST /v1/oauth/extension/approve refuses an anonymous caller and a foreign redirect; the signed-in owner gets an approval", async () => {
+    const { challenge } = pkce();
+    const body = { client_id: CLIENT, redirect_uri: REDIRECT, code_challenge: challenge };
+    const post = (payload: Record<string, string>, headers: Record<string, string> = {}) =>
+      app.inject({
+        method: "POST",
+        url: "/v1/oauth/extension/approve",
+        headers: { "content-type": "application/json", ...headers },
+        payload: JSON.stringify(payload),
+      });
+    const anonymous = await post(body);
+    expect(anonymous.statusCode, anonymous.body).toBe(401);
+    expect(anonymous.body).not.toContain("approval\"");
+    const foreign = await post(
+      { ...body, redirect_uri: "https://attacker.example/cb" },
+      { authorization: `Bearer ${owner().ownerToken}` },
+    );
+    expect(foreign.statusCode, foreign.body).toBe(400);
+    expect(foreign.json().error).toBe("INVALID_CLIENT_OR_REDIRECT");
+    const ok = await post(body, { authorization: `Bearer ${owner().ownerToken}` });
+    expect(ok.statusCode, ok.body).toBe(200);
+    expect(typeof ok.json().approval).toBe("string");
+  });
+
   it("PRO-X1-01: no code without the person's explicit, session-bound approval", async () => {
     const { verifier, challenge } = pkce();
     const params = {

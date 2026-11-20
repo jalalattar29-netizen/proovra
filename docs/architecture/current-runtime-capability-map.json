@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 26
     },
-    "TerminalWriters": 1689,
-    "ReachableSensitiveMutations": 1659,
-    "ClassifiedSensitiveMutations": 1659,
+    "TerminalWriters": 1692,
+    "ReachableSensitiveMutations": 1662,
+    "ClassifiedSensitiveMutations": 1662,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 30,
@@ -71,7 +71,7 @@
     "TenantUnboundMutations": 0,
     "UnsafeEffectsInsideTransactions": 0,
     "byFamily": {
-      "ACCOUNT_SESSION_SECURITY": 276,
+      "ACCOUNT_SESSION_SECURITY": 278,
       "ORGANIZATION": 39,
       "ORGANIZATION_MEMBERSHIP": 34,
       "WORKSPACE": 86,
@@ -82,7 +82,7 @@
       "EXTERNAL_REVIEW_INTAKE_SHARE": 107,
       "BILLING_SUBSCRIPTION_SEAT": 117,
       "SSO_OIDC_SCIM_PROVISIONING": 67,
-      "AUTOMATION_QUEUE_WEBHOOK": 133,
+      "AUTOMATION_QUEUE_WEBHOOK": 134,
       "REPORT_EXPORT_REDACTION": 80,
       "API_KEY_SECRET_OPERATIONAL_ADMIN": 135
     },
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1479,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1482,
       "JOB_ATTRIBUTED_REACHABLE": 168,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 11,
@@ -31877,8 +31877,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.update@1479",
-      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1479",
+      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.update@1501",
+      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1501",
       "file": "services/api/src/routes/identity-security.routes.ts",
       "enclosingDeclaration": "identitySecurityRoutes",
       "kind": "DATABASE",
@@ -31910,8 +31910,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.updateMany@1261",
-      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1261",
+      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.updateMany@1283",
+      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1283",
       "file": "services/api/src/routes/identity-security.routes.ts",
       "enclosingDeclaration": "identitySecurityRoutes",
       "kind": "DATABASE",
@@ -31943,8 +31943,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.updateMany@1407",
-      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1407",
+      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.updateMany@1429",
+      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1429",
       "file": "services/api/src/routes/identity-security.routes.ts",
       "enclosingDeclaration": "identitySecurityRoutes",
       "kind": "DATABASE",
@@ -31976,8 +31976,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-security.routes.ts#stepUpChallenge.updateMany@1055",
-      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1055",
+      "writerId": "services/api/src/routes/identity-security.routes.ts#stepUpChallenge.updateMany@1077",
+      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1077",
       "file": "services/api/src/routes/identity-security.routes.ts",
       "enclosingDeclaration": "identitySecurityRoutes",
       "kind": "DATABASE",
@@ -32009,8 +32009,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-security.routes.ts#trustedDevice.updateMany@1064",
-      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1064",
+      "writerId": "services/api/src/routes/identity-security.routes.ts#trustedDevice.updateMany@1086",
+      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1086",
       "file": "services/api/src/routes/identity-security.routes.ts",
       "enclosingDeclaration": "identitySecurityRoutes",
       "kind": "DATABASE",
@@ -32979,8 +32979,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organization.update@2865",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2865",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organization.update@2872",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2872",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -33045,8 +33045,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.create@3213",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3213",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.create@3220",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3220",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -33078,8 +33078,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.create@3259",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3259",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.create@3266",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3266",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -33111,8 +33111,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.updateMany@3344",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3344",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.updateMany@3351",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3351",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -33144,8 +33144,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationDataExportRequest.create@3626",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3626",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationDataExportRequest.create@3633",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3633",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationDataExportRoutes",
       "kind": "DATABASE",
@@ -33177,8 +33177,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationDataExportRequest.update@3661",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3661",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationDataExportRequest.update@3668",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3668",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationDataExportRoutes",
       "kind": "DATABASE",
@@ -33342,8 +33342,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#user.update@2663",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2663",
+      "writerId": "services/api/src/routes/organizations.routes.ts#user.update@2670",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2670",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -36220,16 +36220,18 @@
       "entryRoutes": [
         "POST /v1/admin/identity/emergency-revoke",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
-        "POST /v1/break-glass/emergency/sessions/revoke"
+        "POST /v1/break-glass/emergency/sessions/revoke",
+        "POST /v1/identity-security/sessions/revoke-all"
       ],
       "entryJobs": [],
       "entryModules": [
         "MODULE services/api/src/routes/admin-identity.routes.ts",
-        "MODULE services/api/src/routes/enterprise-security.routes.ts"
+        "MODULE services/api/src/routes/enterprise-security.routes.ts",
+        "MODULE services/api/src/routes/identity-security.routes.ts"
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -36256,16 +36258,18 @@
       "entryRoutes": [
         "POST /v1/admin/identity/emergency-revoke",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
-        "POST /v1/break-glass/emergency/sessions/revoke"
+        "POST /v1/break-glass/emergency/sessions/revoke",
+        "POST /v1/identity-security/sessions/revoke-all"
       ],
       "entryJobs": [],
       "entryModules": [
         "MODULE services/api/src/routes/admin-identity.routes.ts",
-        "MODULE services/api/src/routes/enterprise-security.routes.ts"
+        "MODULE services/api/src/routes/enterprise-security.routes.ts",
+        "MODULE services/api/src/routes/identity-security.routes.ts"
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -50641,8 +50645,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamComment.create@501",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:501",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamComment.create@510",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:510",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "createComment",
       "kind": "DATABASE",
@@ -50674,8 +50678,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamComment.update@779",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:779",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamComment.update@788",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:788",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "editComment",
       "kind": "DATABASE",
@@ -50707,8 +50711,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamComment.update@838",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:838",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamComment.update@847",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:847",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "deleteComment",
       "kind": "DATABASE",
@@ -50740,8 +50744,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamCommentMention.createMany@526",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:526",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamCommentMention.createMany@535",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:535",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "createComment",
       "kind": "DATABASE",
@@ -50773,8 +50777,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamNotification.createMany@581",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:581",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamNotification.createMany@590",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:590",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "createComment",
       "kind": "DATABASE",
@@ -62071,6 +62075,7 @@
         "POST /v1/identity-security/my-sessions/revoke-others",
         "POST /v1/identity-security/password",
         "POST /v1/identity-security/sessions/revoke",
+        "POST /v1/identity-security/sessions/revoke-all",
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/members/:id/revoke",
         "POST /v1/identity/members/:id/suspend",
@@ -68564,8 +68569,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.update@127",
-      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:127",
+      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.update@128",
+      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:128",
       "file": "services/api/src/services/integrations/webhook-retry-processor.ts",
       "enclosingDeclaration": "processDueWebhookRetries",
       "kind": "DATABASE",
@@ -68597,8 +68602,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.update@160",
-      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:160",
+      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.update@161",
+      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:161",
       "file": "services/api/src/services/integrations/webhook-retry-processor.ts",
       "enclosingDeclaration": "processDueWebhookRetries",
       "kind": "DATABASE",
@@ -68630,8 +68635,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.update@176",
-      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:176",
+      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.update@177",
+      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:177",
       "file": "services/api/src/services/integrations/webhook-retry-processor.ts",
       "enclosingDeclaration": "processDueWebhookRetries",
       "kind": "DATABASE",
@@ -68663,8 +68668,41 @@
       }
     },
     {
-      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.updateMany@103",
-      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:103",
+      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.update@200",
+      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:200",
+      "file": "services/api/src/services/integrations/webhook-retry-processor.ts",
+      "enclosingDeclaration": "processDueWebhookRetries",
+      "kind": "DATABASE",
+      "target": "integrationWebhookDelivery",
+      "mutationKind": "update",
+      "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/integrations/process-webhook-retries"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/integrations.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.updateMany@104",
+      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:104",
       "file": "services/api/src/services/integrations/webhook-retry-processor.ts",
       "enclosingDeclaration": "processDueWebhookRetries",
       "kind": "DATABASE",
@@ -68696,8 +68734,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.updateMany@53",
-      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:53",
+      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.updateMany@54",
+      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:54",
       "file": "services/api/src/services/integrations/webhook-retry-processor.ts",
       "enclosingDeclaration": "reclaimStrandedWebhookDeliveries",
       "kind": "DATABASE",
@@ -68729,8 +68767,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.updateMany@63",
-      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:63",
+      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.updateMany@64",
+      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:64",
       "file": "services/api/src/services/integrations/webhook-retry-processor.ts",
       "enclosingDeclaration": "reclaimStrandedWebhookDeliveries",
       "kind": "DATABASE",
@@ -71252,8 +71290,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/notifications/index.ts#notificationDelivery.create@1021",
-      "terminalLocation": "services/api/src/services/notifications/index.ts:1021",
+      "writerId": "services/api/src/services/notifications/index.ts#notificationDelivery.create@1049",
+      "terminalLocation": "services/api/src/services/notifications/index.ts:1049",
       "file": "services/api/src/services/notifications/index.ts",
       "enclosingDeclaration": "enqueueEmailNotificationTx",
       "kind": "DATABASE",
@@ -71304,8 +71342,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/notifications/index.ts#notificationDelivery.create@1028",
-      "terminalLocation": "services/api/src/services/notifications/index.ts:1028",
+      "writerId": "services/api/src/services/notifications/index.ts#notificationDelivery.create@1056",
+      "terminalLocation": "services/api/src/services/notifications/index.ts:1056",
       "file": "services/api/src/services/notifications/index.ts",
       "enclosingDeclaration": "enqueueEmailNotificationTx",
       "kind": "DATABASE",
@@ -72098,6 +72136,59 @@
       }
     },
     {
+      "writerId": "services/api/src/services/notifications/index.ts#notificationDelivery.update@985",
+      "terminalLocation": "services/api/src/services/notifications/index.ts:985",
+      "file": "services/api/src/services/notifications/index.ts",
+      "enclosingDeclaration": "claimAndDispatch",
+      "kind": "DATABASE",
+      "target": "notificationDelivery",
+      "mutationKind": "update",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "DELETE /v1/teams/:id/members/:memberId",
+        "PATCH /v1/teams/:id/members/:memberId",
+        "POST /v1/admin/orgs/:id/terminate",
+        "POST /v1/admin/orgs/:id/terminate/cancel",
+        "POST /v1/identity/access-reviews/:id/decision",
+        "POST /v1/identity/members/:id/restore",
+        "POST /v1/identity/members/:id/revoke",
+        "POST /v1/identity/members/:id/role",
+        "POST /v1/identity/members/:id/suspend",
+        "POST /v1/internal/lifecycle/run",
+        "POST /v1/notifications/process-retries",
+        "POST /v1/notifications/run-digests",
+        "POST /v1/operations/signers/:id/revoke",
+        "POST /v1/scim/reconciliation/execute",
+        "POST /v1/teams/:id/ownership-offer/:offerId/accept"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/identity-operations-completion.routes.ts",
+        "MODULE services/api/src/routes/identity.routes.ts",
+        "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/notifications.routes.ts",
+        "MODULE services/api/src/routes/operations-signers.routes.ts",
+        "MODULE services/api/src/routes/teams.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "conditional_state_claim+provider_idempotency_key",
+        "retrySemantics": "EMAIL_DELIVERY",
+        "payloadVersionAuthority": "schemaVersion=CANONICAL_PAYLOAD_SCHEMA_VERSION",
+        "canonicalOrLegacy": "CANONICAL"
+      }
+    },
+    {
       "writerId": "services/api/src/services/notifications/index.ts#notificationDelivery.updateMany@810",
       "terminalLocation": "services/api/src/services/notifications/index.ts:810",
       "file": "services/api/src/services/notifications/index.ts",
@@ -72168,6 +72259,59 @@
     {
       "writerId": "services/api/src/services/notifications/index.ts#notificationDelivery.updateMany@969",
       "terminalLocation": "services/api/src/services/notifications/index.ts:969",
+      "file": "services/api/src/services/notifications/index.ts",
+      "enclosingDeclaration": "claimAndDispatch",
+      "kind": "DATABASE",
+      "target": "notificationDelivery",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "DELETE /v1/teams/:id/members/:memberId",
+        "PATCH /v1/teams/:id/members/:memberId",
+        "POST /v1/admin/orgs/:id/terminate",
+        "POST /v1/admin/orgs/:id/terminate/cancel",
+        "POST /v1/identity/access-reviews/:id/decision",
+        "POST /v1/identity/members/:id/restore",
+        "POST /v1/identity/members/:id/revoke",
+        "POST /v1/identity/members/:id/role",
+        "POST /v1/identity/members/:id/suspend",
+        "POST /v1/internal/lifecycle/run",
+        "POST /v1/notifications/process-retries",
+        "POST /v1/notifications/run-digests",
+        "POST /v1/operations/signers/:id/revoke",
+        "POST /v1/scim/reconciliation/execute",
+        "POST /v1/teams/:id/ownership-offer/:offerId/accept"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/identity-operations-completion.routes.ts",
+        "MODULE services/api/src/routes/identity.routes.ts",
+        "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/notifications.routes.ts",
+        "MODULE services/api/src/routes/operations-signers.routes.ts",
+        "MODULE services/api/src/routes/teams.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "conditional_state_claim+provider_idempotency_key",
+        "retrySemantics": "EMAIL_DELIVERY",
+        "payloadVersionAuthority": "schemaVersion=CANONICAL_PAYLOAD_SCHEMA_VERSION",
+        "canonicalOrLegacy": "CANONICAL"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/notifications/index.ts#notificationDelivery.updateMany@998",
+      "terminalLocation": "services/api/src/services/notifications/index.ts:998",
       "file": "services/api/src/services/notifications/index.ts",
       "enclosingDeclaration": "claimAndDispatch",
       "kind": "DATABASE",
@@ -116457,6 +116601,7 @@
         "user",
         "userLegalAcceptance",
         "webhookEndpoint",
+        "workflowIntakeLink",
         "workspaceNotificationPreference"
       ],
       "modelsWritten": [
@@ -121165,7 +121310,7 @@
       "method": "GET",
       "path": "/v1/auth/me",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:2615",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:2619",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -121360,7 +121505,7 @@
       "method": "GET",
       "path": "/v1/auth/session-light",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:2661",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:2665",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -121432,7 +121577,7 @@
       "method": "GET",
       "path": "/v1/auth/sso/:connectionId/initiate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:716",
+      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:717",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -121496,7 +121641,7 @@
       "method": "GET",
       "path": "/v1/auth/sso/callback",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:823",
+      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:824",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveLoginMfaEnforcement -> services/api/src/services/security/login-mfa-enforcement.service.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -121593,7 +121738,7 @@
       "method": "GET",
       "path": "/v1/auth/sso/readiness",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:300",
+      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:301",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/routes/graph.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -132564,7 +132709,7 @@
       "method": "GET",
       "path": "/v1/governance/destruction-reviews/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:596",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:599",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -132622,7 +132767,7 @@
       "method": "GET",
       "path": "/v1/governance/destruction-reviews/:id/certificate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:852",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:855",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -132691,7 +132836,7 @@
       "method": "GET",
       "path": "/v1/governance/destruction-reviews/:id/preview",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:636",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:639",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -132968,7 +133113,7 @@
       "method": "GET",
       "path": "/v1/governance/export-eligibility",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:1168",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:1171",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -133411,7 +133556,7 @@
       "method": "GET",
       "path": "/v1/governance/lifecycle/evidence/:id/events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:1074",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:1077",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -134293,7 +134438,7 @@
       "method": "GET",
       "path": "/v1/governance/retention/inheritance",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:980",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:983",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -134902,7 +135047,7 @@
       "method": "GET",
       "path": "/v1/identity-security/devices",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:561",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:583",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -134975,7 +135120,7 @@
       "method": "GET",
       "path": "/v1/identity-security/mfa-policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:714",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:736",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -135039,7 +135184,7 @@
       "method": "GET",
       "path": "/v1/identity-security/my-sessions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1293",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1315",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -135163,7 +135308,7 @@
       "method": "GET",
       "path": "/v1/identity-security/risk/me",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:826",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:848",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -135220,7 +135365,7 @@
       "method": "GET",
       "path": "/v1/identity-security/risk/user/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:848",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:870",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/routes/graph.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -135284,7 +135429,7 @@
       "method": "GET",
       "path": "/v1/identity-security/security-events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1501",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1523",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -135342,7 +135487,7 @@
       "method": "GET",
       "path": "/v1/identity-security/session-policy-impact",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:902",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:924",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/routes/graph.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -135405,7 +135550,7 @@
       "method": "GET",
       "path": "/v1/identity-security/sessions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:535",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:557",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -135481,7 +135626,7 @@
       "method": "GET",
       "path": "/v1/identity-security/step-up/:id/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:366",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:369",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -139487,7 +139632,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/dashboard",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2423",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2430",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -139722,7 +139867,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/destruction/requests/:id/certificate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2352",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2359",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -139780,7 +139925,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/destruction/requests/:id/certificate.json",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2381",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2388",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -140058,7 +140203,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/verification-package/preview",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2533",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2540",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -140131,7 +140276,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/violations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2564",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2571",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -140199,7 +140344,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/violations/counts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2606",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2613",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -140946,7 +141091,7 @@
       "method": "GET",
       "path": "/v1/oauth/extension/authorize",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/extension-oauth.routes.ts:293",
+      "registrationEvidence": "services/api/src/routes/extension-oauth.routes.ts:294",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "extensionSignInRedirect -> services/api/src/routes/extension-oauth.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -143351,7 +143496,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/audit-events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3421",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3428",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -143516,7 +143661,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/closure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3069",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3076",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -143599,7 +143744,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/data-export",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3573",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3580",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -158595,6 +158740,7 @@
       "modelsRead": [
         "adminAuditLog",
         "authenticatedSession",
+        "evidenceRequest",
         "externalIdentityMapping",
         "mfaFactor",
         "notificationDelivery",
@@ -158609,6 +158755,7 @@
         "teamMember",
         "user",
         "webhookEndpoint",
+        "workflowIntakeLink",
         "workspaceNotificationPreference"
       ],
       "modelsWritten": [
@@ -158639,10 +158786,10 @@
         "services/api/src/services/identity/rbac.service.ts: teamMember.update — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.updateMany — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.findUnique — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: evidenceRequest.findUnique — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: workflowIntakeLink.findUnique — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate"
+        "services/api/src/services/notifications/index.ts: notificationDelivery.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -161724,6 +161871,7 @@
         "enterpriseContract",
         "evidenceExchangePackage",
         "evidenceLegalHold",
+        "evidenceRequest",
         "evidenceReviewWorkflow",
         "externalIdentityMapping",
         "mfaFactor",
@@ -161742,6 +161890,7 @@
         "user",
         "verificationPackage",
         "webhookEndpoint",
+        "workflowIntakeLink",
         "workspaceNotificationPreference"
       ],
       "modelsWritten": [
@@ -161764,12 +161913,12 @@
         "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.updateMany — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.findUnique — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: evidenceRequest.findUnique — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: workflowIntakeLink.findUnique — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: notificationDelivery.updateMany — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/access/record-reach.ts: evidenceLegalHold.findUnique — no tenant or self predicate",
-        "services/api/src/services/access/record-reach.ts: evidenceExchangePackage.findUnique — no tenant or self predicate",
-        "services/api/src/services/access/record-reach.ts: verificationPackage.findUnique — no tenant or self predicate"
+        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -161828,6 +161977,7 @@
         "enterpriseContract",
         "evidenceExchangePackage",
         "evidenceLegalHold",
+        "evidenceRequest",
         "evidenceReviewWorkflow",
         "externalIdentityMapping",
         "mfaFactor",
@@ -161846,6 +161996,7 @@
         "user",
         "verificationPackage",
         "webhookEndpoint",
+        "workflowIntakeLink",
         "workspaceNotificationPreference"
       ],
       "modelsWritten": [
@@ -161868,12 +162019,12 @@
         "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.updateMany — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.findUnique — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: evidenceRequest.findUnique — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: workflowIntakeLink.findUnique — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: notificationDelivery.updateMany — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/access/record-reach.ts: evidenceLegalHold.findUnique — no tenant or self predicate",
-        "services/api/src/services/access/record-reach.ts: evidenceExchangePackage.findUnique — no tenant or self predicate",
-        "services/api/src/services/access/record-reach.ts: verificationPackage.findUnique — no tenant or self predicate"
+        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -162973,7 +163124,7 @@
       "method": "POST",
       "path": "/v1/auth/email/resend-verification",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1792",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1794",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -163071,7 +163222,7 @@
       "method": "POST",
       "path": "/v1/auth/email/verify",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1697",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1699",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/services/security/login-mfa-enforcement.service.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -163257,7 +163408,7 @@
       "method": "POST",
       "path": "/v1/auth/logout",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:2529",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:2533",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "resolveSessionCredential -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -163333,7 +163484,7 @@
       "method": "POST",
       "path": "/v1/auth/mfa/enrollment/complete",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:2425",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:2429",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -163422,7 +163573,7 @@
       "method": "POST",
       "path": "/v1/auth/mfa/methods",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1925",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1927",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -163487,7 +163638,7 @@
       "method": "POST",
       "path": "/v1/auth/mfa/passkey-handoff/answer",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:2047",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:2051",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -163534,7 +163685,7 @@
       "method": "POST",
       "path": "/v1/auth/mfa/passkey-handoff/options",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:2027",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:2029",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -163574,7 +163725,7 @@
       "method": "POST",
       "path": "/v1/auth/mfa/send-code",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1966",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1968",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -163650,7 +163801,7 @@
       "method": "POST",
       "path": "/v1/auth/mfa/verify",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:2081",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:2085",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/auth.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -164194,7 +164345,7 @@
       "method": "POST",
       "path": "/v1/auth/sso/discover",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:450",
+      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:451",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -164253,7 +164404,7 @@
       "method": "POST",
       "path": "/v1/auth/sso/native/exchange",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:495",
+      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:496",
       "authorizationClass": "ADMIN_GATED",
       "authorizationEvidence": [
         "resolveLoginMfaEnforcement -> services/api/src/services/security/login-mfa-enforcement.service.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)"
@@ -180764,6 +180915,7 @@
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
@@ -180771,8 +180923,7 @@
         "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts: caseEvidenceLink.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidence.findUnique — no tenant or self predicate",
-        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate"
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidence.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -180788,7 +180939,7 @@
       "method": "POST",
       "path": "/v1/governance/destruction-reviews/:id/transition",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:995",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:998",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -181195,7 +181346,7 @@
       "method": "POST",
       "path": "/v1/governance/lifecycle/evidence/:id/transition",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:1096",
+      "registrationEvidence": "services/api/src/routes/governance-lifecycle.routes.ts:1099",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -182523,7 +182674,7 @@
       "method": "POST",
       "path": "/v1/identity-security/devices/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:685",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:707",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -182590,7 +182741,7 @@
       "method": "POST",
       "path": "/v1/identity-security/devices/trust",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:619",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:641",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/routes/graph.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -182665,7 +182816,7 @@
       "method": "POST",
       "path": "/v1/identity-security/my-sessions/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1435",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1457",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -182735,7 +182886,7 @@
       "method": "POST",
       "path": "/v1/identity-security/my-sessions/revoke-others",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1343",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1365",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -182930,7 +183081,7 @@
       "method": "POST",
       "path": "/v1/identity-security/password",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1126",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1148",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -183000,7 +183151,7 @@
       "method": "POST",
       "path": "/v1/identity-security/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1011",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1033",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
@@ -183085,7 +183236,7 @@
       "method": "POST",
       "path": "/v1/identity-security/sessions/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:468",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:471",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -183110,8 +183261,10 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "enterpriseContract",
         "entitlement",
+        "externalIdentityMapping",
         "organization",
         "organizationSecurityPolicy",
         "planGrant",
@@ -183120,6 +183273,7 @@
         "subscription",
         "team",
         "teamMember",
+        "user",
         "workspaceStorageAddon"
       ],
       "modelsWritten": [
@@ -183147,7 +183301,7 @@
       "method": "POST",
       "path": "/v1/identity-security/sessions/revoke-all",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:500",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:520",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -183189,12 +183343,14 @@
         "organization",
         "organizationSecurityPolicy",
         "planGrant",
+        "revokedSession",
         "riskSignal",
         "ssoConnection",
         "stepUpChallenge",
         "subscription",
         "team",
         "teamMember",
+        "user",
         "workspaceStorageAddon"
       ],
       "modelsWritten": [
@@ -183218,6 +183374,7 @@
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.createMany",
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create",
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
       ],
       "tenantUnboundInsertSites": []
@@ -183227,7 +183384,7 @@
       "method": "POST",
       "path": "/v1/identity-security/step-up/check",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:329",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:332",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -183381,7 +183538,7 @@
       "method": "POST",
       "path": "/v1/identity-security/step-up/handoff/passkey",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:434",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:437",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -183439,7 +183596,7 @@
       "method": "POST",
       "path": "/v1/identity-security/step-up/handoff/passkey/options",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:411",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:414",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -183481,7 +183638,7 @@
       "method": "POST",
       "path": "/v1/identity-security/step-up/start",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:261",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:264",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -183628,6 +183785,7 @@
         "team",
         "teamMember",
         "user",
+        "workflowIntakeLink",
         "workspaceStorageAddon"
       ],
       "modelsWritten": [
@@ -184617,6 +184775,7 @@
         "collaborationTeam",
         "collaborationTeamMember",
         "enterpriseContract",
+        "evidenceRequest",
         "externalIdentityMapping",
         "mfaFactor",
         "notificationDelivery",
@@ -184632,6 +184791,7 @@
         "teamMember",
         "user",
         "webhookEndpoint",
+        "workflowIntakeLink",
         "workspaceNotificationPreference"
       ],
       "modelsWritten": [
@@ -184655,8 +184815,8 @@
         "services/api/src/services/identity/rbac.service.ts: teamMember.update — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.updateMany — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.findUnique — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: evidenceRequest.findUnique — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: workflowIntakeLink.findUnique — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
@@ -184735,6 +184895,7 @@
         "teamMember",
         "user",
         "webhookEndpoint",
+        "workflowIntakeLink",
         "workspaceNotificationPreference"
       ],
       "modelsWritten": [
@@ -184843,6 +185004,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "evidenceRequest",
         "externalIdentityMapping",
         "mfaFactor",
         "notificationDelivery",
@@ -184857,6 +185019,7 @@
         "teamMember",
         "user",
         "webhookEndpoint",
+        "workflowIntakeLink",
         "workspaceNotificationPreference"
       ],
       "modelsWritten": [
@@ -184887,10 +185050,10 @@
         "services/api/src/services/identity/rbac.service.ts: teamMember.update — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.updateMany — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.findUnique — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: evidenceRequest.findUnique — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: workflowIntakeLink.findUnique — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate"
+        "services/api/src/services/notifications/index.ts: notificationDelivery.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -184967,6 +185130,7 @@
         "teamMember",
         "user",
         "webhookEndpoint",
+        "workflowIntakeLink",
         "workspaceNotificationPreference"
       ],
       "modelsWritten": [
@@ -187207,10 +187371,17 @@
       "tenantBindingAuthority": "teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "case",
         "entitlementGrant",
+        "evidence",
+        "evidenceExchangePackage",
+        "evidenceLegalHold",
+        "evidenceReviewWorkflow",
         "integrationWebhookDelivery",
+        "reviewEscalation",
         "team",
         "teamMember",
+        "verificationPackage",
         "webhookEndpoint"
       ],
       "modelsWritten": [
@@ -187229,7 +187400,7 @@
         "services/api/src/services/integrations/webhook-retry-processor.ts: integrationWebhookDelivery.update — no tenant or self predicate",
         "services/api/src/services/integrations/webhook-retry-processor.ts: integrationWebhookDelivery.update — no tenant or self predicate",
         "services/api/src/services/integrations/webhook-retry-processor.ts: integrationWebhookDelivery.update — no tenant or self predicate",
-        "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.update — no tenant or self predicate"
+        "services/api/src/services/access/record-reach.ts: evidenceLegalHold.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -188618,6 +188789,7 @@
         "userIdentityLink",
         "userLegalAcceptance",
         "verificationPackage",
+        "workflowIntakeLink",
         "workspaceClosureRequest",
         "workspaceGovernancePolicy",
         "workspaceNotificationPreference",
@@ -189116,6 +189288,7 @@
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/services/access/record-reach.ts: evidence.count — no tenant or self predicate",
         "services/api/src/services/lifecycle/destruction-governance.service.ts: evidence.count — no tenant or self predicate",
         "services/api/src/services/lifecycle/destruction-governance.service.ts: evidence.findMany — no tenant or self predicate",
@@ -189123,8 +189296,7 @@
         "packages/shared-runtime/src/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidence.findUnique — no tenant or self predicate",
-        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
-        "services/api/src/services/access/record-reach.ts: evidenceLegalHold.findUnique — no tenant or self predicate"
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -189143,7 +189315,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/destruction/requests/:id/approve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2228",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2232",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -189239,7 +189411,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/destruction/requests/:id/execute",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2306",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2313",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -189396,7 +189568,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/destruction/requests/:id/reject",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2274",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2278",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -189461,6 +189633,7 @@
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/services/access/record-reach.ts: evidenceLegalHold.findUnique — no tenant or self predicate",
         "services/api/src/services/access/record-reach.ts: evidenceExchangePackage.findUnique — no tenant or self predicate",
         "services/api/src/services/access/record-reach.ts: verificationPackage.findUnique — no tenant or self predicate",
@@ -189468,8 +189641,7 @@
         "services/api/src/services/access/record-reach.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
         "services/api/src/services/access/record-reach.ts: verificationPackage.findUnique — no tenant or self predicate",
         "services/api/src/services/access/record-reach.ts: evidence.count — no tenant or self predicate",
-        "services/api/src/services/access/record-reach.ts: case.count — no tenant or self predicate",
-        "services/api/src/services/integrations/webhooks.service.ts: webhookEndpoint.update — no tenant or self predicate"
+        "services/api/src/services/access/record-reach.ts: case.count — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -190890,6 +191062,7 @@
         "evidence",
         "evidenceExchangePackage",
         "evidenceLegalHold",
+        "evidenceRequest",
         "evidenceReviewWorkflow",
         "notificationDelivery",
         "organizationNotificationPolicy",
@@ -190900,6 +191073,7 @@
         "user",
         "verificationPackage",
         "webhookEndpoint",
+        "workflowIntakeLink",
         "workspaceNotificationPreference"
       ],
       "modelsWritten": [
@@ -191070,7 +191244,7 @@
         "services/api/src/services/workspace/workspace-closure.service.ts: team.updateMany — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.updateMany — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.findUnique — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate"
+        "services/api/src/services/notifications/index.ts: evidenceRequest.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -191172,7 +191346,7 @@
       "method": "POST",
       "path": "/v1/oauth/extension/approve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/extension-oauth.routes.ts:387",
+      "registrationEvidence": "services/api/src/routes/extension-oauth.routes.ts:390",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -191222,7 +191396,7 @@
       "method": "POST",
       "path": "/v1/oauth/extension/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/extension-oauth.routes.ts:555",
+      "registrationEvidence": "services/api/src/routes/extension-oauth.routes.ts:562",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -191273,7 +191447,7 @@
       "method": "POST",
       "path": "/v1/oauth/extension/token",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/extension-oauth.routes.ts:425",
+      "registrationEvidence": "services/api/src/routes/extension-oauth.routes.ts:430",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> handler: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -192063,6 +192237,7 @@
         "destructionCertificate",
         "enterpriseContract",
         "evidence",
+        "evidenceRequest",
         "externalIdentityMapping",
         "mfaFactor",
         "notificationDelivery",
@@ -192078,6 +192253,7 @@
         "user",
         "verificationPackage",
         "webhookEndpoint",
+        "workflowIntakeLink",
         "workspaceNotificationPreference"
       ],
       "modelsWritten": [
@@ -194455,7 +194631,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/closure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3113",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3120",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -194544,7 +194720,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/closure/:requestId/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3300",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3307",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -194618,7 +194794,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/data-export",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3598",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3605",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -194679,7 +194855,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/data-export/:requestId/links",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3681",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3688",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -194749,7 +194925,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/data-export/:requestId/manifest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3643",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3650",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -195712,7 +195888,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/transfer-ownership",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2747",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2754",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -195808,7 +195984,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/workspaces/:teamId/resume",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2976",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2983",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -195888,7 +196064,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/workspaces/:teamId/suspend",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2976",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2983",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -202868,6 +203044,7 @@
         "teamMember",
         "user",
         "webhookEndpoint",
+        "workflowIntakeLink",
         "workspaceNotificationPreference",
         "workspaceStorageAddon"
       ],
@@ -204444,6 +204621,7 @@
         "authenticatedSession",
         "evidenceExchangePackage",
         "evidenceLegalHold",
+        "evidenceRequest",
         "evidenceReviewWorkflow",
         "mfaFactor",
         "notificationDelivery",
@@ -204455,6 +204633,7 @@
         "user",
         "verificationPackage",
         "webhookEndpoint",
+        "workflowIntakeLink",
         "workspaceClosureRequest",
         "workspaceNotificationPreference",
         "workspaceOwnershipOffer"
@@ -204486,14 +204665,14 @@
         "services/api/src/services/access/accessible-workspaces.ts: the canonical accessible-workspace resolver",
         "services/api/src/services/notifications/index.ts: notificationDelivery.updateMany — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.findUnique — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: evidenceRequest.findUnique — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: workflowIntakeLink.findUnique — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: notificationDelivery.updateMany — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/access/record-reach.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/access/record-reach.ts: verificationPackage.findUnique — no tenant or self predicate",
-        "services/api/src/services/integrations/webhook-dispatcher.ts: webhookEndpoint.updateMany — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate"
+        "services/api/src/services/access/record-reach.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -208122,7 +208301,7 @@
       "method": "PUT",
       "path": "/v1/identity-security/mfa-policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:758",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:780",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"

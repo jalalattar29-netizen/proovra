@@ -377,6 +377,69 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
       }
     });
 
+    it("matrix review NEW-RG-24-2: the automatic retry sweeper does not re-mail an invitation of a cancelled request; an open request's retry is sent", async () => {
+      const cancelledEmail = `ws-msg-${randomUUID().slice(0, 8)}@example.test`;
+      const openEmail = `ws-msg-${randomUUID().slice(0, 8)}@example.test`;
+      const cancelled = await sentExternalRequest(cancelledEmail);
+      const open = await sentExternalRequest(openEmail);
+      const scheduleRetry = async (requestId: string) => {
+        const row = await prisma.notificationDelivery.findFirstOrThrow({
+          where: { evidenceRequestId: requestId, eventType: "EVIDENCE_REQUEST_SENT", status: { not: "SKIPPED" } } as never,
+          select: { id: true },
+        });
+        await prisma.notificationDelivery.update({
+          where: { id: row.id },
+          data: { status: "RETRY_SCHEDULED", retryCount: 1, nextAttemptAtUtc: new Date(Date.now() - 1000) } as never,
+        });
+        return row.id;
+      };
+      const cancelledRow = await scheduleRetry(cancelled.id);
+      const openRow = await scheduleRetry(open.id);
+      await prisma.evidenceRequest.update({ where: { id: cancelled.id }, data: { status: "CANCELLED", cancelledAtUtc: new Date() } as never });
+      sent.length = 0;
+      await notifications.processDueNotificationRetries({ batchSize: 500 });
+      expect(sent.filter((m) => m.to === cancelledEmail)).toHaveLength(0);
+      expect(
+        await prisma.notificationDelivery.findUniqueOrThrow({ where: { id: cancelledRow }, select: { status: true, errorCode: true } }),
+      ).toEqual({ status: "CANCELLED", errorCode: "blocked_request_closed" });
+      expect(sent.filter((m) => m.to === openEmail)).toHaveLength(1);
+      expect((await prisma.notificationDelivery.findUniqueOrThrow({ where: { id: openRow }, select: { status: true } })).status).toBe("SENT");
+    });
+
+    it("PRO-E2-02 (matrix review Task B): POST /v1/evidence/:id/submitter-contact reveals to a holder of the reveal permission only; a VIEWER is 403, another workspace 404", async () => {
+      const submitterEmail = `submitter-${randomUUID().slice(0, 8)}@example.test`;
+      const team = await prisma.team.findUniqueOrThrow({ where: { id: A().teamId }, select: { organizationId: true } });
+      const ev = await prisma.evidence.create({
+        data: {
+          title: `ws-msg intake ${randomUUID().slice(0, 6)}`,
+          type: "PHOTO",
+          status: "CREATED",
+          teamId: A().teamId,
+          organizationId: team.organizationId,
+          ownerUserId: A().ownerUserId,
+          acquisitionMode: "SECURE_INTAKE_LINK",
+          acquisitionModeSource: "RECORDED_AT_CREATION",
+          submittedByEmail: submitterEmail,
+        } as never,
+        select: { id: true },
+      });
+      const reveal = (token: string) =>
+        h.app.inject({ method: "POST", url: `/v1/evidence/${ev.id}/submitter-contact`, headers: { authorization: `Bearer ${token}` }, payload: {} });
+
+      // A VIEWER reads the record but does not hold workflow.intake_recipient_contact.reveal.
+      // (The DB role MEMBER maps to canonical REVIEWER, which does hold it.)
+      const viewer = await reveal(A().viewerToken);
+      expect(viewer.statusCode, viewer.body).toBe(403);
+      expect(viewer.body).not.toContain(submitterEmail);
+      const foreign = await reveal(h.fixtures.teamB.ownerToken);
+      expect(foreign.statusCode, foreign.body).toBe(404);
+      expect(foreign.body).not.toContain(submitterEmail);
+
+      const ok = await reveal(A().ownerToken);
+      expect(ok.statusCode, ok.body).toBe(200);
+      expect((ok.json() as { submitterContact: { submitterEmail: string | null } }).submitterContact.submitterEmail).toBe(submitterEmail);
+    });
+
     it("the delivery-log resend asks notification.delivery.resend (a MEMBER is refused)", async () => {
       const res = await h.app.inject({
         method: "POST",
@@ -465,6 +528,18 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
       });
       expect(part.statusCode, part.body).toBe(201);
       const partId = (part.json() as { part: { id: string } }).part.id;
+      // Matrix review Task B — another link's bearer cannot remove this session's part.
+      const otherLink = await h.app.inject({
+        method: "POST", url: "/v1/workflow/intake-links", headers: owner(),
+        payload: { teamId: A().teamId, workflowTemplateSlug: "general-evidence-record", intakeMode: "EXTERNAL_REUSABLE", recipientLabel: "ws-msg-other", expiresAtUtc: new Date(Date.now() + 3_600_000).toISOString() },
+      });
+      expect(otherLink.statusCode, otherLink.body).toBe(201);
+      const otherToken = encodeURIComponent((otherLink.json() as { rawToken: string }).rawToken);
+      const crossLink = await h.app.inject({ method: "DELETE", url: `/v1/external-intake/${otherToken}/sessions/${opened.session.id}/parts/${partId}` });
+      expect(crossLink.statusCode, crossLink.body).toBe(404);
+      const forged = await h.app.inject({ method: "DELETE", url: `/v1/external-intake/${encodeURIComponent(`wil_${randomUUID()}`)}/sessions/${opened.session.id}/parts/${partId}` });
+      expect([401, 403, 404, 410]).toContain(forged.statusCode);
+      expect(await prisma.evidencePart.count({ where: { id: partId } })).toBe(1);
       const removed = await h.app.inject({ method: "DELETE", url: `/v1/external-intake/${t}/sessions/${opened.session.id}/parts/${partId}` });
       expect(removed.statusCode, removed.body).toBe(200);
       expect(await prisma.evidencePart.count({ where: { id: partId } })).toBe(0);

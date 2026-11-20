@@ -975,6 +975,34 @@ async function claimAndDispatch(
     where: { id: deliveryId },
   });
   if (!refreshed) return "not_claimed";
+  // PRO-N1Z-02 / RG-24 (matrix review NEW-RG-24-2) — the automatic retry is a
+  // resend too: an outside contributor's invitation is not mailed again once
+  // the evidence request is cancelled or closed, or the plan no longer
+  // includes secure intake. The row is CANCELLED (terminal, no send).
+  try {
+    const reinvite = await deliveryReinvitationRefusal(refreshed, client);
+    if (reinvite) {
+      await client.notificationDelivery.update({
+        where: { id: refreshed.id },
+        data: {
+          status: "CANCELLED",
+          errorCode: reinvite.outcome === "blocked_plan" ? `blocked_plan:${reinvite.code}`.slice(0, 80) : reinvite.outcome,
+          nextAttemptAtUtc: null,
+        },
+      });
+      return "skipped_recipient_preference";
+    }
+  } catch {
+    // The gate could not be read: put the row back on the schedule rather than
+    // sending an invitation whose standing is unknown.
+    await client.notificationDelivery
+      .updateMany({
+        where: { id: refreshed.id, status: "PENDING" },
+        data: { status: "RETRY_SCHEDULED", nextAttemptAtUtc: new Date(Date.now() + 60_000) },
+      })
+      .catch(() => null);
+    return "retry_scheduled";
+  }
   try {
     return (await dispatchDelivery(refreshed, client)).status;
   } catch {
