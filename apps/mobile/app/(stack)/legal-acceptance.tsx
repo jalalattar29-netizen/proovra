@@ -3,6 +3,8 @@ import { View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { getLegalStatus, recordLegalAcceptance, type LegalStatus } from "../../src/auth/auth-api";
 import { safeLegalGateNext } from "../../src/auth/legal-gate";
+import { takePendingIntent } from "../../src/deep-link/pending-intent";
+import { replaySignedOutRecordLink } from "../../src/deep-link/open-record-link";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
 import {
@@ -54,8 +56,15 @@ export default function LegalAcceptanceScreen() {
    * retries it. Replacing with Home threw the interrupted screen away.
    */
   const leave = useCallback(() => {
-    if (next) router.replace(next as never);
-    else if (router.canGoBack()) router.back();
+    if (next) {
+      router.replace(next as never);
+      // M172 — the sign-in bootstrap keeps a signed-out record link pending
+      // rather than handing it here as a raw route; it is replayed through the
+      // same resolve + workspace switch the normal sign-in replay uses. Only
+      // the sign-in entry (which names `next`) consumes it.
+      const intent = takePendingIntent();
+      if (intent?.url) replaySignedOutRecordLink(intent.url, (route) => router.push(route as never));
+    } else if (router.canGoBack()) router.back();
     else router.replace("/(tabs)");
   }, [router, next]);
 

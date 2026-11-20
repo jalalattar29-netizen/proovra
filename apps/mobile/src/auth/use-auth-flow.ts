@@ -18,9 +18,8 @@ import { endMfaEnrollment, holdMfaEnrollment } from "./mfa-enrollment-session";
 import { holdMfaPending } from "./mfa-pending-session";
 import { holdConsentForMfa } from "./pending-sign-in-consent";
 import type { OAuthMode } from "./use-oauth";
-import { takePendingIntent } from "../deep-link/pending-intent";
-import { openRecordLinkInItsWorkspace } from "../deep-link/open-record-link";
-import { workspaceSwitchBlocked } from "../product/workspace-switch-guard";
+import { setPendingRoute, takePendingIntent } from "../deep-link/pending-intent";
+import { replaySignedOutRecordLink } from "../deep-link/open-record-link";
 
 export type LoginMode = OAuthMode | "email" | "sso";
 
@@ -124,7 +123,16 @@ export function useCompleteLogin() {
           }
         }
         if (!legal.ok && legal.missingPolicies.length > 0) {
-          router.replace({ pathname: "/legal-acceptance", params: { policies: legal.missingPolicies.join(","), next: intent?.route ?? destination } });
+          // M172 — a record link is NOT handed to the gate as its raw route
+          // (the gate would open it in whatever workspace is active). It stays
+          // pending, and the gate replays it through the same resolve + switch
+          // once it is left (replaySignedOutRecordLink). Only a non-record
+          // destination rides as `next`.
+          if (replayUrl && intent) setPendingRoute(intent.route, replayUrl);
+          router.replace({
+            pathname: "/legal-acceptance",
+            params: { policies: legal.missingPolicies.join(","), next: replayUrl ? destination : (intent?.route ?? destination) },
+          });
           return;
         }
       } catch {
@@ -133,12 +141,7 @@ export function useCompleteLogin() {
       if (getAuthToken() !== result.token) return;
       router.replace(destination as never);
       if (replayUrl) {
-        void openRecordLinkInItsWorkspace(replayUrl, {
-          navigate: (route) => router.push(route as never),
-          hasActiveWork: workspaceSwitchBlocked,
-          // Unknown right after sign-in: a returned workspace is switched to.
-          activeTeamId: null,
-        });
+        replaySignedOutRecordLink(replayUrl, (route) => router.push(route as never));
       }
     },
     [router, setSession, currentToken, currentUser],
