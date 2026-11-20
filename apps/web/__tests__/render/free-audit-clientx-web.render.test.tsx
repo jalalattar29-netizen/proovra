@@ -207,6 +207,45 @@ describe("B6-F-22 / B6-F-46: paid AI switches", () => {
 });
 
 // ---------------------------------------------------------------------------
+// M029 — the ORGANIZATION admin status row carries the allowance reason
+// ---------------------------------------------------------------------------
+describe("M029: organization admin AI status row", () => {
+  function policyWithAssistance(assistance: Record<string, unknown>) {
+    routes["GET /v1/workspaces/ai-policy"] = () => ({
+      body: { policy: POLICY, version: 3, hasExplicitPolicy: true, lastModifiedByUserId: null, lastModifiedAtUtc: null, capabilities: [], assistance },
+    });
+  }
+
+  it("a spent allowance reads 'Allowance used' with the reset date, never outage copy", async () => {
+    ctx.envelope = orgEnvelope;
+    aiRoutes("PRO");
+    policyWithAssistance({
+      status: "TEMPORARILY_UNAVAILABLE",
+      enabled: true,
+      reason: "ALLOWANCE_EXHAUSTED",
+      allowanceResetsAtUtc: "2026-12-01T00:00:00.000Z",
+    });
+    render(<AiSection />);
+    await waitFor(() => expect(q("[data-cc-ai-status]")).not.toBeNull());
+    const row = q("[data-cc-ai-status]")!;
+    expect(row.textContent).toContain("Allowance used");
+    expect(row.textContent).toMatch(/resets on/);
+    expect(row.textContent).not.toContain("the platform is not serving AI requests");
+  });
+
+  it("an older API answer without reason keeps the outage copy (safe fallback)", async () => {
+    ctx.envelope = orgEnvelope;
+    aiRoutes("PRO");
+    policyWithAssistance({ status: "TEMPORARILY_UNAVAILABLE", enabled: true });
+    render(<AiSection />);
+    await waitFor(() => expect(q("[data-cc-ai-status]")).not.toBeNull());
+    const row = q("[data-cc-ai-status]")!;
+    expect(row.textContent).not.toContain("Allowance used");
+    expect(row.textContent).toContain("the platform is not serving AI requests");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // B6-F-49
 // ---------------------------------------------------------------------------
 describe("B6-F-49: usage-stats cost is an estimate", () => {

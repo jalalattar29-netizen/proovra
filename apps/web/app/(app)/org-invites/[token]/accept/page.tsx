@@ -107,6 +107,7 @@ function OrgInviteAcceptPageInner() {
 
   const [state, setState] = useState<State>({ kind: "idle" });
   const [lookup, setLookup] = useState<Lookup>({ phase: "loading" });
+  const [switchNotice, setSwitchNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) {
@@ -246,14 +247,23 @@ function OrgInviteAcceptPageInner() {
   const openWorkspace = useCallback(
     async (workspaceId: string) => {
       // Explicit, user-initiated switch — never automatic (§8.2).
+      setSwitchNotice(null);
+      // NEW-RG-15-1 (M174 pattern) — switchWorkspace answers false, without
+      // throwing, when the switch did not happen. Pushing /home then opened
+      // Home under the previous workspace with no word said. Stop with a notice.
+      let switched: boolean | void = false;
       try {
-        await switchWorkspace(workspaceId);
-        router.push("/home");
+        switched = await switchWorkspace(workspaceId);
       } catch {
-        // Switch failure falls back to the org landing; the provider
-        // already restored the previous context.
-        router.push("/organizations");
+        switched = false;
       }
+      if (switched === false) {
+        setSwitchNotice(
+          "PROOVRA could not switch to that workspace, so it was not opened. You are still in your previous workspace.",
+        );
+        return;
+      }
+      router.push("/home");
     },
     [switchWorkspace, router],
   );
@@ -346,6 +356,11 @@ function OrgInviteAcceptPageInner() {
               ))}
             </ul>
           )}
+          {switchNotice ? (
+            <p role="alert" data-state="workspace-switch-refused" style={{ marginTop: 8 }}>
+              {switchNotice}
+            </p>
+          ) : null}
           <div style={{ marginTop: 8 }}>
             <Link
               href={state.setupRedirect ?? `/organizations/${state.organizationId}`}

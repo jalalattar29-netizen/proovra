@@ -13,6 +13,7 @@
 import { useState } from "react";
 import { useRouter } from "expo-router";
 
+import { holdPortalTokenForRoute } from "../../../src/portal/portal-session";
 import { theme } from "../../../src/theme/theme";
 import {
   ProovraScreen,
@@ -62,7 +63,8 @@ export default function PortalEntryScreen() {
           // The exchange lives in ONE place. Two screens that both
           // authenticate would be two places for the MFA and denial behaviour
           // to drift apart.
-          onPress={() => router.push(`/portal/${encodeURIComponent(token.trim())}`)}
+          // NEW-RG-25-5 — the bearer is held in memory, never put in the route.
+          onPress={() => router.push(holdPortalTokenForRoute(token.trim()) as never)}
         />
       </ProovraCard>
     </ProovraScreen>

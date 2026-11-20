@@ -14,6 +14,7 @@ import { test } from "node:test";
 import { getDirectAccessDecision, type SurfaceUserContext } from "../lib/surface/access";
 import { ROUTE_REGISTRY, routeRequiresEnterpriseWorkspace } from "../lib/navigation/routeRegistry";
 import { resolveRouteAccess } from "../lib/navigation/routeAccessResolver";
+import { normalizeHomeViewModel, type NormalizeInputs } from "../components/home-experience/home-view-model";
 
 function ctx(reviewerOperationsIncluded: boolean | null): SurfaceUserContext {
   return {
@@ -157,4 +158,61 @@ test("AUD-0049 — the route gate opens the reviewer operations pages on TEAM an
     const route = ROUTE_REGISTRY.find((r) => r.id === id);
     if (route) assert.equal(routeRequiresEnterpriseWorkspace(route), true, id);
   }
+});
+
+// NEW-RG-14-1 (DEC-11) — Home's Operations rows link to a page only when the
+// same surface decision the navigation uses lets the viewer open it. A PRO
+// owner with stale review workflows or an escalation must not get a row
+// linking to the TEAM-only review queue / escalations pages.
+function homeWithReviewConditions(surfaceAccess: SurfaceUserContext | undefined) {
+  return normalizeHomeViewModel({
+    plan: "PRO",
+    planFeatures: null,
+    workspaceId: "11111111-1111-4111-8111-111111111111",
+    workspaceName: "Workspace",
+    activeSpaceType: "PERSONAL",
+    commandCenter: null,
+    trustSummary: null,
+    billing: null,
+    reports: null,
+    intakeLinks: null,
+    inbox: null,
+    communications: null,
+    orgs: [],
+    operationsSummary: {
+      open: 2,
+      critical: 0,
+      high: 0,
+      warning: 2,
+      assignedToMe: 0,
+      mayAssertAllClear: false,
+      groups: [
+        { sourceId: "review.stale_workflows", conditionCount: 1, statusPosture: "OPEN" },
+        { sourceId: "review.escalation", conditionCount: 1, statusPosture: "OPEN" },
+      ],
+    },
+    ...(surfaceAccess ? { surfaceAccess } : {}),
+  } as NormalizeInputs);
+}
+const opsHref = (vm: ReturnType<typeof normalizeHomeViewModel>, sourceId: string) =>
+  vm.workspacePriorities.find((p) => p.key === `ops:${sourceId}`)?.href;
+
+test("NEW-RG-14-1 — on PRO (reviewer operations not included) the review Operations rows never link to the TEAM-only pages", () => {
+  for (const access of [ctx(false), ctx(null), undefined]) {
+    const vm = homeWithReviewConditions(access);
+    const stale = opsHref(vm, "review.stale_workflows");
+    const escalation = opsHref(vm, "review.escalation");
+    assert.ok(stale, "the stale-workflow row is still shown");
+    assert.ok(escalation, "the escalation row is still shown");
+    assert.notEqual(stale, "/review/queues");
+    assert.notEqual(escalation, "/reviewer-ops/escalations");
+    assert.equal(getDirectAccessDecision(access ?? ctx(null), stale!).kind, "allow");
+    assert.equal(getDirectAccessDecision(access ?? ctx(null), escalation!).kind, "allow");
+  }
+});
+
+test("NEW-RG-14-1 — on TEAM (reviewer operations included) the rows keep their review destinations", () => {
+  const vm = homeWithReviewConditions(ctx(true));
+  assert.equal(opsHref(vm, "review.stale_workflows"), "/review/queues");
+  assert.equal(opsHref(vm, "review.escalation"), "/reviewer-ops/escalations");
 });

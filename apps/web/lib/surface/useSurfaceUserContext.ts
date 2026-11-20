@@ -26,7 +26,19 @@ import {
 
 export function useSurfaceUserContext(): SurfaceUserContext {
   const ctx = usePlatformContext();
-  const envelope = ctx?.envelope;
+  return surfaceUserContextFromEnvelope(ctx?.envelope ?? null);
+}
+
+type PlatformEnvelope = NonNullable<ReturnType<typeof usePlatformContext>>["envelope"];
+
+/**
+ * The same projection as the hook, for callers that build it outside render
+ * (NEW-RG-14-1: the Home view model links Operations rows only to surfaces
+ * this context opens).
+ */
+export function surfaceUserContextFromEnvelope(
+  envelope: PlatformEnvelope | null | undefined,
+): SurfaceUserContext {
   if (!envelope) return ANONYMOUS_SURFACE_CONTEXT;
 
   // PHASE 12B Track 1A — the raw plan name is NOT projected into the surface

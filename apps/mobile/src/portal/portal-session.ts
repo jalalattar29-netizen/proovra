@@ -18,6 +18,24 @@
 let token: string | null = null;
 let sessionId: string | null = null;
 
+/**
+ * NEW-RG-25-5 — the bearer is not navigation state (which reaches logs and
+ * crash breadcrumbs), as M350 keeps verify/reset tokens out of it and the web
+ * portal holds its bearer in memory (M348). The portal screen stays at
+ * `/portal/[token]` (an invitation link still opens it), but once the bearer is
+ * captured the segment names only this placeholder, and in-app callers hold the
+ * bearer here and navigate to PORTAL_HELD_ROUTE. It is shorter than the 8-char
+ * minimum PortalAuthBody accepts, so it can never be a real token.
+ */
+export const PORTAL_HELD_TOKEN_SEGMENT = "held";
+export const PORTAL_HELD_ROUTE = `/portal/${PORTAL_HELD_TOKEN_SEGMENT}`;
+
+/** Hold the bearer in memory and answer the route that opens the portal with it. */
+export function holdPortalTokenForRoute(next: string): string {
+  token = next;
+  return PORTAL_HELD_ROUTE;
+}
+
 export function setPortalToken(next: string | null): void {
   token = next;
 }

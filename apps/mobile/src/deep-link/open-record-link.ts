@@ -15,6 +15,7 @@ import { apiFetch } from "../api";
 import { resolveMobileDeepLink } from "../deep-link";
 import { adoptSwitchedWorkspace } from "../product/platform-context";
 import { SWITCH_WORKSPACE_PATH, buildSwitchWorkspaceBody } from "../product/spaces";
+import { workspaceSwitchBlocked } from "../product/workspace-switch-guard";
 
 export const RECORD_LINK_SWITCH_NOTICE = "Opened in the record's workspace — you are now working there.";
 
@@ -58,4 +59,21 @@ export async function openRecordLinkInItsWorkspace(
   else if (outcome.status === "offline") Alert.alert("You appear to be offline", "Connect to the internet, then open the link again.");
   else if (outcome.status === "blocked_busy") Alert.alert("Capture in progress", "Finish or pause the current capture before opening links.");
   return outcome.status;
+}
+
+/**
+ * M172 — THE POST-SIGN-IN REPLAY, FROM WHICHEVER SCREEN FINISHES THE SIGN-IN.
+ *
+ * The sign-in bootstrap replays a signed-out record link here; so does the
+ * legal-acceptance gate when acceptance was missing at sign-in (the bootstrap
+ * keeps the link pending and hands the gate only the Home route). One call, so
+ * both open the record through the same resolve + workspace switch.
+ */
+export function replaySignedOutRecordLink(url: string, navigate: (route: string) => void): void {
+  void openRecordLinkInItsWorkspace(url, {
+    navigate,
+    hasActiveWork: workspaceSwitchBlocked,
+    // Unknown right after sign-in: a returned workspace is switched to.
+    activeTeamId: null,
+  });
 }
