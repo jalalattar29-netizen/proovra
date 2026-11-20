@@ -28,6 +28,10 @@ import {
   sumDerivedAssetStorageBytes,
   sumExchangePackageStorageBytes,
   sumLiveArtifactStorageReservationBytes,
+  clearOwnDerivedAssetStorageReservationTx,
+  writeDerivedAssetStorageReservationTx,
+  releaseDerivedAssetStorageReservation,
+  type DerivedAssetReservationKey,
 } from "@proovra/shared-runtime";
 
 /**
@@ -945,10 +949,24 @@ export async function settleArtifactStorageReservationTx(
  * refused with STORAGE_LIMIT_REACHED when they would not fit. Reads, exports
  * and reductions are untouched. Returns false (refused) instead of throwing so
  * every producer settles its row the same way.
+ *
+ * M676 — no longer check-then-write. Under the workspace capacity lock (the
+ * advisory lock the API's admission and completion and the worker's artifact
+ * runs take) a SHORT transaction drops this row's own earlier reservation,
+ * reads usage plus every live reservation (artifact runs and derived jobs),
+ * and when the object fits records its size on the derived row
+ * (`storage_reserved_bytes` / `storage_reserved_at_utc`). Two concurrent
+ * derived jobs that jointly exceed the allowance are serialized here: exactly
+ * one is admitted. The transaction ends before the caller uploads a byte. The
+ * caller's settling `recordDerivedAsset` clears the reservation in the same
+ * statement; an aborted job calls `releaseDerivedArtifactReservation`; a job
+ * that died stops counting after DERIVED_ASSET_STORAGE_RESERVATION_TTL_MS.
  */
 export async function workspaceAllowsDerivedArtifact(params: {
   evidenceId: string;
   incomingBytes: bigint | number;
+  /** The derived row (canonical identity) the reservation is held on. */
+  reservation: Omit<DerivedAssetReservationKey, "evidenceId">;
 }): Promise<{ allowed: true } | { allowed: false; reason: "storage_limit" | "evidence_not_found" }> {
   const ev = await prisma.evidence.findUnique({
     where: { id: params.evidenceId },
@@ -956,15 +974,38 @@ export async function workspaceAllowsDerivedArtifact(params: {
   });
   if (!ev) return { allowed: false, reason: "evidence_not_found" };
   const scope = await resolveWorkspaceScopeForEvidence({ ownerUserId: ev.ownerUserId, teamId: ev.teamId });
+  const bytes =
+    typeof params.incomingBytes === "bigint"
+      ? params.incomingBytes
+      : BigInt(Math.max(0, Math.trunc(Number.isFinite(params.incomingBytes) ? params.incomingBytes : 0)));
+  const key: DerivedAssetReservationKey = { ...params.reservation, evidenceId: params.evidenceId };
   try {
-    await assertWorkspaceStorageAvailable({ scope, incomingBytes: params.incomingBytes });
+    await prisma.$transaction(async (tx) => {
+      await lockWorkspaceCapacityTx(tx, scope);
+      await clearOwnDerivedAssetStorageReservationTx(tx, key);
+      await assertWorkspaceStorageAvailable({ scope, incomingBytes: bytes, usageOptions: { client: tx } });
+      await writeDerivedAssetStorageReservationTx(tx, key, bytes, new Date());
+    }, ARTIFACT_STORAGE_RESERVATION_TRANSACTION);
     return { allowed: true };
   } catch (err) {
     if ((err as { code?: string }).code === "STORAGE_LIMIT_REACHED") {
+      // Refused: an earlier reservation of this row (a crashed attempt) must
+      // not keep counting against the workspace.
+      await releaseDerivedAssetStorageReservation(prisma, key).catch(() => undefined);
       return { allowed: false, reason: "storage_limit" };
     }
     throw err;
   }
+}
+
+/**
+ * M676 — an admitted derived job that ends WITHOUT its settling write (upload
+ * failed, claim lost, record failed) gives its reservation back; a placeholder
+ * row that never received an object is removed. Best effort: an unreleased
+ * reservation stops counting at its TTL anyway.
+ */
+export async function releaseDerivedArtifactReservation(key: DerivedAssetReservationKey): Promise<void> {
+  await releaseDerivedAssetStorageReservation(prisma, key).catch(() => undefined);
 }
 
 export type ExchangeBuildAdmission =

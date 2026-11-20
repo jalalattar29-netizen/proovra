@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 394,
-    "classifiedMigrations": 394,
+    "filesystemMigrations": 395,
+    "classifiedMigrations": 395,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 394,
+    "productionSnapshotUnknown": 395,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 394,
-    "classifiedMigrations": 394,
+    "filesystemMigrations": 395,
+    "classifiedMigrations": 395,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 394,
+    "productionSnapshotUnknown": 395,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 155,
+      "EXPAND": 156,
       "BACKFILL": 36,
       "CONTRACT_DROP": 12,
       "REPAIR": 6
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 176,
+      "SAFE_TO_APPLY_NOW": 177,
       "WAIT_FOR_BACKFILL_READINESS": 14,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 7
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 394
+    "ProductionMigrationStateUnknown": 395
   },
   "gateFailures": [],
   "migrations": [
@@ -29341,8 +29341,72 @@
       "evidence": "PRO-P1-06 (WS-SHELL, 2026-11-18). Two nullable idempotency_token columns (operational_workflow_events, bulk_operational_action_runs), each with a unique index on (team_id, idempotency_token), so an Operations idempotency key is reserved before the effect. NULL is distinct in a unique index, so every existing row and every row an older image writes is admitted; an older image never reads the columns. Rollback: leave them."
     },
     {
-      "name": "email_password_auth",
+      "name": "20281122000000_derived_asset_storage_reservation",
       "order": 393,
+      "sqlPresent": true,
+      "byteLength": 1767,
+      "checksumSha256": "330146da4e6c8b11db8c0200472fe8191ddbf268efa2e93ee1bf58b13baedb4c",
+      "checksumSha256Raw": "330146da4e6c8b11db8c0200472fe8191ddbf268efa2e93ee1bf58b13baedb4c",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:2 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "evidence_part_derived_assets"
+        ],
+        "addedColumns": [
+          "storage_reserved_at_utc",
+          "storage_reserved_bytes"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260620100000_phase24_31_consolidated_drift_patches"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 2 FROM information_schema.columns WHERE table_schema='public' AND table_name='evidence_part_derived_assets' AND column_name IN ('storage_reserved_bytes','storage_reserved_at_utc');\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "M676 (WS-SCHED, 2026-11-20, DEC-04). Two nullable columns on evidence_part_derived_assets (storage_reserved_bytes BIGINT, storage_reserved_at_utc TIMESTAMPTZ): the bytes a derived-artifact job reserved under the workspace capacity lock before writing its object, counted by both usage meters only while younger than the 20-minute run lease and cleared by the settling write, so concurrent derived jobs cannot jointly exceed the allowance. No row is rewritten, no default, no index; an older image never reads or writes them. Order: migration, then worker, then API. Rollback: leave the columns (NULL is the old behaviour)."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 394,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

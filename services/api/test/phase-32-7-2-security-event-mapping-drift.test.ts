@@ -1574,6 +1574,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20281121130200_report_request_storage_reservation",
       // PRO-P1-06 (WS-SHELL): Operations idempotency reservation. EXPAND.
       "20281121140000_ops_idempotency_reservation",
+      // M676 (DEC-04): derived-artifact storage reservation. EXPAND.
+      "20281122000000_derived_asset_storage_reservation",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

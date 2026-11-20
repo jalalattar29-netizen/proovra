@@ -31,6 +31,7 @@ import {
   DERIVED_PRODUCTION_INELIGIBLE_LIFECYCLE_STATES,
   MEDIA_INTELLIGENCE_RUN_CLAIMED_STATUS as CLAIMED_STATUS,
   MEDIA_INTELLIGENCE_RUN_LEASE_MS,
+  releaseExpiredDerivedAssetStorageReservations,
 } from "@proovra/shared-runtime";
 
 import { workspaceSemanticEgressAllowed } from "./embedding-egress-gate.js";
@@ -154,6 +155,12 @@ export type IntelligenceRunReconcileResult = {
   derivedAssetsCollapsed: number;
   /** Settled FAILED after the recovery ceiling, for an operator to re-request. */
   derivedAssetsAbandoned: number;
+  /**
+   * M676 — derived storage reservations past their TTL cleared (they already
+   * counted nothing) and expired placeholders that never received an object
+   * removed. See {@link releaseExpiredDerivedAssetStorageReservations}.
+   */
+  derivedReservationsReleased: number;
   durationMs: number;
   error?: string;
 };
@@ -175,6 +182,7 @@ export async function runIntelligenceRunReconciler(
     derivedAssetsReEnqueued: 0,
     derivedAssetsCollapsed: 0,
     derivedAssetsAbandoned: 0,
+    derivedReservationsReleased: 0,
     durationMs: 0,
   };
 
@@ -327,6 +335,20 @@ export async function runIntelligenceRunReconciler(
     result.derivedAssetsCollapsed = derived.collapsed;
     result.derivedAssetsAbandoned = derived.abandoned;
     result.failed += derived.failed;
+
+    // ---- 5. Expired derived storage reservations (M676) ------------------
+    //
+    // An expired reservation stops counting by the meters' own TTL filter;
+    // this only makes the rows say so. Fail-isolated like step 4.
+    try {
+      result.derivedReservationsReleased = await releaseExpiredDerivedAssetStorageReservations(prisma);
+    } catch (err) {
+      result.failed += 1;
+      logger.warn(
+        { err: err instanceof Error ? err.message.slice(0, 200) : "unknown" },
+        "worker.intelligence_run.derived_reservation_release_unavailable",
+      );
+    }
 
     logger.info(
       {

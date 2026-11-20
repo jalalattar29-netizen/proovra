@@ -27,10 +27,15 @@
  * Both hosts' usage meters add `sumLiveArtifactStorageReservationBytes`, so an
  * API admission (which runs under the same lock) sees a worker's reservation
  * and a worker's reservation sees the API's committed bytes.
+ *
+ * M676 — the same sum carries the live reservations of derived-artifact jobs
+ * (`evidence_part_derived_assets.storage_reserved_bytes`, derived-storage.ts),
+ * so the two meters read ONE reservation figure.
  */
 import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { reportClaimLiveWhere } from "../reports/report-claim-lease.js";
+import { sumLiveDerivedAssetStorageReservationBytes } from "./derived-storage.js";
 
 /** The payer subject both hosts lock on (the API's `commercialPrincipalOf`). */
 export type WorkspaceCapacitySubject = {
@@ -80,17 +85,23 @@ export function liveArtifactStorageReservationWhere(
  * re-reserves (its package after its report, a retry) is not counted twice.
  */
 export async function sumLiveArtifactStorageReservationBytes(
-  prisma: Pick<PrismaClient, "reportGenerationRequest">,
+  prisma: Pick<PrismaClient, "reportGenerationRequest" | "evidencePartDerivedAsset">,
   input: { teamId: string | null; now?: Date; excludeRequestId?: string | null },
 ): Promise<bigint> {
   if (!input.teamId) return 0n;
-  const live = liveArtifactStorageReservationWhere(input.teamId, input.now ?? new Date());
-  const agg = await prisma.reportGenerationRequest.aggregate({
-    where: input.excludeRequestId ? { AND: [live, { id: { not: input.excludeRequestId } }] } : live,
-    _sum: { storageReservedBytes: true },
-  });
+  const now = input.now ?? new Date();
+  const live = liveArtifactStorageReservationWhere(input.teamId, now);
+  const [agg, derived] = await Promise.all([
+    prisma.reportGenerationRequest.aggregate({
+      where: input.excludeRequestId ? { AND: [live, { id: { not: input.excludeRequestId } }] } : live,
+      _sum: { storageReservedBytes: true },
+    }),
+    // M676 — derived-artifact jobs in flight (unexpired reservations only).
+    sumLiveDerivedAssetStorageReservationBytes(prisma, { teamId: input.teamId, now }),
+  ]);
   const raw = agg?._sum?.storageReservedBytes ?? 0;
-  return typeof raw === "bigint" ? raw : BigInt(Math.max(0, Math.trunc(Number(raw))));
+  const requests = typeof raw === "bigint" ? raw : BigInt(Math.max(0, Math.trunc(Number(raw))));
+  return requests + derived;
 }
 
 /**

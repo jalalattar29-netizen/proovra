@@ -263,6 +263,11 @@ export async function recordDerivedAsset(
                     THEN NOW()
                     ELSE "evidence_part_derived_assets"."generated_at_utc"
                END,
+             -- M676 — the settling write ends the job's storage reservation in
+             -- the same statement: a COMPLETED row now counts its live size, a
+             -- FAILED / UNSUPPORTED row wrote nothing new.
+             "storage_reserved_bytes" = NULL,
+             "storage_reserved_at_utc" = NULL,
              "updated_at_utc" = NOW()
          RETURNING "id",
            (SELECT "id" FROM archived LIMIT 1) AS "archived_id"`,

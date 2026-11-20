@@ -116,6 +116,9 @@ vi.mock("../src/db.js", () => {
         ),
       },
       evidencePartDerivedAsset: {
+        // M676 — the tick's expired-reservation release removes placeholders
+        // (none in this double: no row carries a reservation).
+        deleteMany: vi.fn(async () => ({ count: 0 })),
         updateMany: vi.fn(
           async ({
             where,
