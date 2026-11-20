@@ -55,7 +55,7 @@ import { deleteObjectVersions, getObjectStream, isObjectLockEnabled, s3 } from "
 import { combineSegmentFiles } from "./combine-recording.js";
 import { decideCombineInputs, locateCombineManifest, type CombinePartRow } from "./combine-inputs.js";
 import { MultipartUploadDeadlineExceeded, uploadFileMultipart } from "./multipart-upload.js";
-import { workspaceAllowsDerivedArtifact } from "../workspace-billing.js";
+import { releaseDerivedArtifactReservation, workspaceAllowsDerivedArtifact } from "../workspace-billing.js";
 
 type JobInput = { jobId: string | undefined; teamId: string; evidenceId: string; runId: string };
 type MediaIntelligenceModule = typeof import("@proovra/shared-runtime/media-intelligence");
@@ -102,6 +102,9 @@ export async function processCombineScreenRecordingJob(
 
   let workDir: string | null = null;
   let uploaded: { bucket: string; key: string; versionId: string | null } | null = null;
+  // M676 — the derived row holding this attempt's storage reservation until
+  // the settling recordDerivedAsset clears it (null: nothing held).
+  let reserved: Parameters<typeof releaseDerivedArtifactReservation>[0] | null = null;
   try {
     // ---- the record ------------------------------------------------------
     const evidence = await prisma.evidence.findUnique({
@@ -210,8 +213,24 @@ export async function processCombineScreenRecordingJob(
     // WS-SCHED / PRO-W1C-03, PRO-W1-05 — the locked output counts in workspace
     // storage and can never be deleted by the customer: admitted like any
     // other growth, BEFORE a byte is written.
-    const storageGate = await workspaceAllowsDerivedArtifact({ evidenceId, incomingBytes: combined.sizeBytes });
+    // M676 — and RESERVED under the workspace capacity lock on this
+    // generation's row (a PROCESSING placeholder until it is recorded), so a
+    // concurrent derived job cannot be admitted against the same room.
+    const variantKey = screenRecordingCombinedVariantKey(generation);
+    const reservationKey = {
+      teamId,
+      evidenceId,
+      evidencePartId: anchor.id,
+      assetKind: SCREEN_RECORDING_COMBINED_ASSET_KIND,
+      variantKey,
+    };
+    const storageGate = await workspaceAllowsDerivedArtifact({
+      evidenceId,
+      incomingBytes: combined.sizeBytes,
+      reservation: reservationKey,
+    });
     if (!storageGate.allowed) return fail(`combine:${storageGate.reason}`);
+    reserved = reservationKey;
     // WS-SCHED / PRO-W1C-08 — download + combine may have used most of the
     // run lease; renew it (fenced) so the upload is not overtaken by the
     // reconciler, and stop here if this attempt no longer holds the claim.
@@ -250,7 +269,6 @@ export async function processCombineScreenRecordingJob(
     if (!(await mi.renewRunLease(runId, teamId, fence, prisma)).held) {
       throw new CombineStructural("claim_lost_before_record");
     }
-    const variantKey = screenRecordingCombinedVariantKey(generation);
     const recorded = await mi.recordDerivedAsset(
       {
         teamId,
@@ -277,6 +295,7 @@ export async function processCombineScreenRecordingJob(
     );
     if (!recorded.ok) throw new Error(`combined_persist_failed:${recorded.reason}`);
     uploaded = null; // referenced by its row from here on
+    reserved = null; // the settling write cleared the reservation
     const previous = await prisma.evidencePartDerivedAsset.findMany({
       where: { evidenceId, assetKind: SCREEN_RECORDING_COMBINED_ASSET_KIND, status: "COMPLETED", NOT: { id: recorded.id } },
       select: { id: true },
@@ -324,6 +343,9 @@ export async function processCombineScreenRecordingJob(
     );
     throw err;
   } finally {
+    // M676 — an attempt that ends without recording gives its reservation
+    // back (and its placeholder row, which never received an object).
+    if (reserved) await releaseDerivedArtifactReservation(reserved);
     // An object written but never referenced by a row is removed — unless a
     // hold is in force (fail closed: unknown hold state keeps it).
     if (uploaded) {

@@ -308,6 +308,10 @@ runIf("combine_screen_recording handler (live PostgreSQL + MinIO + ffmpeg)", () 
     expect(g1).toMatchObject({
       status: "COMPLETED",
       variantKey: "combined-v1",
+      // M676 — the storage reservation taken before the upload was cleared by
+      // the settling write (the placeholder it created became this row).
+      storageReservedBytes: null,
+      storageReservedAtUtc: null,
       transformation: "screen-recording-combine/v1",
       contentType: "video/mp4",
       evidencePartId: parts[0]!.id,

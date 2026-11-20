@@ -50,7 +50,11 @@ vi.mock("../src/db.js", () => ({
         .map((r) => ({ id: r.id, kind: r.kind, evidence_id: r.evidenceId, attempt_count: r.attemptCount }));
     }),
     evidence: { findFirst: vi.fn(async () => null) },
-    evidencePartDerivedAsset: { updateMany: vi.fn(async () => ({ count: 0 })) },
+    evidencePartDerivedAsset: {
+      updateMany: vi.fn(async () => ({ count: 0 })),
+      // M676 — the tick's expired-reservation release.
+      deleteMany: vi.fn(async () => ({ count: 0 })),
+    },
   },
 }));
 

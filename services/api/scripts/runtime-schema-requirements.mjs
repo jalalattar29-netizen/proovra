@@ -801,6 +801,20 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
     requiredBy: "a bulk run is reserved by inserting its token first; without uniqueness a retry acts twice",
     suppliedBy: "20281121140000_ops_idempotency_reservation",
   },
+  // M676 (DEC-04) — a derived-artifact job reserves its bytes on the derived
+  // row under the workspace capacity lock before it writes the object.
+  newColumn(
+    "evidence_part_derived_assets",
+    "storage_reserved_bytes",
+    "both usage meters sum live derived reservations; the derived settling write clears it",
+    "20281122000000_derived_asset_storage_reservation",
+  ),
+  newColumn(
+    "evidence_part_derived_assets",
+    "storage_reserved_at_utc",
+    "a derived reservation counts only while younger than the run lease",
+    "20281122000000_derived_asset_storage_reservation",
+  ),
 ]);
 
 /**
@@ -951,8 +965,12 @@ function uniqueIndexProbe(table, index, partial = false) {
      LIMIT 1`;
 }
 
-/** The suppliers whose `newColumn`/`newTable` probes are derived from their ids. */
-const DERIVED_PROBE_SUPPLIER = /^20281121\d{6}_/;
+/**
+ * The suppliers whose `newColumn`/`newTable` probes are derived from their ids:
+ * the 0376721d9 release (20281121*) and the release after it (20281122*, M676
+ * first).
+ */
+const DERIVED_PROBE_SUPPLIER = /^2028112[12]\d{6}_/;
 
 /**
  * The catalog probes, one per requirement id.
@@ -1315,8 +1333,8 @@ const PROBES = Object.freeze({
       return [r.id, columnProbe(table, column)];
     }),
   ),
-  // 20281121* — the 0376721d9 remediation release. Columns and tables are
-  // derived from their ids (`newColumn` / `newTable`); indexes and the enum
+  // 20281121* — the 0376721d9 remediation release, and 20281122* after it.
+  // Columns and tables are derived from their ids (`newColumn` / `newTable`); indexes and the enum
   // value are written out.
   ...Object.fromEntries(
     RUNTIME_SCHEMA_REQUIREMENTS.filter(

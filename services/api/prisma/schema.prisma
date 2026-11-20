@@ -15181,6 +15181,12 @@ model EvidencePartDerivedAsset {
   // (e.g. keyframes) are distinguished by this key. "default" for the single
   // per-kind derivative every current producer writes.
   variantKey               String    @default("default") @map("variant_key") @db.VarChar(64)
+  // M676 (DEC-04) — the bytes a derived job reserved under the workspace
+  // capacity lock before writing its object, and when (migration
+  // 20281122000000). Counted by both usage meters while younger than the run
+  // lease; cleared by the settling write. NULL: nothing reserved.
+  storageReservedBytes     BigInt?   @map("storage_reserved_bytes")
+  storageReservedAtUtc     DateTime? @map("storage_reserved_at_utc") @db.Timestamptz(6)
   generatedAtUtc           DateTime? @map("generated_at_utc") @db.Timestamptz(6)
   createdAtUtc             DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
   updatedAtUtc             DateTime  @default(now()) @map("updated_at_utc") @db.Timestamptz(6)

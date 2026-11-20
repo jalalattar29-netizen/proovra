@@ -30,15 +30,23 @@ const s = vi.hoisted(() => ({
   deletes: [] as string[],
   writes: [] as Array<Record<string, unknown>>,
   storage: { allowed: true } as { allowed: true } | { allowed: false; reason: "storage_limit" },
-  storageAsks: [] as Array<{ evidenceId: string; incomingBytes: bigint | number }>,
+  storageAsks: [] as Array<{ evidenceId: string; incomingBytes: bigint | number; reservation?: Record<string, unknown> }>,
+  released: [] as Array<Record<string, unknown>>,
 }));
 
 // WS-SCHED / PRO-W1-05 — the workspace storage gate (the real one is proven in
 // its own suites); here only its verdict and the bytes it was asked about.
 vi.mock("../src/workspace-billing.js", () => ({
-  workspaceAllowsDerivedArtifact: vi.fn(async (p: { evidenceId: string; incomingBytes: bigint | number }) => {
-    s.storageAsks.push(p);
-    return s.storage;
+  workspaceAllowsDerivedArtifact: vi.fn(
+    async (p: { evidenceId: string; incomingBytes: bigint | number; reservation: Record<string, unknown> }) => {
+      s.storageAsks.push(p);
+      return s.storage;
+    },
+  ),
+  // M676 — an admitted job that ends without its settling write gives the
+  // reservation back.
+  releaseDerivedArtifactReservation: vi.fn(async (key: Record<string, unknown>) => {
+    s.released.push(key);
   }),
 }));
 
@@ -107,6 +115,7 @@ vi.mock("@proovra/shared-runtime/media-intelligence", async (orig) => ({
   }),
 }));
 
+import * as mi from "@proovra/shared-runtime/media-intelligence";
 import { processDerivedAssetJob } from "../src/derived-assets.processor.js";
 
 const job = { id: "j", name: "generate-derived-asset", data: {}, attemptsMade: 0, opts: { attempts: 3 } };
@@ -132,13 +141,45 @@ beforeEach(() => {
   s.writes = [];
   s.storage = { allowed: true };
   s.storageAsks = [];
+  s.released = [];
 });
 
 describe("derived-assets processor — storage admission (WS-SCHED PRO-W1-05)", () => {
   it("asks the workspace storage gate for the exact derived size before writing", async () => {
     const res = await processDerivedAssetJob(job as never);
     expect(res.status).toBe("COMPLETED");
-    expect(s.storageAsks).toEqual([{ evidenceId: s.request.evidenceId, incomingBytes: Buffer.from("webm-proxy-bytes").byteLength }]);
+    expect(s.storageAsks).toEqual([
+      {
+        evidenceId: s.request.evidenceId,
+        incomingBytes: Buffer.from("webm-proxy-bytes").byteLength,
+        // M676 — the admitted bytes are reserved on the row this job settles.
+        reservation: {
+          teamId: s.request.teamId,
+          evidenceId: s.request.evidenceId,
+          evidencePartId: s.request.evidencePartId,
+          assetKind: "low_res_proxy",
+          variantKey: "default",
+        },
+      },
+    ]);
+    // Settled by its own COMPLETED write (which clears the reservation): no
+    // separate release.
+    expect(s.released).toEqual([]);
+  });
+
+  it("M676: an admitted job whose settling write fails gives its reservation back", async () => {
+    vi.mocked(mi.recordDerivedAsset).mockResolvedValueOnce({ ok: false, reason: "upsert_failed:x" });
+    const res = await processDerivedAssetJob(job as never);
+    expect(res.status).toBe("FAILED");
+    expect(s.released).toEqual([
+      {
+        teamId: s.request.teamId,
+        evidenceId: s.request.evidenceId,
+        evidencePartId: s.request.evidencePartId,
+        assetKind: "low_res_proxy",
+        variantKey: "default",
+      },
+    ]);
   });
 
   it("over the limit: FAILED storage_limit, nothing written under the lock, no COMPLETED row", async () => {

@@ -231,6 +231,8 @@ describe("internal-grant rollout — migration state", () => {
       "20281121130200_report_request_storage_reservation",
       // PRO-P1-06 (WS-SHELL): Operations idempotency reservation. EXPAND.
       "20281121140000_ops_idempotency_reservation",
+      // M676 (DEC-04): derived-artifact storage reservation. EXPAND.
+      "20281122000000_derived_asset_storage_reservation",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

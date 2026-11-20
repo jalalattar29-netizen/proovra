@@ -39,14 +39,14 @@
 
 import type { Job } from "bullmq";
 import { createHash, randomUUID } from "node:crypto";
-import { JOB_NAMES } from "@proovra/shared";
+import { DEFAULT_DERIVED_ASSET_VARIANT_KEY, JOB_NAMES } from "@proovra/shared";
 
 import { decodeCanonicalJob } from "./canonical-job.js";
 import { prisma } from "./db.js";
 import { artifactLockFor } from "./object-retention.js";
 import { logger } from "./logger.js";
 import { getObjectStream, putObjectBuffer } from "./storage.js";
-import { workspaceAllowsDerivedArtifact } from "./workspace-billing.js";
+import { releaseDerivedArtifactReservation, workspaceAllowsDerivedArtifact } from "./workspace-billing.js";
 import { detectDerivedAssetCapability } from "./derived-assets-capability.js";
 // Phase 31.20 — ffmpeg-derived asset producers.
 import {
@@ -516,6 +516,8 @@ export async function processDerivedAssetJob(
   });
 
   if (!persistence.ok) {
+    // M676 — the settling write did not happen: give the reservation back.
+    await releaseDerivedArtifactReservation(reservationKeyOf({ teamId, evidenceId, evidencePartId, assetKind }));
     logger.warn(
       {
         jobId: job.id,
@@ -721,6 +723,8 @@ async function handleFfmpegAssetKind(params: {
       },
     });
     if (!persistence.ok) {
+      // M676 — the settling write did not happen: give the reservation back.
+      await releaseDerivedArtifactReservation(reservationKeyOf({ teamId, evidenceId, evidencePartId, assetKind }));
       await tryBump("derived_assets_processor_failed_total");
       return { ok: true, status: "FAILED" };
     }
@@ -867,11 +871,29 @@ async function persistCompleted(
  * (nothing written); a later request after storage is freed regenerates it.
  */
 async function storageAllows(input: PersistBaseInput, incomingBytes: number): Promise<boolean> {
-  const verdict = await workspaceAllowsDerivedArtifact({ evidenceId: input.evidenceId, incomingBytes });
+  // M676 — admitted bytes are RESERVED on this row under the workspace
+  // capacity lock; the settling recordDerivedAsset (COMPLETED or FAILED)
+  // clears the reservation in the same statement.
+  const verdict = await workspaceAllowsDerivedArtifact({
+    evidenceId: input.evidenceId,
+    incomingBytes,
+    reservation: reservationKeyOf(input),
+  });
   if (verdict.allowed) return true;
   await persistFailed({ ...input, reason: verdict.reason });
   await tryBump("derived_assets_processor_failed_total");
   return false;
+}
+
+/** M676 — the row this module writes: one derivative per kind ("default"). */
+function reservationKeyOf(input: PersistBaseInput) {
+  return {
+    teamId: input.teamId,
+    evidenceId: input.evidenceId,
+    evidencePartId: input.evidencePartId,
+    assetKind: input.assetKind,
+    variantKey: DEFAULT_DERIVED_ASSET_VARIANT_KEY,
+  };
 }
 
 async function stillEligible(input: PersistBaseInput): Promise<boolean> {
