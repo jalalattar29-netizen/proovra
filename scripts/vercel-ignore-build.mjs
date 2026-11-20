@@ -169,6 +169,14 @@ export function readWebDefaultApiBase(source) {
   return m ? m[1] : null;
 }
 
+/** AbortSignal.timeout where available (Node >= 17.3), otherwise a controller. */
+function timeoutSignal(ms) {
+  if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") return AbortSignal.timeout(ms);
+  const c = new AbortController();
+  setTimeout(() => c.abort(Object.assign(new Error(`timeout after ${ms} ms`), { name: "TimeoutError" })), ms).unref?.();
+  return c.signal;
+}
+
 function headerInt(res, name) {
   const raw = res.headers?.get?.(name);
   if (raw === null || raw === undefined) return null;
@@ -189,7 +197,7 @@ export async function readLiveApi(env, fetchImpl = globalThis.fetch, fallbackBas
   const url = `${base}/health`;
   try {
     const res = await fetchImpl(url, {
-      signal: AbortSignal.timeout(LIVE_API_TIMEOUT_MS),
+      signal: timeoutSignal(LIVE_API_TIMEOUT_MS),
       headers: { accept: "application/json", "user-agent": "proovra-vercel-ignore-build" },
     });
     const status = Number(res.status ?? 0);
@@ -285,7 +293,7 @@ export async function main(env = process.env) {
   const apiFacingDiff = live && !live.error && live.ok && live.revision ? readApiFacingDiff(live.revision) : null;
   // Written to the Vercel build log, so each deploy records what it compared.
   console.log(
-    `vercel-ignore-build: VERCEL_ENV=${env.VERCEL_ENV ?? "-"} ref=${env.VERCEL_GIT_COMMIT_REF ?? "-"} sha=${String(env.VERCEL_GIT_COMMIT_SHA ?? "-").slice(0, 9)} ` +
+    `vercel-ignore-build: node ${process.version} VERCEL_ENV=${env.VERCEL_ENV ?? "-"} NEXT_PUBLIC_API_BASE=${env.NEXT_PUBLIC_API_BASE ? "set" : "unset"} ref=${env.VERCEL_GIT_COMMIT_REF ?? "-"} sha=${String(env.VERCEL_GIT_COMMIT_SHA ?? "-").slice(0, 9)} ` +
       `build contract ${own.contract ?? "unknown"} epoch ${own.routeEpoch ?? "unknown"}; ` +
       `live API ${live.url ?? "-"} ${live.error ? `error ${live.error}` : `HTTP ${live.status} contract ${live.contract ?? "unknown"} epoch ${live.routeEpoch ?? "unknown"} revision ${live.revision ?? "unknown"}`}; ` +
       `API-facing diff ${Array.isArray(apiFacingDiff) ? apiFacingDiff.length : "unknown"}`,
