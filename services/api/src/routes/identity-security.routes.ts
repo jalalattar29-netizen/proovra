@@ -85,6 +85,7 @@ import {
   revokeSession,
 } from "../services/identity-security/session-revocation.service.js";
 import {
+  endChildSessionsOf,
   revokeAllSessionsForUserAdmin,
   sessionsOfWorkspaceWhere,
 } from "../services/access-control/session-inventory.service.js";
@@ -504,6 +505,13 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
         actorUserId: actor.userId,
         ipAddress: requestIp(req),
         userAgent: requestUa(req),
+      });
+      // NEW-RG10-1 (DEC-29) — the extension sessions it authorized end with it.
+      await endChildSessionsOf({
+        userId: body.userId,
+        parentSessionIdHash: body.sessionIdHash,
+        reason: (body.reason ?? "OPERATOR_REVOKED") as never,
+        actorUserId: actor.userId,
       });
       return reply.code(200).send({
         revoked: result ? projectRevokedSession(result) : null,
@@ -1506,6 +1514,16 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
           revokedReason: "SELF_REVOKE_SINGLE",
         },
       });
+      // NEW-RG10-1 (DEC-29) — ending a session ends the extension sessions it
+      // authorized, as sign-out does (endOwnSession); nothing else is touched.
+      if (target.sessionIdHash) {
+        await endChildSessionsOf({
+          userId,
+          parentSessionIdHash: target.sessionIdHash,
+          reason: "USER_LOGGED_OUT",
+          actorUserId: userId,
+        });
+      }
       auditIdentitySecurityEvent(req, {
         userId,
         action: "identity_security.self_revoke_session",

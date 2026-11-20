@@ -1228,6 +1228,10 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
           "identity.contributor_session.revoke",
         );
         if (!ctx) return;
+        // Matrix review NEW-RG08-3 (DEC-11) — an operator's sweep revokes
+        // sessions: session governance, Enterprise like its siblings. The
+        // scheduler's machine path is platform maintenance and stays ungated.
+        if (await denyTeamIfNotEnterprise(reply, ctx.teamId, "sessionGovernance")) return;
         const gate = await requireStepUpForSensitiveAction({
           req,
           reply,
@@ -1346,6 +1350,9 @@ export async function adminIdentityRuntimeRoutes(app: FastifyInstance) {
         "identity.contributor_session.revoke",
       );
       if (!actor) return;
+      // Matrix review NEW-RG08-4 (DEC-11) — the same Enterprise gate as the
+      // session inventory and every quarantine write.
+      if (await denyTeamIfNotEnterprise(reply, q.teamId, "sessionGovernance")) return;
       const after = decodeKeysetCursor(q.cursor);
       if (after === null) {
         return reply.code(400).send({

@@ -375,6 +375,69 @@ describe("B5B-F-302 — pre-existing self-serve accounts are never linked or con
     });
   });
 
+  it("matrix review NEW-RG-06-1: reactivation asks the directory's reach — a legacy self-serve account still MANAGED by this Organization through a pre-fix link is 404, stays suspended and is not re-linked", async () => {
+    // The pre-fix shape: a self-serve account linked by a directory push on the
+    // domain alone (linkSource NULL, no subject-bound consent), converted to
+    // MANAGED by this Organization, then deactivated by the directory.
+    const legacy = await selfServeAccount("legacy-reactivate");
+    const mapping = await prisma.externalIdentityMapping.create({
+      data: {
+        teamId: org.workspaceId,
+        organizationId: org.organizationId,
+        userId: legacy.id,
+        provider: "GENERIC_SCIM",
+        externalSubjectId: `legacy-${randomUUID()}`,
+        externalEmail: legacy.email,
+        unlinkedAtUtc: new Date(),
+      },
+      select: { id: true },
+    });
+    await prisma.teamMember.create({
+      data: {
+        teamId: org.workspaceId,
+        userId: legacy.id,
+        role: "MEMBER",
+        status: "SUSPENDED",
+        suspensionReason: scim.SCIM_DEACTIVATION_WORKSPACE_MARKER,
+      },
+    });
+    await prisma.user.update({
+      where: { id: legacy.id },
+      data: {
+        identityMode: "MANAGED_ENTERPRISE",
+        managingOrganizationId: org.organizationId,
+        managedIdentitySource: "SCIM",
+      } as never,
+    });
+    const before = await fingerprint(legacy.id);
+
+    const res = await scimCall("PATCH", `/v2/scim/Users/${legacy.id}`, {
+      schemas: [PATCH],
+      Operations: [{ op: "replace", path: "active", value: true }],
+    });
+    expect(res.statusCode, res.body).toBe(404);
+    const member = await prisma.teamMember.findUniqueOrThrow({
+      where: { teamId_userId: { teamId: org.workspaceId, userId: legacy.id } },
+    });
+    expect(member.status).toBe("SUSPENDED");
+    expect(
+      (await prisma.externalIdentityMapping.findUniqueOrThrow({ where: { id: mapping.id } })).unlinkedAtUtc,
+    ).not.toBeNull();
+    expect(await fingerprint(legacy.id)).toEqual(before);
+    // The service answers the same way the sibling writers do.
+    expect(
+      await scim.scimReactivateUser(
+        { teamId: org.workspaceId, organizationId: org.organizationId, tokenId: randomUUID() } as never,
+        legacy.id,
+      ),
+    ).toEqual({ ok: false, notFound: true });
+    // Clean up so the remediation case below sees only its own fixture.
+    await prisma.user.update({
+      where: { id: legacy.id },
+      data: { identityMode: "STANDARD", managingOrganizationId: null, managedIdentitySource: null } as never,
+    });
+  });
+
   // ---------------------------------------------------------------------------
   // SAML JIT (the mapping authority the ACS calls)
   // ---------------------------------------------------------------------------

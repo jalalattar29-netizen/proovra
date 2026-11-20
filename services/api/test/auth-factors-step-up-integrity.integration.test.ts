@@ -50,6 +50,8 @@ describe("Round 3 auth-factors — factors, step-up and recovery integrity (live
   let signJwt: (typeof import("../src/services/jwt.js"))["signJwt"];
   let ceremony: ReturnType<(typeof import("./support/step-up-ceremony.js"))["createStepUpCeremony"]>;
   let deps: FixtureDeps;
+  let totpLib: typeof import("../src/services/security/mfa-totp.js");
+  let sealSecretFn: (typeof import("../src/services/security/mfa-secret-storage.js"))["sealSecret"];
   let ipCounter = 1;
 
   const call = (
@@ -184,6 +186,8 @@ describe("Round 3 auth-factors — factors, step-up and recovery integrity (live
     ({ hashPassword } = await import("../src/services/email-password-auth.service.js"));
     revocation = await import("../src/services/identity-security/session-revocation.service.js");
     ({ signJwt } = await import("../src/services/jwt.js"));
+    totpLib = await import("../src/services/security/mfa-totp.js");
+    ({ sealSecret: sealSecretFn } = await import("../src/services/security/mfa-secret-storage.js"));
     const { createStepUpCeremony } = await import("./support/step-up-ceremony.js");
     ceremony = createStepUpCeremony({
       prisma: prisma as never,
@@ -264,6 +268,71 @@ describe("Round 3 auth-factors — factors, step-up and recovery integrity (live
       const ok = await start({ stepUp: { method: "mfa", code: await ceremony.freshCode(owner.userId) } });
       expect(ok.statusCode, ok.body).toBe(200);
       expect(lastCodeTo(phone)).toBeDefined();
+    });
+
+    it("matrix review 6.1 / PRO-A1Z-01: enroll/verify with replacesFactorId refuses 409 replaced_factor_invalid for anything but the caller's own ACTIVE phone, before the code is spent; the real replacement revokes the old phone", async () => {
+      const o = await org(0);
+      const owner = o.owner;
+      await ceremony.enroll(owner.userId);
+      const enrol = async (phone: string) => {
+        const started = await call("POST", "/v1/identity-security/contact-factors/enroll/start", owner.token, {
+          teamId: o.workspaceId,
+          channel: "SMS",
+          destination: phone,
+          stepUp: { method: "mfa", code: await ceremony.freshCode(owner.userId) },
+        });
+        expect(started.statusCode, started.body).toBe(200);
+        const j = started.json() as { factor: { factorId: string }; verificationAttemptId: string };
+        return { factorId: j.factor.factorId, verificationAttemptId: j.verificationAttemptId, code: lastCodeTo(phone)! };
+      };
+      const verify = (e: { factorId: string; verificationAttemptId: string; code: string }, replacesFactorId?: string) =>
+        call("POST", "/v1/identity-security/contact-factors/enroll/verify", owner.token, {
+          teamId: o.workspaceId,
+          factorId: e.factorId,
+          verificationAttemptId: e.verificationAttemptId,
+          code: e.code,
+          ...(replacesFactorId ? { replacesFactorId } : {}),
+        });
+      const statusOf = async (id: string) => (await prisma.mfaFactor.findUniqueOrThrow({ where: { id } })).status;
+
+      const oldPhone = await enrol(randomPhone());
+      const first = await verify(oldPhone);
+      expect(first.statusCode, first.body).toBe(200);
+      expect(await statusOf(oldPhone.factorId)).toBe("ACTIVE");
+
+      const newPhone = await enrol(randomPhone());
+      const totp = await prisma.mfaFactor.findFirstOrThrow({
+        where: { userId: owner.userId, kind: "TOTP", status: "ACTIVE" },
+        select: { id: true },
+      });
+      for (const [label, replaces] of [
+        ["unknown factor", randomUUID()],
+        ["the factor being enrolled", newPhone.factorId],
+        ["the authenticator app (not a phone)", totp.id],
+      ] as const) {
+        const refused = await verify(newPhone, replaces);
+        expect(refused.statusCode, `${label} ${refused.body}`).toBe(409);
+        expect(errorCode(refused), label).toBe("replaced_factor_invalid");
+      }
+      // Nothing moved and the code was not spent.
+      expect(await statusOf(newPhone.factorId)).toBe("ENROLLING");
+      expect(await statusOf(oldPhone.factorId)).toBe("ACTIVE");
+      expect(
+        (await prisma.verificationAttempt.findUniqueOrThrow({ where: { id: newPhone.verificationAttemptId } })).status,
+      ).not.toBe("APPROVED");
+
+      // Authorized: replacing the caller's own ACTIVE phone with the same code.
+      const replaced = await verify(newPhone, oldPhone.factorId);
+      expect(replaced.statusCode, replaced.body).toBe(200);
+      expect(await statusOf(newPhone.factorId)).toBe("ACTIVE");
+      expect(await statusOf(oldPhone.factorId)).toBe("REVOKED");
+
+      // A phone already replaced (no longer ACTIVE) cannot be named again.
+      const third = await enrol(randomPhone());
+      const stale = await verify(third, oldPhone.factorId);
+      expect(stale.statusCode, stale.body).toBe(409);
+      expect(errorCode(stale)).toBe("replaced_factor_invalid");
+      expect(await statusOf(third.factorId)).toBe("ENROLLING");
     });
 
     it("phone enrolment with no existing factor needs no step-up (control)", async () => {
@@ -592,6 +661,98 @@ describe("Round 3 auth-factors — factors, step-up and recovery integrity (live
       expect(errorCode(blocked)).toBe("session_quarantined");
       expect(await reviews()).toBe(0);
     });
+
+    /** An org admin, their inventoried session, and two records of the workspace. */
+    async function governanceActor() {
+      const o = await org(1);
+      const admin = o.members[0]!;
+      await makeAdmin(o, admin);
+      const { hashSessionId } = revocation;
+      const sid = (t: string) =>
+        (JSON.parse(Buffer.from(t.split(".")[1]!, "base64url").toString("utf8")) as { sid: string }).sid;
+      const adminSession = await prisma.authenticatedSession.findFirstOrThrow({
+        where: { userId: admin.userId, sessionIdHash: hashSessionId(sid(admin.token)) },
+      });
+      const record = (title: string) =>
+        prisma.evidence.create({
+          data: {
+            title,
+            type: "PHOTO",
+            status: "SIGNED",
+            mimeType: "image/jpeg",
+            teamId: o.workspaceId,
+            organizationId: o.organizationId,
+            ownerUserId: o.owner.userId,
+            lifecycleState: "ACTIVE",
+          },
+          select: { id: true },
+        });
+      return { o, admin, adminSession, first: await record("rg20 first"), second: await record("rg20 second") };
+    }
+
+    it("matrix review 6.1: POST /v1/governance/lifecycle/evidence/:id/transition — a clean admin session moves the record; a quarantined one is refused 403 session_quarantined and the record does not move", async () => {
+      const { o, admin, adminSession, first, second } = await governanceActor();
+      const move = (evidenceId: string, toState: string) =>
+        call("POST", `/v1/governance/lifecycle/evidence/${evidenceId}/transition`, admin.token, {
+          teamId: o.workspaceId,
+          toState,
+          summary: "rg20 quarantine probe",
+        });
+      const stateOf = async (id: string) =>
+        (await prisma.evidence.findUniqueOrThrow({ where: { id }, select: { lifecycleState: true } })).lifecycleState;
+
+      // Authorized control: ACTIVE -> UNDER_REVIEW asks no step-up.
+      const allowed = await move(first.id, "UNDER_REVIEW");
+      expect(allowed.statusCode, allowed.body).toBe(200);
+      expect(await stateOf(first.id)).toBe("UNDER_REVIEW");
+
+      const q = await quarantineAsOwner(o, adminSession.id);
+      expect(q.statusCode, q.body).toBe(200);
+
+      const blocked = await move(second.id, "UNDER_REVIEW");
+      expect(blocked.statusCode, blocked.body).toBe(403);
+      expect(errorCode(blocked)).toBe("session_quarantined");
+      expect(await stateOf(second.id)).toBe("ACTIVE");
+      const back = await move(first.id, "ACTIVE");
+      expect(back.statusCode, back.body).toBe(403);
+      expect(errorCode(back)).toBe("session_quarantined");
+      expect(await stateOf(first.id)).toBe("UNDER_REVIEW");
+    });
+
+    it("matrix review 6.1: POST /v1/governance/destruction-reviews/:id/transition — a clean admin session takes a review up; a quarantined one is refused 403 session_quarantined and the review does not move", async () => {
+      const { o, admin, adminSession, first, second } = await governanceActor();
+      const review = (evidenceId: string) =>
+        prisma.destructionReview.create({
+          data: { teamId: o.workspaceId, evidenceId, status: "PENDING", reason: "manual_review", initiatedByUserId: o.owner.userId },
+          select: { id: true },
+        });
+      const r1 = await review(first.id);
+      const r2 = await review(second.id);
+      const transition = (id: string, nextStatus: string) =>
+        call("POST", `/v1/governance/destruction-reviews/${id}/transition`, admin.token, { teamId: o.workspaceId, nextStatus });
+      const statusOf = async (id: string) =>
+        (await prisma.destructionReview.findUniqueOrThrow({ where: { id }, select: { status: true } })).status;
+
+      // Authorized control: taking a review up asks no step-up.
+      const allowed = await transition(r1.id, "UNDER_REVIEW");
+      expect(allowed.statusCode, allowed.body).toBe(200);
+      expect(await statusOf(r1.id)).toBe("UNDER_REVIEW");
+
+      const q = await quarantineAsOwner(o, adminSession.id);
+      expect(q.statusCode, q.body).toBe(200);
+
+      for (const [id, next] of [
+        [r2.id, "UNDER_REVIEW"],
+        [r2.id, "CANCELLED"],
+        [r1.id, "DEFERRED"],
+      ] as const) {
+        const blocked = await transition(id, next);
+        expect(blocked.statusCode, `${next} ${blocked.body}`).toBe(403);
+        expect(errorCode(blocked)).toBe("session_quarantined");
+      }
+      expect(await statusOf(r2.id)).toBe("PENDING");
+      expect(await statusOf(r1.id)).toBe("UNDER_REVIEW");
+    });
   });
 
   // ===========================================================================
@@ -824,6 +985,77 @@ describe("Round 3 auth-factors — factors, step-up and recovery integrity (live
         code: goodCode,
       });
       expect(ok.statusCode, ok.body).toBe(200);
+    });
+
+    it("matrix review M054 (DEC-19): with two authenticator apps, either app's code answers a workspace step-up started without a factorId; a code from neither spends it", async () => {
+      const o = await org(1);
+      const owner = o.owner;
+      // The first app (the ceremony's), enrolled an hour ago.
+      await ceremony.enroll(owner.userId);
+      await prisma.mfaFactor.updateMany({
+        where: { userId: owner.userId, kind: "TOTP" },
+        data: { verifiedAtUtc: new Date(Date.now() - 60 * 60 * 1000) },
+      });
+      // A second app added beside it: the newest verified factor, the one a
+      // challenge started without a factorId is bound to.
+      const secondSecret = totpLib.generateTotpSecretBytes();
+      const sealed = sealSecretFn(secondSecret);
+      const now = new Date();
+      await prisma.mfaFactor.create({
+        data: {
+          userId: owner.userId,
+          kind: "TOTP",
+          status: "ACTIVE",
+          label: "Second authenticator",
+          secretCiphertext: Buffer.from(sealed.ciphertext),
+          secretIv: Buffer.from(sealed.iv),
+          secretAuthTag: Buffer.from(sealed.authTag),
+          secretKekId: sealed.kekId,
+          verifiedAtUtc: now,
+          enrolledAt: now,
+        },
+      });
+      const tm = await tmOf(o.workspaceId, o.members[0]!.userId);
+      const start = async () => {
+        const r = await call("POST", "/v1/identity-security/step-up/start", owner.token, {
+          teamId: o.workspaceId,
+          purpose: "MEMBER_SUSPEND",
+          resourceKind: "team_member",
+          resourceId: tm.id,
+        });
+        expect(r.statusCode, r.body).toBe(200);
+        return (r.json().challenge as { id: string }).id;
+      };
+      const check = (challengeId: string, code: string) =>
+        call("POST", "/v1/identity-security/step-up/check", owner.token, { teamId: o.workspaceId, challengeId, code });
+      const statusOf = async (id: string) => (await prisma.stepUpChallenge.findUniqueOrThrow({ where: { id } })).status;
+
+      // The first (older) app's code answers.
+      const c1 = await start();
+      const firstAppCode = await ceremony.freshCode(owner.userId);
+      const r1 = await check(c1, firstAppCode);
+      expect(r1.statusCode, r1.body).toBe(200);
+      expect(await statusOf(c1)).toBe("APPROVED");
+
+      // The second (newest) app's code answers too.
+      const c2 = await start();
+      const secondAppCode = totpLib.computeTotpCode(secondSecret, totpLib.timeStep(Math.floor(Date.now() / 1000)));
+      const r2 = await check(c2, secondAppCode);
+      expect(r2.statusCode, r2.body).toBe(200);
+      expect(await statusOf(c2)).toBe("APPROVED");
+
+      // A code that matches neither app is refused and spends the challenge.
+      const c3 = await start();
+      let wrong = String((Number(firstAppCode) + 7) % 1_000_000).padStart(6, "0");
+      if (wrong === secondAppCode) wrong = String((Number(firstAppCode) + 13) % 1_000_000).padStart(6, "0");
+      const r3 = await check(c3, wrong);
+      expect(r3.statusCode, r3.body).toBe(400);
+      expect(await statusOf(c3)).toBe("DENIED");
+      // A code already claimed (replay of the first app's code) is refused.
+      const c4 = await start();
+      const r4 = await check(c4, firstAppCode);
+      expect(r4.statusCode, r4.body).toBe(400);
+      expect(await statusOf(c4)).toBe("DENIED");
     });
   });
 
