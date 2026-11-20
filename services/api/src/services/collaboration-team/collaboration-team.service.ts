@@ -4205,6 +4205,11 @@ export async function listAssignments(
    * the record it points at — which is what an operator means by "search".
    */
   const term = (input.search ?? "").trim();
+  // PRO-K2-22 — resolved ONCE, before the search: a record closed to the
+  // viewer hides its task's id and note from the page (below) AND from the
+  // match, so a search term cannot confirm the content of a note the viewer
+  // is not shown.
+  const closedTargets = await closedTargetIdsFor(client, team.workspaceId, input.actorUserId);
   if (term) {
     const scanned = await client.collaborationTeamAssignment.findMany({
       where: where as never,
@@ -4220,7 +4225,9 @@ export async function listAssignments(
       input.actorUserId,
     );
     where.OR = [
-      { note: { contains: term, mode: "insensitive" } },
+      closedTargets.size > 0
+        ? { note: { contains: term, mode: "insensitive" }, targetId: { notIn: [...closedTargets] } }
+        : { note: { contains: term, mode: "insensitive" } },
       ...(matchedTargetIds.length
         ? [{ targetId: { in: matchedTargetIds } }]
         : []),
@@ -4246,8 +4253,8 @@ export async function listAssignments(
   );
 
   // PRO-K2-22 — a task on a record closed to the viewer keeps its row (CT-04)
-  // but not the record's id or the free-text note about it.
-  const closedTargets = await closedTargetIdsFor(client, team.workspaceId, input.actorUserId);
+  // but not the record's id or the free-text note about it (closedTargets is
+  // resolved above, before the search).
   const items = rows.map((a) => ({
     id: a.id,
     targetType: a.targetType as CollaborationTeamAssignmentTarget,

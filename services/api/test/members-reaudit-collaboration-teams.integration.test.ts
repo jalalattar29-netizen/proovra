@@ -335,6 +335,55 @@ describe("Members re-audit D1a — Collaboration Teams (live PostgreSQL)", () =>
     }
   });
 
+  it("PRO-K2-22 — a search term cannot match the note of a task on a record closed to the reader", async () => {
+    const teamId = await group();
+    const insider = await person("MEMBER");
+    const outsider = await person("MEMBER");
+    await ct.addExistingMember({ teamId, actorUserId: owner(), userIdToAdd: insider, role: "ADMIN" });
+    await ct.addExistingMember({ teamId, actorUserId: owner(), userIdToAdd: outsider, role: "ADMIN" });
+    const closedEvidenceId = await restrictedEvidence([insider]);
+    const secret = `k2secret${tag()}`;
+    const hiddenTask = await ct.createAssignment({
+      teamId,
+      actorUserId: insider,
+      targetType: "EVIDENCE",
+      targetId: closedEvidenceId,
+      note: `informant ${secret} lives nearby`,
+    });
+    // Positive control on the same term: a task the outsider CAN reach.
+    const openEvidence = await prisma.evidence.create({
+      data: { title: `D1a open ${tag()}`, type: "PHOTO", status: "CREATED", teamId: A().teamId, organizationId: orgA, ownerUserId: owner() } as never,
+      select: { id: true },
+    });
+    const openTask = await ct.createAssignment({
+      teamId,
+      actorUserId: outsider,
+      targetType: "EVIDENCE",
+      targetId: openEvidence.id,
+      note: `open follow-up ${secret}`,
+    });
+
+    // The on-case member finds both, with the note.
+    const forInsider = await ct.listAssignments({ teamId, actorUserId: insider, search: secret });
+    expect(forInsider.items.map((i) => i.id).sort()).toEqual([hiddenTask.id, openTask.id].sort());
+    expect(forInsider.items.find((i) => i.id === hiddenTask.id)?.note).toContain(secret);
+    expect(forInsider.total).toBe(2);
+
+    // The off-case member: the closed task's note neither shows nor matches.
+    const forOutsider = await ct.listAssignments({ teamId, actorUserId: outsider, search: secret });
+    expect(forOutsider.items.map((i) => i.id)).toEqual([openTask.id]);
+    expect(forOutsider.total).toBe(1);
+    const probe = await ct.listAssignments({ teamId, actorUserId: outsider, search: "informant" });
+    expect(probe.items).toHaveLength(0);
+    expect(probe.total).toBe(0);
+    // Without a term the row stays listed (CT-04), redacted.
+    const unfiltered = await ct.listAssignments({ teamId, actorUserId: outsider });
+    const row = unfiltered.items.find((i) => i.id === hiddenTask.id);
+    expect(row).toBeDefined();
+    expect(row?.note).toBeNull();
+    expect(row?.targetId).toBeNull();
+  });
+
   it("CT-06 — a VIEWER, a suspended member and a non-member are refused with TASK_ASSIGNEE_NOT_ELIGIBLE", async () => {
     const teamId = await group();
     const viewer = await person("MEMBER");
