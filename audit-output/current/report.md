@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 00376cf31b0ce447039a6ee25f3fc23a87f427e7969de3efd813105bd5a8dc71 |
+| engineHash    | caf7eb021032ce60671ea51f84332eb62d328f14d47fe17f64bbc6965b39e5f8 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -36,7 +36,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | dispositionedNonProductRoutes | 199   |
 | undisposedRoutes              | 25    |
 | authorizationUnresolved       | 0     |
-| publicUnguardedRoutes         | 42    |
+| publicUnguardedRoutes         | 43    |
 
 ## Instrument integrity
 
