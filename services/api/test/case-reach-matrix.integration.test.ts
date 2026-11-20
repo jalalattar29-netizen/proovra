@@ -810,6 +810,161 @@ describe("restricted-case reach matrix (live PostgreSQL)", () => {
   // ===========================================================================
   // AUTHZ-002 — exchange, AI, requests, machine paths
   // ===========================================================================
+  // ===========================================================================
+  // PRO-K1-11 / EVID-009 — the assignment picker answers to the ASSIGN write
+  // ===========================================================================
+  describe("PRO-K1-11: assignment candidates", () => {
+    const candidates = (caseId: string, who: Person) => get(`/v1/cases/${caseId}/assignment-candidates?limit=50`, who);
+    const ids = (body: string) => (JSON.parse(body) as { items: Array<{ userId: string }> }).items.map((i) => i.userId);
+
+    it("a VIEWER and a MEMBER may not enumerate members through the picker (403, the ASSIGN gate)", async () => {
+      for (const who of [offViewer, off]) {
+        const r = await candidates(openCaseId, who);
+        expect(r.statusCode, r.body).toBe(403);
+        expect(r.json()).toMatchObject({ error: { code: "forbidden" } });
+      }
+      // The listed MEMBER sees the restricted case but still may not ASSIGN on it.
+      const listedOnRestricted = await candidates(restrictedCaseId, listed);
+      expect(listedOnRestricted.statusCode, listedOnRestricted.body).toBe(403);
+      expect(listedOnRestricted.json()).toMatchObject({ error: { code: "forbidden" } });
+    });
+
+    it("positive control: an ADMIN on an open case is offered every active member", async () => {
+      const r = await candidates(openCaseId, offAdmin);
+      expect(r.statusCode, r.body).toBe(200);
+      expect(ids(r.body)).toEqual(expect.arrayContaining([listed.id, off.id, offViewer.id, offAdmin.id]));
+    });
+
+    it("on a restricted case the picker offers only members the case is open to", async () => {
+      const owner = { id: A().ownerUserId, token: A().ownerToken };
+      const r = await candidates(restrictedCaseId, owner);
+      expect(r.statusCode, r.body).toBe(200);
+      const offered = ids(r.body);
+      expect(offered).toContain(listed.id);
+      expect(offered).toContain(A().ownerUserId);
+      for (const closed of [off, offViewer, offAdmin]) expect(offered).not.toContain(closed.id);
+      // An off-list ADMIN does not reach the restricted case at all.
+      expect((await candidates(restrictedCaseId, offAdmin)).statusCode).toBe(404);
+    });
+  });
+
+  // ===========================================================================
+  // PRO-AI1Z-02 / PRO-K1-06 — a closed record moves no number the reader sees
+  // ===========================================================================
+  describe("PRO-AI1Z-02 / PRO-K1-06: quality projections and case risk", () => {
+    const inWorkspace = (url: string, who: Person) =>
+      h.app.inject({
+        method: "GET",
+        url,
+        headers: { ...bearer(who.token), "x-proovra-workspace-id": A().teamId },
+      });
+    const owner = (): Person => ({ id: A().ownerUserId, token: A().ownerToken });
+
+    it("intelligence quality (providers, reviewers, teams) leaves out the closed record for an off-list ADMIN", async () => {
+      const provider = `SENTINEL_PROVIDER_${tag()}`;
+      const reviewer = await person("MEMBER");
+      const rec = await prisma.mediaIntelligenceRecord.create({
+        data: {
+          teamId: A().teamId,
+          evidenceId: hiddenId,
+          modality: "IMAGE",
+          kind: "LABEL",
+          provider,
+          state: "REJECTED",
+          providerConfidence: 0.4,
+          providerRecordKey: `sentinel-${tag()}`,
+        },
+        select: { id: true },
+      });
+      await prisma.reviewerCorrection.create({
+        data: { teamId: A().teamId, recordId: rec.id, kind: "LABEL_EDIT", state: "ACCEPTED", authoredByUserId: reviewer.id },
+      });
+      await prisma.providerUsageEvent.create({
+        data: {
+          teamId: A().teamId,
+          provider,
+          operation: "sentinel",
+          unit: "call",
+          units: 1,
+          evidenceId: hiddenId,
+          caseId: restrictedCaseId,
+        },
+      });
+
+      type Providers = { projection: { rows: Array<{ provider: string }> } };
+      type Reviewers = { projection: { rows: Array<{ reviewerUserId: string }> } };
+      type Teams = { projection: { rows: Array<{ scope: string; scopeTargetId: string; recordCount: number }> } };
+      const read = async (who: Person) => {
+        const [p, r, t] = await Promise.all([
+          inWorkspace("/v1/intelligence/quality/providers?range=30d", who),
+          inWorkspace("/v1/intelligence/quality/reviewers?range=30d", who),
+          inWorkspace("/v1/intelligence/quality/teams?range=30d", who),
+        ]);
+        for (const res of [p, r, t]) expect(res.statusCode, res.body).toBe(200);
+        return { providers: p.json() as Providers, reviewers: r.json() as Reviewers, teams: t.json() as Teams };
+      };
+
+      // Positive control: the restricted case's owner counts it everywhere.
+      const mine = await read(owner());
+      expect(mine.providers.projection.rows.map((x) => x.provider)).toContain(provider);
+      expect(mine.reviewers.projection.rows.map((x) => x.reviewerUserId)).toContain(reviewer.id);
+      expect(mine.teams.projection.rows.map((x) => x.scopeTargetId)).toContain(restrictedCaseId);
+
+      const theirs = await read(offAdmin);
+      expect(theirs.providers.projection.rows.map((x) => x.provider)).not.toContain(provider);
+      expect(theirs.reviewers.projection.rows.map((x) => x.reviewerUserId)).not.toContain(reviewer.id);
+      expect(theirs.teams.projection.rows.map((x) => x.scopeTargetId)).not.toContain(restrictedCaseId);
+      const teamRow = (x: Teams) => x.projection.rows.find((row) => row.scope === "TEAM")!;
+      expect(teamRow(theirs.teams).recordCount).toBe(teamRow(mine.teams).recordCount - 1);
+      for (const body of [theirs.providers, theirs.reviewers, theirs.teams]) absent(JSON.stringify(body));
+    });
+
+    it("GET /v1/cases/:id/risk computes over the reader's own records when a second restricted case closes one", async () => {
+      const closedCase = (
+        await prisma.case.create({
+          data: { name: `risk-r-${tag()}`, teamId: A().teamId, ownerUserId: A().ownerUserId, restrictedAtUtc: new Date() } as never,
+          select: { id: true },
+        })
+      ).id;
+      await prisma.caseAccess.create({ data: { caseId: closedCase, userId: listed.id } });
+      const openCase = (
+        await prisma.case.create({
+          data: { name: `risk-o-${tag()}`, teamId: A().teamId, ownerUserId: A().ownerUserId },
+          select: { id: true },
+        })
+      ).id;
+      const failed = await record(`risk-failed-${tag()}.pdf`);
+      await prisma.evidence.update({ where: { id: failed }, data: { verificationStatus: "FAILED" } as never });
+      const fine = await record(`risk-fine-${tag()}.pdf`);
+      await link(closedCase, failed);
+      await link(openCase, failed);
+      await link(openCase, fine);
+      // The stored case-wide figure counts the failed record.
+      await prisma.caseRiskSnapshot.create({
+        data: {
+          teamId: A().teamId,
+          caseId: openCase,
+          riskScore: 12,
+          riskLevel: "LOW",
+          integrityConcernCount: 1,
+          reasonCodes: ["INTEGRITY_CONCERN"],
+          recommendedAction: "sentinel stored snapshot",
+        } as never,
+      });
+
+      const mine = await get(`/v1/cases/${openCase}/risk`, owner());
+      expect(mine.statusCode, mine.body).toBe(200);
+      expect(mine.json().snapshot).toMatchObject({ integrityConcernCount: 1, recommendedAction: "sentinel stored snapshot" });
+
+      for (const who of [off, offAdmin]) {
+        const theirs = await get(`/v1/cases/${openCase}/risk`, who);
+        expect(theirs.statusCode, theirs.body).toBe(200);
+        expect(theirs.json().snapshot.integrityConcernCount).toBe(0);
+        expect(theirs.json().snapshot.recommendedAction).not.toBe("sentinel stored snapshot");
+      }
+    });
+  });
+
   describe("AUTHZ-002: exchange", () => {
     it("a package or transfer cannot be opened on a closed record; nothing is written", async () => {
       const before = await prisma.evidenceExchangePackage.count({ where: { teamId: A().teamId } });

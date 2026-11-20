@@ -223,6 +223,65 @@ describe("WS-REACH Medium roots (live PostgreSQL)", () => {
       const ok = await send("POST", `/v1/cases/${own}/access`, tenant.owner, { userId: member.id });
       expect(ok.statusCode, ok.body).toBe(201);
     });
+
+    // MATRIX-REVIEW 6.1 — the same narrowing refusal on the sibling grant routes.
+    const caseHoldingColleaguesRecord = async () => {
+      const own = await teamCase(member.id);
+      const colleagues = await record(tenant.owner.id);
+      await prisma.caseEvidenceLink.create({ data: { caseId: own, evidenceId: colleagues, teamId: tenant.teamId } as never });
+      return own;
+    };
+    const collaborationTeam = async () =>
+      (
+        await prisma.collaborationTeam.create({
+          data: { workspaceId: tenant.teamId, name: `k1-02-${tag()}`, createdByUserId: tenant.owner.id } as never,
+          select: { id: true },
+        })
+      ).id;
+
+    it("share-team: a MEMBER cannot restrict a case holding a colleague's record; a workspace owner can", async () => {
+      const own = await caseHoldingColleaguesRecord();
+      const refused = await send("POST", `/v1/cases/${own}/share-team`, member, { userId: member.id });
+      expect(refused.statusCode, refused.body).toBe(403);
+      expect(refused.json().code).toBe("CASE_RESTRICTED_LINK_MANAGER_REQUIRED");
+      const after = await prisma.case.findUniqueOrThrow({ where: { id: own }, select: { restrictedAtUtc: true } });
+      expect(after.restrictedAtUtc).toBeNull();
+      expect(await prisma.caseAccess.count({ where: { caseId: own } })).toBe(0);
+
+      const ok = await send("POST", `/v1/cases/${own}/share-team`, tenant.owner, { userId: member.id });
+      expect(ok.statusCode, ok.body).toBe(201);
+      expect(await prisma.caseAccess.count({ where: { caseId: own, userId: member.id } })).toBe(1);
+    });
+
+    it("team-access: a MEMBER's Collaboration Team grant that would restrict the case is refused; a workspace owner's is not", async () => {
+      const own = await caseHoldingColleaguesRecord();
+      const group = await collaborationTeam();
+      const refused = await send("POST", `/v1/cases/${own}/team-access`, member, { collaborationTeamId: group });
+      expect(refused.statusCode, refused.body).toBe(403);
+      expect(refused.json().code).toBe("CASE_RESTRICTED_LINK_MANAGER_REQUIRED");
+      const after = await prisma.case.findUniqueOrThrow({ where: { id: own }, select: { restrictedAtUtc: true } });
+      expect(after.restrictedAtUtc).toBeNull();
+      expect(await prisma.caseCollaborationTeamAccess.count({ where: { caseId: own } })).toBe(0);
+
+      const ok = await send("POST", `/v1/cases/${own}/team-access`, tenant.owner, { collaborationTeamId: group });
+      expect(ok.statusCode, ok.body).toBe(201);
+      expect(await prisma.caseCollaborationTeamAccess.count({ where: { caseId: own, collaborationTeamId: group } })).toBe(1);
+    });
+
+    it("team-access DELETE: revoking only widens reach, so the case owner (a MEMBER) is not refused by the narrowing rule", async () => {
+      // The route maps caseUnlinkRefusal (PRO-K1-02), but removing a team grant
+      // can only release the restriction; nothing in its transaction narrows.
+      // This pins that the mapping does not refuse the case owner's revoke.
+      const own = await caseHoldingColleaguesRecord();
+      const group = await collaborationTeam();
+      const granted = await send("POST", `/v1/cases/${own}/team-access`, tenant.owner, { collaborationTeamId: group });
+      expect(granted.statusCode, granted.body).toBe(201);
+      const removed = await send("DELETE", `/v1/cases/${own}/team-access/${group}`, member, undefined);
+      expect(removed.statusCode, removed.body).toBe(204);
+      expect(await prisma.caseCollaborationTeamAccess.count({ where: { caseId: own } })).toBe(0);
+      const after = await prisma.case.findUniqueOrThrow({ where: { id: own }, select: { restrictedAtUtc: true } });
+      expect(after.restrictedAtUtc).toBeNull();
+    });
   });
 
   describe("PRO-T1-07 — taking a case out of the workspace", () => {
