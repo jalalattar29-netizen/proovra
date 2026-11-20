@@ -566,12 +566,15 @@ async function buildSiuExportBundleInner(
  *   - Every record the bundle carries must be open to the downloader now: a
  *     record another restricted case closes to them (EVID-004 / B3C-F-003)
  *     refuses the whole bundle.
+ *   - Every record the bundle carries must still be readable: a trashed,
+ *     destruction-bound or destroyed one refuses it (409
+ *     siu_export_records_unavailable, DEC-05).
  * Refusals answer like a missing export for a reader who may not know it
  * exists, except the step-up/capability answer, which the generator can act on.
  */
 export type SiuExportDownloadDecision =
   | { allowed: true; piiBearing: boolean }
-  | { allowed: false; status: 403 | 404; code: string };
+  | { allowed: false; status: 403 | 404 | 409; code: string };
 
 export async function authorizeSiuExportDownload(input: {
   caseId: string;
@@ -604,6 +607,29 @@ export async function authorizeSiuExportDownload(input: {
       where: { id: { in: ids }, NOT: evidenceVisibleThroughCasesWhere(input.actorUserId) },
     });
     if (closed > 0) return { allowed: false, status: 404, code: "siu_export_not_found" };
+    /*
+     * SIU caveat (2026-11-20, PRO-K1-01 / DEC-05) — the bundle is what it
+     * contains, and a record it carries may since have been trashed, sent to
+     * destruction or destroyed. Generation never puts such a record's report or
+     * package in a bundle (audit H1, buildSiuExportBundle); a stored bundle
+     * re-released it on every download, so trash or destruction did not end
+     * access to the copies inside it. The object itself stays where it is
+     * (8-year Object Lock; physical removal is not this rule's to decide): the
+     * download is refused, by name, while any carried record is not in an
+     * ordinary readable state. A record restored from trash makes it
+     * downloadable again; a new bundle can be generated without the record.
+     */
+    const distinct = [...new Set(ids)];
+    const available = await prisma.evidence.count({
+      where: {
+        id: { in: distinct },
+        deletedAt: null,
+        lifecycleState: { notIn: ["TRASHED", "PENDING_DESTRUCTION", "DESTROYED"] },
+      },
+    });
+    if (available < distinct.length) {
+      return { allowed: false, status: 409, code: "siu_export_records_unavailable" };
+    }
   }
   const piiBearing = row.includesPii !== false;
   if (piiBearing && !input.mayExportPii) {

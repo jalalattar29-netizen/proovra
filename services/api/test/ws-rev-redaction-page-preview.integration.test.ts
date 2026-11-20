@@ -224,6 +224,63 @@ describe("PRO-R3-04 redaction page preview (live PostgreSQL 16)", () => {
     expect(await rows(p.projectId)).toHaveLength(0);
   }, 120_000);
 
+  it("caveat 4: every look re-checks authority, the unredacted image is not cacheable, each link is a custody fact, and trash ends access", async () => {
+    const p = await project(A());
+    await read(A().ownerToken, A().teamId, p.projectId, 0);
+    await runJob((await rows(p.projectId))[0]!.id);
+    const viewed = async () =>
+      (
+        await prisma.custodyEvent.findMany({
+          where: { evidenceId: p.evidenceId, eventType: "EVIDENCE_VIEWED" },
+          select: { payload: true },
+        })
+      ).filter((e) => (e.payload as { channel?: string } | null)?.channel === "redaction_page_preview");
+
+    // A MEMBER who authors regions sees the page; the link is recorded.
+    const asMember = await read(A().memberToken, A().teamId, p.projectId, 0);
+    expect(asMember.statusCode, asMember.body).toBe(200);
+    const { url } = asMember.json() as { url: string };
+    const fetched = await fetch(url);
+    expect(fetched.status).toBe(200);
+    expect(fetched.headers.get("cache-control")).toBe("private, no-store, max-age=0");
+    const events = await viewed();
+    expect(events).toHaveLength(1);
+    expect(events[0]!.payload).toMatchObject({
+      artifact: "derived",
+      accessMode: "derived_view_url_issued",
+      accessedByUserId: A().memberUserId,
+      redactionProjectId: p.projectId,
+      pageIndex: 0,
+    });
+    expect(JSON.stringify(events[0]!.payload)).not.toContain("previews/");
+
+    // Demoted to VIEWER: the next look is refused and no link is issued.
+    const membership = await prisma.teamMember.findFirstOrThrow({
+      where: { teamId: A().teamId, userId: A().memberUserId },
+      select: { id: true, role: true },
+    });
+    await prisma.teamMember.update({ where: { id: membership.id }, data: { role: "VIEWER" } as never });
+    try {
+      const demoted = await read(A().memberToken, A().teamId, p.projectId, 0);
+      expect(demoted.statusCode, demoted.body).toBe(403);
+      expect(demoted.body).not.toContain("previews");
+    } finally {
+      await prisma.teamMember.update({ where: { id: membership.id }, data: { role: membership.role } as never });
+    }
+
+    // Trash ends ordinary access to the record and to its rendered pages.
+    await prisma.evidence.update({ where: { id: p.evidenceId }, data: { lifecycleState: "TRASHED" } as never });
+    const trashed = await read(A().ownerToken, A().teamId, p.projectId, 0);
+    expect(trashed.statusCode, trashed.body).toBe(404);
+    expect(trashed.json()).toEqual({ denial: "PROJECT_NOT_FOUND" });
+    // …and a page not yet rendered is not queued for a trashed record.
+    expect((await read(A().ownerToken, A().teamId, p.projectId, 1)).statusCode).toBe(404);
+    expect(await rows(p.projectId)).toHaveLength(1);
+    await prisma.evidence.update({ where: { id: p.evidenceId }, data: { lifecycleState: "ACTIVE" } as never });
+    expect((await read(A().ownerToken, A().teamId, p.projectId, 0)).statusCode).toBe(200);
+    expect(await viewed()).toHaveLength(2);
+  }, 180_000);
+
   it("a page past the cap is refused; a page past the end is UNAVAILABLE; a non-PDF project is refused", async () => {
     const p = await project(A());
     for (const page of [200, 9999, "x", "-1"]) {

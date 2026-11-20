@@ -425,6 +425,86 @@ export async function elevateToPlatformAdmin(
   return { ...session, token, api: await makeApi(token), secondFactor: { nextCode } };
 }
 
+/**
+ * A VERIFIED STEP-UP, OBTAINED THE WAY A PERSON OBTAINS ONE.
+ *
+ * Step-up-gated routes (`requireStepUpForSensitiveAction`) spend an APPROVED
+ * challenge named in `x-proovra-step-up-challenge-id`, bound to this session,
+ * to the purpose and to the exact resource the route names, and answered by an
+ * ACTIVE enrolled factor. This enrols an authenticator through the production
+ * `/v1/identity/mfa/enroll/*` routes (once per session), starts the challenge
+ * through `/v1/identity-security/step-up/start` and answers it through
+ * `/step-up/check` with the next TOTP code. Returns the header to send.
+ */
+const authenticators = new WeakMap<APIRequestContext, () => Promise<string>>();
+
+export async function approvedStepUpHeader(
+  session: GuestSession,
+  challenge: {
+    teamId: string;
+    purpose: string;
+    resourceKind: string | null;
+    resourceId: string | null;
+  },
+): Promise<Record<string, string>> {
+  let nextCode = authenticators.get(session.api);
+  if (!nextCode) {
+    const started = await session.api.post("/v1/identity/mfa/enroll/start", {
+      data: { label: "E2E authenticator" },
+    });
+    if (!started.ok()) {
+      throw new Error(`MFA enrolment start failed (HTTP ${started.status()}): ${await started.text()}`);
+    }
+    const { factorId, secretBase32 } = (await started.json()) as { factorId: string; secretBase32: string };
+    const secret = decodeBase32(secretBase32);
+    const step = Math.floor(Date.now() / 1000 / 30);
+    const verified = await session.api.post("/v1/identity/mfa/enroll/verify", {
+      data: { factorId, code: totpAt(secret, step) },
+    });
+    if (!verified.ok()) {
+      throw new Error(`MFA enrolment verify failed (HTTP ${verified.status()}): ${await verified.text()}`);
+    }
+    nextCode = totpSequence(secret, step);
+    authenticators.set(session.api, nextCode);
+  }
+  const start = await session.api.post("/v1/identity-security/step-up/start", {
+    data: { ...challenge, channel: "TOTP" },
+  });
+  if (!start.ok()) {
+    throw new Error(`step-up start failed (HTTP ${start.status()}): ${await start.text()}`);
+  }
+  const { challenge: started } = (await start.json()) as { challenge: { id: string } };
+  const check = await session.api.post("/v1/identity-security/step-up/check", {
+    data: { teamId: challenge.teamId, challengeId: started.id, code: await nextCode() },
+  });
+  if (!check.ok()) {
+    throw new Error(`step-up check failed (HTTP ${check.status()}): ${await check.text()}`);
+  }
+  return { "x-proovra-step-up-challenge-id": started.id };
+}
+
+/**
+ * Codes the TOTP replay guard accepts: each step once, strictly increasing,
+ * within the server's current ±1 window.
+ */
+function totpSequence(secret: Buffer, lastUsedStep: number): () => Promise<string> {
+  let lastStep = lastUsedStep;
+  return async () => {
+    for (;;) {
+      const nowSeconds = Date.now() / 1000;
+      const current = Math.floor(nowSeconds / 30);
+      // The previous step only while 5 s of the current one remain.
+      const oldest = nowSeconds % 30 < 25 ? current - 1 : current;
+      const next = Math.max(lastStep + 1, oldest);
+      if (next <= current + 1) {
+        lastStep = next;
+        return totpAt(secret, next);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+    }
+  };
+}
+
 export async function disposeSession(s: GuestSession) {
   await s.api.dispose();
 }

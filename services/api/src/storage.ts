@@ -375,6 +375,12 @@ export async function presignGetObject(params: {
    */
   responseContentDisposition?: string | null;
   responseContentType?: string | null;
+  /**
+   * Caveat 4 (2026-11-20) — the Cache-Control the storage response carries,
+   * signed into the URL, for content a browser must not keep once the link
+   * has lapsed (an unredacted page preview).
+   */
+  responseCacheControl?: string | null;
 }) {
   const bucket = clean(params.bucket);
   const key = clean(params.key);
@@ -390,6 +396,7 @@ export async function presignGetObject(params: {
     ...(versionId ? { VersionId: versionId } : {}),
     ...(params.responseContentDisposition ? { ResponseContentDisposition: params.responseContentDisposition } : {}),
     ...(params.responseContentType ? { ResponseContentType: params.responseContentType } : {}),
+    ...(params.responseCacheControl ? { ResponseCacheControl: params.responseCacheControl } : {}),
   });
 
   return getSignedUrl(s3, cmd, {

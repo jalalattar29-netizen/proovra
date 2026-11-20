@@ -46,6 +46,7 @@ import {
 import { prisma } from "../../db.js";
 import { DomainError } from "../../errors.js";
 import { recordBillingReviewItem } from "./billing-review.service.js";
+import { isAccountClosed } from "../identity/account-closed.js";
 
 /**
  * Structural transaction client. Accepts the global client or a Prisma
@@ -161,6 +162,17 @@ export type EvidenceCreditGrantSource =
       grantRef: string;
     };
 
+/**
+ * A grant's outcome. `refused: "ACCOUNT_CLOSED"` — a PURCHASE whose payer's
+ * account was closed before it settled: nothing granted, a
+ * PAYMENT_AFTER_ACCOUNT_CLOSURE review item (refund review owed) recorded.
+ */
+export type CreditGrantResult = {
+  granted: boolean;
+  balanceAfter: number;
+  refused?: "ACCOUNT_CLOSED";
+};
+
 /** Writes the audit of a grant on the client the grant itself is using. */
 export type CreditGrantAudit = (
   client: prismaPkg.PrismaClient,
@@ -186,7 +198,7 @@ async function applyCreditGrant(params: {
   source: EvidenceCreditGrantSource;
   /** Runs inside the grant's transaction: when it throws, nothing commits. */
   audit?: CreditGrantAudit;
-}): Promise<{ granted: boolean; balanceAfter: number }> {
+}): Promise<CreditGrantResult> {
   const credits = Math.max(0, Math.floor(params.credits));
   if (credits === 0) {
     const wallet = await readEvidenceCreditWallet(params.userId);
@@ -214,6 +226,48 @@ async function applyCreditGrant(params: {
         const replay = { granted: false, balanceAfter: existing.balanceAfter };
         await params.audit?.(tx as unknown as prismaPkg.PrismaClient, replay);
         return replay;
+      }
+
+      /*
+       * PRO-N1-01 (closed-account caveat, 2026-11-20) — A PAYMENT THAT SETTLES
+       * AFTER THE ACCOUNT CLOSED BUYS NOTHING, AND AN OPERATOR IS TOLD.
+       *
+       * The plan and storage activations already refuse a closed payer
+       * (syncPlanForSubscription, applyStorageSubscriptionObservation) with a
+       * PAYMENT_AFTER_ACCOUNT_CLOSURE review item. A one-time credit purchase
+       * did not: a late Stripe session, PayPal capture or sweep recovery put
+       * credits into the wallet of an account nobody can sign in to, marked the
+       * purchase SETTLED and told nobody, so the buyer's refund was never
+       * considered. Same decision as the subscriptions: nothing granted, no
+       * provider call, refund review owed (DEC-02/DEC-21: no automatic refund).
+       *
+       * The user row is read FOR SHARE so a closure committing concurrently
+       * (it rewrites this row in its access-ending transaction) is either seen
+       * here or waits for this grant, whose credits it then finds in the wallet.
+       */
+      if (params.source.kind === "PURCHASE") {
+        await tx.$queryRaw`SELECT 1 FROM users WHERE id = ${params.userId}::uuid FOR SHARE`;
+        if (await isAccountClosed(params.userId, tx)) {
+          await recordBillingReviewItem(
+            {
+              userId: params.userId,
+              provider: params.source.provider,
+              providerResourceId: params.source.providerRef,
+              product: "EVIDENCE_CREDIT",
+              reason: "PAYMENT_AFTER_ACCOUNT_CLOSURE",
+              providerAction: "NONE",
+              refundReviewRequired: true,
+              detail: { creditsNotGranted: credits },
+            },
+            tx,
+          );
+          const wallet = await tx.entitlement.findFirst({
+            where: { userId: params.userId, active: true },
+            orderBy: { createdAt: "desc" },
+            select: { credits: true },
+          });
+          return { granted: false, balanceAfter: wallet?.credits ?? 0, refused: "ACCOUNT_CLOSED" as const };
+        }
       }
 
       const entitlement = await tx.entitlement.findFirst({
@@ -340,7 +394,7 @@ export async function grantEvidenceCredits(params: {
   credits: number;
   provider: prismaPkg.PaymentProvider;
   providerRef: string;
-}): Promise<{ granted: boolean; balanceAfter: number }> {
+}): Promise<CreditGrantResult> {
   return applyCreditGrant({
     userId: params.userId,
     credits: params.credits,

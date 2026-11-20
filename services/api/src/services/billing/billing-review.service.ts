@@ -54,6 +54,9 @@ export type BillingReviewReason =
    * ACTIVE at the provider for an account that has been closed (a checkout paid
    * after anonymisation). Nothing was granted or recorded as live; the provider
    * subscription must be cancelled and refunded by an operator.
+   * Also (2026-11-20) a one-time evidence-credit purchase or a legacy one-time
+   * storage capture that settled after the closure: nothing granted, the
+   * payment is recorded and an operator reviews the refund.
    */
   | "PAYMENT_AFTER_ACCOUNT_CLOSURE"
   /** A refunded or reversed credit purchase whose credits were already consumed. */

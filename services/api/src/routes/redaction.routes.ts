@@ -57,6 +57,7 @@ import {
 import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 
 import { prisma } from "../db.js";
+import { recordDerivedViewIssued } from "../services/evidence/artifact-download-gate.service.js";
 // Macro-Wave A1 — the derivative download-url endpoint reuses the CANONICAL
 // short-lived presign primitive (same one evidence.routes.ts uses). Raw
 // storage keys are NEVER returned to the client.
@@ -677,6 +678,15 @@ export async function redactionRoutes(app: FastifyInstance) {
       noStorePresignedResponse(reply);
       if (!answer.ok) return reply.code(answer.status).send(answer.body);
       if (answer.state === "READY") {
+        // Caveat 4 — who was given a link to the unredacted page, and when.
+        await recordDerivedViewIssued({
+          evidenceId: answer.evidenceId,
+          actorUserId: ctx.userId,
+          channel: "redaction_page_preview",
+          detail: { redactionProjectId: params.data.id, pageIndex: Number(params.data.n) },
+          ip: req.ip,
+          userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null,
+        });
         return reply.code(200).send({
           state: "READY",
           url: answer.url,

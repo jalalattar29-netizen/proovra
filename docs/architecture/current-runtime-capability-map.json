@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 12351,
+      "METHOD_ON_VALUE": 12350,
       "UNRESOLVED_IDENTIFIER": 1794
     },
     "MutationFixpointRounds": 11,
@@ -15396,7 +15396,7 @@
         "services/api/src/services/reports/report-generation-authority.service.ts:472"
       ],
       "RENDER_REDACTION_PAGE_PREVIEW": [
-        "services/api/src/services/redaction/redaction-page-preview.service.ts:53"
+        "services/api/src/services/redaction/redaction-page-preview.service.ts:64"
       ],
       "UPGRADE_OTS": [
         "services/api/src/services/integrity/ots-anchoring-authority.service.ts:85"
@@ -16806,6 +16806,7 @@
         "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/portal/work/:workflowId/verification-package",
         "GET /v1/redaction/derivatives/:id/download-url",
+        "GET /v1/redaction/projects/:id/preview/pages/:n",
         "POST /v1/capture/devices",
         "POST /v1/capture/devices/:id/revoke",
         "POST /v1/capture/direct-sessions",
@@ -33473,8 +33474,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/redaction.routes.ts#redactionDerivative.update@1816",
-      "terminalLocation": "services/api/src/routes/redaction.routes.ts:1816",
+      "writerId": "services/api/src/routes/redaction.routes.ts#redactionDerivative.update@1826",
+      "terminalLocation": "services/api/src/routes/redaction.routes.ts:1826",
       "file": "services/api/src/routes/redaction.routes.ts",
       "enclosingDeclaration": "redactionRoutes",
       "kind": "DATABASE",
@@ -45626,8 +45627,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/billing-review.service.ts#billingReviewItem.createMany@174",
-      "terminalLocation": "services/api/src/services/billing/billing-review.service.ts:174",
+      "writerId": "services/api/src/services/billing/billing-review.service.ts#billingReviewItem.createMany@177",
+      "terminalLocation": "services/api/src/services/billing/billing-review.service.ts:177",
       "file": "services/api/src/services/billing/billing-review.service.ts",
       "enclosingDeclaration": "recordBillingReviewItem",
       "kind": "DATABASE",
@@ -45638,6 +45639,7 @@
       "entryRoutes": [
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/billing/accounts/:type/:id/checkout-attempts/:attemptId/abandon",
         "POST /v1/billing/accounts/:type/:id/checkout-attempts/:attemptId/recheck",
         "POST /v1/billing/accounts/:type/:id/reconcile",
@@ -45653,6 +45655,7 @@
       ],
       "entryJobs": [],
       "entryModules": [
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/billing.routes.ts",
         "MODULE services/api/src/routes/webhooks.routes.ts"
       ],
@@ -45673,8 +45676,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/billing-review.service.ts#billingReviewItem.update@194",
-      "terminalLocation": "services/api/src/services/billing/billing-review.service.ts:194",
+      "writerId": "services/api/src/services/billing/billing-review.service.ts#billingReviewItem.update@197",
+      "terminalLocation": "services/api/src/services/billing/billing-review.service.ts:197",
       "file": "services/api/src/services/billing/billing-review.service.ts",
       "enclosingDeclaration": "recordBillingReviewItem",
       "kind": "DATABASE",
@@ -45685,6 +45688,7 @@
       "entryRoutes": [
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/billing/accounts/:type/:id/checkout-attempts/:attemptId/abandon",
         "POST /v1/billing/accounts/:type/:id/checkout-attempts/:attemptId/recheck",
         "POST /v1/billing/accounts/:type/:id/reconcile",
@@ -45700,6 +45704,7 @@
       ],
       "entryJobs": [],
       "entryModules": [
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/billing.routes.ts",
         "MODULE services/api/src/routes/webhooks.routes.ts"
       ],
@@ -45720,8 +45725,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/checkout-attempt-recovery.service.ts#billingCheckoutAttempt.updateMany@820",
-      "terminalLocation": "services/api/src/services/billing/checkout-attempt-recovery.service.ts:820",
+      "writerId": "services/api/src/services/billing/checkout-attempt-recovery.service.ts#billingCheckoutAttempt.updateMany@821",
+      "terminalLocation": "services/api/src/services/billing/checkout-attempt-recovery.service.ts:821",
       "file": "services/api/src/services/billing/checkout-attempt-recovery.service.ts",
       "enclosingDeclaration": "expireUnapprovedAttempt",
       "kind": "DATABASE",
@@ -46343,8 +46348,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#entitlement.update@237",
-      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:237",
+      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#entitlement.update@291",
+      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:291",
       "file": "services/api/src/services/billing/evidence-credits.service.ts",
       "enclosingDeclaration": "applyCreditGrant",
       "kind": "DATABASE",
@@ -46384,8 +46389,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#entitlement.update@420",
-      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:420",
+      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#entitlement.update@474",
+      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:474",
       "file": "services/api/src/services/billing/evidence-credits.service.ts",
       "enclosingDeclaration": "reverseEvidenceCreditPurchase",
       "kind": "DATABASE",
@@ -46421,8 +46426,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#entitlement.updateMany@492",
-      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:492",
+      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#entitlement.updateMany@546",
+      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:546",
       "file": "services/api/src/services/billing/evidence-credits.service.ts",
       "enclosingDeclaration": "consumeEvidenceCreditForCompletion",
       "kind": "DATABASE",
@@ -46472,8 +46477,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#evidenceCreditLedgerEntry.create@243",
-      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:243",
+      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#evidenceCreditLedgerEntry.create@297",
+      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:297",
       "file": "services/api/src/services/billing/evidence-credits.service.ts",
       "enclosingDeclaration": "applyCreditGrant",
       "kind": "DATABASE",
@@ -46513,8 +46518,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#evidenceCreditLedgerEntry.create@427",
-      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:427",
+      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#evidenceCreditLedgerEntry.create@481",
+      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:481",
       "file": "services/api/src/services/billing/evidence-credits.service.ts",
       "enclosingDeclaration": "reverseEvidenceCreditPurchase",
       "kind": "DATABASE",
@@ -46550,8 +46555,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#evidenceCreditLedgerEntry.create@519",
-      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:519",
+      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#evidenceCreditLedgerEntry.create@573",
+      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:573",
       "file": "services/api/src/services/billing/evidence-credits.service.ts",
       "enclosingDeclaration": "consumeEvidenceCreditForCompletion",
       "kind": "DATABASE",
@@ -46918,8 +46923,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/paypal-settlement.service.ts#PAYMENT.capturePayPalOrder@842",
-      "terminalLocation": "services/api/src/services/billing/paypal-settlement.service.ts:842",
+      "writerId": "services/api/src/services/billing/paypal-settlement.service.ts#PAYMENT.capturePayPalOrder@878",
+      "terminalLocation": "services/api/src/services/billing/paypal-settlement.service.ts:878",
       "file": "services/api/src/services/billing/paypal-settlement.service.ts",
       "enclosingDeclaration": "captured",
       "kind": "EXTERNAL",
@@ -48702,8 +48707,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/stripe-settlement.service.ts#payment.update@646",
-      "terminalLocation": "services/api/src/services/billing/stripe-settlement.service.ts:646",
+      "writerId": "services/api/src/services/billing/stripe-settlement.service.ts#payment.update@654",
+      "terminalLocation": "services/api/src/services/billing/stripe-settlement.service.ts:654",
       "file": "services/api/src/services/billing/stripe-settlement.service.ts",
       "enclosingDeclaration": "applyStripeChargeAdverseEvent",
       "kind": "DATABASE",
@@ -48735,8 +48740,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/stripe-settlement.service.ts#payment.updateMany@651",
-      "terminalLocation": "services/api/src/services/billing/stripe-settlement.service.ts:651",
+      "writerId": "services/api/src/services/billing/stripe-settlement.service.ts#payment.updateMany@659",
+      "terminalLocation": "services/api/src/services/billing/stripe-settlement.service.ts:659",
       "file": "services/api/src/services/billing/stripe-settlement.service.ts",
       "enclosingDeclaration": "applyStripeChargeAdverseEvent",
       "kind": "DATABASE",
@@ -96381,8 +96386,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/redaction/redaction-page-preview.service.ts#redactionPagePreview.create@110",
-      "terminalLocation": "services/api/src/services/redaction/redaction-page-preview.service.ts:110",
+      "writerId": "services/api/src/services/redaction/redaction-page-preview.service.ts#redactionPagePreview.create@133",
+      "terminalLocation": "services/api/src/services/redaction/redaction-page-preview.service.ts:133",
       "file": "services/api/src/services/redaction/redaction-page-preview.service.ts",
       "enclosingDeclaration": "readRedactionPagePreview",
       "kind": "DATABASE",
@@ -96414,8 +96419,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/redaction/redaction-page-preview.service.ts#redactionPagePreview.updateMany@138",
-      "terminalLocation": "services/api/src/services/redaction/redaction-page-preview.service.ts:138",
+      "writerId": "services/api/src/services/redaction/redaction-page-preview.service.ts#redactionPagePreview.updateMany@161",
+      "terminalLocation": "services/api/src/services/redaction/redaction-page-preview.service.ts:161",
       "file": "services/api/src/services/redaction/redaction-page-preview.service.ts",
       "enclosingDeclaration": "readRedactionPagePreview",
       "kind": "DATABASE",
@@ -96447,8 +96452,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/redaction/redaction-page-preview.service.ts#RENDER_REDACTION_PAGE_PREVIEW.enqueueCanonicalWork@53",
-      "terminalLocation": "services/api/src/services/redaction/redaction-page-preview.service.ts:53",
+      "writerId": "services/api/src/services/redaction/redaction-page-preview.service.ts#RENDER_REDACTION_PAGE_PREVIEW.enqueueCanonicalWork@64",
+      "terminalLocation": "services/api/src/services/redaction/redaction-page-preview.service.ts:64",
       "file": "services/api/src/services/redaction/redaction-page-preview.service.ts",
       "enclosingDeclaration": "enqueueRedactionPagePreviewRender",
       "kind": "QUEUE",
@@ -104189,8 +104194,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/siu/siu-export-bundle.service.ts#caseSiuExport.update@690",
-      "terminalLocation": "services/api/src/services/siu/siu-export-bundle.service.ts:690",
+      "writerId": "services/api/src/services/siu/siu-export-bundle.service.ts#caseSiuExport.update@716",
+      "terminalLocation": "services/api/src/services/siu/siu-export-bundle.service.ts:716",
       "file": "services/api/src/services/siu/siu-export-bundle.service.ts",
       "enclosingDeclaration": "markSiuExportDelivered",
       "kind": "DATABASE",
@@ -107705,8 +107710,8 @@
       }
     },
     {
-      "writerId": "services/api/src/storage.ts#OBJECT_STORAGE.CopyObjectCommand@989",
-      "terminalLocation": "services/api/src/storage.ts:989",
+      "writerId": "services/api/src/storage.ts#OBJECT_STORAGE.CopyObjectCommand@996",
+      "terminalLocation": "services/api/src/storage.ts:996",
       "file": "services/api/src/storage.ts",
       "enclosingDeclaration": "copyObjectStorageClass",
       "kind": "EXTERNAL",
@@ -107793,8 +107798,8 @@
       }
     },
     {
-      "writerId": "services/api/src/storage.ts#OBJECT_STORAGE.PutObjectCommand@439",
-      "terminalLocation": "services/api/src/storage.ts:439",
+      "writerId": "services/api/src/storage.ts#OBJECT_STORAGE.PutObjectCommand@446",
+      "terminalLocation": "services/api/src/storage.ts:446",
       "file": "services/api/src/storage.ts",
       "enclosingDeclaration": "putObjectBuffer",
       "kind": "EXTERNAL",
@@ -115621,7 +115626,7 @@
       "method": "DELETE",
       "path": "/v1/redaction/policies/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1095",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1105",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -115709,7 +115714,7 @@
       "method": "DELETE",
       "path": "/v1/redaction/policy-assignments/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1218",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1228",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -115806,7 +115811,7 @@
       "method": "DELETE",
       "path": "/v1/redaction/regions/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:876",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:886",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -145751,7 +145756,7 @@
       "method": "GET",
       "path": "/v1/redaction/derivatives/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1647",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1657",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -145827,7 +145832,7 @@
       "method": "GET",
       "path": "/v1/redaction/derivatives/:id/download-url",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1743",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1753",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -145920,7 +145925,7 @@
       "method": "GET",
       "path": "/v1/redaction/evidence/:evidenceId/detection-manifest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1021",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1031",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -146006,7 +146011,7 @@
       "method": "GET",
       "path": "/v1/redaction/policies",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1055",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1065",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -146092,7 +146097,7 @@
       "method": "GET",
       "path": "/v1/redaction/policies/:id/audit",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1260",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1270",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -146178,7 +146183,7 @@
       "method": "GET",
       "path": "/v1/redaction/policies/:id/versions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1113",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1123",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -146264,7 +146269,7 @@
       "method": "GET",
       "path": "/v1/redaction/policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1039",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1049",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -146341,7 +146346,7 @@
       "method": "GET",
       "path": "/v1/redaction/policy/assignments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1307",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1317",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -146427,7 +146432,7 @@
       "method": "GET",
       "path": "/v1/redaction/policy/effective",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1285",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1295",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -146513,7 +146518,7 @@
       "method": "GET",
       "path": "/v1/redaction/projects",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:532",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:533",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -146610,7 +146615,7 @@
       "method": "GET",
       "path": "/v1/redaction/projects/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:618",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:619",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -146703,7 +146708,7 @@
       "method": "GET",
       "path": "/v1/redaction/projects/:id/activity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:635",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:636",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -146789,7 +146794,7 @@
       "method": "GET",
       "path": "/v1/redaction/projects/:id/preview/pages/:n",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:658",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:659",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -146828,6 +146833,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "custodyEvent",
         "entitlementGrant",
         "evidence",
         "organizationSecurityPolicy",
@@ -146845,6 +146851,7 @@
         "videoTrack"
       ],
       "modelsWritten": [
+        "custodyEvent",
         "intelligenceActivityEvent",
         "redactionPagePreview",
         "securityEvent"
@@ -146879,7 +146886,7 @@
       "method": "GET",
       "path": "/v1/redaction/providers/health",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:965",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:975",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -146965,7 +146972,7 @@
       "method": "GET",
       "path": "/v1/redaction/versions/:id/derivative",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1841",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1851",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -147041,7 +147048,7 @@
       "method": "GET",
       "path": "/v1/redaction/versions/:id/detections",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:922",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:932",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -147126,7 +147133,7 @@
       "method": "GET",
       "path": "/v1/redaction/videos/:evidenceId/frames",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1368",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1378",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -147212,7 +147219,7 @@
       "method": "GET",
       "path": "/v1/redaction/videos/:evidenceId/timeline",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1571",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1581",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -147299,7 +147306,7 @@
       "method": "GET",
       "path": "/v1/redaction/videos/:evidenceId/tracks",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1419",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1429",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -147375,7 +147382,7 @@
       "method": "GET",
       "path": "/v1/redaction/workspace/summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:489",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:490",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -158066,7 +158073,7 @@
       "method": "PATCH",
       "path": "/v1/redaction/policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1340",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1350",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -159277,6 +159284,7 @@
       "modelsRead": [
         "adminAuditLog",
         "authenticatedSession",
+        "billingReviewItem",
         "entitlement",
         "evidenceCreditLedgerEntry",
         "externalIdentityMapping",
@@ -159291,6 +159299,7 @@
       "modelsWritten": [
         "adminAuditLog",
         "analyticsEvent",
+        "billingReviewItem",
         "entitlement",
         "evidenceCreditLedgerEntry",
         "securityEvent",
@@ -196906,7 +196915,7 @@
       "method": "POST",
       "path": "/v1/redaction/derivatives/:id/quarantine",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1715",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1725",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -196999,7 +197008,7 @@
       "method": "POST",
       "path": "/v1/redaction/detections/:id/decision",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1590",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1600",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -197093,7 +197102,7 @@
       "method": "POST",
       "path": "/v1/redaction/policies",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1076",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1086",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -197182,7 +197191,7 @@
       "method": "POST",
       "path": "/v1/redaction/policies/:id/assignments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1195",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1205",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -197272,7 +197281,7 @@
       "method": "POST",
       "path": "/v1/redaction/policies/:id/versions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1150",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1160",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -197364,7 +197373,7 @@
       "method": "POST",
       "path": "/v1/redaction/policy-versions/:id/transition",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1174",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1184",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -197453,7 +197462,7 @@
       "method": "POST",
       "path": "/v1/redaction/projects",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:590",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:591",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -197555,7 +197564,7 @@
       "method": "POST",
       "path": "/v1/redaction/projects/:id/versions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:699",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:709",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -197649,7 +197658,7 @@
       "method": "POST",
       "path": "/v1/redaction/versions/:id/approve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:743",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:753",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -197755,7 +197764,7 @@
       "method": "POST",
       "path": "/v1/redaction/versions/:id/decisions/bulk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:943",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:953",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -197849,7 +197858,7 @@
       "method": "POST",
       "path": "/v1/redaction/versions/:id/derivative",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1619",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1629",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -197965,7 +197974,7 @@
       "method": "POST",
       "path": "/v1/redaction/versions/:id/detect",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:898",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:908",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -198063,7 +198072,7 @@
       "method": "POST",
       "path": "/v1/redaction/versions/:id/publish",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:764",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:774",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -198172,7 +198181,7 @@
       "method": "POST",
       "path": "/v1/redaction/versions/:id/regions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:853",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:863",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -198282,7 +198291,7 @@
       "method": "POST",
       "path": "/v1/redaction/versions/:id/submit",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:722",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:732",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -198385,7 +198394,7 @@
       "method": "POST",
       "path": "/v1/redaction/video-tracks/:id/decision",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1469",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1479",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -198475,7 +198484,7 @@
       "method": "POST",
       "path": "/v1/redaction/video-tracks/:id/split",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1520",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1530",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -198565,7 +198574,7 @@
       "method": "POST",
       "path": "/v1/redaction/video-tracks/merge",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1490",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1500",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -198658,7 +198667,7 @@
       "method": "POST",
       "path": "/v1/redaction/videos/:evidenceId/decisions/range",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1543",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1553",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -198748,7 +198757,7 @@
       "method": "POST",
       "path": "/v1/redaction/videos/:evidenceId/frames/batch",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1387",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1397",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -198836,7 +198845,7 @@
       "method": "POST",
       "path": "/v1/redaction/videos/:evidenceId/tracks/group",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1438",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1448",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",

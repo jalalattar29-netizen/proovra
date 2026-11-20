@@ -668,6 +668,39 @@ export async function recordOriginalRelease(input: {
 }
 
 /**
+ * Caveat 4 (2026-11-20) — a short-lived link to a DERIVED VIEW of the record's
+ * own unredacted content was issued (the redaction editor's page preview).
+ * Recorded on the custody chain as EVIDENCE_VIEWED with artifact "derived", like
+ * the combined-recording playback link: a link, not a download (EVID-008).
+ * Best-effort with a counted failure (DEC-26: not an original release).
+ */
+export async function recordDerivedViewIssued(input: {
+  evidenceId: string;
+  actorUserId: string;
+  channel: "redaction_page_preview";
+  detail?: Record<string, string | number | boolean | null>;
+  ip?: string | null;
+  userAgent?: string | null;
+}): Promise<void> {
+  const at = new Date();
+  await appendCustodyEvent({
+    evidenceId: input.evidenceId,
+    eventType: prismaPkg.CustodyEventType.EVIDENCE_VIEWED,
+    atUtc: at,
+    payload: {
+      artifact: "derived",
+      channel: input.channel,
+      accessMode: "derived_view_url_issued",
+      accessedByUserId: input.actorUserId,
+      accessedAtUtc: at.toISOString(),
+      ...(input.detail ?? {}),
+    },
+    ip: input.ip ?? undefined,
+    userAgent: input.userAgent ?? undefined,
+  }).catch(noteCustodyFailure);
+}
+
+/**
  * A presigned download link was issued for a report, package or derived file
  * (EVID-008). The response is not blocked by a failed append (the URL is already
  * minted), but the failure is observable.

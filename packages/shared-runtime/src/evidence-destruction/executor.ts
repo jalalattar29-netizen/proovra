@@ -978,12 +978,12 @@ export async function executeEvidenceDestruction(
     // its report and package; their objects are gone and verified gone, so
     // the rows point at nothing and say so.
     await tx.caseSiuExport.updateMany({
-      where: {
-        caseId: { in: (
+      where: siuExportsCarryingRecordWhere(
+        evidence.id,
+        (
           await tx.caseEvidenceLink.findMany({ where: { evidenceId: evidence.id }, select: { caseId: true } })
-        ).map((l) => l.caseId) },
-        artifactStorageKey: { not: null },
-      },
+        ).map((l) => l.caseId),
+      ),
       data: { artifactStorageKey: null, exportStatus: "destroyed" },
     });
 
@@ -1177,6 +1177,23 @@ export async function executeEvidenceDestruction(
  * is enumerated regardless of status: a FAILED regeneration keeps the pointer
  * of the bytes that still exist.
  */
+/**
+ * The stored SIU export bundles that carry this record: every bundle of a case
+ * it is linked to (legacy rows name no records), plus every bundle whose
+ * recorded population names it, wherever the record is linked now.
+ * ONE predicate for the storage inventory and the row update, so the bytes
+ * deleted and the rows marked destroyed cannot disagree.
+ */
+function siuExportsCarryingRecordWhere(evidenceId: string, caseIds: string[]) {
+  return {
+    artifactStorageKey: { not: null },
+    OR: [
+      ...(caseIds.length ? [{ caseId: { in: caseIds } }] : []),
+      { includedEvidenceIds: { array_contains: [evidenceId] } },
+    ],
+  };
+}
+
 async function enumerateStorageTargets(
   prisma: PrismaClient,
   evidenceId: string,
@@ -1214,12 +1231,13 @@ async function enumerateStorageTargets(
     }),
     // (2026-09-29, audit H2) An SIU export bundle of any case this record is
     // linked to carries its report and verification package.
-    caseIds.length
-      ? prisma.caseSiuExport.findMany({
-          where: { caseId: { in: caseIds }, artifactStorageKey: { not: null } },
-          select: { artifactStorageBucket: true, artifactStorageKey: true },
-        })
-      : Promise.resolve([] as Array<{ artifactStorageBucket: string | null; artifactStorageKey: string | null }>),
+    // SIU caveat (2026-11-20, PRO-K1-01) — and so does a bundle that NAMES the
+    // record (included_evidence_ids) although the record was unlinked from
+    // that case after the bundle was generated.
+    prisma.caseSiuExport.findMany({
+      where: siuExportsCarryingRecordWhere(evidenceId, caseIds),
+      select: { artifactStorageBucket: true, artifactStorageKey: true },
+    }),
   ]);
 
   // WS-SCHED / PRO-W1C-04 — an Evidence Exchange package that names this record
