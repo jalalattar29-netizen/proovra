@@ -61,6 +61,8 @@ const H = vi.hoisted(() => ({
     | { ok: true; id: string }
     | { ok: false; denial: "INVALID_WINDOW" },
   seedPublishSeen: undefined as boolean | undefined,
+  // NEW-RG-20-2 — the article already stored under the posted kind:slug.
+  existingArticle: null as null | { state: string },
   auditCodes: [] as string[],
   // Delivery-history seam.
   deliveryQuerySeen: null as null | {
@@ -172,9 +174,12 @@ vi.mock("../src/services/trust/trust-center.service.js", () => ({
       implementationReferences: ["services/api/src/secret-path.ts"],
     },
   ],
-  getTrustArticleBySlug: async () => null,
+  getTrustArticleBySlug: async () => H.existingArticle,
   listTrustArticleVersions: async () => [],
-  upsertTrustArticle: async () => ({ ok: true, articleId: "a", version: 1, state: "DRAFT" }),
+  upsertTrustArticle: async (i: { publish?: boolean }) => {
+    H.writes.push("upsertTrustArticle");
+    return { ok: true, articleId: "a", version: 1, state: i.publish ? "PUBLISHED" : "DRAFT" };
+  },
 }));
 
 vi.mock("../src/services/trust/subprocessor.service.js", () => ({
@@ -332,6 +337,7 @@ beforeEach(async () => {
   H.incidentUpdateResult = { ok: true, state: "MONITORING" };
   H.maintenanceResult = { ok: true, id: "mw-1" };
   H.seedPublishSeen = undefined;
+  H.existingArticle = null;
   H.deliveryQuerySeen = null;
 
   app = Fastify();
@@ -401,6 +407,55 @@ describe("Trust authoring console", () => {
     expect(res.statusCode).toBe(401);
     expect(H.writes).toEqual([]);
     expect(H.auditCodes).toEqual([]);
+  });
+
+  // MATRIX-REVIEW 6.1 / NEW-RG-20-2 — POST /v1/trust/articles step-up.
+  const article = (extra: Record<string, unknown> = {}) => ({
+    kind: "TRUST_CENTER",
+    section: "PLATFORM_TRUST",
+    slug: "custom-article",
+    title: "Custom",
+    summary: "Custom summary",
+    body: "Custom body",
+    ...extra,
+  });
+  const articleTarget = { purpose: "TRUST_CONTENT_PUBLISH", resourceKind: "TRUST_ARTICLE", resourceId: "TRUST_CENTER:custom-article" };
+
+  it("publishing an article without a step-up → 401 STEP_UP_REQUIRED and ZERO article write", async () => {
+    H.stepUpSent = true;
+    const res = await app.inject({ method: "POST", url: "/v1/trust/articles", headers: json, payload: article({ publish: true }) });
+    expect(res.statusCode).toBe(401);
+    expect(JSON.parse(res.body).error.code).toBe("STEP_UP_REQUIRED");
+    expect(H.writes).toEqual([]);
+    expect(H.stepUpCalls).toEqual([articleTarget]);
+  });
+
+  it("NEW-RG-20-2: a publish:false overwrite of a PUBLISHED article without a step-up → 401 and ZERO article write", async () => {
+    H.existingArticle = { state: "PUBLISHED" };
+    H.stepUpSent = true;
+    const res = await app.inject({ method: "POST", url: "/v1/trust/articles", headers: json, payload: article({ publish: false, title: "Overwrite" }) });
+    expect(res.statusCode).toBe(401);
+    expect(JSON.parse(res.body).error.code).toBe("STEP_UP_REQUIRED");
+    expect(H.writes).toEqual([]);
+    expect(H.stepUpCalls).toEqual([articleTarget]);
+  });
+
+  it("NEW-RG-20-2: with the step-up bound to that article the overwrite is allowed", async () => {
+    H.existingArticle = { state: "PUBLISHED" };
+    const res = await app.inject({ method: "POST", url: "/v1/trust/articles", headers: stepUpJson, payload: article({ title: "Overwrite" }) });
+    expect(res.statusCode).toBe(201);
+    expect(H.writes).toEqual(["upsertTrustArticle"]);
+    expect(H.stepUpCalls).toEqual([articleTarget]);
+  });
+
+  it("NEW-RG-20-2: a new draft, and an edit of an existing DRAFT, need no step-up (unchanged)", async () => {
+    const fresh = await app.inject({ method: "POST", url: "/v1/trust/articles", headers: json, payload: article() });
+    expect(fresh.statusCode).toBe(201);
+    H.existingArticle = { state: "DRAFT" };
+    const edit = await app.inject({ method: "POST", url: "/v1/trust/articles", headers: json, payload: article({ title: "Edit" }) });
+    expect(edit.statusCode).toBe(201);
+    expect(H.writes).toEqual(["upsertTrustArticle", "upsertTrustArticle"]);
+    expect(H.stepUpCalls).toEqual([]);
   });
 
   it("missing capability → 403 and ZERO seed write", async () => {

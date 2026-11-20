@@ -23,18 +23,13 @@ import {
 // checkout success/cancel return URLs; the Stripe/PayPal session-creation
 // logic itself is untouched.
 import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
+import { getEmailAppBaseUrl } from "./email.service.js";
 
-function appBaseUrl(): string {
-  return (
-    process.env.APP_BASE_URL?.trim() ||
-    process.env.WEB_BASE_URL?.trim() ||
-    process.env.NEXT_PUBLIC_WEB_BASE?.trim() ||
-    "https://app.proovra.com"
-  );
-}
-
+// NEW-RG-24-1 (RG-24) — the ONE app-host base authority. The inline chain this
+// replaced fell back to WEB_BASE_URL (the marketing site) when APP_BASE_URL was
+// unset, so billing returns could diverge from every other in-app link.
 function normalizedBaseUrl(): string {
-  return appBaseUrl().replace(/\/+$/, "");
+  return getEmailAppBaseUrl();
 }
 
 /**

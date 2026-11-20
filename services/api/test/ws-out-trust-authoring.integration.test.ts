@@ -19,6 +19,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 import { coverageKit, type CoverageKit, type Person } from "./support/coverage-actors.js";
+import { createStepUpCeremony } from "./support/step-up-ceremony.js";
 
 type Prisma = (typeof import("../src/db.js"))["prisma"];
 type Tenant = { teamId: string; orgId: string; owner: Person };
@@ -68,6 +69,15 @@ describe("WS-OUT RG-20 — trust authoring, seeds and governance reads (live Pos
     }
     return { teamId: team.id, orgId: org.id, owner };
   }
+
+  const articleBody = (slug: string) => ({
+    kind: "TRUST_CENTER",
+    section: "PLATFORM_TRUST",
+    slug,
+    title: "Custom",
+    summary: "Custom summary",
+    body: "Custom body",
+  });
 
   const articleSnapshot = (teamId: string) =>
     prisma.trustCenterArticle.findMany({
@@ -225,6 +235,96 @@ describe("WS-OUT RG-20 — trust authoring, seeds and governance reads (live Pos
       ws(t.teamId),
     );
     expect(ok.statusCode, ok.body).toBe(201);
+  });
+
+  it("PRO-G2-13: publishing an article without a step-up is refused (401 STEP_UP_REQUIRED) and writes nothing", async () => {
+    const t = await tenant("ENTERPRISE", { contract: true });
+    const slug = `custom-${tag()}`;
+    const res = await call(
+      "POST",
+      "/v1/trust/articles",
+      t.owner,
+      { ...articleBody(slug), publish: true },
+      ws(t.teamId),
+    );
+    expect(res.statusCode, res.body).toBe(401);
+    expect(res.json().error.code).toBe("STEP_UP_REQUIRED");
+    expect(await prisma.trustCenterArticle.count({ where: { teamId: t.teamId, slug } })).toBe(0);
+    expect(await prisma.trustCenterArticleVersion.count({ where: { teamId: t.teamId } })).toBe(0);
+  });
+
+  it("NEW-RG-20-2: a publish:false write over an existing PUBLISHED article needs the step-up; new drafts and draft edits do not", async () => {
+    const t = await tenant("ENTERPRISE", { contract: true });
+    const slug = `custom-${tag()}`;
+    const stepUp = createStepUpCeremony({
+      prisma: prisma as never,
+      inject: (o) => h.app.inject({ method: o.method, url: o.url, headers: o.headers, payload: o.payload as never }) as never,
+    });
+    const approved = () =>
+      stepUp.approvedHeader({
+        token: t.owner.token,
+        userId: t.owner.id,
+        teamId: t.teamId,
+        purpose: "TRUST_CONTENT_PUBLISH",
+        resourceKind: "TRUST_ARTICLE",
+        resourceId: `TRUST_CENTER:${slug}`,
+      });
+
+    // A new draft needs no step-up (unchanged), and neither does editing a draft.
+    const draft = await call("POST", "/v1/trust/articles", t.owner, articleBody(slug), ws(t.teamId));
+    expect(draft.statusCode, draft.body).toBe(201);
+    expect(draft.json().state).toBe("DRAFT");
+    const draftEdit = await call(
+      "POST",
+      "/v1/trust/articles",
+      t.owner,
+      { ...articleBody(slug), title: "Draft edit" },
+      ws(t.teamId),
+    );
+    expect(draftEdit.statusCode, draftEdit.body).toBe(201);
+
+    // Publish it, with the step-up.
+    const published = await call(
+      "POST",
+      "/v1/trust/articles",
+      t.owner,
+      { ...articleBody(slug), title: "Published wording", publish: true },
+      { ...ws(t.teamId), ...(await approved()) },
+    );
+    expect(published.statusCode, published.body).toBe(201);
+    expect(published.json().state).toBe("PUBLISHED");
+    const snapshot = () =>
+      prisma.trustCenterArticle.findFirstOrThrow({
+        where: { teamId: t.teamId, slug },
+        select: { title: true, body: true, state: true, version: true, publishedAtUtc: true },
+      });
+    const before = await snapshot();
+    const versionsBefore = await prisma.trustCenterArticleVersion.count({ where: { teamId: t.teamId } });
+
+    // Overwriting (and thereby unpublishing) it without a step-up is refused and changes nothing.
+    const refused = await call(
+      "POST",
+      "/v1/trust/articles",
+      t.owner,
+      { ...articleBody(slug), title: "Silent overwrite", body: "Replaced body", publish: false },
+      ws(t.teamId),
+    );
+    expect(refused.statusCode, refused.body).toBe(401);
+    expect(refused.json().error.code).toBe("STEP_UP_REQUIRED");
+    expect(await snapshot()).toEqual(before);
+    expect(await prisma.trustCenterArticleVersion.count({ where: { teamId: t.teamId } })).toBe(versionsBefore);
+
+    // With the step-up bound to this article it is allowed.
+    const allowed = await call(
+      "POST",
+      "/v1/trust/articles",
+      t.owner,
+      { ...articleBody(slug), title: "Reviewed overwrite", publish: false },
+      { ...ws(t.teamId), ...(await approved()) },
+    );
+    expect(allowed.statusCode, allowed.body).toBe(201);
+    expect(allowed.json().state).toBe("DRAFT");
+    expect((await snapshot()).title).toBe("Reviewed overwrite");
   });
 
   it("PRO-G2-03 / T1C-09: a stored legacy absolute reference is never probed; only the scan authority reads the paths", async () => {
