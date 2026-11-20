@@ -46,6 +46,10 @@ const H = vi.hoisted(() => ({
    */
   redis: "HEALTHY" as "HEALTHY" | "redis_unreachable" | "redis_not_configured",
   storage: "HEALTHY" as "HEALTHY" | "storage_unreachable" | "s3_env_missing" | "object_lock_unverified",
+  /** NEW-RG-22-7 — counted probes and an optional latency, to observe coalescing. */
+  selectOneCount: 0,
+  canaryCount: 0,
+  dbDelayMs: 0,
 }));
 
 vi.mock("../src/runtime/runtime-readiness.js", async (importOriginal) => {
@@ -82,6 +86,9 @@ vi.mock("../src/db.js", () => {
     // not been applied.
     $queryRaw: async (strings: TemplateStringsArray) => {
       const sql = strings.join("?");
+      if (H.dbDelayMs > 0) await new Promise((r) => setTimeout(r, H.dbDelayMs));
+      if (sql.includes("notification_schedule_settings")) H.canaryCount += 1;
+      else H.selectOneCount += 1;
       if (H.dbUnreachable) throw new Error("connect ECONNREFUSED");
       if (sql.includes("notification_schedule_settings")) {
         if (H.scheduleTableMissing) throw { code: "P2021" };
@@ -297,6 +304,35 @@ describe("/readyz — required-schema gate (Operations Center migrations)", () =
       expect(bad.body).not.toContain("attacker");
     } finally {
       process.env = prev;
+      await app.close();
+    }
+  });
+
+  it("NEW-RG-22-7 (DEC-20 probe cost) — concurrent /readyz calls share ONE in-flight check; the next call checks again", async () => {
+    const app = await buildApp();
+    H.selectOneCount = 0;
+    H.canaryCount = 0;
+    H.dbDelayMs = 50;
+    try {
+      const burst = await Promise.all(
+        Array.from({ length: 12 }, () => app.inject({ method: "GET", url: "/readyz" })),
+      );
+      for (const res of burst) {
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ status: "ok" });
+      }
+      expect(H.selectOneCount).toBe(1);
+      expect(H.canaryCount).toBe(1);
+
+      // No stale answer: a call after the shared check settled runs its own,
+      // so a dependency that goes away is reported at once.
+      H.scheduleTableMissing = true;
+      const after = await app.inject({ method: "GET", url: "/readyz" });
+      expect(after.statusCode).toBe(503);
+      expect(after.json().reason).toBe("required_schema_missing");
+      expect(H.selectOneCount).toBe(2);
+    } finally {
+      H.dbDelayMs = 0;
       await app.close();
     }
   });

@@ -457,6 +457,48 @@ describe("WS-REV — external review and decision integrity (live PostgreSQL)", 
     expect([r1, r2].find((r) => !r.ok)).toMatchObject({ denial: "DISAGREEMENT_STATE_INVALID" });
   });
 
+  it("PRO-R2Z-08: the challenger withdraws their own disagreement with review.disagree; nobody else withdraws it and they cannot adjudicate", async () => {
+    // At cdcb8aef8 every move asked review.adjudicate, so a MEMBER (REVIEWER
+    // role) could file a disagreement but never withdraw it.
+    const wf = await workflow("IN_REVIEW");
+    const challenger = await person(A().teamId, "MEMBER");
+    const other = await person(A().teamId, "MEMBER");
+    const d = await prisma.reviewerDisagreement.create({
+      data: {
+        workflowId: wf.id,
+        teamId: A().teamId,
+        state: "FILED",
+        challengerUserId: challenger.id,
+        challengerRationale: "disagree",
+      },
+      select: { id: true },
+    });
+    const move = (token: string, to: string) =>
+      h.app.inject({
+        method: "POST",
+        url: `/v1/reviewer/disagreements/${d.id}/transition?teamId=${A().teamId}`,
+        headers: { ...bearer(token), "content-type": "application/json" },
+        payload: { to } as never,
+      });
+    const state = async () =>
+      (await prisma.reviewerDisagreement.findUniqueOrThrow({ where: { id: d.id }, select: { state: true } })).state;
+
+    // Another MEMBER may not withdraw someone else's disagreement (that move is
+    // adjudication, which a REVIEWER does not hold).
+    const foreign = await move(other.token, "WITHDRAWN");
+    expect(foreign.statusCode, foreign.body).toBe(403);
+    expect(foreign.json()).toMatchObject({ denial: "NOT_PERMITTED" });
+    // The challenger may not adjudicate their own disagreement.
+    const adjudicate = await move(challenger.token, "UNDER_SECOND_REVIEW");
+    expect(adjudicate.statusCode, adjudicate.body).toBe(403);
+    expect(adjudicate.json()).toMatchObject({ denial: "NOT_PERMITTED" });
+    expect(await state()).toBe("FILED");
+
+    const withdrawn = await move(challenger.token, "WITHDRAWN");
+    expect(withdrawn.statusCode, withdrawn.body).toBe(200);
+    expect(await state()).toBe("WITHDRAWN");
+  });
+
   it("PRO-LEAD-07: VIEWER cannot read reviewer disagreements or QC samples; a reviewer can", async () => {
     const url = (p: string) => `${p}?teamId=${A().teamId}`;
     const viewer = await h.app.inject({ method: "GET", url: url("/v1/reviewer/disagreements"), headers: bearer(A().viewerToken) });

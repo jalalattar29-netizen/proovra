@@ -653,6 +653,10 @@ vi.mock("../src/services/organization/org-invite-delivery.service.js", () => ({
 }));
 vi.mock("../src/services/identity/membership-provisioning.service.js", () => ({
   parseWorkspaceAssignments: (v: unknown) => v ?? [],
+  // NEW-RG-07-4 — the resend's ceiling (proven live in
+  // ws-org-org-surfaces.integration.test.ts); these fixtures carry no
+  // assignment above the actor, so it admits.
+  storedInvitationCeilingRefusal: async () => null,
   grantOrganizationMembership: async () => {
     H.writes.push("grantOrganizationMembership");
   },

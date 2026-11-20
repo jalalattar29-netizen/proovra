@@ -65,6 +65,7 @@ import {
   type PortalSession,
 } from "../../../src/product/portal";
 import {
+  PORTAL_HELD_TOKEN_SEGMENT,
   clearPortalSession,
   getPortalSessionId,
   getPortalToken,
@@ -96,7 +97,23 @@ const PENDING = Symbol("pending");
 export default function PortalScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ token?: string | string[] }>();
-  const token = Array.isArray(params.token) ? params.token[0] : params.token;
+  const routeToken = Array.isArray(params.token) ? params.token[0] : params.token;
+  // NEW-RG-25-5 (M350 pattern) — the bearer is captured ONCE: from the route
+  // param when an invitation link carried it, else from memory (in-app callers
+  // hold it and open PORTAL_HELD_ROUTE). The route param is then replaced so
+  // the bearer does not stay in navigation state.
+  const [token] = useState<string>(() =>
+    routeToken && routeToken !== PORTAL_HELD_TOKEN_SEGMENT ? routeToken : getPortalToken() ?? "",
+  );
+  useEffect(() => {
+    if (!routeToken || routeToken === PORTAL_HELD_TOKEN_SEGMENT) return;
+    setPortalToken(routeToken);
+    try {
+      router.setParams({ token: PORTAL_HELD_TOKEN_SEGMENT });
+    } catch {
+      /* the screen keeps working with the captured bearer */
+    }
+  }, [routeToken, router]);
 
   const [phase, setPhase] = useState<Phase>({ kind: "authenticating" });
   const [mfaCode, setMfaCode] = useState("");

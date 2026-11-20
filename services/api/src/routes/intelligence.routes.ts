@@ -69,6 +69,7 @@ import {
 // projection shape.
 import { executeSearch } from "../services/search/evidence-search.service.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
+import { refuseUnlessEnterpriseOrganization } from "./_enterprise-surface-gate.js";
 // Phase P2 — ai-assistance.service import removed (stub retired; superseded
 // by the live Reviewer/Evidence Copilots).
 
@@ -418,6 +419,9 @@ export async function intelligenceRoutes(app: FastifyInstance) {
         permission: "intelligence.read",
       });
       if (!ok) return;
+      // NEW-RG-13-1 / DEC-11 — cross-evidence findings back the /investigation
+      // dashboard only, an Enterprise organization tool (tiers.ts).
+      if (await refuseUnlessEnterpriseOrganization(reply, query.teamId)) return;
       const findings = await listCrossEvidenceFindings({
         teamId: query.teamId,
         limit: query.limit ?? 20,

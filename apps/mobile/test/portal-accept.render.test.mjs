@@ -91,7 +91,17 @@ test("a valid link is accepted once, then hands the reviewer into their portal w
   assert.ok(r.hasText("Your review access is active. You can open the reviews assigned to you now."));
   assert.equal(M.getPortalToken(), TOKEN, "the token is held (in memory) for the portal");
   await r.press("Open my reviews");
-  assert.deepEqual(M.calls.replace, [`/portal/${TOKEN}`]);
+  // NEW-RG-25-5 — the same token, held in memory; the route carries none.
+  assert.deepEqual(M.calls.replace, ["/portal/held"]);
+  assert.equal(M.getPortalToken(), TOKEN);
+});
+
+test("NEW-RG-25-5 — the link's token is captured, then removed from navigation state; no route carries it", async () => {
+  const r = await render();
+  assert.deepEqual(M.calls.setParams, [{ token: undefined }], "the token stays in the route's query");
+  await r.press("Open my reviews");
+  assert.ok(!JSON.stringify(M.calls.replace).includes(TOKEN), "the bearer rides in a route");
+  assert.equal(requests.length, 1, "stripping the param does not spend the acceptance again");
 });
 
 test("a re-render does not spend the acceptance a second time", async () => {
@@ -132,9 +142,10 @@ test("an invitation that requires MFA (403 portal_mfa_required) goes on to the p
   const r = await render();
   assert.deepEqual(
     M.calls.replace,
-    [`/portal/${TOKEN}`],
+    ["/portal/held"],
     "the portal exchange owns the emailed-code step; the accept route has none",
   );
+  assert.equal(M.getPortalToken(), TOKEN, "NEW-RG-25-5 — the code step's bearer is held in memory");
   assert.ok(!r.hasText("This review access could not be opened. Try again, or ask for a new link."));
 });
 

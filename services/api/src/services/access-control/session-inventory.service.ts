@@ -422,6 +422,16 @@ export async function revokeActiveSession(
       revokedReason: (input.reason ?? "OPERATOR_REVOKED").slice(0, 64),
     },
   });
+  // NEW-RG10-1 (DEC-29) — the extension sessions it authorized end with it.
+  await endChildSessionsOf(
+    {
+      userId: row.userId,
+      parentSessionIdHash: row.sessionIdHash,
+      reason: input.reason ?? "OPERATOR_REVOKED",
+      actorUserId: input.actorUserId,
+    },
+    client,
+  );
   bump("session_revoked_admin_total");
   safeEmitSecurityEvent({
     teamId: input.teamId,
@@ -518,6 +528,14 @@ export async function revokeUserSessionsInWorkspaceScope(
       where: { id: { in: rows.map((r) => r.id) }, revokedAtUtc: null },
       data: { revokedAtUtc: now, revokedByUserId: input.actorUserId, revokedReason: (input.mirrorReason ?? reason).slice(0, 64) },
     });
+    // NEW-RG10-1 (DEC-29) — each ended session's extension children end with
+    // it (the ACCOUNT branch above already ended every session of the person).
+    for (const row of rows) {
+      await endChildSessionsOf(
+        { userId: input.userId, parentSessionIdHash: row.sessionIdHash, reason, actorUserId: input.actorUserId },
+        client,
+      );
+    }
   }
   return { count: result.count, scope: managed ? "ACCOUNT" : "WORKSPACE" };
 }
@@ -608,12 +626,36 @@ export async function endOwnSession(
       revokedReason: input.inventoryReason.slice(0, 64),
     },
   });
-  // PRO-X1-04 (DEC-29) — the extension sessions this session authorized end
-  // with it (each by its own id); the person's unrelated sessions are untouched.
+  await endChildSessionsOf(
+    { userId: input.userId, parentSessionIdHash: sessionIdHash, reason: input.reason, actorUserId: input.userId },
+    client,
+  );
+  return { sessionIdHash };
+}
+
+/**
+ * PRO-X1-04 / matrix review NEW-RG10-1 (DEC-29) — the extension sessions a
+ * session authorized (`parentSessionIdHash`) end with it, each by its own id;
+ * the person's unrelated sessions are untouched. Every way a parent session is
+ * ended calls this: the person's own sign-out (`endOwnSession`), ending one of
+ * their other sessions, and an operator's single or workspace-scoped revoke.
+ * Returns how many child sessions were ended.
+ */
+export async function endChildSessionsOf(
+  input: {
+    userId: string;
+    /** HMAC of the PARENT session id. */
+    parentSessionIdHash: string;
+    reason: SessionRevocationReason;
+    actorUserId: string | null;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<number> {
   const children = await client.authenticatedSession.findMany({
-    where: { userId: input.userId, parentSessionIdHash: sessionIdHash, revokedAtUtc: null },
+    where: { userId: input.userId, parentSessionIdHash: input.parentSessionIdHash, revokedAtUtc: null },
     select: { sessionIdHash: true, teamId: true },
   });
+  if (children.length === 0) return 0;
   for (const child of children) {
     await revokeSession(
       {
@@ -621,26 +663,24 @@ export async function endOwnSession(
         sessionIdHash: child.sessionIdHash,
         teamId: child.teamId ?? null,
         reason: input.reason,
-        actorUserId: input.userId,
+        actorUserId: input.actorUserId,
       },
       client,
     );
   }
-  if (children.length > 0) {
-    await client.authenticatedSession.updateMany({
-      where: {
-        userId: input.userId,
-        sessionIdHash: { in: children.map((c) => c.sessionIdHash) },
-        revokedAtUtc: null,
-      },
-      data: {
-        revokedAtUtc: new Date(),
-        revokedByUserId: input.userId,
-        revokedReason: "PARENT_SESSION_ENDED",
-      },
-    });
-  }
-  return { sessionIdHash };
+  await client.authenticatedSession.updateMany({
+    where: {
+      userId: input.userId,
+      sessionIdHash: { in: children.map((c) => c.sessionIdHash) },
+      revokedAtUtc: null,
+    },
+    data: {
+      revokedAtUtc: new Date(),
+      revokedByUserId: input.actorUserId,
+      revokedReason: "PARENT_SESSION_ENDED",
+    },
+  });
+  return children.length;
 }
 
 // -----------------------------------------------------------------------------

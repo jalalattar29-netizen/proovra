@@ -51,6 +51,7 @@ import { enforceRateLimit } from "../services/rate-limit.js";
 // Wave 3 Phase 7B — bounded custody emit on workspace MI refresh.
 import * as prismaPkg from "@prisma/client";
 import { appendInvestigationCustody } from "../services/investigation-custody.service.js";
+import { refuseUnlessEnterpriseOrganization } from "./_enterprise-surface-gate.js";
 
 // =============================================================================
 // Bounded validators
@@ -586,6 +587,9 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
+      // NEW-RG-13-1 / DEC-11 — the /investigation dashboard is an Enterprise
+      // organization tool (tiers.ts), asked after membership like its siblings.
+      if (await refuseUnlessEnterpriseOrganization(reply, teamId)) return;
       // Totals and rows are the caller's: what a restricted case closes to them
       // is excluded in each query, so it reaches neither a list nor a count.
       const closed = await hiddenRecordIdsInWorkspace(teamId, actor.actorUserId);
@@ -791,6 +795,9 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
+      // NEW-RG-13-1 / DEC-11 — the reviewer console is an Enterprise
+      // organization tool (/investigation/reviewers, tiers.ts).
+      if (await refuseUnlessEnterpriseOrganization(reply, teamId)) return;
       // Totals and rows are the caller's: what a restricted case closes to them
       // is excluded in each query, so it reaches neither a list nor a count.
       const closed = await hiddenRecordIdsInWorkspace(teamId, actor.actorUserId);

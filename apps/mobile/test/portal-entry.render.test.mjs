@@ -85,7 +85,7 @@ function assertValidAuthBody(body) {
 }
 
 before(async () => {
-  Entry = await loadModule("app/(stack)/portal/index.tsx", ["test/support/providers.tsx", "test/support/expo-stub.mjs"]);
+  Entry = await loadModule("app/(stack)/portal/index.tsx", ["test/support/providers.tsx", "test/support/expo-stub.mjs", "src/portal/portal-session.ts"]);
   Portal = await loadModule("app/(stack)/portal/[token].tsx", [
     "test/support/providers.tsx",
     "test/support/expo-stub.mjs",
@@ -148,7 +148,7 @@ const isDisabled = (r, label) => {
 
 // ----------------------------------------------------------------- entry
 
-test("entry: a pasted token opens /portal/<token>; too short is refused", async () => {
+test("entry: a pasted token opens the portal screen; too short is refused", async () => {
   const r = await renderEntry();
   assert.ok(r.hasText("Paste the access token from your invitation email."));
   assert.equal(isDisabled(r, "Open my reviews"), true, "empty token must not submit");
@@ -157,8 +157,38 @@ test("entry: a pasted token opens /portal/<token>; too short is refused", async 
   await r.type("Access token", `  ${TOKEN}  `);
   assert.equal(isDisabled(r, "Open my reviews"), false);
   await r.press("Open my reviews");
-  assert.deepEqual(Entry.calls.push, [`/portal/${TOKEN}`], "the trimmed token is handed to the ONE exchange screen");
+  // NEW-RG-25-5 — the trimmed token is handed to the ONE exchange screen in
+  // memory; the route names only the held-bearer segment.
+  assert.deepEqual(Entry.calls.push, ["/portal/held"], "the trimmed token is handed to the ONE exchange screen");
+  assert.ok(!JSON.stringify(Entry.calls.push).includes(TOKEN), "the bearer must not ride in the route");
+  assert.equal(Entry.getPortalToken(), TOKEN, "the trimmed bearer is held in memory");
   assert.equal(requests.length, 0, "the entry screen authenticates nothing itself");
+});
+
+test("NEW-RG-25-5 — portal: a bearer arriving as the route param is captured, then replaced in navigation state", async () => {
+  await renderPortal();
+  assert.deepEqual(Portal.calls.setParams, [{ token: "held" }], "the bearer stays in the route param");
+  const auth = requests.find((q) => q.path === "/v1/portal/auth");
+  assert.equal(auth.headers.get("authorization"), `Bearer ${TOKEN}`, "the captured bearer is the one exchanged");
+  const dash = requests.find((q) => q.path === "/v1/portal/dashboard");
+  assert.equal(dash.headers.get("authorization"), `Bearer ${TOKEN}`);
+});
+
+test("NEW-RG-25-5 — portal: the held-bearer route exchanges the in-memory bearer and strips nothing further", async () => {
+  Portal.setPortalToken(TOKEN);
+  globalThis.__EXPO_PARAMS__ = { token: "held" };
+  const r = await renderPortal();
+  const auth = requests.find((q) => q.path === "/v1/portal/auth");
+  assert.deepEqual(auth.body, { token: TOKEN });
+  assert.deepEqual(Portal.calls.setParams, []);
+  assert.ok(r.hasText("Rae Counsel"));
+});
+
+test("NEW-RG-25-5 — portal: the held-bearer route with nothing held is refused without calling the server", async () => {
+  globalThis.__EXPO_PARAMS__ = { token: "held" };
+  const r = await renderPortal();
+  assert.equal(requests.length, 0);
+  assert.ok(r.hasText("This link is not valid. Open the most recent invitation email and use the link there."));
 });
 
 test("entry: a token longer than PortalAuthBody's 256 cap is refused before it is sent", async () => {

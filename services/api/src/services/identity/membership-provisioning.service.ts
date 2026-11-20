@@ -363,6 +363,44 @@ export async function workspaceAssignmentCeilingRefusal(
   return null;
 }
 
+/** The ceiling's refusal as every invitation route answers it (400 for OWNER, 403 above the inviter). */
+export function workspaceAssignmentCeilingReply(
+  ceiling: "workspace_owner_assignment_forbidden" | "workspace_assignment_above_inviter",
+): { status: 400 | 403; body: { error: { code: string }; message: string; code: "invalid_workspace_assignment" } } {
+  return {
+    status: ceiling === "workspace_owner_assignment_forbidden" ? 400 : 403,
+    body: {
+      error: { code: ceiling },
+      message:
+        ceiling === "workspace_owner_assignment_forbidden"
+          ? "An invitation cannot make someone a workspace owner. Use an ownership transfer."
+          : "Only an organization owner or the workspace's owner can invite someone as a workspace administrator.",
+      code: "invalid_workspace_assignment",
+    },
+  };
+}
+
+/**
+ * NEW-RG-07-4 (DEC-18 / DEC-28) — a RESEND re-issues a pending invitation in
+ * the resender's name, so the same ceiling applies to the assignments the
+ * invitation already carries. An invitation written before the ceiling existed
+ * (ADMIN from a non-owner, or an OWNER assignment) is not refreshed; the
+ * resender may revoke it and invite again within their ceiling. A malformed
+ * stored payload is left to acceptance, which refuses it before any write.
+ */
+export async function storedInvitationCeilingRefusal(
+  tx: TxClient,
+  input: { resenderUserId: string; resenderOrgRole: string; storedAssignments: unknown },
+): Promise<"workspace_owner_assignment_forbidden" | "workspace_assignment_above_inviter" | null> {
+  const parsed = parseWorkspaceAssignments(input.storedAssignments);
+  if (!parsed.ok) return null;
+  return workspaceAssignmentCeilingRefusal(tx, {
+    inviterUserId: input.resenderUserId,
+    inviterOrgRole: input.resenderOrgRole,
+    assignments: parsed.assignments,
+  });
+}
+
 /**
  * Idempotently grant governance membership. Returns whether a row was
  * created (false = already a member; the existing role is preserved —

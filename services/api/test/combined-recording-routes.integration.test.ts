@@ -27,11 +27,15 @@ describe("combined screen recording routes (live PostgreSQL 16, MinIO)", () => {
   let prisma: (typeof import("../src/db.js"))["prisma"];
   let s3: (typeof import("../src/storage.js"))["s3"];
   const BUCKET = `combined-${randomUUID().slice(0, 8)}`;
+  let billing: typeof import("../src/services/billing-enforcement.service.js");
+  let workspaceUsage: typeof import("../src/services/workspace-usage.service.js");
 
   beforeAll(async () => {
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
+    billing = await import("../src/services/billing-enforcement.service.js");
+    workspaceUsage = await import("../src/services/workspace-usage.service.js");
     ({ s3 } = await import("../src/storage.js"));
     await s3.send(new CreateBucketCommand({ Bucket: BUCKET }));
     await s3.send(new PutBucketVersioningCommand({ Bucket: BUCKET, VersioningConfiguration: { Status: "Enabled" } }));
@@ -158,6 +162,41 @@ describe("combined screen recording routes (live PostgreSQL 16, MinIO)", () => {
     expect(res.json().error.code).toBe("combined_recording_not_applicable");
     const s = await get(`/v1/evidence/${evidenceId}/combined-recording?teamId=${A.teamId}`, A.ownerToken);
     expect(s.json().state).toBe("NOT_APPLICABLE");
+  });
+
+  it("PRO-W1C-03 — a new generation that does not fit the workspace's storage is refused 409 STORAGE_LIMIT_REACHED and no run is created", async () => {
+    const A = h.fixtures.teamA;
+    const { evidenceId } = await segmentedRecord();
+    const scope = await billing.resolveEnforcementScopeForRequester({ ownerUserId: A.ownerUserId, teamId: A.teamId });
+    const usage = await workspaceUsage.getWorkspaceUsage(scope);
+    // Leave one byte of headroom: the recording's parts (tens of bytes) do not fit.
+    const padding = usage.storageBytesLimit - usage.storageBytesUsed - 1n;
+    expect(padding).toBeGreaterThan(0n);
+    const team = await prisma.team.findUniqueOrThrow({ where: { id: A.teamId }, select: { organizationId: true } });
+    const pad = await prisma.evidence.create({
+      data: {
+        title: `pad ${randomUUID().slice(0, 6)}`,
+        type: "PHOTO",
+        status: "SIGNED",
+        teamId: A.teamId,
+        organizationId: team.organizationId,
+        ownerUserId: A.ownerUserId,
+        sizeBytes: padding,
+      } as never,
+      select: { id: true },
+    });
+    try {
+      const res = await post(`/v1/evidence/${evidenceId}/combined-recording/prepare`, A.ownerToken, { teamId: A.teamId });
+      expect(res.statusCode, res.body).toBe(409);
+      expect(res.json()).toEqual({ error: { code: "STORAGE_LIMIT_REACHED" } });
+      expect(await prisma.mediaIntelligenceRun.count({ where: { evidenceId, kind: "combine_screen_recording" } })).toBe(0);
+    } finally {
+      await prisma.evidence.delete({ where: { id: pad.id } });
+    }
+    // With the headroom back, the same Prepare is admitted.
+    const ok = await post(`/v1/evidence/${evidenceId}/combined-recording/prepare`, A.ownerToken, { teamId: A.teamId });
+    expect([202, 503], ok.body).toContain(ok.statusCode);
+    expect(await prisma.mediaIntelligenceRun.count({ where: { evidenceId, kind: "combine_screen_recording" } })).toBe(1);
   });
 
   describe("a COMPLETED combined recording", () => {

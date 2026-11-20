@@ -1448,13 +1448,23 @@ async function verifyStepUpTotp(
   input: { userId: string; factorId: string; code: string },
   client: PrismaClient,
 ): Promise<boolean> {
-  const factor = await client.mfaFactor.findFirst({
+  /*
+   * Matrix review M054 (DEC-19, PRO-A1-11) — EVERY verified authenticator of
+   * the account answers, as at sign-in and on the account step-up
+   * (`verifyActiveTotp`). The challenge stays bound to the factor it was
+   * started with (that binding and its generation are checked by the caller);
+   * that factor is tried first, then the account's other ACTIVE, verified,
+   * unrevoked authenticator apps. A code that matches none is refused. The
+   * step is claimed on the factor whose secret matched, so a code is still
+   * accepted once.
+   */
+  const factors = await client.mfaFactor.findMany({
     where: {
-      id: input.factorId,
       userId: input.userId,
       kind: "TOTP",
       status: "ACTIVE",
       revokedAt: null,
+      verifiedAtUtc: { not: null },
     },
     select: {
       id: true,
@@ -1465,15 +1475,22 @@ async function verifyStepUpTotp(
       digits: true,
       periodSeconds: true,
     },
+    orderBy: { verifiedAtUtc: "desc" },
   });
-  if (!factor) return false;
-  const secret = openSecret(requireTotpSecret(factor));
-  const step = matchTotpStep(secret, input.code, {
-    digits: factor.digits,
-    period: factor.periodSeconds,
-  });
-  if (step === null) return false;
-  return claimTotpStep(client, factor.id, step, factor.periodSeconds);
+  const ordered = [
+    ...factors.filter((f) => f.id === input.factorId),
+    ...factors.filter((f) => f.id !== input.factorId),
+  ];
+  for (const factor of ordered) {
+    const secret = openSecret(requireTotpSecret(factor));
+    const step = matchTotpStep(secret, input.code, {
+      digits: factor.digits,
+      period: factor.periodSeconds,
+    });
+    if (step === null) continue;
+    return claimTotpStep(client, factor.id, step, factor.periodSeconds);
+  }
+  return false;
 }
 
 /**

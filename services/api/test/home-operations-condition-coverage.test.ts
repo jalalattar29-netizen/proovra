@@ -362,15 +362,27 @@ describe("the reported reproduction", () => {
     expect(keys(vm)).toEqual([]);
   });
 
+  const WITH_REAL_CONDITION = [
+    ...REPRO,
+    {
+      sourceId: "integration.webhook_destination_disabled",
+      conditionCount: 1,
+      statusPosture: "OPEN",
+    },
+  ];
+  // NEW-RG-14-1 (DEC-11) — a row links to its page only when the navigation's
+  // surface decision lets the viewer open it. /operations/automation is an
+  // ENTERPRISE surface, so the viewer here is an Enterprise workspace member.
+  const ENTERPRISE_VIEWER = {
+    surfaceAccess: {
+      isPlatformAdmin: false,
+      isEnterpriseWorkspace: true,
+      planFeatures: { intakeIncluded: true, professionalSurfacesIncluded: true, reviewerOperationsIncluded: true },
+    },
+  };
+
   it("a real condition beside them keeps its row, in product language", () => {
-    const vm = withGroups([
-      ...REPRO,
-      {
-        sourceId: "integration.webhook_destination_disabled",
-        conditionCount: 1,
-        statusPosture: "OPEN",
-      },
-    ]);
+    const vm = withGroups(WITH_REAL_CONDITION, ENTERPRISE_VIEWER);
     expect(keys(vm)).toEqual(["ops:integration.webhook_destination_disabled"]);
     const row = vm.workspacePriorities.find(
       (p: { key: string }) => p.key === "ops:integration.webhook_destination_disabled",
@@ -380,6 +392,16 @@ describe("the reported reproduction", () => {
     expect(row.label).toBe(conditionSourceLabel("en", "integration.webhook_destination_disabled"));
     expect(row.operations).toMatchObject({ kind: "SOURCE", sourceId: "integration.webhook_destination_disabled" });
     expect(row.href).toBe("/operations/automation");
+  });
+
+  it("NEW-RG-14-1 — for a viewer who cannot open the automation page the same row stays, linking to /operations", () => {
+    const vm = withGroups(WITH_REAL_CONDITION);
+    expect(keys(vm)).toEqual(["ops:integration.webhook_destination_disabled"]);
+    const row = vm.workspacePriorities.find(
+      (p: { key: string }) => p.key === "ops:integration.webhook_destination_disabled",
+    ) as { label: string; href: string };
+    expect(row.label).toBe(conditionSourceLabel("en", "integration.webhook_destination_disabled"));
+    expect(row.href).toBe("/operations");
   });
 });
 

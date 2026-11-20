@@ -302,4 +302,29 @@ describe("PRO-R3-04 redaction page preview (live PostgreSQL 16)", () => {
     expect(refused.statusCode).toBe(409);
     expect(await rows(image.projectId)).toHaveLength(0);
   }, 180_000);
+
+  // NEW-RG-29-1 (DEC-04 / DEC-16) — preview bytes are metered derived storage,
+  // so a new render is new growth: a workspace with no room left is refused
+  // with the canonical storage refusal BEFORE any row or job exists; with room
+  // it is queued as before. Last in the file: it moves the workspace's usage.
+  it("a workspace with no storage room left cannot queue a new page render; with room it can (NEW-RG-29-1)", async () => {
+    const p = await project(A());
+    const ballastBytes = 10n ** 15n; // 1 PB: past any plan allowance
+    await prisma.evidence.update({ where: { id: p.evidenceId }, data: { sizeBytes: ballastBytes } as never });
+    try {
+      const refused = await read(A().ownerToken, A().teamId, p.projectId, 0);
+      expect(refused.statusCode, refused.body).toBe(409);
+      expect(refused.json()).toMatchObject({ denial: "STORAGE_LIMIT_REACHED" });
+      expect(refused.body).not.toContain("previews");
+      // No side effect: no preview row, so nothing was (or can be) queued.
+      expect(await rows(p.projectId)).toHaveLength(0);
+    } finally {
+      await prisma.evidence.update({ where: { id: p.evidenceId }, data: { sizeBytes: BigInt(PDF.length) } as never });
+    }
+
+    const allowed = await read(A().ownerToken, A().teamId, p.projectId, 0);
+    expect(allowed.statusCode, allowed.body).toBe(200);
+    expect(allowed.json()).toEqual({ state: "PENDING" });
+    expect((await rows(p.projectId))[0]).toMatchObject({ pageIndex: 0, state: "QUEUED" });
+  }, 180_000);
 });

@@ -821,5 +821,51 @@ describe("auth-identity remediation — linking, provenance, reset, extension co
       expect(afterReset.statusCode).toBe(400);
       expect(body(afterReset).error).toBe("invalid_grant");
     });
+
+    it("matrix review NEW-RG10-1 (DEC-29): ending the authorizing web session from another device (my-sessions/:id/revoke) ends the extension session it authorized; the revoking device and an unrelated extension session survive", async () => {
+      const PW = "ExtensionRevokePass123";
+      const u = await emailUser("ext-revoke", PW);
+      const parent = await login(u.email, PW);
+      const ext = await exchange(await authorize(parent.token!));
+      expect(ext.statusCode, ext.body).toBe(200);
+      const extToken = body(ext).access_token as string;
+      // An unrelated extension session, authorized by a different web session.
+      const sibling = await login(u.email, PW);
+      const siblingExt = await exchange(await authorize(sibling.token!));
+      expect(siblingExt.statusCode, siblingExt.body).toBe(200);
+      const siblingExtToken = body(siblingExt).access_token as string;
+      const device = await login(u.email, PW);
+      expect((await call("GET", "/v1/platform/context", extToken)).statusCode).toBe(200);
+
+      // The parent's inventory row: the session list marks the caller's own.
+      const mine = await call("GET", "/v1/identity-security/my-sessions", parent.token!);
+      expect(mine.statusCode, mine.body).toBe(200);
+      const parentId = (body(mine).sessions as Array<{ id: string; isCurrent: boolean }>).find((s) => s.isCurrent)!.id;
+      const parentRow = await prisma.authenticatedSession.findUniqueOrThrow({
+        where: { id: parentId },
+        select: { id: true, sessionIdHash: true },
+      });
+      const child = await prisma.authenticatedSession.findFirstOrThrow({
+        where: { userId: u.id, parentSessionIdHash: parentRow.sessionIdHash },
+        select: { sessionIdHash: true },
+      });
+      const r = await call("POST", `/v1/identity-security/my-sessions/${parentRow.id}/revoke`, device.token!, {
+        stepUp: { method: "password", currentPassword: PW },
+      });
+      expect(r.statusCode, r.body).toBe(200);
+
+      expect((await call("GET", "/v1/auth/me", parent.token!)).statusCode).toBe(401);
+      expect((await call("GET", "/v1/platform/context", extToken)).statusCode).toBe(401);
+      const childAfter = await prisma.authenticatedSession.findFirstOrThrow({
+        where: { userId: u.id, sessionIdHash: child.sessionIdHash },
+        select: { revokedAtUtc: true, revokedReason: true },
+      });
+      expect(childAfter.revokedAtUtc).toBeInstanceOf(Date);
+      expect(childAfter.revokedReason).toBe("PARENT_SESSION_ENDED");
+      // Unrelated sessions are untouched.
+      expect((await call("GET", "/v1/auth/me", device.token!)).statusCode).toBe(200);
+      expect((await call("GET", "/v1/auth/me", sibling.token!)).statusCode).toBe(200);
+      expect((await call("GET", "/v1/platform/context", siblingExtToken)).statusCode).toBe(200);
+    });
   });
 });

@@ -27,6 +27,7 @@ describe("Archive Collaboration Team — Section G (live PostgreSQL)", () => {
   let ct: typeof import("../src/services/collaboration-team/collaboration-team.service.js");
   let stepUp: ReturnType<typeof createStepUpCeremony>;
   let legalVersions: Record<string, string>;
+  let signJwt: typeof import("../src/services/jwt.js").signJwt;
   const A = () => h.fixtures.teamA;
   const B = () => h.fixtures.teamB;
 
@@ -36,6 +37,7 @@ describe("Archive Collaboration Team — Section G (live PostgreSQL)", () => {
     prisma = (await import("../src/db.js")).prisma as unknown as Prisma;
     ct = await import("../src/services/collaboration-team/collaboration-team.service.js");
     legalVersions = (await import("../src/legal/legal-versioning.js")).REQUIRED_LEGAL_VERSIONS as Record<string, string>;
+    ({ signJwt } = await import("../src/services/jwt.js"));
     stepUp = createStepUpCeremony({
       prisma,
       inject: (o) => h.app.inject({ method: o.method, url: o.url, headers: o.headers, payload: o.payload as never }) as never,
@@ -472,6 +474,66 @@ describe("Archive Collaboration Team — Section G (live PostgreSQL)", () => {
     } finally {
       await plan(A().teamId, "TEAM");
     }
+  });
+
+  it("PRO-K2-11: restore — the workspace OWNER of record restores a group they do not belong to; a group MEMBER and a non-member ADMIN are refused", async () => {
+    // Free every active slot so capacity never decides this case.
+    await prisma.collaborationTeam.updateMany({
+      where: { workspaceId: A().teamId, status: "ACTIVE" },
+      data: { status: "ARCHIVED", archivedAtUtc: new Date() },
+    });
+    const workspace = await prisma.team.findUniqueOrThrow({ where: { id: A().teamId }, select: { ownerUserId: true } });
+    expect(workspace.ownerUserId).toBe(owner());
+    // A group a member created and leads; the workspace owner is not in it.
+    const lead = await person("MEMBER");
+    const plainMember = await person("MEMBER");
+    const g = await prisma.collaborationTeam.create({
+      data: {
+        workspaceId: A().teamId,
+        name: `G k2-11 ${tag()}`,
+        createdByUserId: lead,
+        status: "ARCHIVED",
+        archivedAtUtc: new Date(),
+        archivedByUserId: lead,
+      },
+      select: { id: true },
+    });
+    await prisma.collaborationTeamMember.createMany({
+      data: [
+        { teamId: g.id, userId: lead, role: "LEAD", status: "ACTIVE" },
+        { teamId: g.id, userId: plainMember, role: "MEMBER", status: "ACTIVE" },
+      ],
+    });
+    expect(await prisma.collaborationTeamMember.count({ where: { teamId: g.id, userId: owner() } })).toBe(0);
+    const tokenFor = async (userId: string) => {
+      const { email } = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
+      return signJwt(
+        { sub: userId, provider: "EMAIL", email, authMethod: "PASSWORD", authAt: Math.floor(Date.now() / 1000) } as never,
+        process.env.AUTH_JWT_SECRET as string,
+        3600,
+      );
+    };
+    const restore = (token: string) =>
+      h.app.inject({
+        method: "POST",
+        url: `/v1/collaboration-teams/${g.id}/unarchive`,
+        headers: { ...bearer(token), [WS]: A().teamId },
+        payload: {},
+      });
+
+    for (const token of [await tokenFor(plainMember), A().adminToken]) {
+      const refused = await restore(token);
+      expect(refused.statusCode, refused.body).toBe(404);
+      expect(await status(g.id)).toBe("ARCHIVED");
+    }
+    expect(await prisma.collaborationTeamActivity.count({ where: { teamId: g.id, eventType: "TEAM_REOPENED" } })).toBe(0);
+
+    const restored = await restore(A().ownerToken);
+    expect(restored.statusCode, restored.body).toBe(200);
+    expect(restored.json()).toMatchObject({ ok: true, alreadyActive: false });
+    expect(await status(g.id)).toBe("ACTIVE");
+    // The override confers no group role.
+    expect(await prisma.collaborationTeamMember.count({ where: { teamId: g.id, userId: owner() } })).toBe(0);
   });
 
   it("17. restore re-checks the workspace lifecycle: a closed workspace restores nothing", async () => {

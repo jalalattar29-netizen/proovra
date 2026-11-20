@@ -44,6 +44,7 @@ import { formatBytesHuman } from "@proovra/shared-billing";
 
 import { prisma } from "../../db.js";
 import { DomainError } from "../../errors.js";
+import { getEmailAppBaseUrl } from "../email.service.js";
 import { StripeHttpError, stripeGet, stripeRequest } from "../stripe.service.js";
 import {
   PayPalHttpError,
@@ -1071,13 +1072,8 @@ async function recordPendingPlan(input: {
 }
 
 function billingPayPalReturnUrl(query: string): string {
-  const base = (
-    process.env.APP_BASE_URL?.trim() ||
-    process.env.WEB_BASE_URL?.trim() ||
-    process.env.NEXT_PUBLIC_WEB_BASE?.trim() ||
-    "https://app.proovra.com"
-  ).replace(/\/+$/, "");
-  return `${base}/billing?${query}`;
+  // NEW-RG-24-1 (RG-24) — the one app-host base authority, never an inline chain.
+  return `${getEmailAppBaseUrl()}/billing?${query}`;
 }
 
 /**

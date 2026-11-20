@@ -50,6 +50,7 @@ import { requireAuth } from "../middleware/auth.js";
 import {
   evaluateAuthorizedWorkspace,
   evaluateCurrentWorkspace,
+  sendDenyResponse,
 } from "../middleware/authorize.js";
 import { workspaceIncludesReviewCapability } from "../services/billing-enforcement.service.js";
 import { reviewCapabilityRefusalBody } from "../services/billing/review-capability-refusal.js";
@@ -156,6 +157,14 @@ async function resolveTeam(
         antiEnumeration: false,
       });
   if (!resolved.allowed) {
+    // NEW-RG-22-4 (RG-22 / DEC-20) — an evaluator outage (503) or an
+    // unauthenticated context (401) is not a denial: answer it the way the
+    // canonical authority does, so clients retry instead of reading
+    // "no workspace here".
+    if (resolved.httpStatus === 503 || resolved.httpStatus === 401) {
+      sendDenyResponse(reply, resolved);
+      return null;
+    }
     // Bounded envelope preserved verbatim: a caller who cannot enter the
     // workspace learns only that there is no workspace for them here.
     reply

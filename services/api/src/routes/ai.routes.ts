@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { AI_CHAT_LIMITS, type AiChatAbuseReason } from "@proovra/shared";
-import { evaluateCurrentWorkspace } from "../middleware/authorize.js";
+import { evaluateCurrentWorkspace, sendDenyResponse } from "../middleware/authorize.js";
 import { requireAuth } from "../middleware/auth.js";
 import { trustedClientIpKey } from "../middleware/client-ip.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
@@ -299,11 +299,21 @@ async function withAiTimeout<T>(
  * workspace's allowance. An unusable pointer falls back to the personal
  * account, which is the pre-existing behaviour and the conservative one.
  */
-async function resolveAiCommercialScope(req: FastifyRequest, userId: string) {
+async function resolveAiCommercialScope(req: FastifyRequest, reply: FastifyReply, userId: string) {
   // The pointer is only a CANDIDATE: the canonical evaluator revalidates it in
   // full (active membership, unexpired access, workspace kind, organization
   // lifecycle). Every workspace role holds evidence.read. (D61)
   const current = await evaluateCurrentWorkspace(req, { permission: "evidence.read" });
+  // NEW-RG-22-6 (RG-22 / DEC-20) — an UNKNOWN security context is not "no
+  // usable workspace". When the evaluator could not answer (503), or the
+  // context is unauthenticated (401), the request fails closed with the
+  // canonical retryable answer; it never falls back to the caller's PERSONAL
+  // scope, policy and ledger (which would skip the workspace AI policy and
+  // charge the wrong account). Answers null when that response was sent.
+  if (!current.allowed && (current.httpStatus === 503 || current.httpStatus === 401)) {
+    sendDenyResponse(reply, current);
+    return null;
+  }
   if (current.allowed) {
     const scope = withCommercialLifecycle(
       await resolveCommercialContext({
@@ -389,9 +399,11 @@ export async function aiRoutes(app: FastifyInstance) {
   app.get(
     "/v1/ai/availability",
     { preHandler: [requireAuthAndLegal] },
-    async (req) => {
+    async (req, reply) => {
       const userId = getAuthUserId(req);
-      const { policyTeamId, userRole } = await resolveAiCommercialScope(req, userId);
+      const resolved = await resolveAiCommercialScope(req, reply, userId);
+      if (!resolved) return reply;
+      const { policyTeamId, userRole } = resolved;
       // PRO-AI1Z-04 / POL-AI1-05 — the plan and the allowance are inputs, so a
       // plan without AI reads PLAN_NOT_ENTITLED and a spent allowance is not
       // reported as available.
@@ -510,7 +522,9 @@ export async function aiRoutes(app: FastifyInstance) {
       // Pricing-hardening: plan-aware monthly AI cap. Throws
       // AI_MONTHLY_LIMIT_REACHED (429) when over cap. ENTERPRISE skips.
       // §9.7 — explicit PERSONAL_ACCOUNT subject via the canonical envelope.
-      const { scope: aiScope, policyTeamId, userRole } = await resolveAiCommercialScope(req, userId);
+      const resolvedScope = await resolveAiCommercialScope(req, reply, userId);
+      if (!resolvedScope) return reply;
+      const { scope: aiScope, policyTeamId, userRole } = resolvedScope;
       // B6-F-28 (Free-user audit 0ea0) — the plan-cap check is no longer made
       // here, ahead of the preflight: a spent allowance refused the product
       // answers the assistant gives from built-in documentation at no cost.
@@ -757,7 +771,9 @@ export async function aiRoutes(app: FastifyInstance) {
 
       // Pricing-hardening: plan-aware monthly AI cap.
       // §9.7 — explicit PERSONAL_ACCOUNT subject via the canonical envelope.
-      const { scope: aiScope, policyTeamId, userRole } = await resolveAiCommercialScope(req, userId);
+      const resolvedScope = await resolveAiCommercialScope(req, reply, userId);
+      if (!resolvedScope) return reply;
+      const { scope: aiScope, policyTeamId, userRole } = resolvedScope;
       try {
         await assertWorkspaceAllowsAiOperation(aiScope);
       } catch (err) {

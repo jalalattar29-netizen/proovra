@@ -618,10 +618,22 @@ describe("evidence-request authenticated projection (A2-07)", () => {
     expect(p.recipientContactRevealAuthorized).toBe(false);
   });
 
-  it("REVEALED (a holder of the reveal authority) carries the raw values beside the mask", () => {
+  // NEW-RG-19-1 / DEC-14 — this case used to expect the raw values for a
+  // holder, with no audit record. The request projection now follows the
+  // intake-link rule (projectRecipientContactMasked): masked for everyone; the
+  // holder is told they may reveal, and the raw values leave only through the
+  // audited reveal route.
+  it("REVEALED (a holder of the reveal authority) carries the mask and the reveal flag, never the raw values (NEW-RG-19-1)", () => {
     const p = projectRequestForAuthenticatedView(row, "REVEALED");
-    expect(p.recipientEmail).toBe(CANARY_EMAIL);
-    expect(p.recipientPhone).toBe(CANARY_PHONE);
+    const body = JSON.stringify(p);
+    expect(body).not.toContain(CANARY_EMAIL);
+    expect(body).not.toContain("999900011122");
+    expect(p.recipientEmail).toBeNull();
+    expect(p.recipientPhone).toBeNull();
+    expect(p.recipientEmailMasked).toBe(maskEmail(CANARY_EMAIL));
+    expect(p.recipientPhoneMasked).toBe(maskPhonePreview(CANARY_PHONE));
+    expect(p.hasRecipientEmail).toBe(true);
+    expect(p.hasRecipientPhone).toBe(true);
     expect(p.recipientContactRevealAuthorized).toBe(true);
   });
 });

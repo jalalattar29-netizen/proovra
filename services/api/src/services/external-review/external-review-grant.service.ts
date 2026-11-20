@@ -185,10 +185,29 @@ function projectRow(raw: RawGrantRow): ExternalReviewGrantRow {
  */
 function projectEffectiveRow(raw: RawGrantRow): ExternalReviewGrantRow {
   const row = projectRow(raw);
-  if ((row.state === "INVITED" || row.state === "ACTIVE") && raw.expires_at_utc.getTime() <= Date.now()) {
-    return { ...row, state: "EXPIRED" };
+  const state = effectiveExternalReviewGrantState(row.state, raw.expires_at_utc);
+  return state === row.state ? row : { ...row, state: state as ExternalReviewGrantRow["state"] };
+}
+
+/**
+ * The read-time expiry rule as one pure function: a stored INVITED/ACTIVE
+ * grant whose expiry has passed reads EXPIRED (no writer stores EXPIRED).
+ * Every read projection outside this module (the organization export,
+ * NEW-RG-27-1) uses it instead of re-deriving the comparison.
+ */
+export function effectiveExternalReviewGrantState<S extends string>(
+  storedState: S,
+  expiresAtUtc: Date | null,
+  now: Date = new Date(),
+): S | "EXPIRED" {
+  if (
+    (storedState === "INVITED" || storedState === "ACTIVE") &&
+    expiresAtUtc !== null &&
+    expiresAtUtc.getTime() <= now.getTime()
+  ) {
+    return "EXPIRED";
   }
-  return row;
+  return storedState;
 }
 
 // =============================================================================

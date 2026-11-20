@@ -23,6 +23,7 @@ import { WebhookVerifierUnavailableError } from "./security/webhook-signature-au
 // return/cancel URL (buildReturnUrl below); the PayPal API-call endpoints
 // (apiBase/must) are untouched.
 import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
+import { getEmailAppBaseUrl } from "./email.service.js";
 
 type PayPalToken = {
   access_token: string;
@@ -117,19 +118,9 @@ export function describePayPalApprovalLink(
   }
 }
 
-function cleanUrl(value: string | undefined): string | null {
-  const v = value?.trim();
-  return v ? v.replace(/\/+$/, "") : null;
-}
-
+// NEW-RG-24-1 (RG-24) — the one app-host base authority, never an inline chain.
 function getWebBaseUrl() {
-  return (
-    cleanUrl(process.env.APP_BASE_URL) ??
-    cleanUrl(process.env.WEB_BASE_URL) ??
-    cleanUrl(process.env.NEXT_PUBLIC_APP_BASE) ??
-    cleanUrl(process.env.NEXT_PUBLIC_WEB_BASE) ??
-    "https://app.proovra.com"
-  );
+  return getEmailAppBaseUrl();
 }
 
 function buildReturnUrl(path: string) {

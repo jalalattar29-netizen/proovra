@@ -13,9 +13,23 @@
  */
 import { randomUUID } from "node:crypto";
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+
+// PRO-G2-10 — the entitlement engine passes through untouched unless a case
+// asks it to fail, to prove the gates fail closed.
+const engine = vi.hoisted(() => ({ fail: false }));
+vi.mock("../src/services/packaging/entitlement.service.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/services/packaging/entitlement.service.js")>();
+  return {
+    ...actual,
+    assertFeatureEntitlement: async (...args: Parameters<typeof actual.assertFeatureEntitlement>) => {
+      if (engine.fail) throw new Error("entitlement engine unavailable (test)");
+      return actual.assertFeatureEntitlement(...args);
+    },
+  };
+});
 
 describe("PRO-071 governance tenant attributes (live PostgreSQL)", () => {
   let h: IntegrationHarness;
@@ -121,5 +135,72 @@ describe("PRO-071 governance tenant attributes (live PostgreSQL)", () => {
       select: { teamId: true, invitingOrganizationId: true },
     });
     expect(row).toEqual({ teamId: teamA.teamId, invitingOrganizationId: orgA });
+  });
+
+  it("PRO-G2-10 — department and cross-org review creation refuse an unentitled workspace (403) and fail CLOSED when the entitlement engine throws; an entitled workspace creates", async () => {
+    const { teamA, teamB } = h.fixtures;
+    const post = (who: { ownerToken: string; teamId: string }, url: string, payload: unknown) =>
+      h.app.inject({
+        method: "POST",
+        url,
+        headers: {
+          authorization: `Bearer ${who.ownerToken}`,
+          "content-type": "application/json",
+          "x-proovra-workspace-id": who.teamId,
+        },
+        payload: payload as never,
+      });
+    const department = () => ({ name: "Investigations", slug: `inv-${randomUUID().slice(0, 8)}` });
+    const crossOrg = (orgId: string, evidenceId: string) => ({
+      invitingOrganizationId: orgId,
+      invitedOrgSlug: `outside-${randomUUID().slice(0, 6)}`,
+      scope: "Review of one record",
+      subject: { kind: "EVIDENCE", id: evidenceId },
+    });
+    const counts = async (teamId: string) => ({
+      departments: await prisma.department.count({ where: { teamId } }),
+      grants: await prisma.crossOrgReviewGrant.count({ where: { teamId } }),
+    });
+
+    // Unentitled: refused with the entitlement body, nothing written.
+    const bBefore = await counts(teamB.teamId);
+    const bDept = await post(teamB, "/v1/governance/departments", department());
+    expect(bDept.statusCode, bDept.body).toBe(403);
+    expect(bDept.json()).toEqual({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_DEPARTMENT_ISOLATION" });
+    const bCross = await post(teamB, "/v1/governance/cross-org-review", crossOrg(orgB, teamB.evidenceId));
+    expect(bCross.statusCode, bCross.body).toBe(403);
+    expect(bCross.json()).toEqual({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_CROSS_ORG_REVIEW" });
+    expect(await counts(teamB.teamId)).toEqual(bBefore);
+
+    const { upsertEntitlementGrant } = await import("../src/services/packaging/entitlement.service.js");
+    for (const key of ["FEATURE_DEPARTMENT_ISOLATION", "FEATURE_CROSS_ORG_REVIEW", "FEATURE_GOVERNANCE_PLATFORM"] as const) {
+      await upsertEntitlementGrant({
+        teamId: teamA.teamId,
+        key,
+        value: true,
+        kind: "FEATURE",
+        source: "CUSTOM",
+        grantedByUserId: teamA.ownerUserId,
+      });
+    }
+
+    // The engine throws: an error answer, never an admission.
+    const aBefore = await counts(teamA.teamId);
+    engine.fail = true;
+    try {
+      const failedDept = await post(teamA, "/v1/governance/departments", department());
+      expect(failedDept.statusCode, failedDept.body).toBe(500);
+      const failedCross = await post(teamA, "/v1/governance/cross-org-review", crossOrg(orgA, teamA.evidenceId));
+      expect(failedCross.statusCode, failedCross.body).toBe(500);
+    } finally {
+      engine.fail = false;
+    }
+    expect(await counts(teamA.teamId)).toEqual(aBefore);
+
+    // Entitled and answering: both create.
+    const okDept = await post(teamA, "/v1/governance/departments", department());
+    expect(okDept.statusCode, okDept.body).toBe(201);
+    const okCross = await post(teamA, "/v1/governance/cross-org-review", crossOrg(orgA, teamA.evidenceId));
+    expect(okCross.statusCode, okCross.body).toBe(201);
   });
 });

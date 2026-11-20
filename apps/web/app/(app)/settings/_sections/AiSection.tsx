@@ -756,6 +756,8 @@ function OrgAiView({
           <AiStatusRow
             status={envelopeState.assistance.status}
             enabled={envelopeState.assistance.enabled}
+            reason={envelopeState.assistance.reason ?? null}
+            allowanceResetsAtUtc={envelopeState.assistance.allowanceResetsAtUtc ?? null}
             workspaceKind="ORGANIZATION"
             canManage={canEdit}
           />

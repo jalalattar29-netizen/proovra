@@ -61,7 +61,11 @@ import {
 import type { OrgRole } from "../services/organization/organization-resolver.service.js";
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
 // PRO-TZ-02 — the one invitation workspace-assignment role ceiling.
-import { workspaceAssignmentCeilingRefusal } from "../services/identity/membership-provisioning.service.js";
+import {
+  storedInvitationCeilingRefusal,
+  workspaceAssignmentCeilingRefusal,
+  workspaceAssignmentCeilingReply,
+} from "../services/identity/membership-provisioning.service.js";
 import { verifyAccountStepUp } from "../services/identity-security/account-step-up.service.js";
 // Macro-Wave A2 — durable invite delivery: outbox row committed in the
 // SAME per-row transaction as the invite, inline first email attempt
@@ -1065,18 +1069,26 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
     }
 
     const now = new Date();
-    const results: Array<{ inviteId: string; outcome: "RESENT" | "NOT_PENDING" | "NOT_FOUND" | "FAILED"; reason: string | null; delivery?: OrgInviteDeliveryState | null }> = [];
+    const results: Array<{ inviteId: string; outcome: "RESENT" | "NOT_PENDING" | "NOT_FOUND" | "FAILED"; reason: string | null; code?: string; delivery?: OrgInviteDeliveryState | null }> = [];
     for (const inviteId of inviteIds) {
       try {
         const outcome = await prisma.$transaction(async (tx) => {
           const invite = await tx.organizationInvite.findFirst({
             where: { id: inviteId, organizationId: ctx.orgId },
-            select: { id: true, email: true, role: true, acceptedAt: true, revokedAt: true, expiresAt: true, resendCount: true },
+            select: { id: true, email: true, role: true, acceptedAt: true, revokedAt: true, expiresAt: true, resendCount: true, workspaceAssignments: true },
           });
           if (!invite) return { kind: "not_found" as const };
           if (invite.acceptedAt || invite.revokedAt || invite.expiresAt <= now) {
             return { kind: "not_pending" as const };
           }
+          // NEW-RG-07-4 (DEC-18 / DEC-28) — the single resend's ceiling, per
+          // row, before the cooldown claim: a refused row writes nothing.
+          const ceiling = await storedInvitationCeilingRefusal(tx, {
+            resenderUserId: ctx.userId,
+            resenderOrgRole: ctx.role,
+            storedAssignments: invite.workspaceAssignments,
+          });
+          if (ceiling) return { kind: "ceiling" as const, ceiling };
           // PRO-T2-06 — the per-invitation cooldown, as a conditional claim.
           const claimed = await tx.organizationInvite.updateMany({
             where: {
@@ -1127,6 +1139,14 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
           });
         }
         else if (outcome.kind === "not_found") results.push({ inviteId, outcome: "NOT_FOUND", reason: "Invite not found." });
+        else if (outcome.kind === "ceiling") {
+          results.push({
+            inviteId,
+            outcome: "FAILED",
+            code: outcome.ceiling,
+            reason: workspaceAssignmentCeilingReply(outcome.ceiling).body.message,
+          });
+        }
         else if (outcome.kind === "cooldown") results.push({ inviteId, outcome: "FAILED", reason: "Resent within the last hour; not sent again." });
         else results.push({ inviteId, outcome: "NOT_PENDING", reason: "Invite is accepted, revoked, or expired." });
       } catch {

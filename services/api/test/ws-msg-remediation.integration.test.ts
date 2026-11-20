@@ -377,6 +377,35 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
       }
     });
 
+    it("PRO-I1-12 — with Evidence Requests off, the delivery list and its retry answer 503 FEATURE_DISABLED and send nothing", async () => {
+      const { id } = await sentExternalRequest(`ws-msg-${randomUUID().slice(0, 8)}@example.test`);
+      const failed = await prisma.notificationDelivery.findFirstOrThrow({
+        where: { evidenceRequestId: id, eventType: "EVIDENCE_REQUEST_SENT", status: { not: "SKIPPED" } } as never,
+        select: { id: true },
+      });
+      await prisma.notificationDelivery.update({ where: { id: failed.id }, data: { status: "FAILED" } as never });
+      const before = await prisma.notificationDelivery.findUniqueOrThrow({ where: { id: failed.id } });
+      const saved = process.env.EVIDENCE_REQUESTS_ENABLED;
+      process.env.EVIDENCE_REQUESTS_ENABLED = "false";
+      try {
+        sent.length = 0;
+        const list = await h.app.inject({ method: "GET", url: `/v1/evidence-requests/${id}/deliveries`, headers: owner() });
+        expect(list.statusCode, list.body).toBe(503);
+        expect(list.json()).toMatchObject({ error: { code: "FEATURE_DISABLED", reason: "feature_flag_off" } });
+        const retry = await h.app.inject({ method: "POST", url: `/v1/evidence-requests/${id}/deliveries/${failed.id}/retry`, headers: owner(), payload: {} });
+        expect(retry.statusCode, retry.body).toBe(503);
+        expect(retry.json()).toMatchObject({ error: { code: "FEATURE_DISABLED", reason: "feature_flag_off" } });
+        expect(sent).toHaveLength(0);
+        expect(await prisma.notificationDelivery.findUniqueOrThrow({ where: { id: failed.id } })).toEqual(before);
+      } finally {
+        if (saved === undefined) delete process.env.EVIDENCE_REQUESTS_ENABLED;
+        else process.env.EVIDENCE_REQUESTS_ENABLED = saved;
+      }
+      // With the feature on, the same list answers.
+      const on = await h.app.inject({ method: "GET", url: `/v1/evidence-requests/${id}/deliveries`, headers: owner() });
+      expect(on.statusCode, on.body).toBe(200);
+    });
+
     it("matrix review NEW-RG-24-2: the automatic retry sweeper does not re-mail an invitation of a cancelled request; an open request's retry is sent", async () => {
       const cancelledEmail = `ws-msg-${randomUUID().slice(0, 8)}@example.test`;
       const openEmail = `ws-msg-${randomUUID().slice(0, 8)}@example.test`;
@@ -448,6 +477,45 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
         payload: { teamId: A().teamId, force: true },
       });
       expect([403, 404]).toContain(res.statusCode);
+    });
+
+    it("PRO-N1-14 — on a real delivery: a MEMBER is refused 403, a foreign owner 404, and the row is unchanged; the owner reaches the resend decision", async () => {
+      const row = await prisma.notificationDelivery.create({
+        data: {
+          teamId: A().teamId,
+          eventType: "EVIDENCE_REQUEST_SENT",
+          channel: "EMAIL",
+          provider: "RESEND",
+          recipient: "(missing)",
+          status: "SKIPPED",
+          templateKey: "EVIDENCE_REQUEST_SENT",
+          errorCode: "missing_recipient",
+        } as never,
+        select: { id: true },
+      });
+      const snapshot = () =>
+        prisma.notificationDelivery.findUniqueOrThrow({
+          where: { id: row.id },
+          select: { status: true, retryCount: true, errorCode: true, updatedAt: true },
+        });
+      const before = await snapshot();
+      const resend = (token: string) =>
+        h.app.inject({
+          method: "POST",
+          url: `/v1/notifications/deliveries/${row.id}/resend`,
+          headers: { authorization: `Bearer ${token}` },
+          payload: { teamId: A().teamId, force: true },
+        });
+      const member = await resend(A().memberToken);
+      expect(member.statusCode, member.body).toBe(403);
+      const foreign = await resend(h.fixtures.teamB.ownerToken);
+      expect(foreign.statusCode, foreign.body).toBe(404);
+      expect(await snapshot()).toEqual(before);
+      // The owner holds notification.delivery.resend: the request reaches the
+      // resend decision, which refuses a terminal SKIPPED row on its own terms.
+      const owned = await resend(A().ownerToken);
+      expect(owned.statusCode, owned.body).toBe(409);
+      expect(owned.json()).toEqual({ error: { code: "skipped_terminal" } });
     });
   });
 

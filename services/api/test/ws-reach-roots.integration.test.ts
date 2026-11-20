@@ -18,6 +18,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 import { coverageKit, type CoverageKit, type Person } from "./support/coverage-actors.js";
+import { createStepUpCeremony } from "./support/step-up-ceremony.js";
 import { RowFactory, RowSet, type Tenant } from "./support/write-sweep-engine.js";
 import { enterpriseTenantMaker } from "./support/write-sweep-world.js";
 
@@ -167,6 +168,91 @@ describe("WS-REACH Medium roots (live PostgreSQL)", () => {
       const row = await prisma.operationalIncident.findUniqueOrThrow({ where: { id: incident } });
       expect(row.status).toBe("OPEN");
     });
+
+    it("every workflow transition (assign, start, escalate, resolve, suppress, reopen) answers 404 to an off-list actor and changes nothing; the listed owner can run each", async () => {
+      const wf = await make("OperationalWorkflow", {
+        teamId: tenant.teamId,
+        evidenceId: hiddenEvidence,
+        caseId: null,
+        status: "OPEN",
+      });
+      const snapshot = async () => {
+        const r = (await prisma.operationalWorkflow.findUniqueOrThrow({ where: { id: wf } })) as any;
+        return { status: r.status, assignedOwnerUserId: r.assignedOwnerUserId ?? null, escalationLevel: r.escalationLevel, updatedAt: r.updatedAt };
+      };
+      const probes: Array<[string, Record<string, unknown>]> = [
+        ["assign", { teamId: tenant.teamId, assigneeUserId: off.id }],
+        ["start", { teamId: tenant.teamId }],
+        ["escalate", { teamId: tenant.teamId }],
+        ["resolve", { teamId: tenant.teamId, note: "off-list resolve" }],
+        ["suppress", { teamId: tenant.teamId }],
+      ];
+      const before = await snapshot();
+      for (const [action, body] of probes) {
+        const res = await send("POST", `/v1/ops/workflows/${wf}/${action}`, off, body);
+        expect(res.statusCode, `${action} ${res.body}`).toBe(404);
+        expect(res.json(), action).toEqual({ error: { code: "workflow_not_found" } });
+      }
+      expect(await snapshot()).toEqual(before);
+      await prisma.operationalWorkflow.update({ where: { id: wf }, data: { status: "RESOLVED" } as never });
+      const resolved = await snapshot();
+      const reopen = await send("POST", `/v1/ops/workflows/${wf}/reopen`, off, { teamId: tenant.teamId });
+      expect(reopen.statusCode, reopen.body).toBe(404);
+      expect(reopen.json()).toEqual({ error: { code: "workflow_not_found" } });
+      expect(await snapshot()).toEqual(resolved);
+
+      // The listed owner reaches the record: each transition is admitted.
+      const steps: Array<[string, Record<string, unknown>, string]> = [
+        ["reopen", { teamId: tenant.teamId }, "OPEN"],
+        ["assign", { teamId: tenant.teamId, assigneeUserId: listed.id }, ""],
+        ["start", { teamId: tenant.teamId }, "IN_PROGRESS"],
+        ["escalate", { teamId: tenant.teamId }, ""],
+        ["suppress", { teamId: tenant.teamId }, "SUPPRESSED"],
+        ["reopen", { teamId: tenant.teamId }, "OPEN"],
+        ["resolve", { teamId: tenant.teamId, note: "listed resolve" }, "RESOLVED"],
+      ];
+      const ceremony = createStepUpCeremony({
+        prisma: prisma as never,
+        inject: (o) => h.app.inject({ method: o.method, url: o.url, headers: o.headers, payload: o.payload as never }) as never,
+      });
+      for (const [action, body, status] of steps) {
+        let res = await send("POST", `/v1/ops/workflows/${wf}/${action}`, listed, body);
+        // Resolve / suppress also ask the listed owner for a step-up (asked
+        // after the reach binding, so the off-list refusals above never got here).
+        if (res.statusCode === 401 && res.json().error?.code === "STEP_UP_REQUIRED") {
+          const d = res.json().error.details as { purpose: string; resourceKind: string; resourceId: string };
+          const header = await ceremony.approvedHeader({
+            token: listed.token,
+            userId: listed.id,
+            teamId: tenant.teamId,
+            purpose: d.purpose,
+            resourceKind: d.resourceKind,
+            resourceId: d.resourceId,
+          });
+          res = await kit.call("POST", `/v1/ops/workflows/${wf}/${action}`, listed, body, { ...headers(), ...header });
+        }
+        expect(res.statusCode, `${action} ${res.body}`).toBe(200);
+        if (status) expect((await snapshot()).status, action).toBe(status);
+      }
+    });
+
+    it("GET /v1/ops/bulk-actions/:id leaves out an item naming a closed record; the listed owner sees it", async () => {
+      const run = await bulk.runBulkAction({
+        teamId: tenant.teamId,
+        actionType: "BULK_ACKNOWLEDGE_INCIDENTS",
+        targetIds: [incident],
+        actorUserId: listed.id,
+        note: "bulk ack listed",
+      });
+      const url = `/v1/ops/bulk-actions/${run.runId}?${q()}`;
+      const theirs = await get(url, off);
+      expect(theirs.statusCode, theirs.body).toBe(200);
+      expect((theirs.json().items as Array<{ targetId: string }>).map((i) => i.targetId)).not.toContain(incident);
+      expect(theirs.body).not.toContain(incident);
+      const mine = await get(url, listed);
+      expect(mine.statusCode, mine.body).toBe(200);
+      expect((mine.json().items as Array<{ targetId: string }>).map((i) => i.targetId)).toContain(incident);
+    });
   });
 
   it("PRO-K2-02 — @team on a restricted-case comment notifies only members who reach the case", async () => {
@@ -222,6 +308,65 @@ describe("WS-REACH Medium roots (live PostgreSQL)", () => {
 
       const ok = await send("POST", `/v1/cases/${own}/access`, tenant.owner, { userId: member.id });
       expect(ok.statusCode, ok.body).toBe(201);
+    });
+
+    // MATRIX-REVIEW 6.1 — the same narrowing refusal on the sibling grant routes.
+    const caseHoldingColleaguesRecord = async () => {
+      const own = await teamCase(member.id);
+      const colleagues = await record(tenant.owner.id);
+      await prisma.caseEvidenceLink.create({ data: { caseId: own, evidenceId: colleagues, teamId: tenant.teamId } as never });
+      return own;
+    };
+    const collaborationTeam = async () =>
+      (
+        await prisma.collaborationTeam.create({
+          data: { workspaceId: tenant.teamId, name: `k1-02-${tag()}`, createdByUserId: tenant.owner.id } as never,
+          select: { id: true },
+        })
+      ).id;
+
+    it("share-team: a MEMBER cannot restrict a case holding a colleague's record; a workspace owner can", async () => {
+      const own = await caseHoldingColleaguesRecord();
+      const refused = await send("POST", `/v1/cases/${own}/share-team`, member, { userId: member.id });
+      expect(refused.statusCode, refused.body).toBe(403);
+      expect(refused.json().code).toBe("CASE_RESTRICTED_LINK_MANAGER_REQUIRED");
+      const after = await prisma.case.findUniqueOrThrow({ where: { id: own }, select: { restrictedAtUtc: true } });
+      expect(after.restrictedAtUtc).toBeNull();
+      expect(await prisma.caseAccess.count({ where: { caseId: own } })).toBe(0);
+
+      const ok = await send("POST", `/v1/cases/${own}/share-team`, tenant.owner, { userId: member.id });
+      expect(ok.statusCode, ok.body).toBe(201);
+      expect(await prisma.caseAccess.count({ where: { caseId: own, userId: member.id } })).toBe(1);
+    });
+
+    it("team-access: a MEMBER's Collaboration Team grant that would restrict the case is refused; a workspace owner's is not", async () => {
+      const own = await caseHoldingColleaguesRecord();
+      const group = await collaborationTeam();
+      const refused = await send("POST", `/v1/cases/${own}/team-access`, member, { collaborationTeamId: group });
+      expect(refused.statusCode, refused.body).toBe(403);
+      expect(refused.json().code).toBe("CASE_RESTRICTED_LINK_MANAGER_REQUIRED");
+      const after = await prisma.case.findUniqueOrThrow({ where: { id: own }, select: { restrictedAtUtc: true } });
+      expect(after.restrictedAtUtc).toBeNull();
+      expect(await prisma.caseCollaborationTeamAccess.count({ where: { caseId: own } })).toBe(0);
+
+      const ok = await send("POST", `/v1/cases/${own}/team-access`, tenant.owner, { collaborationTeamId: group });
+      expect(ok.statusCode, ok.body).toBe(201);
+      expect(await prisma.caseCollaborationTeamAccess.count({ where: { caseId: own, collaborationTeamId: group } })).toBe(1);
+    });
+
+    it("team-access DELETE: revoking only widens reach, so the case owner (a MEMBER) is not refused by the narrowing rule", async () => {
+      // The route maps caseUnlinkRefusal (PRO-K1-02), but removing a team grant
+      // can only release the restriction; nothing in its transaction narrows.
+      // This pins that the mapping does not refuse the case owner's revoke.
+      const own = await caseHoldingColleaguesRecord();
+      const group = await collaborationTeam();
+      const granted = await send("POST", `/v1/cases/${own}/team-access`, tenant.owner, { collaborationTeamId: group });
+      expect(granted.statusCode, granted.body).toBe(201);
+      const removed = await send("DELETE", `/v1/cases/${own}/team-access/${group}`, member, undefined);
+      expect(removed.statusCode, removed.body).toBe(204);
+      expect(await prisma.caseCollaborationTeamAccess.count({ where: { caseId: own } })).toBe(0);
+      const after = await prisma.case.findUniqueOrThrow({ where: { id: own }, select: { restrictedAtUtc: true } });
+      expect(after.restrictedAtUtc).toBeNull();
     });
   });
 

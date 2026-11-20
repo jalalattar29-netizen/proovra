@@ -14,7 +14,11 @@ import { randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { executeEvidenceDestruction } from "@proovra/shared-runtime";
+import {
+  EXPORT_PACKAGE_METER_KEY,
+  executeEvidenceDestruction,
+  reserveExportPackageUnit,
+} from "@proovra/shared-runtime";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 import { versionedDestructionPort } from "./helpers/versioned-destruction-port.js";
@@ -123,5 +127,62 @@ describe("PRO-W1C-04 exchange ZIPs are part of a record's destruction (live Post
     expect(objects.has(`${BUCKET}/${ev.storageKey}`), "nothing deleted").toBe(true);
     expect((await prisma.evidence.findUniqueOrThrow({ where: { id: ev.id } })).lifecycleState).not.toBe("DESTROYED");
     expect((await prisma.evidenceExchangePackage.findUniqueOrThrow({ where: { id: pkgId } })).state).toBe("READY");
+  });
+
+  // NEW-RG-33-3 — a package revoked before READY never consumed its reserved
+  // monthly unit; revokePackage gives it back (PRO-BL2-02). Destruction revokes
+  // DRAFT/BUILDING packages too, and must give the unit back the same way, in
+  // its transaction — once.
+  it("revoking a DRAFT/BUILDING package that held a monthly export unit gives the unit back (NEW-RG-33-3)", async () => {
+    const ev = await trashedRecord();
+    const reservedBuilding = await reserveExportPackageUnit({ prisma: prisma as never, teamId: A().teamId, limit: 1000 });
+    const reservedDraft = await reserveExportPackageUnit({ prisma: prisma as never, teamId: A().teamId, limit: 1000 });
+    if (!reservedBuilding.reserved || !reservedDraft.reserved) throw new Error("reservation must succeed");
+    const period = reservedBuilding.periodStartUtc;
+    const consumed = async () =>
+      (
+        await prisma.entitlementUsage.findUniqueOrThrow({
+          where: { teamId_key_periodStartUtc: { teamId: A().teamId, key: EXPORT_PACKAGE_METER_KEY, periodStartUtc: period } },
+          select: { consumed: true },
+        })
+      ).consumed;
+
+    const building = randomUUID();
+    const draft = randomUUID();
+    for (const [id, state] of [[building, "BUILDING"], [draft, "DRAFT"]] as const) {
+      await prisma.evidenceExchangePackage.create({
+        data: {
+          id,
+          teamId: A().teamId,
+          kind: "EVIDENCE",
+          state,
+          evidenceIds: [ev.id] as never,
+          createdByUserId: A().ownerUserId,
+          quotaReservedPeriodStartUtc: period,
+        },
+      });
+    }
+    const before = await consumed();
+
+    const objects = new Set([`${BUCKET}/${ev.storageKey}`]);
+    const port = versionedDestructionPort({
+      exists: (id) => objects.has(id),
+      remove: (id) => void objects.delete(id),
+      ids: () => [...objects],
+    });
+    await seedExecutableReview(prisma as never, ev.id);
+    const res = await executeEvidenceDestruction(
+      prisma as never,
+      { evidenceId: ev.id, trigger: "manual", legalHold: false },
+      port,
+    );
+    expect(res).toMatchObject({ ok: true, outcome: "DESTROYED" });
+
+    for (const id of [building, draft]) {
+      const pkg = await prisma.evidenceExchangePackage.findUniqueOrThrow({ where: { id } });
+      expect(pkg.state).toBe("REVOKED");
+      expect(pkg.quotaReservedPeriodStartUtc, "the reservation is released with the revoke").toBeNull();
+    }
+    expect(await consumed(), "both reserved units are given back, once each").toBe(before - 2n);
   });
 });

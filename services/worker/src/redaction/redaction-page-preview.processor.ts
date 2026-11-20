@@ -36,6 +36,7 @@ import { prisma } from "../db.js";
 import { logger } from "../logger.js";
 import { artifactLockFor } from "../object-retention.js";
 import { getObjectRange, putObjectBuffer } from "../storage.js";
+import { workspaceAllowsDerivedArtifact } from "../workspace-billing.js";
 import { derivedProductionRefusal } from "./redaction-derivative-writer.js";
 import { PDF_RASTER_SCALE, loadPdfRasterCanvas } from "./redaction-derivative.processor.js";
 import {
@@ -185,6 +186,19 @@ export async function processRedactionPagePreviewJob(
     const refusedBeforeStore = await derivedProductionRefusal(preview.evidenceId);
     if (refusedBeforeStore) {
       await fail(refusedBeforeStore);
+      return;
+    }
+    // NEW-RG-33-1 (DEC-04 / DEC-16) — the preview is stored under the record's
+    // Object Lock and counted in workspace usage (derived storage), so it is
+    // admitted by THE derived-artifact storage gate with its exact size, like
+    // every sibling derived writer. Refused: FAILED `storage_limit`, nothing
+    // stored; the API queues it again once the workspace has room.
+    const storageGate = await workspaceAllowsDerivedArtifact({
+      evidenceId: preview.evidenceId,
+      incomingBytes: rendered.png.length,
+    });
+    if (!storageGate.allowed) {
+      await fail(storageGate.reason);
       return;
     }
     const outSha = createHash("sha256").update(rendered.png).digest("hex");

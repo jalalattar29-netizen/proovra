@@ -26,6 +26,10 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { enqueueCanonicalWork } from "../../queue/canonical-queue-client.js";
 import { presignGetObject } from "../../storage.js";
 import { assertFeatureEntitlement } from "../packaging/entitlement.service.js";
+import {
+  assertWorkspaceAllowsStorageGrowth,
+  resolveEnforcementScopeForRequester,
+} from "../billing-enforcement.service.js";
 
 /** How long the presigned preview URL lives. */
 export const REDACTION_PAGE_PREVIEW_URL_TTL_SECONDS = 300;
@@ -35,8 +39,45 @@ export const REDACTION_PAGE_PREVIEW_CACHE_CONTROL = "private, no-store, max-age=
 const REQUEUE_QUEUED_AFTER_MS = 15_000;
 /** A transiently FAILED page is tried again on a read after this long. */
 const RETRY_FAILED_AFTER_MS = 60_000;
-/** Worker failure reasons that a later attempt can cure. */
-const RETRYABLE_FAILURE_REASONS: ReadonlySet<string> = new Set(["renderer_failed", "source_object_empty"]);
+/**
+ * Worker failure reasons that a later attempt can cure. `storage_limit` is the
+ * worker's derived-storage refusal (NEW-RG-33-1): once the workspace has room
+ * again (the gate below admits the retry), the page can be rendered.
+ */
+const RETRYABLE_FAILURE_REASONS: ReadonlySet<string> = new Set(["renderer_failed", "source_object_empty", "storage_limit"]);
+
+/**
+ * NEW-RG-29-1 (DEC-04 / DEC-16) — a stored preview is derived storage the
+ * meter counts (sumDerivedAssetStorageBytes), so rendering one is new growth.
+ * The canonical API storage gate, scoped like the sibling redacted-copy gate
+ * (redaction-derivative.service.ts): refused when the workspace has no byte of
+ * room left. The PNG's size is unknown until rendered; the worker checks the
+ * exact bytes again before it stores them (workspaceAllowsDerivedArtifact).
+ */
+async function previewStorageRefusal(
+  prisma: PrismaClient,
+  teamId: string,
+  evidenceId: string,
+): Promise<Extract<RedactionPagePreviewAnswer, { ok: false }> | null> {
+  const evidence = await prisma.evidence.findFirst({
+    where: { id: evidenceId },
+    select: { ownerUserId: true, teamId: true },
+  });
+  if (!evidence) return null;
+  try {
+    const scope = await resolveEnforcementScopeForRequester({
+      ownerUserId: evidence.ownerUserId,
+      teamId: evidence.teamId ?? teamId,
+    });
+    await assertWorkspaceAllowsStorageGrowth({ scope, incomingBytes: 1n });
+    return null;
+  } catch (err) {
+    if ((err as { code?: unknown } | null)?.code === "STORAGE_LIMIT_REACHED") {
+      return { ok: false, status: 409, body: { denial: "STORAGE_LIMIT_REACHED" } };
+    }
+    throw err;
+  }
+}
 
 export type RedactionPagePreviewAnswer =
   | { ok: true; state: "PENDING" }
@@ -129,6 +170,8 @@ export async function readRedactionPagePreview(input: {
     if (!entitled.ok) {
       return { ok: false, status: 403, body: { denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_REDACTION" } };
     }
+    const storageRefusal = await previewStorageRefusal(prisma, input.teamId, project.evidenceId);
+    if (storageRefusal) return storageRefusal;
     try {
       row = await prisma.redactionPagePreview.create({
         data: {
@@ -158,6 +201,9 @@ export async function readRedactionPagePreview(input: {
     RETRYABLE_FAILURE_REASONS.has(row.failureReason ?? "") &&
     now.getTime() - row.updatedAt.getTime() > RETRY_FAILED_AFTER_MS
   ) {
+    // A retry renders new bytes too: same storage gate as the first ask.
+    const storageRefusal = await previewStorageRefusal(prisma, input.teamId, project.evidenceId);
+    if (storageRefusal) return storageRefusal;
     const reset = await prisma.redactionPagePreview.updateMany({
       where: { id: row.id, state: "FAILED", updatedAt: row.updatedAt },
       data: { state: "QUEUED", renderStartedAt: null, failureReason: null },
