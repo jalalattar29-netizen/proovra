@@ -465,6 +465,35 @@ describe("outbound webhook policy — three stacks (live PostgreSQL)", () => {
       }
     });
 
+    it("NEW-RG-07-2: a replay asks the endpoint creator's standing like emitWebhookEvent — a creator who lost the authority deactivates the endpoint and nothing is re-queued or spent", async () => {
+      const { teamA, teamB } = h.fixtures;
+      const used = async () => {
+        const rows = await prisma.entitlementUsage.findMany({
+          where: { teamId: teamA.teamId, key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY" },
+          select: { consumed: true },
+        });
+        return rows.reduce((n, r) => n + Number(r.consumed), 0);
+      };
+      const row = await seedDelivery(`https://203.0.113.10/replay-creator/${randomUUID()}`, { state: "FAILED" });
+      // The creator holds no membership in teamA any more.
+      await prisma.lifecycleWebhookEndpoint.update({
+        where: { id: row.endpointId },
+        data: { createdByUserId: teamB.ownerUserId },
+      });
+      const before = await used();
+      const refused = await replay(row.deliveryId);
+      expect(refused.statusCode, refused.body).toBe(409);
+      expect(JSON.parse(refused.body)).toEqual({ denial: "ENDPOINT_INACTIVE" });
+      expect(await deliveryState(row.deliveryId)).toBe("FAILED");
+      expect(await used()).toBe(before);
+      const ep = await prisma.lifecycleWebhookEndpoint.findUniqueOrThrow({
+        where: { id: row.endpointId },
+        select: { state: true, deactivatedAtUtc: true },
+      });
+      expect(ep.state).toBe("DEACTIVATED");
+      expect(ep.deactivatedAtUtc).not.toBeNull();
+    });
+
     it("WS-SCHED PRO-G1Z-07: a replay pressed while the delivery is in flight is refused and the receiver gets one POST; a settled one replays once", async () => {
       const row = await seedDelivery(`https://203.0.113.10/inflight/${randomUUID()}`);
       const calls: string[] = [];
@@ -676,6 +705,124 @@ describe("outbound webhook policy — three stacks (live PostgreSQL)", () => {
       const stored = await prisma.integrationWebhookDelivery.findFirstOrThrow({ where: { endpointId: goodEp.endpoint.id } });
       expect(stored.status).toBe("SENT");
       expect(stored.responseBodyPreview).toBeNull();
+    });
+
+    it("PRO-BL2-04: a test send and a manual retry at the daily delivery quota are refused 429 after step-up and send nothing; under the quota each spends one unit", async () => {
+      const { teamA } = h.fixtures;
+      await setEndpointLimit(teamA.teamId, 20);
+      const { upsertEntitlementGrant } = await import("../src/services/packaging/entitlement.service.js");
+      const setQuota = (value: number) =>
+        upsertEntitlementGrant({
+          teamId: teamA.teamId,
+          key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY",
+          value,
+          kind: "QUOTA",
+          source: "CUSTOM",
+          grantedByUserId: teamA.ownerUserId,
+        });
+      const used = async () => {
+        const rows = await prisma.entitlementUsage.findMany({
+          where: { teamId: teamA.teamId, key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY" },
+          select: { consumed: true },
+        });
+        return rows.reduce((n, r) => n + Number(r.consumed), 0);
+      };
+      const { createWebhookEndpoint } = await import("../src/services/integrations/webhooks.service.js");
+      const { __setWebhookHttpClientForTests } = await import("../src/services/integrations/webhook-dispatcher.js");
+      const ep = await createWebhookEndpoint({
+        teamId: teamA.teamId,
+        url: `https://203.0.113.10/quota/${randomUUID()}`,
+        eventTypes: [],
+        actorUserId: teamA.ownerUserId,
+      });
+      const endpointId = ep.endpoint.id;
+      const failed = await prisma.integrationWebhookDelivery.create({
+        data: {
+          endpointId,
+          teamId: teamA.teamId,
+          eventId: randomUUID(),
+          eventType: "evidence.created",
+          payloadJson: { evidenceId: randomUUID() },
+          status: "FAILED",
+          attemptCount: 3,
+          failedAtUtc: new Date(),
+        },
+        select: { id: true },
+      });
+      const testSend = async () =>
+        call({
+          method: "POST",
+          url: `/v1/integrations/webhooks/${endpointId}/test`,
+          token: teamA.ownerToken,
+          payload: { teamId: teamA.teamId },
+          headers: {
+            [STEP]: await stepUp({
+              token: teamA.ownerToken,
+              userId: teamA.ownerUserId,
+              teamId: teamA.teamId,
+              purpose: "INTEGRATION_WEBHOOK_TEST",
+              resourceKind: "webhook_endpoint",
+              resourceId: endpointId,
+            }),
+          },
+        });
+      const retry = async () =>
+        call({
+          method: "POST",
+          url: `/v1/integrations/webhook-deliveries/${failed.id}/retry`,
+          token: teamA.ownerToken,
+          payload: { teamId: teamA.teamId },
+          headers: {
+            [STEP]: await stepUp({
+              token: teamA.ownerToken,
+              userId: teamA.ownerUserId,
+              teamId: teamA.teamId,
+              purpose: "INTEGRATION_WEBHOOK_RETRY",
+              resourceKind: "webhook_delivery",
+              resourceId: failed.id,
+            }),
+          },
+        });
+      const sent: string[] = [];
+      const restore = __setWebhookHttpClientForTests(async (req) => {
+        sent.push(req.url);
+        return { status: 200, bodyPreview: null, errorMessage: null };
+      });
+      try {
+        const before = await used();
+        await setQuota(before);
+        const deliveriesBefore = await prisma.integrationWebhookDelivery.count({ where: { endpointId } });
+
+        const refusedTest = await testSend();
+        expect(refusedTest.statusCode, refusedTest.body).toBe(429);
+        expect(refusedTest.json()).toMatchObject({
+          error: { code: "webhook_delivery_quota_exceeded", details: { key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY" } },
+        });
+        const refusedRetry = await retry();
+        expect(refusedRetry.statusCode, refusedRetry.body).toBe(429);
+        expect(refusedRetry.json()).toMatchObject({ error: { code: "webhook_delivery_quota_exceeded" } });
+        expect(await prisma.integrationWebhookDelivery.count({ where: { endpointId } })).toBe(deliveriesBefore);
+        expect(
+          await prisma.integrationWebhookDelivery.findUniqueOrThrow({
+            where: { id: failed.id },
+            select: { status: true, attemptCount: true },
+          }),
+        ).toEqual({ status: "FAILED", attemptCount: 3 });
+        expect(await used()).toBe(before);
+        expect(sent).toEqual([]);
+
+        await setQuota(10_000);
+        const okTest = await testSend();
+        expect(okTest.statusCode, okTest.body).toBe(202);
+        expect(await used()).toBeGreaterThanOrEqual(before + 1);
+        const afterTest = await used();
+        const okRetry = await retry();
+        expect(okRetry.statusCode, okRetry.body).toBe(200);
+        expect(await used()).toBeGreaterThanOrEqual(afterTest + 1);
+      } finally {
+        restore();
+        await setQuota(10_000);
+      }
     });
   });
 

@@ -67,6 +67,7 @@ import {
   WebhookEndpointLimitError,
   createWebhookEndpoint,
   deactivateWebhookEndpoint,
+  lifecycleEndpointCreatorStanding,
   listWebhookEndpoints,
 } from "../services/packaging/webhooks/webhook-platform.service.js";
 import {
@@ -1415,7 +1416,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
       const row = await prisma.lifecycleWebhookDelivery.findFirst({
         where: { id, teamId: ctx.teamId },
-        select: { id: true, state: true, endpoint: { select: { state: true } } },
+        select: { id: true, state: true, endpoint: { select: { id: true, state: true, createdByUserId: true } } },
       });
       if (!row) return reply.code(404).send({ denial: "NOT_FOUND" });
 
@@ -1436,6 +1437,23 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       // reset the delivery's history. Same answer as the integration retry.
       if (row.endpoint?.state !== "ACTIVE") {
         return reply.code(409).send({ denial: "ENDPOINT_INACTIVE" });
+      }
+      // NEW-RG-07-2 — a replay queues a delivery, so it asks the endpoint
+      // creator's standing exactly as emitWebhookEvent does (the one shared
+      // decision). LOST deactivates the endpoint, and the replay gets the
+      // inactive endpoint's answer; an unresolved answer queues nothing and
+      // ends nothing (503, retry later). Asked before the re-queue and the
+      // quota unit, so a refusal changes neither.
+      const creator = await lifecycleEndpointCreatorStanding({
+        teamId: ctx.teamId,
+        endpointId: row.endpoint.id,
+        createdByUserId: row.endpoint.createdByUserId,
+      });
+      if (creator.verdict === "LOST") {
+        return reply.code(409).send({ denial: "ENDPOINT_INACTIVE" });
+      }
+      if (creator.verdict !== "HOLDS") {
+        return reply.code(503).send({ denial: "CREATOR_AUTHORITY_UNAVAILABLE" });
       }
       // WS-SCHED / PRO-G1Z-07 — only a SETTLED delivery is replayed. Resetting
       // a row the dispatcher holds (DISPATCHING) or has queued (PENDING /
