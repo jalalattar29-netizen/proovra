@@ -1605,6 +1605,22 @@ export async function scimReactivateUser(
     return { ok: false, consentRequired: true };
   }
   /*
+   * Matrix review NEW-RG-06-1 (PRO-A2-02) — the directory's reach is the
+   * ALLOW-LIST its sibling writers ask (deactivate, attribute PATCH): an account
+   * this Organization's directory or IdP created (a link here, live or ended),
+   * or a self-serve account whose live link is honoured. A legacy self-serve
+   * account the Organization still manages through a pre-fix link (domain-only
+   * or administrator-made) is outside it: 404, nothing reinstated, no re-link.
+   */
+  if (
+    !(await isWithinDirectoryReach(
+      { organizationId: ctx.organizationId, userId, includeEnded: true },
+      client,
+    ))
+  ) {
+    return { ok: false, notFound: true };
+  }
+  /*
    * PRO-013 (AUTH-07) — A DIRECTORY UNDOES ITS OWN SUSPENSION, NOTHING ELSE.
    *
    * The sibling and governance legs below already restore only what the
