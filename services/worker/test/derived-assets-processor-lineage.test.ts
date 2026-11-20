@@ -32,6 +32,7 @@ const s = vi.hoisted(() => ({
   storage: { allowed: true } as { allowed: true } | { allowed: false; reason: "storage_limit" },
   storageAsks: [] as Array<{ evidenceId: string; incomingBytes: bigint | number; reservation?: Record<string, unknown> }>,
   released: [] as Array<Record<string, unknown>>,
+  legalHold: false,
 }));
 
 // WS-SCHED / PRO-W1-05 — the workspace storage gate (the real one is proven in
@@ -43,6 +44,18 @@ vi.mock("../src/workspace-billing.js", () => ({
       return s.storage;
     },
   ),
+  // M676 follow-up — the same gate, returning the hold the job renews.
+  reserveDerivedArtifactStorage: vi.fn(
+    async (p: { evidenceId: string; incomingBytes: bigint | number; reservation: Record<string, unknown> }) => {
+      s.storageAsks.push(p);
+      if (!s.storage.allowed) return s.storage;
+      return {
+        allowed: true,
+        hold: { key: { ...p.reservation, evidenceId: p.evidenceId }, reservedAtUtc: new Date(0), writeDeadlineAt: Date.now() + 17 * 60_000 },
+      };
+    },
+  ),
+  renewDerivedArtifactReservation: vi.fn(async (hold: { writeDeadlineAt: number }) => ({ ...hold, writeDeadlineAt: Date.now() + 17 * 60_000 })),
   // M676 — an admitted job that ends without its settling write gives the
   // reservation back.
   releaseDerivedArtifactReservation: vi.fn(async (key: Record<string, unknown>) => {
@@ -56,7 +69,7 @@ vi.mock("../src/canonical-job.js", () => ({
 
 vi.mock("../src/db.js", () => ({
   prisma: {
-    evidencePartDerivedAsset: { findUnique: vi.fn(async () => s.request) },
+    evidencePartDerivedAsset: { findUnique: vi.fn(async () => s.request), findFirst: vi.fn(async () => null) },
     $queryRawUnsafe: vi.fn(async (sql: string) => {
       if (/FROM "evidence_parts" p/.test(sql)) {
         s.partsSql.push(sql);
@@ -84,6 +97,10 @@ vi.mock("../src/storage.js", () => ({
   }),
   deleteObject: vi.fn(async ({ key }: { key: string }) => {
     s.deletes.push(key);
+  }),
+  deleteObjectVersions: vi.fn(async ({ key }: { key: string }) => {
+    s.deletes.push(key);
+    return { deleted: true, deletedVersions: 1, retainedVersions: 0, deleteMarkerOnly: false, failed: 0 };
   }),
 }));
 
@@ -115,7 +132,15 @@ vi.mock("@proovra/shared-runtime/media-intelligence", async (orig) => ({
   }),
 }));
 
+// M676 follow-up — the record's hold state (an unsettled object is deleted only without one).
+vi.mock("@proovra/shared-runtime", async (orig) => ({
+  ...(await orig<typeof import("@proovra/shared-runtime")>()),
+  evaluateEffectiveLegalHold: vi.fn(async () => ({ held: s.legalHold })),
+}));
+
 import * as mi from "@proovra/shared-runtime/media-intelligence";
+import * as billing from "../src/workspace-billing.js";
+import * as storage from "../src/storage.js";
 import { processDerivedAssetJob } from "../src/derived-assets.processor.js";
 
 const job = { id: "j", name: "generate-derived-asset", data: {}, attemptsMade: 0, opts: { attempts: 3 } };
@@ -142,6 +167,7 @@ beforeEach(() => {
   s.storage = { allowed: true };
   s.storageAsks = [];
   s.released = [];
+  s.legalHold = false;
 });
 
 describe("derived-assets processor — storage admission (WS-SCHED PRO-W1-05)", () => {
@@ -189,6 +215,109 @@ describe("derived-assets processor — storage admission (WS-SCHED PRO-W1-05)", 
     expect(s.puts).toEqual([]);
     expect(s.writes.every((w) => w.status !== "COMPLETED")).toBe(true);
     expect(s.writes.at(-1)).toMatchObject({ status: "FAILED", lastError: "storage_limit" });
+  });
+});
+
+describe("derived-assets processor — the reservation is renewed, fenced and never outlived (M676 follow-up)", () => {
+  const KEY = () => ({
+    teamId: s.request.teamId,
+    evidenceId: s.request.evidenceId,
+    evidencePartId: s.request.evidencePartId,
+    assetKind: "low_res_proxy",
+    variantKey: "default",
+  });
+  const PROXY = Buffer.from("webm-proxy-bytes");
+
+  it("renews the reservation before the PUT and again before the settle", async () => {
+    vi.mocked(billing.renewDerivedArtifactReservation).mockClear();
+    const res = await processDerivedAssetJob(job as never);
+    expect(res.status).toBe("COMPLETED");
+    expect(vi.mocked(billing.renewDerivedArtifactReservation)).toHaveBeenCalledTimes(2);
+  });
+
+  it("a reservation cleared or expired before the PUT: nothing is written, no COMPLETED row, the job is retried", async () => {
+    vi.mocked(billing.renewDerivedArtifactReservation).mockResolvedValueOnce(null);
+    await expect(processDerivedAssetJob(job as never)).rejects.toThrow("derived_storage_reservation_lost_before_put");
+    expect(s.puts).toEqual([]);
+    expect(s.writes.every((w) => w.status !== "COMPLETED")).toBe(true);
+    expect(s.writes.at(-1)).toMatchObject({ status: "FAILED", lastError: "storage_reservation_lost_before_put" });
+  });
+
+  it("a reservation lost before the settle: the written object is not recorded as uploaded; it is deleted, then the row is FAILED", async () => {
+    vi.mocked(billing.renewDerivedArtifactReservation)
+      .mockImplementationOnce(async (hold) => ({ ...hold, writeDeadlineAt: Date.now() + 60_000 }))
+      .mockResolvedValueOnce(null);
+    const res = await processDerivedAssetJob(job as never);
+    expect(res.status).toBe("FAILED");
+    expect(s.puts).toHaveLength(1);
+    expect(s.writes.every((w) => w.status !== "COMPLETED")).toBe(true);
+    expect(vi.mocked(storage.deleteObjectVersions)).toHaveBeenLastCalledWith({
+      bucket: "b",
+      key: s.puts[0],
+      versionId: `ver-of-${s.puts[0]!.slice(-8)}`,
+    });
+    expect(s.writes.at(-1)).toMatchObject({ status: "FAILED", lastError: "storage_reservation_lost_before_settle" });
+  });
+
+  it("a PUT still in flight at the reservation's write deadline is aborted; its key is disposed and the row FAILED", async () => {
+    vi.mocked(billing.renewDerivedArtifactReservation).mockImplementationOnce(async (hold) => ({ ...hold, writeDeadlineAt: Date.now() + 100 }));
+    let signal: AbortSignal | undefined;
+    vi.mocked(storage.putObjectBuffer).mockImplementationOnce(
+      (async (p: { key: string; abortSignal?: AbortSignal }) => {
+        s.puts.push(p.key);
+        signal = p.abortSignal;
+        return new Promise((_, reject) => p.abortSignal?.addEventListener("abort", () => reject(new Error("Request aborted"))));
+      }) as never,
+    );
+    await expect(processDerivedAssetJob(job as never)).rejects.toThrow("derived_put_deadline_exceeded");
+    expect(signal?.aborted).toBe(true);
+    // The version is unknown (the answer never came): the key is removed when no row references it.
+    expect(vi.mocked(storage.deleteObjectVersions)).toHaveBeenLastCalledWith({ bucket: "b", key: s.puts[0], versionId: null });
+    expect(s.writes.every((w) => w.status !== "COMPLETED")).toBe(true);
+    expect(s.writes.at(-1)).toMatchObject({ status: "FAILED", lastError: "derived_put_deadline_exceeded" });
+    expect(s.released).toEqual([KEY()]);
+  });
+
+  it("a failed settle after a successful write: the written version is deleted before the reservation is released", async () => {
+    vi.mocked(mi.recordDerivedAsset).mockResolvedValueOnce({ ok: false, reason: "upsert_failed:x" });
+    const res = await processDerivedAssetJob(job as never);
+    expect(res.status).toBe("FAILED");
+    expect(vi.mocked(storage.deleteObjectVersions)).toHaveBeenLastCalledWith({
+      bucket: "b",
+      key: s.puts[0],
+      versionId: `ver-of-${s.puts[0]!.slice(-8)}`,
+    });
+    expect(s.released).toEqual([KEY()]);
+  });
+
+  it("a failed settle whose object cannot be deleted (Object Lock / hold): the bytes stay COUNTED on their own FAILED row with the pointer", async () => {
+    s.legalHold = true;
+    vi.mocked(mi.recordDerivedAsset).mockResolvedValueOnce({ ok: false, reason: "upsert_failed:x" });
+    const res = await processDerivedAssetJob(job as never);
+    expect(res.status).toBe("FAILED");
+    const retained = s.writes.at(-1)!;
+    expect(retained).toMatchObject({
+      status: "FAILED",
+      assetKind: "low_res_proxy",
+      variantKey: `default~u${sha(PROXY).slice(0, 12)}`,
+      storageBucket: "b",
+      storageKey: s.puts[0],
+      storageVersionId: `ver-of-${s.puts[0]!.slice(-8)}`,
+      sizeBytes: PROXY.byteLength,
+      derivedSha256: sha(PROXY),
+    });
+    // Counted by its own row: only then is the reservation given back.
+    expect(s.released).toEqual([KEY()]);
+  });
+
+  it("a failed settle whose object can be neither deleted nor recorded keeps the reservation (never a silent release)", async () => {
+    s.legalHold = true;
+    vi.mocked(mi.recordDerivedAsset)
+      .mockResolvedValueOnce({ ok: false, reason: "upsert_failed:x" })
+      .mockResolvedValueOnce({ ok: false, reason: "upsert_failed:y" });
+    const res = await processDerivedAssetJob(job as never);
+    expect(res.status).toBe("FAILED");
+    expect(s.released).toEqual([]);
   });
 });
 

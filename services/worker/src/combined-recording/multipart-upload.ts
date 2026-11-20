@@ -43,6 +43,38 @@ export class MultipartUploadDeadlineExceeded extends Error {
   }
 }
 
+/**
+ * M676 follow-up — the upload's fence (the caller's storage reservation and
+ * claim) was lost: nothing more was sent, the completion was not requested,
+ * and the multipart upload was aborted at the store.
+ */
+export class MultipartUploadFenceLost extends Error {
+  constructor() {
+    super("multipart_upload_fence_lost");
+    this.name = "MultipartUploadFenceLost";
+  }
+}
+
+/**
+ * M676 follow-up — the completion was sent but its answer never arrived
+ * (deadline or transport failure) AND the upload could not be aborted
+ * afterwards: the store may hold a completed object at `key` whose version
+ * the caller does not know. The caller must treat the key as possibly written.
+ */
+export class MultipartUploadCompletionUnknown extends Error {
+  constructor(
+    readonly bucket: string,
+    readonly key: string,
+    readonly cause?: unknown,
+  ) {
+    super("multipart_upload_completion_unknown");
+    this.name = "MultipartUploadCompletionUnknown";
+  }
+}
+
+/** M676 follow-up — the default interval between fence renewals during an upload. */
+export const MULTIPART_FENCE_INTERVAL_MS = 60 * 1000;
+
 export type MultipartUploadResult = {
   versionId: string | null;
   sha256: string;
@@ -70,8 +102,18 @@ export async function uploadFileMultipart(input: {
    * store (MultipartUploadDeadlineExceeded). Absent: unbounded, as before.
    */
   deadlineAt?: number;
+  /**
+   * M676 follow-up — the caller's fence (its storage reservation and claim),
+   * renewed before the first part, every `fenceIntervalMs` between parts, and
+   * ALWAYS immediately before the completion. Returns the epoch ms by which
+   * the upload must end under the renewed fence (the effective deadline is the
+   * earlier of it and `deadlineAt`), or null when the fence is lost: the
+   * upload is then aborted (MultipartUploadFenceLost) and never completed.
+   */
+  fence?: () => Promise<{ deadlineAt: number } | null>;
+  fenceIntervalMs?: number;
 }): Promise<MultipartUploadResult> {
-  const deadlineAt = input.deadlineAt;
+  let deadlineAt = input.deadlineAt;
   const pastDeadline = () => deadlineAt !== undefined && Date.now() >= deadlineAt;
   if (pastDeadline()) throw new MultipartUploadDeadlineExceeded();
   const partBytes = Math.max(MIN_MULTIPART_PART_BYTES, Math.trunc(input.partBytes));
@@ -84,13 +126,39 @@ export async function uploadFileMultipart(input: {
   // One controller for the whole upload: the deadline aborts whatever request
   // is in flight (a stalled part cannot hold the attempt past its claim).
   const controller = new AbortController();
-  const timer =
-    deadlineAt === undefined
-      ? null
-      : setTimeout(() => controller.abort(), Math.max(0, deadlineAt - Date.now()));
-  timer?.unref?.();
+  const timer: { id: ReturnType<typeof setTimeout> | null } = { id: null };
+  const disarm = () => {
+    if (timer.id) clearTimeout(timer.id);
+    timer.id = null;
+  };
+  const arm = () => {
+    disarm();
+    if (deadlineAt === undefined) return;
+    timer.id = setTimeout(() => controller.abort(), Math.max(0, deadlineAt - Date.now()));
+    timer.id.unref?.();
+  };
+  arm();
   const signal = { abortSignal: controller.signal };
   const deadlineHit = () => controller.signal.aborted || pastDeadline();
+  // M676 follow-up — renew the fence; a lost fence stops the upload, a renewed
+  // one may move the deadline (never past the caller's own `deadlineAt`).
+  const fenceIntervalMs = input.fenceIntervalMs ?? MULTIPART_FENCE_INTERVAL_MS;
+  let fencedAt = 0;
+  const renewFence = async () => {
+    if (!input.fence) return;
+    const renewed = await input.fence();
+    if (!renewed) throw new MultipartUploadFenceLost();
+    deadlineAt = input.deadlineAt === undefined ? renewed.deadlineAt : Math.min(input.deadlineAt, renewed.deadlineAt);
+    fencedAt = Date.now();
+    arm();
+    if (deadlineHit()) throw new MultipartUploadDeadlineExceeded();
+  };
+  try {
+    await renewFence();
+  } catch (err) {
+    disarm();
+    throw err;
+  }
   let uploadId: string | undefined;
   try {
     const created = await input.client.send(
@@ -107,19 +175,21 @@ export async function uploadFileMultipart(input: {
     uploadId = created.UploadId;
     if (!uploadId) throw new Error("multipart_upload_no_upload_id");
   } catch (err) {
-    if (timer) clearTimeout(timer);
+    disarm();
     throw deadlineHit() ? new MultipartUploadDeadlineExceeded() : err;
   }
 
   const whole = createHash("sha256");
   const parts: Array<{ ETag: string; PartNumber: number; ChecksumSHA256: string }> = [];
   let sent = 0;
+  let completionSent = false;
   let fh: Awaited<ReturnType<typeof open>> | null = null;
   try {
     fh = await open(input.file, "r");
     const buf = Buffer.allocUnsafe(partBytes);
     for (let partNumber = 1; sent < size; partNumber += 1) {
       if (deadlineHit()) throw new MultipartUploadDeadlineExceeded();
+      if (input.fence && Date.now() - fencedAt >= fenceIntervalMs) await renewFence();
       // Fill one part completely (a short read is not the end of the file).
       let filled = 0;
       while (filled < partBytes && sent + filled < size) {
@@ -150,10 +220,16 @@ export async function uploadFileMultipart(input: {
       sent += filled;
     }
     if (sent !== size) throw new Error("multipart_upload_size_changed");
-    // Completion is not requested past the deadline. It is sent without the
-    // abort signal: a completion cut off mid-flight could leave an object the
-    // caller never learns about.
+    // Completion is not requested past the deadline, nor without a fence
+    // renewed immediately before it (M676 follow-up).
     if (deadlineHit()) throw new MultipartUploadDeadlineExceeded();
+    await renewFence();
+    // M676 follow-up — the completion is bounded by the same deadline (it
+    // carries the abort signal): an unbounded completion could land bytes
+    // after the caller's reservation stopped counting. One cut off mid-flight
+    // is resolved below: the upload is aborted, and if the abort finds no
+    // upload left the object may exist (MultipartUploadCompletionUnknown).
+    completionSent = true;
     const done = await input.client.send(
       new CompleteMultipartUploadCommand({
         Bucket: input.bucket,
@@ -161,6 +237,7 @@ export async function uploadFileMultipart(input: {
         UploadId: uploadId,
         MultipartUpload: { Parts: parts },
       }),
+      signal,
     );
     return {
       versionId: done.VersionId ?? null,
@@ -169,16 +246,23 @@ export async function uploadFileMultipart(input: {
       partCount: parts.length,
     };
   } catch (err) {
+    let aborted = false;
     try {
       await input.client.send(
         new AbortMultipartUploadCommand({ Bucket: input.bucket, Key: input.key, UploadId: uploadId }),
       );
+      aborted = true;
     } catch {
       /* the store's incomplete-upload lifecycle reaps what an abort could not */
     }
-    throw deadlineHit() && !(err instanceof MultipartUploadDeadlineExceeded) ? new MultipartUploadDeadlineExceeded() : err;
+    // M676 follow-up — a completion whose answer was lost and whose upload
+    // can no longer be aborted may have produced an object.
+    if (completionSent && !aborted) throw new MultipartUploadCompletionUnknown(input.bucket, input.key, err);
+    throw deadlineHit() && !(err instanceof MultipartUploadDeadlineExceeded) && !(err instanceof MultipartUploadFenceLost)
+      ? new MultipartUploadDeadlineExceeded()
+      : err;
   } finally {
-    if (timer) clearTimeout(timer);
+    disarm();
     await fh?.close().catch(() => undefined);
   }
 }

@@ -46,7 +46,13 @@ import { prisma } from "./db.js";
 import { artifactLockFor } from "./object-retention.js";
 import { logger } from "./logger.js";
 import { getObjectStream, putObjectBuffer } from "./storage.js";
-import { releaseDerivedArtifactReservation, workspaceAllowsDerivedArtifact } from "./workspace-billing.js";
+import {
+  releaseDerivedArtifactReservation,
+  renewDerivedArtifactReservation,
+  reserveDerivedArtifactStorage,
+  type DerivedArtifactReservationHold,
+} from "./workspace-billing.js";
+import { disposeUnsettledDerivedObject, type UnsettledDerivedObjectOutcome } from "./derived-unsettled-object.js";
 import { detectDerivedAssetCapability } from "./derived-assets-capability.js";
 // Phase 31.20 — ffmpeg-derived asset producers.
 import {
@@ -461,34 +467,33 @@ export async function processDerivedAssetJob(
   if (!(await stillEligible({ teamId, evidenceId, evidencePartId, assetKind }))) {
     return { ok: true, status: "FAILED" };
   }
-  if (!(await storageAllows({ teamId, evidenceId, evidencePartId, assetKind }, derivedBuffer.byteLength))) {
+  let hold = await storageAllows({ teamId, evidenceId, evidencePartId, assetKind }, derivedBuffer.byteLength);
+  if (!hold) {
     return { ok: true, status: "FAILED" };
   }
 
-  let derivedVersionId: string | null = null;
-  try {
-    const put = await putObjectBuffer({
-      lock: await artifactLockFor(evidenceId),
-      bucket: part.storage_bucket,
-      key: derivedKey,
-      body: derivedBuffer,
-      contentType: derivedContentType,
-    });
-    derivedVersionId = put?.versionId ?? null;
-  } catch (err) {
-    await persistFailed({
-      teamId,
-      evidenceId,
-      evidencePartId,
-      assetKind,
-      reason:
-        err instanceof Error
-          ? `derived_put_failed:${err.message.slice(0, 80)}`
-          : "derived_put_failed",
-    });
-    await tryBump("derived_assets_processor_failed_total");
-    throw err;
+  // M676 follow-up — the PUT runs only under a freshly renewed reservation and
+  // is aborted before that reservation could stop counting.
+  const stored = await putUnderReservation(
+    { teamId, evidenceId, evidencePartId, assetKind },
+    hold,
+    { bucket: part.storage_bucket, key: derivedKey, body: derivedBuffer, contentType: derivedContentType },
+    80,
+  );
+  hold = stored.hold;
+  const derivedVersionId = stored.versionId;
+  const written = {
+    object: { bucket: part.storage_bucket, key: derivedKey, versionId: derivedVersionId },
+    derivedSha256,
+    sizeBytes: derivedBuffer.byteLength,
+    contentType: derivedContentType,
+  };
+  // M676 follow-up — the settle must still find this job's reservation.
+  const settleHold = await settleFenceHeld({ teamId, evidenceId, evidencePartId, assetKind }, hold, written);
+  if (!settleHold) {
+    return { ok: true, status: "FAILED" };
   }
+  hold = settleHold;
 
   // Persist row (idempotent upsert).
   const persistence = await persistCompleted({
@@ -516,8 +521,11 @@ export async function processDerivedAssetJob(
   });
 
   if (!persistence.ok) {
-    // M676 — the settling write did not happen: give the reservation back.
-    await releaseDerivedArtifactReservation(reservationKeyOf({ teamId, evidenceId, evidencePartId, assetKind }));
+    // M676 — the settling write did not happen.
+    // M676 follow-up — but the object was written: it is deleted, or kept
+    // counted on its own row, before the reservation is given back (never a
+    // silent release of bytes that still exist).
+    await disposeWritten({ teamId, evidenceId, evidencePartId, assetKind }, hold, written, `persist_failed:${persistence.reason}`);
     logger.warn(
       {
         jobId: job.id,
@@ -671,33 +679,30 @@ async function handleFfmpegAssetKind(params: {
     if (!(await stillEligible({ teamId, evidenceId, evidencePartId, assetKind }))) {
       return { ok: true, status: "FAILED" };
     }
-    if (!(await storageAllows({ teamId, evidenceId, evidencePartId, assetKind }, result.bytes.byteLength))) {
+    let hold = await storageAllows({ teamId, evidenceId, evidencePartId, assetKind }, result.bytes.byteLength);
+    if (!hold) {
       return { ok: true, status: "FAILED" };
     }
-    let derivedVersionId: string | null = null;
-    try {
-      const put = await putObjectBuffer({
-        lock: await artifactLockFor(evidenceId),
-        bucket: part.storage_bucket,
-        key: derivedKey,
-        body: result.bytes,
-        contentType: result.contentType,
-      });
-      derivedVersionId = put?.versionId ?? null;
-    } catch (err) {
-      await persistFailed({
-        teamId,
-        evidenceId,
-        evidencePartId,
-        assetKind,
-        reason:
-          err instanceof Error
-            ? `derived_put_failed:${err.message.slice(0, 60)}`
-            : "derived_put_failed",
-      });
-      await tryBump("derived_assets_processor_failed_total");
-      throw err;
+    // M676 follow-up — renewed reservation, bounded PUT (see putUnderReservation).
+    const stored = await putUnderReservation(
+      { teamId, evidenceId, evidencePartId, assetKind },
+      hold,
+      { bucket: part.storage_bucket, key: derivedKey, body: result.bytes, contentType: result.contentType },
+      60,
+    );
+    hold = stored.hold;
+    const derivedVersionId = stored.versionId;
+    const written = {
+      object: { bucket: part.storage_bucket, key: derivedKey, versionId: derivedVersionId },
+      derivedSha256: result.derivedSha256,
+      sizeBytes: result.bytes.byteLength,
+      contentType: result.contentType,
+    };
+    const settleHold = await settleFenceHeld({ teamId, evidenceId, evidencePartId, assetKind }, hold, written);
+    if (!settleHold) {
+      return { ok: true, status: "FAILED" };
     }
+    hold = settleHold;
     const persistence = await persistCompleted({
       teamId,
       evidenceId,
@@ -723,8 +728,9 @@ async function handleFfmpegAssetKind(params: {
       },
     });
     if (!persistence.ok) {
-      // M676 — the settling write did not happen: give the reservation back.
-      await releaseDerivedArtifactReservation(reservationKeyOf({ teamId, evidenceId, evidencePartId, assetKind }));
+      // M676 — the settling write did not happen; M676 follow-up — the written
+      // object is deleted or kept counted before the reservation is given back.
+      await disposeWritten({ teamId, evidenceId, evidencePartId, assetKind }, hold, written, `persist_failed:${persistence.reason}`);
       await tryBump("derived_assets_processor_failed_total");
       return { ok: true, status: "FAILED" };
     }
@@ -870,19 +876,123 @@ async function persistCompleted(
  * under the record's lock. Refused growth settles the row FAILED storage_limit
  * (nothing written); a later request after storage is freed regenerates it.
  */
-async function storageAllows(input: PersistBaseInput, incomingBytes: number): Promise<boolean> {
+async function storageAllows(input: PersistBaseInput, incomingBytes: number): Promise<DerivedArtifactReservationHold | null> {
   // M676 — admitted bytes are RESERVED on this row under the workspace
   // capacity lock; the settling recordDerivedAsset (COMPLETED or FAILED)
   // clears the reservation in the same statement.
-  const verdict = await workspaceAllowsDerivedArtifact({
+  // M676 follow-up — the caller gets the HOLD (stamp + write deadline) it
+  // renews before the PUT and before the settle.
+  const verdict = await reserveDerivedArtifactStorage({
     evidenceId: input.evidenceId,
     incomingBytes,
     reservation: reservationKeyOf(input),
   });
-  if (verdict.allowed) return true;
+  if (verdict.allowed) return verdict.hold;
   await persistFailed({ ...input, reason: verdict.reason });
   await tryBump("derived_assets_processor_failed_total");
-  return false;
+  return null;
+}
+
+type WrittenDerivedObject = {
+  object: { bucket: string; key: string; versionId: string | null };
+  derivedSha256: string;
+  sizeBytes: number;
+  contentType: string;
+};
+
+/**
+ * M676 follow-up — the PUT of a derived object under its storage reservation.
+ * The reservation is renewed first (fenced on this job's stamp: a reservation
+ * that was released, expired or replaced is never revived and nothing is
+ * written), and the PUT is aborted at the renewed write deadline, which ends
+ * DERIVED_ASSET_RESERVATION_SAFETY_MARGIN_MS before the reservation would stop
+ * counting. A PUT that failed or was aborted may still have landed (its answer
+ * lost): its key is disposed (deleted, or the reservation kept) before the row
+ * is settled FAILED, and the error is thrown so BullMQ retries, as before.
+ */
+async function putUnderReservation(
+  input: PersistBaseInput,
+  hold: DerivedArtifactReservationHold,
+  put: { bucket: string; key: string; body: Buffer; contentType: string },
+  reasonLength: number,
+): Promise<{ hold: DerivedArtifactReservationHold; versionId: string | null }> {
+  let renewed: DerivedArtifactReservationHold | null;
+  try {
+    renewed = await renewDerivedArtifactReservation(hold);
+  } catch (err) {
+    await releaseDerivedArtifactReservation(hold.key, hold.reservedAtUtc);
+    throw err;
+  }
+  if (!renewed) {
+    // Nothing was written: the row says why, and the retry re-reserves.
+    await persistFailed({ ...input, reason: "storage_reservation_lost_before_put" });
+    await tryBump("derived_assets_processor_failed_total");
+    throw new Error("derived_storage_reservation_lost_before_put");
+  }
+  const lock = await artifactLockFor(input.evidenceId);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), Math.max(0, renewed.writeDeadlineAt - Date.now()));
+  timer.unref?.();
+  try {
+    if (Date.now() >= renewed.writeDeadlineAt) throw new Error("derived_put_deadline_exceeded");
+    const res = await putObjectBuffer({ lock, ...put, abortSignal: controller.signal });
+    return { hold: renewed, versionId: res?.versionId ?? null };
+  } catch (err) {
+    const deadline = controller.signal.aborted || Date.now() >= renewed.writeDeadlineAt;
+    const reason = deadline
+      ? "derived_put_deadline_exceeded"
+      : err instanceof Error
+        ? `derived_put_failed:${err.message.slice(0, reasonLength)}`
+        : "derived_put_failed";
+    const outcome = await disposeUnsettledDerivedObject({
+      key: renewed.key,
+      heldSince: renewed.reservedAtUtc,
+      object: { bucket: put.bucket, key: put.key, versionId: null },
+      written: { derivedSha256: createHash("sha256").update(put.body).digest("hex"), sizeBytes: put.body.byteLength, contentType: put.contentType },
+      reason,
+    });
+    if (outcome !== "reservation_kept") await persistFailed({ ...input, reason });
+    await tryBump("derived_assets_processor_failed_total");
+    throw deadline ? new Error("derived_put_deadline_exceeded") : err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * M676 follow-up — immediately before the settling write, this job must still
+ * hold its reservation (renewed, fenced). If it does not, the written object
+ * is NOT recorded as this job's derivative: it is deleted or kept counted on
+ * its own row (disposeUnsettledDerivedObject) and the row is settled FAILED.
+ * Returns the renewed hold, or null when the job stopped.
+ */
+async function settleFenceHeld(
+  input: PersistBaseInput,
+  hold: DerivedArtifactReservationHold,
+  written: WrittenDerivedObject,
+): Promise<DerivedArtifactReservationHold | null> {
+  const renewed = await renewDerivedArtifactReservation(hold).catch(() => null);
+  if (renewed && Date.now() < renewed.writeDeadlineAt) return renewed;
+  const outcome = await disposeWritten(input, renewed ?? hold, written, "storage_reservation_lost_before_settle");
+  if (outcome !== "reservation_kept") await persistFailed({ ...input, reason: "storage_reservation_lost_before_settle" });
+  await tryBump("derived_assets_processor_failed_total");
+  return null;
+}
+
+/** M676 follow-up — a written object whose settle did not happen: never a silent release. */
+async function disposeWritten(
+  input: PersistBaseInput,
+  hold: DerivedArtifactReservationHold,
+  written: WrittenDerivedObject,
+  reason: string,
+): Promise<UnsettledDerivedObjectOutcome> {
+  return disposeUnsettledDerivedObject({
+    key: reservationKeyOf(input),
+    heldSince: hold.reservedAtUtc,
+    object: written.object,
+    written: { derivedSha256: written.derivedSha256, sizeBytes: written.sizeBytes, contentType: written.contentType },
+    reason,
+  });
 }
 
 /** M676 — the row this module writes: one derivative per kind ("default"). */
