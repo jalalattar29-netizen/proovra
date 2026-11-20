@@ -289,7 +289,8 @@ describe("PRO-R3-04 — the PDF editor shows the page", () => {
  */
 describe("WEB-OLD-API-COMPAT — no region is added without the page in view", () => {
   const blindCases: Array<[string, Reply]> = [
-    ["the old API (route 404)", OLD_API_404],
+    ["the old API (canonical 404 ROUTE_NOT_FOUND)", { status: 404, body: { error: { code: "ROUTE_NOT_FOUND", message: "Resource not found.", requestId: "r1" } } }],
+    ["a Fastify-default 404 body", OLD_API_404],
     ["UNAVAILABLE", { status: 200, body: { state: "UNAVAILABLE", reason: "page_out_of_range" } }],
     ["a refusal (403)", { status: 403, body: { error: { code: "NOT_PERMITTED", message: "no" } } }],
     ["READY without a url", { status: 200, body: { state: "READY" } }],
