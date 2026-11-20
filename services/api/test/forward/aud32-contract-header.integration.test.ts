@@ -33,4 +33,19 @@ describe("AUD-32 presentation contract header (live API)", () => {
     if (res.headers["access-control-allow-origin"]) expect(exposed).toContain(PRESENTATION_CONTRACT_HEADER);
     else expect.fail(`origin ${origin} is not allowed in this harness; expose-headers cannot be observed`);
   });
+
+  // M738 — an organization report CSV signals its row cap only through these
+  // headers (the body keeps its shape); the web reports page reads them, so a
+  // browser on an allowed origin must be able to.
+  it("exposes the org report truncation headers to a browser on an allowed origin", async () => {
+    const origin = (process.env.CORS_ORIGINS ?? "").split(",").map((s) => s.trim()).find(Boolean) ?? "http://localhost:3000";
+    const res = await h.app.inject({ method: "GET", url: "/healthz", headers: { origin } });
+    expect(res.headers["access-control-allow-origin"], `origin ${origin} must be allowed in this harness`).toBeTruthy();
+    const exposed = String(res.headers["access-control-expose-headers"] ?? "")
+      .toLowerCase()
+      .split(",")
+      .map((s) => s.trim());
+    expect(exposed).toContain("x-report-truncated");
+    expect(exposed).toContain("x-report-row-cap");
+  });
 });

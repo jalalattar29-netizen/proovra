@@ -322,6 +322,82 @@ describe("§2/§3 — one invitation authority, one message identity", () => {
     expect(line).not.toContain("PENDING");
   }, 120_000);
 
+  /**
+   * NEW-RG-27-1 / NEW-RG-27-2 — no writer moves a stored INVITED/ACTIVE grant
+   * to EXPIRED; expiry is a read-time rule (projectEffectiveRow /
+   * listExternalReviewGrants). The organization export and the governance
+   * control center must apply the same rule.
+   */
+  const backdateExpiry = async (grantId: string) => {
+    // The grant table checks expires_at_utc > created_at_utc, so both move.
+    await prisma.$executeRawUnsafe(
+      `UPDATE "external_review_grants"
+          SET "created_at_utc" = NOW() - INTERVAL '3 days',
+              "expires_at_utc" = NOW() - INTERVAL '1 day'
+        WHERE "id" = $1::uuid`,
+      grantId,
+    );
+  };
+
+  const orgOfWorkspaceA = async () =>
+    (
+      await prisma.team.findUniqueOrThrow({
+        where: { id: workspaceA },
+        select: { organizationId: true },
+      })
+    ).organizationId as string;
+
+  it("A6b — the organization export reports an expired INVITED grant as EXPIRED (NEW-RG-27-1)", async () => {
+    const live = await issue(workspaceA, inviterA, uniqueEmail("export-live"));
+    const expired = await issue(workspaceA, inviterA, uniqueEmail("export-expired"));
+    await backdateExpiry(expired.grantId);
+
+    const orgId = await orgOfWorkspaceA();
+    const response = await h.app.inject({
+      method: "GET",
+      url: `/v1/orgs/${orgId}/reports/external-access.csv`,
+      headers: { authorization: `Bearer ${h.fixtures.teamA.ownerToken}` },
+    });
+    expect(response.statusCode, response.body.slice(0, 200)).toBe(200);
+
+    const lines = response.body.split("\n").map((l) => l.replace(/\r$/, ""));
+    const header = lines[0]!.split(",").map((c) => c.replace(/^"|"$/g, ""));
+    const stateIdx = header.indexOf("grantState");
+    expect(stateIdx).toBeGreaterThanOrEqual(0);
+    const stateOf = (grantId: string) => {
+      const line = lines.find((l) => l.includes(grantId));
+      expect(line, `grant ${grantId} must appear in the export`).toBeTruthy();
+      return line!.split(",")[stateIdx]!.replace(/^"|"$/g, "");
+    };
+    expect(stateOf(expired.grantId)).toBe("EXPIRED");
+    // Positive control: an unexpired invitation keeps its stored state.
+    expect(stateOf(live.grantId)).toBe("INVITED");
+  }, 120_000);
+
+  it("A6c — the governance control center does not count an expired grant as active (NEW-RG-27-2)", async () => {
+    const orgId = await orgOfWorkspaceA();
+    const readCount = async () => {
+      const res = await h.app.inject({
+        method: "GET",
+        url: `/v1/orgs/${orgId}/governance/control-center`,
+        headers: { authorization: `Bearer ${h.fixtures.teamA.ownerToken}` },
+      });
+      expect(res.statusCode, res.body.slice(0, 200)).toBe(200);
+      const body = res.json() as {
+        sections: { externalSharing: { status: string; data: { activeGrantCount: number } | null } };
+      };
+      expect(body.sections.externalSharing.status).toBe("ok");
+      return body.sections.externalSharing.data!.activeGrantCount;
+    };
+
+    const grant = await issue(workspaceA, inviterA, uniqueEmail("cc-expired"));
+    const whileLive = await readCount();
+    expect(whileLive).toBeGreaterThanOrEqual(1);
+    await backdateExpiry(grant.grantId);
+    const afterExpiry = await readCount();
+    expect(afterExpiry, "an expired grant is no longer an active grant").toBe(whileLive - 1);
+  }, 120_000);
+
   it("A7 — no raw token is stored, logged, or exported", async () => {
     const email = uniqueEmail("secrecy");
     const res = await issue(workspaceA, inviterA, email);

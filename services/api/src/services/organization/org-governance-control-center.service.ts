@@ -440,6 +440,9 @@ export async function buildOrgGovernanceControlCenter(input: {
         FROM "external_review_grants"
         WHERE "team_id" = ANY(${teamIds}::uuid[])
           AND "state" = ANY(${[...ACTIVE_GRANT_STATES]}::text[])
+          -- NEW-RG-27-2 — the grant module's read-time expiry rule: a stored
+          -- INVITED/ACTIVE grant past its expiry is EXPIRED, not active.
+          AND "expires_at_utc" > NOW()
       `) as Array<{ count: number }>;
       const activeGrantCount = rows[0]?.count ?? 0;
       externalSharing = { status: "ok", data: { activeGrantCount } };
