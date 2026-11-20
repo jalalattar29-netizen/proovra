@@ -478,18 +478,37 @@ describe("free-audit 0ea0 — API-G4B-BILLING-STORAGE (live PostgreSQL)", () => 
         stage: "REPORT_COMMITTED",
       },
     });
-    await prisma.evidence.update({ where: { id: r1 }, data: { status: "REPORTED" } });
     await capture(t.owner.token, original(120)); // 222 MiB used; the package estimate (102 MiB) does not fit.
 
-    const held = await sweep.runFirstIssuanceReconciliation({ trigger: "test", dryRun: true });
-    expect(held.packageSkippedStorageRefused).toBe(1);
-    expect(held.packageScheduled).toBe(0);
+    // The sweep is global and its counters are run-wide totals; in the shared CI
+    // database other files leave REPORTED evidence behind. Files run one at a time
+    // and the sweep is a dry run, so this record's own contribution is the
+    // difference between a sweep with it in the package scan (REPORTED) and an
+    // identical sweep with it outside (SIGNED). The keyset cursor is module state:
+    // reset it and scan a full batch each time, so both sweeps see the same rows.
+    const sweepWith = async (inScan: boolean) => {
+      await prisma.evidence.update({ where: { id: r1 }, data: { status: inScan ? "REPORTED" : "SIGNED" } });
+      sweep.resetFirstIssuanceCursors();
+      return sweep.runFirstIssuanceReconciliation({ trigger: "test", dryRun: true, batchSize: 1000 });
+    };
+    const own = async () => {
+      const without = await sweepWith(false);
+      const withIt = await sweepWith(true);
+      return {
+        refused: withIt.packageSkippedStorageRefused - without.packageSkippedStorageRefused,
+        scheduled: withIt.packageScheduled - without.packageScheduled,
+      };
+    };
+
+    const held = await own();
+    expect(held.refused).toBe(1);
+    expect(held.scheduled).toBe(0);
 
     // Storage added (an upgrade): the package is asked for again.
     await setAccountPlan(deps, t.owner.userId, "PRO");
-    const freed = await sweep.runFirstIssuanceReconciliation({ trigger: "test", dryRun: true });
-    expect(freed.packageSkippedStorageRefused).toBe(0);
-    expect(freed.packageScheduled).toBe(1);
+    const freed = await own();
+    expect(freed.refused).toBe(0);
+    expect(freed.scheduled).toBe(1);
     await prisma.evidence.update({ where: { id: r1 }, data: { status: "SIGNED" } });
   }, 600_000);
 

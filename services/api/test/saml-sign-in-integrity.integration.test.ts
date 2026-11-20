@@ -27,6 +27,11 @@ import {
   type OrganizationTenant,
 } from "./point7/product-fixtures.js";
 
+// The SAML login route is limited per client IP (30/min) in a store every integration
+// file shares; each SAML file signs in from its own documentation-range address so one
+// file's sign-ins never spend another's allowance (2026-11-20, shared-DB full run).
+const SAML_LOGIN_CLIENT_IP = "198.51.100.22";
+
 const WEB = "https://web.example.test";
 
 describe("SAML sign-in integrity (live PostgreSQL)", () => {
@@ -83,7 +88,7 @@ describe("SAML sign-in integrity (live PostgreSQL)", () => {
 
   /** The login route, then what the IdP needs to answer it. */
   async function startSignIn(connId: string) {
-    const login = await harness.app.inject({ method: "GET", url: `/v1/auth/saml/${connId}/login` });
+    const login = await harness.app.inject({ remoteAddress: SAML_LOGIN_CLIENT_IP, method: "GET", url: `/v1/auth/saml/${connId}/login` });
     expect(login.statusCode, login.body).toBe(302);
     const location = new URL(String(login.headers.location));
     const xml = inflateRawSync(Buffer.from(location.searchParams.get("SAMLRequest")!, "base64")).toString("utf8");

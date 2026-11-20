@@ -62,6 +62,11 @@ import {
   type IntegrationHarness,
 } from "./integration-harness.js";
 
+// The SAML login route is limited per client IP (30/min) in a store every integration
+// file shares; each SAML file signs in from its own documentation-range address so one
+// file's sign-ins never spend another's allowance (2026-11-20, shared-DB full run).
+const SAML_LOGIN_CLIENT_IP = "198.51.100.23";
+
 /**
  * A syntactically valid base64 certificate body for the rotation routes. The
  * fixture IdP certificate is reused rather than inventing a second one — the
@@ -565,7 +570,7 @@ describe("FINAL-002 — SAML operator routes enforce authentication and authoriz
       relayState: string;
       authnRequestId: string;
     }> => {
-      const res = await h.app.inject({
+      const res = await h.app.inject({ remoteAddress: SAML_LOGIN_CLIENT_IP,
         method: "GET",
         url: `/v1/auth/saml/${connectionA}/login`,
       });

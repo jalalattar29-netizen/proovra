@@ -33,6 +33,11 @@ import {
   type OrganizationTenant,
 } from "./point7/product-fixtures.js";
 
+// The SAML login route is limited per client IP (30/min) in a store every integration
+// file shares; each SAML file signs in from its own documentation-range address so one
+// file's sign-ins never spend another's allowance (2026-11-20, shared-DB full run).
+const SAML_LOGIN_CLIENT_IP = "198.51.100.21";
+
 const WEB = "https://web.example.test";
 const APP_RETURN = "proovra://sso/complete";
 
@@ -91,7 +96,7 @@ describe("MOBILE-002 — native SAML sign-in through the PKCE-bound hand-off (li
 
   /** The app opens the SAML login route in the system browser with its challenge. */
   async function nativeLogin(connId: string, challenge: string, extraQuery = "") {
-    const login = await harness.app.inject({
+    const login = await harness.app.inject({ remoteAddress: SAML_LOGIN_CLIENT_IP,
       method: "GET",
       url: `/v1/auth/saml/${connId}/login?native=1&codeChallenge=${challenge}${extraQuery}`,
     });
@@ -260,7 +265,7 @@ describe("MOBILE-002 — native SAML sign-in through the PKCE-bound hand-off (li
     const org = await seedOrganizationTenant(deps, {});
     const conn = await connection(org);
     const { challenge } = pkce();
-    const res = await harness.app.inject({
+    const res = await harness.app.inject({ remoteAddress: SAML_LOGIN_CLIENT_IP,
       method: "GET",
       url: `/v1/auth/saml/${conn}/login?native=1&codeChallenge=${challenge}&redirectAfter=${encodeURIComponent("https://evil.example/steal")}`,
     });
@@ -299,12 +304,12 @@ describe("MOBILE-002 — native SAML sign-in through the PKCE-bound hand-off (li
     const disabled = await connection(org, { status: "DISABLED" });
     const noCert = await connection(org, { samlCertificate: null });
     const { challenge } = pkce();
-    const a = await harness.app.inject({ method: "GET", url: `/v1/auth/saml/${disabled}/login?native=1&codeChallenge=${challenge}` });
+    const a = await harness.app.inject({ remoteAddress: SAML_LOGIN_CLIENT_IP, method: "GET", url: `/v1/auth/saml/${disabled}/login?native=1&codeChallenge=${challenge}` });
     expect(String(a.headers.location)).toBe(`${APP_RETURN}?error=saml_connection_unavailable`);
-    const b = await harness.app.inject({ method: "GET", url: `/v1/auth/saml/${noCert}/login?native=1&codeChallenge=${challenge}` });
+    const b = await harness.app.inject({ remoteAddress: SAML_LOGIN_CLIENT_IP, method: "GET", url: `/v1/auth/saml/${noCert}/login?native=1&codeChallenge=${challenge}` });
     expect(String(b.headers.location)).toBe(`${APP_RETURN}?error=saml_not_configured`);
     // Control: the browser login is unchanged.
-    const web = await harness.app.inject({ method: "GET", url: `/v1/auth/saml/${disabled}/login` });
+    const web = await harness.app.inject({ remoteAddress: SAML_LOGIN_CLIENT_IP, method: "GET", url: `/v1/auth/saml/${disabled}/login` });
     expect(String(web.headers.location)).toContain(`${WEB}/login?saml_error=saml_connection_unavailable`);
   });
 

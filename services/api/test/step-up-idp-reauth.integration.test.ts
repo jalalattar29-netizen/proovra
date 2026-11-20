@@ -41,6 +41,11 @@ import {
 } from "./_fixtures/saml-signed-fixture.js";
 import { bootIntegrationHarness, type IntegrationHarness } from "./integration-harness.js";
 import { REQUIRED_LEGAL_VERSIONS } from "../src/legal/legal-versioning.js";
+
+// The SAML login route is limited per client IP (30/min) in a store every integration
+// file shares; each SAML file signs in from its own documentation-range address so one
+// file's sign-ins never spend another's allowance (2026-11-20, shared-DB full run).
+const SAML_LOGIN_CLIENT_IP = "198.51.100.24";
 // Modules that bind the database client are loaded AFTER the harness points
 // the process at the disposable database (a static import would bind the
 // client to the ambient DATABASE_URL first). Loaded once, in beforeAll.
@@ -309,7 +314,7 @@ describe("IDP_REAUTH step-up — Enterprise SAML / OIDC reauthentication", () =>
 
   /** A real SAML sign-in through the registered login + ACS routes. */
   async function samlSignIn(nameId: string, ctx: string, instant = new Date()) {
-    const login = await h.app.inject({ method: "GET", url: `/v1/auth/saml/${samlConnId}/login` });
+    const login = await h.app.inject({ remoteAddress: SAML_LOGIN_CLIENT_IP, method: "GET", url: `/v1/auth/saml/${samlConnId}/login` });
     expect(login.statusCode, login.body).toBe(302);
     const req = samlRequestOf(login.headers["location"] as string);
     expect(req.xml).toContain('ForceAuthn="false"');
