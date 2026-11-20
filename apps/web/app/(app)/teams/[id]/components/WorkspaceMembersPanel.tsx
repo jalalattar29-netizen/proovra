@@ -305,7 +305,8 @@ export const WorkspaceMembersPanel = forwardRef<
     } catch (err) {
       const code = (err as { code?: string }).code;
       notify(
-        code === "OWNED_RECORDS_HANDOVER_REQUIRED"
+        // The engine's in-transaction re-check answers the lower-case code.
+        code === "OWNED_RECORDS_HANDOVER_REQUIRED" || code === "owned_records_handover_required"
           ? "You still own evidence or cases in this workspace. Ask an administrator to take them over before you leave."
           : toSafeUserError(err, { message: "You could not leave this workspace." }).message,
         "error",

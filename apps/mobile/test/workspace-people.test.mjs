@@ -325,6 +325,8 @@ test("PRO-T1-18 — the leave refusals are named by the route's codes, in the we
   const handover = W.leaveFailureCopy({ code: "OWNED_RECORDS_HANDOVER_REQUIRED" }, "x");
   assert.ok(web.includes(handover), "native handover copy differs from the web's");
   assert.equal(W.leaveFailureCopy({ body: { error: { code: "OWNED_RECORDS_HANDOVER_REQUIRED" } } }, null), handover);
+  // NEW-RG-26-1 — the engine's in-transaction re-check (lower-case engine code) reads the same.
+  assert.equal(W.leaveFailureCopy({ body: { error: { code: "owned_records_handover_required" } } }, null), handover);
   assert.match(W.leaveFailureCopy({ code: "last_administrator_protected" }, null), /last administrator/);
   assert.match(W.leaveFailureCopy({ code: "owner_cannot_leave" }, null), /Transfer ownership first/);
   assert.equal(W.leaveFailureCopy({ code: "something_else" }, "Server said so."), "Server said so.");

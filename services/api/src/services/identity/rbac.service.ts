@@ -33,6 +33,7 @@ import {
   isAllowedTeamMemberStatusTransition,
   listPermissionsForDelegatedAdminScope,
 } from "@proovra/shared";
+import { workspaceCaseWhere, workspaceEvidenceWhere } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
 // PHASE 12 REMEDIATION §4.4 (2026-08-06) — pointer hygiene at the membership
@@ -106,7 +107,12 @@ export type RbacErrorCode =
   | "workspace_seat_limit_reached"
   | "collaboration_team_capacity_reached"
   // Members ledger C6 — the seat lock could not be taken within its bound.
-  | "workspace_seat_contention";
+  | "workspace_seat_contention"
+  // PRO-T1-03 / PRO-T1-18 (matrix review NEW-RG-26-1/2) — the member still
+  // owns records in this workspace; ending the membership would leave them
+  // owned by a non-member. Hand them over first (the teams removal transfers
+  // them in the same transaction).
+  | "owned_records_handover_required";
 
 export class RbacError extends Error {
   readonly code: RbacErrorCode;
@@ -318,7 +324,8 @@ export function mayGrantWorkspaceRole(
  */
 export async function revokeInvitesBeyondInviterAuthority(
   tx: PrismaClient,
-  input: { teamId: string; inviterUserId: string; actorUserId: string },
+  // A directory transition (SCIM / IdP group) has no human actor: null.
+  input: { teamId: string; inviterUserId: string; actorUserId: string | null },
 ): Promise<number> {
   const inviter = await tx.teamMember.findFirst({
     where: { teamId: input.teamId, userId: input.inviterUserId, status: prismaPkg.TeamMemberStatus.ACTIVE },
@@ -339,6 +346,59 @@ export async function revokeInvitesBeyondInviterAuthority(
     data: { revokedAt: new Date(), revokedByUserId: input.actorUserId },
   });
   return revoked.count;
+}
+
+/**
+ * PRO-T1-03 / PRO-T1-18 — ONE definition of "records the member still owns in
+ * this workspace": every evidence row not DESTROYED (trashed included, MEM-01)
+ * and every case. The removal-impact preview, the teams removal (before and
+ * inside its transaction), self-service leave and the engine's own revocation
+ * and leave guard all count with it, so the preview predicts the mutation and
+ * no caller can orphan what removal protects.
+ */
+export async function countRecordsMemberStillOwns(
+  teamId: string,
+  ownerUserId: string,
+  db: PrismaClient,
+): Promise<{ ownedEvidence: number; ownedCases: number }> {
+  const [ownedEvidence, ownedCases] = await Promise.all([
+    db.evidence.count({
+      where: {
+        AND: [await workspaceEvidenceWhere(teamId, db)],
+        ownerUserId,
+        lifecycleState: { not: "DESTROYED" },
+      },
+    }),
+    db.case.count({
+      where: { AND: [await workspaceCaseWhere(teamId, db)], ownerUserId },
+    }),
+  ]);
+  return { ownedEvidence, ownedCases };
+}
+
+/**
+ * Matrix review NEW-RG-26-1 / NEW-RG-26-2 — records never end up owned by a
+ * person who is no longer an active member. The Security Center revoke and an
+ * access-review REVOKE_MEMBER decision reached `revokeMember` directly and
+ * left the member's records owned by a REVOKED membership; the teams removal
+ * refused or transferred, but only in its own route. The rule now lives here,
+ * inside the transition's transaction, after the member's row is locked, so
+ * every caller holds the membership until the records are handed over. The
+ * teams removal transfers them in the same transaction BEFORE it revokes, so
+ * this never refuses it; a refusal there means records arrived concurrently.
+ */
+async function assertMemberOwnsNoRecordsTx(
+  tx: PrismaClient,
+  input: { teamId: string; teamMemberId: string; userId: string },
+): Promise<void> {
+  const lock = (tx as unknown as { $queryRaw?: unknown }).$queryRaw;
+  if (typeof lock === "function") {
+    await tx.$queryRaw`SELECT 1 FROM "team_members" WHERE "id" = ${input.teamMemberId}::uuid FOR UPDATE`;
+  }
+  const { ownedEvidence, ownedCases } = await countRecordsMemberStillOwns(input.teamId, input.userId, tx);
+  if (ownedEvidence > 0 || ownedCases > 0) {
+    throw new RbacError("owned_records_handover_required");
+  }
 }
 
 async function assertActorOutranks(
@@ -588,6 +648,8 @@ export async function revokeMember(
     ) {
       throw new RbacError("invalid_status_transition");
     }
+    // NEW-RG-26-1/2 — records first: refused before anything is written.
+    await assertMemberOwnsNoRecordsTx(tx, { teamId: input.teamId, teamMemberId: target.id, userId: target.userId });
     await revokePendingInvitesForMember(tx, {
       teamId: input.teamId,
       userId: target.userId,
@@ -896,6 +958,9 @@ export async function leaveWorkspace(
     });
     if (!target) throw new RbacError("member_not_found");
     if (target.role === prismaPkg.TeamRole.OWNER) throw new RbacError("owner_cannot_leave");
+    // PRO-T1-18 / NEW-RG-26-1 — the route's pre-check runs outside this
+    // transaction; the rule is re-asked here, under the member's row lock.
+    await assertMemberOwnsNoRecordsTx(tx, { teamId: input.teamId, teamMemberId: target.id, userId: target.userId });
     await assertNotLastAdministrator(tx, {
       teamId: input.teamId,
       teamMemberId: target.id,

@@ -216,7 +216,8 @@ export function MemberRemovalDialog({
       });
       // Backend is authoritative — surface its codes verbatim so the
       // operator sees what the server told us, not a generic toast.
-      if (e.code === "TRANSFER_TARGET_REQUIRED") {
+      // NEW-RG-26-1 — the engine's own in-transaction refusal says the same.
+      if (e.code === "TRANSFER_TARGET_REQUIRED" || e.code === "owned_records_handover_required") {
         // PRO-T1-03 — the server is the rule: records reached this member
         // after the preview (or an older API counted differently), so the
         // transfer selector is shown now instead of a sentence pointing at a

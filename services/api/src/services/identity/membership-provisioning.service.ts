@@ -103,6 +103,12 @@ export {
 // organization routes reach these through the orchestrator. A separate,
 // short statement so the reachability verifier's bounded lookahead holds.
 export { suspendOrganizationWorkspaceAccessTx, restoreOrganizationWorkspaceAccessTx } from "./rbac.service.js";
+// PRO-T1-03 / NEW-RG-26-1 — the one "records the member still owns" count,
+// for the teams removal preview, removal and leave routes.
+export { countRecordsMemberStillOwns } from "./rbac.service.js";
+// PRO-T1-15 / NEW-RG-26-3 — the directory transitions below end the
+// invitations an inviter can no longer issue, as the rbac transitions do.
+import { revokeInvitesBeyondInviterAuthority } from "./rbac.service.js";
 // PRO-TZ-03 — a workspace resume is a reinstatement: each member claims a seat
 // and group place through the same capacity authority as a member restore.
 import { assertReinstatementFitsCapacityTx } from "./rbac.service.js";
@@ -718,6 +724,15 @@ export async function suspendWorkspaceMembership(
     reason: "CREATOR_SUSPENDED",
     actorUserId: input.actorUserId ?? null,
   });
+  // PRO-T1-15 / DEC-28 (matrix review NEW-RG-26-3) — invitations this member
+  // issued no longer carry authority, as on an administrator's suspension
+  // (rbac `suspendMember`). Every caller of this writer — SCIM deactivation,
+  // an organization member suspension — therefore revokes them.
+  await revokeInvitesBeyondInviterAuthority(tx as never, {
+    teamId: suspended.teamId,
+    inviterUserId: suspended.userId,
+    actorUserId: input.actorUserId ?? null,
+  });
   // §4.4 — pointer hygiene at the suspension boundary, from the row the
   // update already returned.
   await repairStaleCurrentWorkspacePointers(
@@ -1119,6 +1134,14 @@ export async function applyDirectoryRoleChange(
   await endCreatorAuthorityOnRoleLossTx(tx, {
     teamId: target.teamId,
     userId: target.userId,
+    actorUserId: null,
+  });
+  // PRO-T1-15 / DEC-28 (matrix review NEW-RG-26-3) — a directory demotion
+  // ends the invitations the new role can no longer issue, exactly as rbac
+  // `changeMemberRole` does for an administrator's change.
+  await revokeInvitesBeyondInviterAuthority(tx as never, {
+    teamId: target.teamId,
+    inviterUserId: target.userId,
     actorUserId: null,
   });
   return { changed: true };

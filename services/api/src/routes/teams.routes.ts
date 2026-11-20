@@ -79,6 +79,9 @@ import {
   // TEAM role change in a different service, and the two govern different
   // membership tables.
   changeMemberRole as changeWorkspaceMemberRole,
+  // PRO-T1-03 / PRO-T1-18 — the engine's one "records the member still owns"
+  // count (the engine refuses revocation and leave on it too, NEW-RG-26-1).
+  countRecordsMemberStillOwns,
   revokeMember as revokeWorkspaceMember,
   leaveWorkspace,
   mayGrantWorkspaceRole,
@@ -373,33 +376,6 @@ async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
   await requireAuth(req, reply);
   if (reply.sent) return;
   await requireLegalAcceptance(req, reply);
-}
-
-/**
- * PRO-T1-03 / PRO-T1-18 — ONE definition of "records the member still owns in
- * this workspace": every evidence row not DESTROYED (trashed included, MEM-01)
- * and every case. The removal-impact preview, the removal itself (before and
- * inside its transaction) and self-service leave all count with it, so the
- * preview predicts the mutation and leave cannot orphan what removal protects.
- */
-async function countRecordsMemberStillOwns(
-  teamId: string,
-  ownerUserId: string,
-  db: typeof prisma,
-): Promise<{ ownedEvidence: number; ownedCases: number }> {
-  const [ownedEvidence, ownedCases] = await Promise.all([
-    db.evidence.count({
-      where: {
-        AND: [await workspaceEvidenceWhere(teamId, db)],
-        ownerUserId,
-        lifecycleState: { not: "DESTROYED" },
-      },
-    }),
-    db.case.count({
-      where: { AND: [await workspaceCaseWhere(teamId, db)], ownerUserId },
-    }),
-  ]);
-  return { ownedEvidence, ownedCases };
 }
 
 /** The owner of record holding a current OWNER membership (members audit ROLE-06). */
