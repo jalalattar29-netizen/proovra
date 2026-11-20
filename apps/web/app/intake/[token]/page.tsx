@@ -34,6 +34,7 @@ import { AppListbox } from "../../../components/app-primitives/AppListbox";
 import { use, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
+import { isRouteMissing } from "../../../lib/api/legacy-route-fallback";
 import { sha256Base64OfBlob } from "../../../lib/uploads/streaming-sha256";
 import { formatUserDateTime } from "../../../lib/date";
 import { IntakeChecklist } from "../../../components/intake/IntakeChecklist";
@@ -474,6 +475,9 @@ export default function ExternalIntakePage({
   const [session, setSession] = useState<SessionView | null>(null);
   const [request, setRequest] = useState<RequestView | null>(null);
   const [parts, setParts] = useState<StagedPart[]>([]);
+  // WEB-OLD-API-COMPAT — an API without the part-removal route: Remove is
+  // withdrawn and the page says how to keep a file out instead.
+  const [removeUnavailable, setRemoveUnavailable] = useState(false);
   const [termsAcknowledged, setTermsAcknowledged] = useState(false);
   const [identityDisclosed, setIdentityDisclosed] = useState(false);
   // EXTERNAL_PSEUDONYMOUS ("Display name") intake: the contributor chooses the
@@ -963,11 +967,15 @@ export default function ExternalIntakePage({
   /**
    * PRO-I1-10 — take a staged file back out before submitting (a wrong or
    * sensitive file, or a selection over this link's size limit). The server
-   * refuses it once the submission is sealed; an older server without the
-   * route answers an error, which is shown and changes nothing here.
+   * refuses it once the submission is sealed.
+   *
+   * WEB-OLD-API-COMPAT — an older server without the route (ROUTE_NOT_FOUND /
+   * 405) used to get the generic "please try again" line under a Remove that
+   * could never work. Now Remove is withdrawn for every file and the page
+   * says the file is still staged and how to keep it out of the submission.
    */
   async function removePart(partId: string) {
-    if (!session) return;
+    if (!session || removeUnavailable) return;
     try {
       await apiFetch(
         `/v1/external-intake/${encodeURIComponent(token)}/sessions/${session.id}/parts/${partId}`,
@@ -977,6 +985,11 @@ export default function ExternalIntakePage({
       setParts((prev) => prev.filter((p) => p.id !== partId));
       setErrorMessage(null);
     } catch (err) {
+      if (isRouteMissing(err)) {
+        setRemoveUnavailable(true);
+        setErrorMessage(null);
+        return;
+      }
       setErrorMessage(
         friendlyIntakeError(err as { code?: string; message?: string }),
       );
@@ -1710,16 +1723,18 @@ export default function ExternalIntakePage({
                         Retry upload
                       </button>
                     ) : null}
-                    <button
-                      type="button"
-                      className="app-secondary-action"
-                      data-intake-part-remove={p.id}
-                      aria-label={`Remove ${p.fileName}`}
-                      disabled={phase === "submitting"}
-                      onClick={() => void removePart(p.id)}
-                    >
-                      Remove
-                    </button>
+                    {removeUnavailable ? null : (
+                      <button
+                        type="button"
+                        className="app-secondary-action"
+                        data-intake-part-remove={p.id}
+                        aria-label={`Remove ${p.fileName}`}
+                        disabled={phase === "submitting"}
+                        onClick={() => void removePart(p.id)}
+                      >
+                        Remove
+                      </button>
+                    )}
                   </div>
                   {expectedSteps.length > 0 ? (
                     <AppListbox
@@ -1735,6 +1750,13 @@ export default function ExternalIntakePage({
                 </li>
               ))}
             </ul>
+          ) : null}
+          {removeUnavailable && parts.length > 0 ? (
+            <p role="status" className="ipk-muted ipk-consent-note" data-intake-remove-unavailable>
+              Removing a file is not available on this link yet. Every file listed above is still
+              included and will be sent if you submit. If you do not want to send one of them, do not
+              submit; contact the sender instead.
+            </p>
           ) : null}
 
           {requiredStepsMissing.length > 0 ? (

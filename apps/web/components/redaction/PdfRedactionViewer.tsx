@@ -21,7 +21,12 @@ import { AppListbox } from "../app-primitives/AppListbox";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
-import { RegionCoordinateForm, isDeliberateDrag, type NormalizedRect } from "./region-authoring";
+import {
+  RegionAuthoringBlockedNotice,
+  RegionCoordinateForm,
+  isDeliberateDrag,
+  type NormalizedRect,
+} from "./region-authoring";
 
 /**
  * PRO-R3-04 — the page under the regions.
@@ -32,10 +37,14 @@ import { RegionCoordinateForm, isDeliberateDrag, type NormalizedRect } from "./r
  * again with a growing pause (1 s, 2 s, 4 s, 8 s, then every 10 s) for about
  * two minutes.
  *
- * Every other answer keeps the frame the editor always had: an API that
- * predates the route (404), a page with no preview (UNAVAILABLE), a refusal,
- * a lost connection, or a render that never arrives. Regions are still
- * authored as shares of the full page.
+ * Every other answer leaves the frame without a page: an API that predates
+ * the route (404), a page with no preview (UNAVAILABLE), a refusal, a lost
+ * connection, or a render that never arrives.
+ *
+ * WEB-OLD-API-COMPAT — without the page in view (any state but READY, image
+ * shown) region authoring is DISABLED — drawing and the coordinate form — and
+ * the editor says so. A blank frame that still accepted rectangles let a
+ * region be placed over nothing the operator could see.
  */
 export const PDF_PREVIEW_POLL_DELAYS_MS = [1000, 2000, 4000, 8000, 10000] as const;
 export const PDF_PREVIEW_POLL_BUDGET_MS = 120_000;
@@ -143,6 +152,12 @@ export function PdfRedactionViewer({
 }) {
   const [pageIndex, setPageIndex] = useState<number>(0);
   const { preview, onImageError } = usePdfPagePreview(projectId, pageIndex);
+  // WEB-OLD-API-COMPAT — the page counts as shown only once its image has
+  // loaded; a new answer (another page, a re-ask) hides it again.
+  const readyUrl = preview.state === "ready" ? preview.url : null;
+  const [loadedUrl, setLoadedUrl] = useState<string | null>(null);
+  const pageShown = readyUrl !== null && loadedUrl === readyUrl;
+  const canAuthor = !versionLocked && pageShown;
   const pageRegions = useMemo(() => {
     const out: Array<{ id: string; x: number; y: number; width: number; height: number }> = [];
     for (const r of projectedRegions ?? []) {
@@ -175,17 +190,17 @@ export function PdfRedactionViewer({
 
   const onMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (versionLocked) return;
+      if (!canAuthor) return;
       const rect = e.currentTarget.getBoundingClientRect();
       const x = (e.clientX - rect.left) / rect.width;
       const y = (e.clientY - rect.top) / rect.height;
       setDrag({ startX: x, startY: y, x, y, w: 0, h: 0 });
     },
-    [versionLocked],
+    [canAuthor],
   );
   const onMouseMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!drag || versionLocked) return;
+      if (!drag || !canAuthor) return;
       const rect = e.currentTarget.getBoundingClientRect();
       const x = (e.clientX - rect.left) / rect.width;
       const y = (e.clientY - rect.top) / rect.height;
@@ -195,9 +210,11 @@ export function PdfRedactionViewer({
       const minY = Math.min(y, drag.startY);
       setDrag({ ...drag, x: minX, y: minY, w, h });
     },
-    [drag, versionLocked],
+    [drag, canAuthor],
   );
   const addRegion = useCallback(async (rect: NormalizedRect) => {
+    // Never sent without the page in view (the form is disabled too).
+    if (!canAuthor) return;
     try {
       await apiFetch(`/v1/redaction/versions/${versionId}/regions`, {
         method: "POST",
@@ -214,9 +231,12 @@ export function PdfRedactionViewer({
       // used to vanish silently.
       setAddError(regionAddFailureMessage(err));
     }
-  }, [method, onChanged, pageIndex, versionId]);
+  }, [canAuthor, method, onChanged, pageIndex, versionId]);
   const onMouseUp = useCallback(async () => {
-    if (!drag || versionLocked) return;
+    if (!drag || !canAuthor) {
+      setDrag(null);
+      return;
+    }
     setDrag(null);
     // PRO-R3-18 — a click without a drag is not a region.
     if (!isDeliberateDrag(drag.w, drag.h)) return;
@@ -226,7 +246,7 @@ export function PdfRedactionViewer({
       width: Math.max(0.005, Math.min(1 - drag.x, drag.w)),
       height: Math.max(0.005, Math.min(1 - drag.y, drag.h)),
     });
-  }, [addRegion, drag, versionLocked]);
+  }, [addRegion, drag, canAuthor]);
 
   return (
     <section
@@ -284,6 +304,8 @@ export function PdfRedactionViewer({
       <div
         ref={containerRef}
         data-redaction-pdf-canvas
+        data-redaction-authoring={canAuthor ? "enabled" : "disabled"}
+        aria-disabled={canAuthor ? undefined : true}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
@@ -297,7 +319,7 @@ export function PdfRedactionViewer({
           border: "1px dashed rgba(15, 23, 42, 0.18)",
           borderRadius: 8,
           overflow: "hidden",
-          cursor: versionLocked ? "not-allowed" : "crosshair",
+          cursor: canAuthor ? "crosshair" : "not-allowed",
         }}
       >
         {preview.state === "ready" ? (
@@ -306,7 +328,11 @@ export function PdfRedactionViewer({
             src={preview.url}
             alt={`Page ${pageIndex + 1} of the record`}
             draggable={false}
-            onError={onImageError}
+            onLoad={() => setLoadedUrl(preview.url)}
+            onError={() => {
+              setLoadedUrl(null);
+              onImageError();
+            }}
             style={{
               position: "absolute",
               inset: 0,
@@ -345,8 +371,8 @@ export function PdfRedactionViewer({
               fontSize: 12,
             }}
           >
-            Page {pageIndex + 1} — the page is not shown here. Open the record in another tab to read
-            it, then draw (or enter) the region as a share of the full page.
+            Page {pageIndex + 1} — the page preview is not available, so regions cannot be added to
+            this page here.
           </span>
         )}
         {pageRegions.map((r) => (
@@ -393,7 +419,13 @@ export function PdfRedactionViewer({
         every page becomes an image with each region blacked out, so the text
         under a region is not in the copy. The original is never modified.
       </small>
-      <RegionCoordinateForm disabled={versionLocked} onAdd={addRegion} />
+      <RegionCoordinateForm disabled={!canAuthor} onAdd={addRegion} />
+      {!versionLocked && !pageShown ? (
+        <RegionAuthoringBlockedNotice
+          waiting={preview.state === "pending" || (preview.state === "ready" && loadedUrl !== preview.url)}
+          subject="page"
+        />
+      ) : null}
       <p style={{ margin: "6px 0 0", fontSize: 11 }}>
         <a href={`/evidence/${evidenceId}`} target="_blank" rel="noreferrer" className="ui-link" data-redaction-pdf-open-record>
           Open the record in a new tab
