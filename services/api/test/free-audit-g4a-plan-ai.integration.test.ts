@@ -575,5 +575,50 @@ describe("free-audit 0ea0 — API-G4A-PLAN-AI (live PostgreSQL)", () => {
       expect(res.statusCode, res.body).toBe(200);
       expect(await aiConsumed(t.personalTeamId)).toBe(10);
     });
+
+    it("PRO-AI1Z-04 — availability reads the monthly allowance: a spent allowance is not reported as available", async () => {
+      const t = await fx.seedPersonalTenant(deps, "FREE");
+      const before = await call("GET", "/v1/ai/availability", t.owner.token, undefined, t.personalTeamId);
+      expect(before.statusCode, before.body).toBe(200);
+      expect(json(before).data).toMatchObject({ available: true, allowanceExhausted: false, decision: "ALLOWED" });
+
+      await prisma.entitlementUsage.create({
+        data: { teamId: t.personalTeamId, key: billing.AI_USAGE_KEY, periodStartUtc: billing.startOfCurrentMonthUtc(), consumed: 10n },
+      });
+      const spent = await call("GET", "/v1/ai/availability", t.owner.token, undefined, t.personalTeamId);
+      expect(spent.statusCode, spent.body).toBe(200);
+      expect(json(spent).data).toMatchObject({
+        available: false,
+        allowanceExhausted: true,
+        decision: "ALLOWED",
+        groundedAnswersAvailable: true,
+      });
+      // A read: nothing is consumed by asking.
+      expect(await aiConsumed(t.personalTeamId)).toBe(10);
+    });
+
+    it("PRO-AI1Z-04 — availability reads the plan: a workspace whose paid lifecycle has lapsed reads PLAN_NOT_ENTITLED", async () => {
+      const B = h.fixtures.teamB;
+      // A paid TEAM workspace (the shape ai-categorization-run-authority uses).
+      await prisma.team.update({ where: { id: B.teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } as never });
+      const control = await call("GET", "/v1/ai/availability", B.ownerToken, undefined, B.teamId);
+      expect(control.statusCode, control.body).toBe(200);
+      expect(json(control).data.decision).not.toBe("PLAN_NOT_ENTITLED");
+
+      await prisma.subscription.create({
+        data: {
+          userId: B.ownerUserId,
+          teamId: B.teamId,
+          provider: "STRIPE",
+          providerSubId: `g4a-lapsed-${randomUUID()}`,
+          status: "PAST_DUE",
+          plan: "TEAM",
+          currentPeriodEnd: new Date("2020-01-01T00:00:00.000Z"),
+        } as never,
+      });
+      const lapsed = await call("GET", "/v1/ai/availability", B.ownerToken, undefined, B.teamId);
+      expect(lapsed.statusCode, lapsed.body).toBe(200);
+      expect(json(lapsed).data).toMatchObject({ available: false, decision: "PLAN_NOT_ENTITLED", allowanceExhausted: false });
+    });
   });
 });
