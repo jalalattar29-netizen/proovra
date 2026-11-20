@@ -10,9 +10,13 @@
  * `fetch` is mocked: nothing here reaches PayPal and nothing is charged.
  */
 
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createPayPalCheckout } from "../src/services/billing-checkout.service.js";
+import { getEmailAppBaseUrl } from "../src/services/email.service.js";
 import {
   PayPalHttpError,
   createPayPalOrder,
@@ -180,6 +184,46 @@ describe("the exact evidence-credit Orders API request", () => {
 
     // No card data, no payer data, no credentials in the request body.
     expect(String(orderCall.init.body)).not.toContain(SECRET);
+  });
+
+  it("NEW-RG-24-1: with APP_BASE_URL unset and WEB_BASE_URL set, the return URL uses the one app-base authority (never the marketing site)", async () => {
+    const prev = { app: process.env.APP_BASE_URL, web: process.env.WEB_BASE_URL };
+    delete process.env.APP_BASE_URL;
+    process.env.WEB_BASE_URL = "https://www.marketing-site.test";
+    try {
+      mockFetch(
+        () =>
+          new Response(
+            JSON.stringify({ id: "ORDER-NEW", status: "CREATED", links: [{ rel: "approve", href: "https://www.sandbox.paypal.com/checkoutnow?token=ORDER-NEW" }] }),
+            { status: 201, headers: { "content-type": "application/json" } },
+          ),
+      );
+      await createPayPalCheckout({ userId: USER, plan: "PAYG", currency: "usd", productKey: "EVIDENCE_CREDIT" });
+      const orderCall = calls.find((c) => c.url.endsWith("/v2/checkout/orders"))!;
+      const ctx = JSON.parse(String(orderCall.init.body)).application_context;
+      expect(getEmailAppBaseUrl()).toBe("https://app.proovra.com");
+      expect(ctx.return_url).toBe(`${getEmailAppBaseUrl()}/billing?success=1&provider=paypal&kind=credits`);
+      expect(ctx.cancel_url).toBe(`${getEmailAppBaseUrl()}/billing?canceled=1&provider=paypal&kind=credits`);
+    } finally {
+      if (prev.app === undefined) delete process.env.APP_BASE_URL;
+      else process.env.APP_BASE_URL = prev.app;
+      if (prev.web === undefined) delete process.env.WEB_BASE_URL;
+      else process.env.WEB_BASE_URL = prev.web;
+    }
+  });
+
+  it("NEW-RG-24-1: every billing return-URL builder reads the base from getEmailAppBaseUrl, none inline", () => {
+    const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
+    for (const rel of [
+      "../src/services/billing-checkout.service.ts",
+      "../src/services/billing/plan-transition.service.ts",
+      "../src/routes/billing.routes.ts",
+      "../src/services/paypal.service.ts",
+    ]) {
+      const src = read(rel);
+      expect(src, rel).toContain("getEmailAppBaseUrl()");
+      expect(src, rel).not.toMatch(/process\.env\.(APP_BASE_URL|WEB_BASE_URL|NEXT_PUBLIC_WEB_BASE|NEXT_PUBLIC_APP_BASE)/);
+    }
   });
 
   it("a malformed price override can never produce a non-decimal amount", async () => {

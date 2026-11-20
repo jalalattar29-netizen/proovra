@@ -39,6 +39,7 @@ import {
 } from "../services/billing/stripe-checkout-start.service.js";
 import { prisma } from "../db.js";
 import { DomainError } from "../errors.js";
+import { getEmailAppBaseUrl } from "../services/email.service.js";
 // PAYPAL END-TO-END (2026-09-25) — the return routes settle through the SAME
 // service the verified webhook uses; neither trusts the browser's success flag.
 import {
@@ -1152,13 +1153,8 @@ export async function billingRoutes(app: FastifyInstance) {
         id: userId,
         capability: "BILLING_MANAGE",
       });
-      const base = (
-        process.env.APP_BASE_URL?.trim() ||
-        process.env.WEB_BASE_URL?.trim() ||
-        process.env.NEXT_PUBLIC_WEB_BASE?.trim() ||
-        "https://app.proovra.com"
-      ).replace(/\/+$/, "");
-      const link = await createPaymentManagementLink({ userId, returnUrl: `${base}/billing` });
+      // NEW-RG-24-1 (RG-24) — the one app-host base authority, never an inline chain.
+      const link = await createPaymentManagementLink({ userId, returnUrl: `${getEmailAppBaseUrl()}/billing` });
       auditBillingAction(req, {
         userId,
         action: "billing.payment_management_opened",
