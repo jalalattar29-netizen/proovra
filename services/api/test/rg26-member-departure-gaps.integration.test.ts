@@ -31,7 +31,7 @@ describe("RG-26 gaps — departure keeps records owned and invitations bounded (
   let provisioning: typeof import("../src/services/identity/membership-provisioning.service.js");
   let accessReview: typeof import("../src/services/identity/access-review.service.js");
   let rbacErrorStatus: typeof import("../src/http/member-command-gates.js")["rbacErrorStatus"];
-  let REQUIRED_LEGAL_VERSIONS: Record<string, string>;
+  let requiredLegalVersions: Record<string, string>;
   const A = () => h.fixtures.teamA;
 
   beforeAll(async () => {
@@ -41,7 +41,7 @@ describe("RG-26 gaps — departure keeps records owned and invitations bounded (
     provisioning = await import("../src/services/identity/membership-provisioning.service.js");
     accessReview = await import("../src/services/identity/access-review.service.js");
     ({ rbacErrorStatus } = await import("../src/http/member-command-gates.js"));
-    REQUIRED_LEGAL_VERSIONS = (await import("../src/legal/legal-versioning.js")).REQUIRED_LEGAL_VERSIONS as Record<string, string>;
+    requiredLegalVersions = (await import("../src/legal/legal-versioning.js")).REQUIRED_LEGAL_VERSIONS as Record<string, string>;
     await prisma.team.updateMany({ where: { id: A().teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } });
   }, 900_000);
 
@@ -56,7 +56,7 @@ describe("RG-26 gaps — departure keeps records owned and invitations bounded (
       select: { id: true },
     });
     await prisma.userLegalAcceptance.createMany({
-      data: Object.entries(REQUIRED_LEGAL_VERSIONS).map(([policyKey, policyVersion]) => ({
+      data: Object.entries(requiredLegalVersions).map(([policyKey, policyVersion]) => ({
         userId: user.id,
         policyKey,
         policyVersion: policyVersion as string,

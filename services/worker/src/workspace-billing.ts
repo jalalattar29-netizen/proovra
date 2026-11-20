@@ -965,8 +965,14 @@ export async function settleArtifactStorageReservationTx(
 export async function workspaceAllowsDerivedArtifact(params: {
   evidenceId: string;
   incomingBytes: bigint | number;
-  /** The derived row (canonical identity) the reservation is held on. */
-  reservation: Omit<DerivedAssetReservationKey, "evidenceId">;
+  /**
+   * The derived row (canonical identity) the reservation is held on. Absent
+   * for a derived writer that has no evidence_part_derived_assets row (the
+   * redaction page preview, NEW-RG-33-1): the gate then checks under the same
+   * workspace capacity lock but holds no durable reservation (a bounded, single
+   * preview-image residual; M676 covers derived-asset rows).
+   */
+  reservation?: Omit<DerivedAssetReservationKey, "evidenceId">;
 }): Promise<{ allowed: true } | { allowed: false; reason: "storage_limit" | "evidence_not_found" }> {
   const ev = await prisma.evidence.findUnique({
     where: { id: params.evidenceId },
@@ -978,20 +984,22 @@ export async function workspaceAllowsDerivedArtifact(params: {
     typeof params.incomingBytes === "bigint"
       ? params.incomingBytes
       : BigInt(Math.max(0, Math.trunc(Number.isFinite(params.incomingBytes) ? params.incomingBytes : 0)));
-  const key: DerivedAssetReservationKey = { ...params.reservation, evidenceId: params.evidenceId };
+  const key: DerivedAssetReservationKey | null = params.reservation
+    ? { ...params.reservation, evidenceId: params.evidenceId }
+    : null;
   try {
     await prisma.$transaction(async (tx) => {
       await lockWorkspaceCapacityTx(tx, scope);
-      await clearOwnDerivedAssetStorageReservationTx(tx, key);
+      if (key) await clearOwnDerivedAssetStorageReservationTx(tx, key);
       await assertWorkspaceStorageAvailable({ scope, incomingBytes: bytes, usageOptions: { client: tx } });
-      await writeDerivedAssetStorageReservationTx(tx, key, bytes, new Date());
+      if (key) await writeDerivedAssetStorageReservationTx(tx, key, bytes, new Date());
     }, ARTIFACT_STORAGE_RESERVATION_TRANSACTION);
     return { allowed: true };
   } catch (err) {
     if ((err as { code?: string }).code === "STORAGE_LIMIT_REACHED") {
       // Refused: an earlier reservation of this row (a crashed attempt) must
       // not keep counting against the workspace.
-      await releaseDerivedAssetStorageReservation(prisma, key).catch(() => undefined);
+      if (key) await releaseDerivedAssetStorageReservation(prisma, key).catch(() => undefined);
       return { allowed: false, reason: "storage_limit" };
     }
     throw err;
