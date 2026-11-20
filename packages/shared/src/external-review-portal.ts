@@ -288,6 +288,10 @@ export const EXTERNAL_PORTAL_DENIAL_REASONS = [
   "POLICY_REJECTED",
   "DECISION_ALREADY_RECORDED",
   "COMMENT_BODY_INVALID",
+  // PRO-NC-09 (matrix review NEW-RG-27-3) — "viewed" and a decision record
+  // that the review material was presented: both are refused until the
+  // material of this review was released to this grant.
+  "MATERIAL_NOT_OPENED",
   "INVITE_NOT_FOUND",
   "INVITE_ALREADY_ACCEPTED",
   "INVITE_ALREADY_REVOKED",

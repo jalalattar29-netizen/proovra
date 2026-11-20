@@ -89,6 +89,8 @@ beforeEach(() => {
     if (url.endsWith("/comments") && init.method === "POST") return json(next("comment", { status: 201, body: { commentId: "c1" } }));
     if (url.endsWith("/comments")) return json({ status: 200, body: { comments: [] } });
     if (url.endsWith("/view")) return json({ status: 200, body: { ok: true } });
+    // NEW-RG-27-3 — the review material (a hash URL: jsdom does not navigate).
+    if (url.endsWith("/verification-package")) return json({ status: 200, body: { url: "#package", packageSha256: null } });
     if (url.endsWith("/decisions")) return json({ status: 200, body: { decisions: [] } });
     if (url.endsWith("/decision")) return json(next("decision", { status: 200, body: { decisionId: "d1", replaced: false } }));
     return json({ status: 404, body: {} });
@@ -154,6 +156,15 @@ describe("D58 portal session denials", () => {
   it("D58 review page: a decision refused with SESSION_ENDED offers sign-in and keeps the draft", async () => {
     render(<PortalReviewPage params={resolved({ token: "tok", workflowId })} />);
     await screen.findByText("You have not recorded a decision for this review yet.");
+    // NEW-RG-27-3 — the decision controls follow opening the review material.
+    fireEvent.click(
+      await waitFor(() => {
+        const el = document.querySelector("[data-portal-package-download]");
+        expect(el).not.toBeNull();
+        return el as HTMLButtonElement;
+      }),
+    );
+    await waitFor(() => expect(document.querySelector("[data-portal-decision-rationale]")).not.toBeNull());
     fireEvent.change(document.querySelector("[data-portal-decision-rationale]")!, { target: { value: "Needs another pass." } });
     queue.decision = [{ status: 401, body: { denial: "SESSION_ENDED" } }];
     fireEvent.click(screen.getByRole("button", { name: "Request changes" }));

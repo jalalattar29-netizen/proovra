@@ -83,6 +83,34 @@ describe("external reviewer through the real invitation flow (live PostgreSQL + 
     return { grantId: res.json().grantId as string, rawToken: res.json().rawToken as string, reviewerEmail };
   }
 
+  /** A record with a published disclosure package, at a real object. */
+  async function recordWithPackage(c: Customer) {
+    const { s3 } = await import("../src/storage.js");
+    const bucket = process.env.S3_BUCKET as string;
+    const id = await record(c, `pkg ${kit.tag()}`);
+    await prisma.evidence.update({ where: { id }, data: { type: "DOCUMENT", status: "REPORTED", signedAtUtc: new Date() } as never });
+    const key = `verification/${id}/external.zip`;
+    const body = Buffer.from(`package ${randomUUID()}`);
+    await s3.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: body }));
+    await prisma.report.create({
+      data: { evidenceId: id, version: 1, storageBucket: "b", storageKey: `reports/${id}/v1.pdf`, generatedAtUtc: new Date(), sizeBytes: 1_000n },
+    });
+    await prisma.verificationPackage.create({
+      data: {
+        evidenceId: id,
+        version: 1,
+        storageBucket: bucket,
+        storageKey: key,
+        generatedAtUtc: new Date(),
+        sizeBytes: BigInt(body.length),
+        reportVersion: 1,
+        disclosureProfile: "EXTERNAL_DISCLOSURE",
+        packageSha256: createHash("sha256").update(body).digest("hex"),
+      } as never,
+    });
+    return id;
+  }
+
   const portal = (method: string, url: string, token: string, sessionId?: string, payload?: unknown) =>
     h.app.inject({
       method: method as never,
@@ -117,7 +145,9 @@ describe("external reviewer through the real invitation flow (live PostgreSQL + 
     a = await customers.customer();
     b = await customers.customer();
     member = await kit.person(a.workspaceId, "MEMBER");
-    evidence = await record(a, `E1 ${kit.tag()}`);
+    // NEW-RG-27-3 — the reviewed record carries its review material (a
+    // published disclosure package): view and decision follow its release.
+    evidence = await recordWithPackage(a);
     sibling = await record(a, `E2 ${kit.tag()}`);
     workflow = await workflowOn(a, evidence);
     siblingWorkflow = await workflowOn(a, sibling);
@@ -203,7 +233,7 @@ describe("external reviewer through the real invitation flow (live PostgreSQL + 
     let session: string;
 
     beforeAll(async () => {
-      g = await invited(a, { kind: "EVIDENCE", evidenceId: evidence });
+      g = await invited(a, { kind: "EVIDENCE", evidenceId: evidence }, { allowPackageDownload: true });
       session = await signIn(g.rawToken);
     });
 
@@ -220,6 +250,18 @@ describe("external reviewer through the real invitation flow (live PostgreSQL + 
     });
 
     it("POSITIVE: view, comment and decision land on the workflow, with rows and activity", async () => {
+      // NEW-RG-27-3 — "viewed" and a decision follow the release of the review material.
+      const early = await portal("POST", `/v1/portal/work/${workflow}/view`, g.rawToken, session);
+      expect(early.statusCode, early.body).toBe(409);
+      expect(early.json()).toEqual({ denial: "MATERIAL_NOT_OPENED" });
+      const earlyDecision = await portal("POST", `/v1/portal/work/${workflow}/decision`, g.rawToken, session, { verdict: "APPROVE" });
+      expect(earlyDecision.statusCode, earlyDecision.body).toBe(409);
+      expect(earlyDecision.json()).toEqual({ denial: "MATERIAL_NOT_OPENED" });
+      expect(await activity(g.grantId, "REVIEW_OPENED")).toBe(0);
+      expect(await prisma.externalReviewDecision.count({ where: { grantId: g.grantId } })).toBe(0);
+      const material = await portal("GET", `/v1/portal/work/${workflow}/verification-package`, g.rawToken, session);
+      expect(material.statusCode, material.body).toBe(200);
+
       const view = await portal("POST", `/v1/portal/work/${workflow}/view`, g.rawToken, session);
       expect(view.statusCode, view.body).toBe(200);
       expect(await activity(g.grantId, "REVIEW_OPENED")).toBe(1);
@@ -449,33 +491,6 @@ describe("external reviewer through the real invitation flow (live PostgreSQL + 
     const pkg = (id: string, raw: string, session?: string) =>
       portal("GET", `/v1/portal/work/${id}/verification-package`, raw, session);
 
-    /** A record with a published disclosure package, at a real object. */
-    async function recordWithPackage(c: Customer) {
-      const { s3 } = await import("../src/storage.js");
-      const bucket = process.env.S3_BUCKET as string;
-      const id = await record(c, `pkg ${kit.tag()}`);
-      await prisma.evidence.update({ where: { id }, data: { type: "DOCUMENT", status: "REPORTED", signedAtUtc: new Date() } as never });
-      const key = `verification/${id}/external.zip`;
-      const body = Buffer.from(`package ${randomUUID()}`);
-      await s3.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: body }));
-      await prisma.report.create({
-        data: { evidenceId: id, version: 1, storageBucket: "b", storageKey: `reports/${id}/v1.pdf`, generatedAtUtc: new Date(), sizeBytes: 1_000n },
-      });
-      await prisma.verificationPackage.create({
-        data: {
-          evidenceId: id,
-          version: 1,
-          storageBucket: bucket,
-          storageKey: key,
-          generatedAtUtc: new Date(),
-          sizeBytes: BigInt(body.length),
-          reportVersion: 1,
-          disclosureProfile: "EXTERNAL_DISCLOSURE",
-          packageSha256: createHash("sha256").update(body).digest("hex"),
-        } as never,
-      });
-      return id;
-    }
 
     it("POSITIVE: a grant that allows the download gets the file, and custody records it", async () => {
       const id = await recordWithPackage(a);
@@ -499,6 +514,34 @@ describe("external reviewer through the real invitation flow (live PostgreSQL + 
       expect(res.statusCode, res.body).toBe(403);
       expect(res.json().error.code).toBe("package_download_not_granted");
       expect(await prisma.custodyEvent.count({ where: { evidenceId: id } })).toBe(before);
+    });
+
+    it("NEW-RG-27-3: with no material released to this grant there is no 'viewed' record and no decision; another grant's release does not count", async () => {
+      const id = await recordWithPackage(a);
+      const wf = await workflowOn(a, id);
+      // A grant whose material is refused (no download allowed).
+      const refused = await invited(a, { kind: "EVIDENCE", evidenceId: id }, { allowPackageDownload: false });
+      const refusedSession = await signIn(refused.rawToken);
+      expect((await pkg(wf, refused.rawToken, refusedSession)).statusCode).toBe(403);
+      // A second grant on the same record that DID open the material.
+      const opened = await invited(a, { kind: "EVIDENCE", evidenceId: id }, { allowPackageDownload: true });
+      const openedSession = await signIn(opened.rawToken);
+      expect((await pkg(wf, opened.rawToken, openedSession)).statusCode).toBe(200);
+
+      const view = await portal("POST", `/v1/portal/work/${wf}/view`, refused.rawToken, refusedSession);
+      expect(view.statusCode, view.body).toBe(409);
+      expect(view.json()).toEqual({ denial: "MATERIAL_NOT_OPENED" });
+      const decide = await portal("POST", `/v1/portal/work/${wf}/decision`, refused.rawToken, refusedSession, { verdict: "APPROVE" });
+      expect(decide.statusCode, decide.body).toBe(409);
+      expect(decide.json()).toEqual({ denial: "MATERIAL_NOT_OPENED" });
+      expect(await activity(refused.grantId, "REVIEW_OPENED")).toBe(0);
+      expect(await activity(refused.grantId, "DECISION_SUBMITTED")).toBe(0);
+      expect(await prisma.externalReviewDecision.count({ where: { grantId: refused.grantId } })).toBe(0);
+
+      // The grant that opened it records both.
+      expect((await portal("POST", `/v1/portal/work/${wf}/view`, opened.rawToken, openedSession)).statusCode).toBe(200);
+      const ok = await portal("POST", `/v1/portal/work/${wf}/decision`, opened.rawToken, openedSession, { verdict: "APPROVE" });
+      expect(ok.statusCode, ok.body).toBe(200);
     });
 
     it("a workflow outside the grant, another tenant's among them, is out of scope; no session gets nothing", async () => {
