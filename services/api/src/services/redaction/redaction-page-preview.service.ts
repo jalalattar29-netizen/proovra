@@ -29,6 +29,8 @@ import { assertFeatureEntitlement } from "../packaging/entitlement.service.js";
 
 /** How long the presigned preview URL lives. */
 export const REDACTION_PAGE_PREVIEW_URL_TTL_SECONDS = 300;
+/** The storage response's Cache-Control for a preview image (signed into the URL). */
+export const REDACTION_PAGE_PREVIEW_CACHE_CONTROL = "private, no-store, max-age=0";
 /** A QUEUED row older than this is enqueued again on a read (the add collapses onto a live job). */
 const REQUEUE_QUEUED_AFTER_MS = 15_000;
 /** A transiently FAILED page is tried again on a read after this long. */
@@ -38,7 +40,16 @@ const RETRYABLE_FAILURE_REASONS: ReadonlySet<string> = new Set(["renderer_failed
 
 export type RedactionPagePreviewAnswer =
   | { ok: true; state: "PENDING" }
-  | { ok: true; state: "READY"; url: string; width: number | null; height: number | null; expiresAtUtc: string }
+  | {
+      ok: true;
+      state: "READY";
+      url: string;
+      width: number | null;
+      height: number | null;
+      expiresAtUtc: string;
+      /** For the route's access record; never sent to the client. */
+      evidenceId: string;
+    }
   | { ok: true; state: "UNAVAILABLE"; reason: string }
   | { ok: false; status: 400 | 403 | 404 | 409; body: Record<string, unknown> };
 
@@ -87,6 +98,18 @@ export async function readRedactionPagePreview(input: {
     select: { id: true, evidenceId: true, artifactKind: true },
   });
   if (!project) return { ok: false, status: 404, body: { denial: "PROJECT_NOT_FOUND" } };
+  // Caveat 4 (2026-11-20, DEC-05) — the preview is the record's own unredacted
+  // content. Trash, destruction review and destruction end ordinary access to
+  // the record, so they end it to its page images too (already-rendered ones
+  // included), answered like a missing project.
+  const readable = await prisma.evidence.count({
+    where: {
+      id: project.evidenceId,
+      deletedAt: null,
+      lifecycleState: { notIn: ["TRASHED", "PENDING_DESTRUCTION", "DESTROYED"] },
+    },
+  });
+  if (readable === 0) return { ok: false, status: 404, body: { denial: "PROJECT_NOT_FOUND" } };
   if (project.artifactKind !== "PDF") {
     return { ok: false, status: 409, body: { denial: "UNSUPPORTED_REDACTION_MEDIA" } };
   }
@@ -153,6 +176,7 @@ async function answerFor(
     width: number | null;
     height: number | null;
     failureReason: string | null;
+    evidenceId: string;
   },
   presign: typeof presignGetObject,
   now: Date,
@@ -162,6 +186,10 @@ async function answerFor(
       bucket: row.storageBucket,
       key: row.storageKey,
       expiresInSeconds: REDACTION_PAGE_PREVIEW_URL_TTL_SECONDS,
+      // Caveat 4 — the browser keeps no copy of the unredacted page once the
+      // five-minute link lapses: a later look asks the route again, which
+      // re-checks the viewer's role, workspace, case reach and the record.
+      responseCacheControl: REDACTION_PAGE_PREVIEW_CACHE_CONTROL,
     });
     return {
       ok: true,
@@ -170,6 +198,7 @@ async function answerFor(
       width: row.width,
       height: row.height,
       expiresAtUtc: new Date(now.getTime() + REDACTION_PAGE_PREVIEW_URL_TTL_SECONDS * 1000).toISOString(),
+      evidenceId: row.evidenceId,
     };
   }
   if (row.state === "FAILED" || row.state === "READY") {
