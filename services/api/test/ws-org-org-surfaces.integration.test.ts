@@ -192,6 +192,125 @@ describe("WS-ORG — organization surfaces (live PostgreSQL 16)", () => {
     expect(row).toEqual({ role: "MEMBER", status: "ACTIVE" });
   });
 
+  it("PRO-TZ-02 — the bulk dry run and the CSV import apply the same role ceiling as the single invite, creating nothing", async () => {
+    const org = await fx.seedOrganizationTenant(deps);
+    const orgAdmin = await orgMember(org, "tz02-bulk-admin", { orgRole: "ORG_ADMIN", role: "MEMBER" });
+    const before = await prisma.organizationInvite.count({ where: { organizationId: org.organizationId } });
+    const email = `tz02c-${randomUUID().slice(0, 6)}@invitee.test`;
+
+    const validateAdmin = await harness.app.inject({
+      method: "POST",
+      url: `/v1/orgs/${org.organizationId}/invites/bulk/validate`,
+      headers: auth(orgAdmin.token),
+      payload: { rows: [{ email }], workspaceAssignments: [{ teamId: org.workspaceId, role: "ADMIN" }] },
+    });
+    expect(validateAdmin.statusCode, validateAdmin.body).toBe(403);
+    expect(JSON.parse(validateAdmin.body)).toMatchObject({ error: { code: "workspace_assignment_above_inviter" } });
+
+    const validateOwner = await harness.app.inject({
+      method: "POST",
+      url: `/v1/orgs/${org.organizationId}/invites/bulk/validate`,
+      headers: auth(org.owner.token),
+      payload: { rows: [{ email }], workspaceAssignments: [{ teamId: org.workspaceId, role: "OWNER" }] },
+    });
+    expect(validateOwner.statusCode, validateOwner.body).toBe(400);
+    expect(JSON.parse(validateOwner.body)).toMatchObject({ error: { code: "workspace_owner_assignment_forbidden" } });
+
+    const csvAdmin = await harness.app.inject({
+      method: "POST",
+      url: `/v1/orgs/${org.organizationId}/invites/csv`,
+      headers: { ...auth(orgAdmin.token), "content-type": "application/json" },
+      payload: { csv: `email,role\r\n${email},ORG_MEMBER\r\n`, workspaceAssignments: [{ teamId: org.workspaceId, role: "ADMIN" }] },
+    });
+    expect(csvAdmin.statusCode, csvAdmin.body).toBe(403);
+    expect(JSON.parse(csvAdmin.body)).toMatchObject({ error: { code: "workspace_assignment_above_inviter" } });
+
+    const csvOwnerRole = await harness.app.inject({
+      method: "POST",
+      url: `/v1/orgs/${org.organizationId}/invites/csv`,
+      headers: { ...auth(org.owner.token), "content-type": "application/json" },
+      payload: { csv: `email,role\r\n${email},ORG_MEMBER\r\n`, workspaceAssignments: [{ teamId: org.workspaceId, role: "OWNER" }] },
+    });
+    expect(csvOwnerRole.statusCode, csvOwnerRole.body).toBe(400);
+    expect(JSON.parse(csvOwnerRole.body)).toMatchObject({ error: { code: "workspace_owner_assignment_forbidden" } });
+    expect(await prisma.organizationInvite.count({ where: { organizationId: org.organizationId } })).toBe(before);
+
+    // Authorized: the organization owner may assign ADMIN in the dry run.
+    const ok = await harness.app.inject({
+      method: "POST",
+      url: `/v1/orgs/${org.organizationId}/invites/bulk/validate`,
+      headers: auth(org.owner.token),
+      payload: { rows: [{ email }], workspaceAssignments: [{ teamId: org.workspaceId, role: "ADMIN" }] },
+    });
+    expect(ok.statusCode, ok.body).toBe(200);
+    expect(JSON.parse(ok.body)).toMatchObject({ dryRun: true, summary: { WOULD_INVITE: 1 } });
+    expect(await prisma.organizationInvite.count({ where: { organizationId: org.organizationId } })).toBe(before);
+  });
+
+  it("NEW-RG-07-4 — a resend (single and bulk) re-applies the role ceiling: a pre-ceiling ADMIN invitation from a non-owner is not refreshed", async () => {
+    const org = await fx.seedOrganizationTenant(deps);
+    const orgAdmin = await orgMember(org, "rg074-admin", { orgRole: "ORG_ADMIN", role: "MEMBER" });
+    // Pending invitations written before the ceiling existed, by the org admin.
+    const legacy = async (label: string) => {
+      const expiresAt = new Date(Date.now() + 86_400_000);
+      const row = await prisma.organizationInvite.create({
+        data: {
+          organizationId: org.organizationId,
+          email: `${label}-${randomUUID().slice(0, 6)}@invitee.test`,
+          role: "ORG_MEMBER",
+          tokenHash: createHash("sha256").update(randomUUID()).digest("hex"),
+          invitedByUserId: orgAdmin.userId,
+          expiresAt,
+          workspaceAssignments: [{ teamId: org.workspaceId, role: "ADMIN" }],
+        } as never,
+        select: { id: true },
+      });
+      return row.id;
+    };
+    const snapshot = (id: string) =>
+      prisma.organizationInvite.findUniqueOrThrow({
+        where: { id },
+        select: { expiresAt: true, resendCount: true, lastResentAt: true, tokenHash: true },
+      });
+
+    const single = await legacy("rg074a");
+    const singleBefore = await snapshot(single);
+    const singleRes = await harness.app.inject({
+      method: "POST",
+      url: `/v1/orgs/${org.organizationId}/invites/${single}/resend`,
+      headers: auth(orgAdmin.token),
+      payload: {},
+    });
+    expect(singleRes.statusCode, singleRes.body).toBe(403);
+    expect(JSON.parse(singleRes.body)).toMatchObject({ error: { code: "workspace_assignment_above_inviter" } });
+    expect(await snapshot(single)).toEqual(singleBefore);
+
+    const bulk = await legacy("rg074b");
+    const bulkBefore = await snapshot(bulk);
+    const bulkRes = await harness.app.inject({
+      method: "POST",
+      url: `/v1/orgs/${org.organizationId}/invites/bulk/resend`,
+      headers: auth(orgAdmin.token),
+      payload: { inviteIds: [bulk] },
+    });
+    expect(bulkRes.statusCode, bulkRes.body).toBe(200);
+    const bulkBody = JSON.parse(bulkRes.body) as { rows: Array<{ inviteId: string; outcome: string; code?: string }> };
+    expect(bulkBody.rows).toEqual([
+      expect.objectContaining({ inviteId: bulk, outcome: "FAILED", code: "workspace_assignment_above_inviter" }),
+    ]);
+    expect(await snapshot(bulk)).toEqual(bulkBefore);
+
+    // Authorized: the organization owner re-authorizes within the ceiling.
+    const ownerRes = await harness.app.inject({
+      method: "POST",
+      url: `/v1/orgs/${org.organizationId}/invites/${single}/resend`,
+      headers: auth(org.owner.token),
+      payload: {},
+    });
+    expect(ownerRes.statusCode, ownerRes.body).toBe(200);
+    expect((await snapshot(single)).resendCount).toBe(singleBefore.resendCount + 1);
+  });
+
   it("PRO-TZ-03 / PRO-NAZ-03 — resume refuses a running workspace and a resume over capacity, reactivating nobody", async () => {
     const org = await fx.seedOrganizationTenant(deps, { memberCount: 2 });
     const base = `/v1/orgs/${org.organizationId}/workspaces/${org.workspaceId}`;

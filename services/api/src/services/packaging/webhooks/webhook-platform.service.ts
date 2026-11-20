@@ -46,6 +46,7 @@ import { isLiveOperatingWorkspace } from "../../workspace/operating-workspace.js
 import {
   STANDING_CREDENTIAL_PERMISSION,
   evaluateCreatorAuthority,
+  type CreatorAuthorityVerdict,
 } from "../../sharing/standing-credential-authority.js";
 import { inputRefusal } from "../../../errors.js";
 import type { EntitlementProjection } from "@proovra/shared";
@@ -319,6 +320,37 @@ function normalizeSubscribedEvents(
   return out;
 }
 
+/**
+ * PRO-LEAD-01 / PRO-G1Z-01 / NEW-RG-07-2 — THE creator-standing decision for a
+ * lifecycle endpoint, shared by every API path that queues a delivery to it
+ * (`emitWebhookEvent` and the manual replay). The endpoint acts in its
+ * creator's name, so the creator's standing is asked by the canonical decision
+ * (access-window expiry set aside, A2-26). LOST deactivates the endpoint (a
+ * conditional write); any answer other than HOLDS queues nothing.
+ */
+export async function lifecycleEndpointCreatorStanding(
+  input: { teamId: string; endpointId: string; createdByUserId: string },
+  prisma: PrismaClient = defaultPrisma,
+): Promise<CreatorAuthorityVerdict> {
+  const creator = await evaluateCreatorAuthority(
+    {
+      teamId: input.teamId,
+      userId: input.createdByUserId,
+      permission: STANDING_CREDENTIAL_PERMISSION.lifecycleWebhook,
+    },
+    prisma,
+  );
+  if (creator.verdict === "LOST") {
+    await prisma.lifecycleWebhookEndpoint
+      .updateMany({
+        where: { id: input.endpointId, teamId: input.teamId, state: "ACTIVE" },
+        data: { state: "DEACTIVATED", deactivatedAtUtc: new Date() },
+      })
+      .catch(() => null);
+  }
+  return creator;
+}
+
 // -----------------------------------------------------------------------------
 // Public API — emitWebhookEvent
 // -----------------------------------------------------------------------------
@@ -371,23 +403,10 @@ export async function emitWebhookEvent(
     // capability or delegated scope that expired, which no transition ends —
     // deactivates the endpoint and queues nothing; an unreadable or
     // workspace-blocked answer queues nothing and ends nothing.
-    const creator = await evaluateCreatorAuthority(
-      {
-        teamId: input.teamId,
-        userId: ep.createdByUserId,
-        permission: STANDING_CREDENTIAL_PERMISSION.lifecycleWebhook,
-      },
+    const creator = await lifecycleEndpointCreatorStanding(
+      { teamId: input.teamId, endpointId: ep.id, createdByUserId: ep.createdByUserId },
       prisma,
     );
-    if (creator.verdict === "LOST") {
-      await prisma.lifecycleWebhookEndpoint
-        .updateMany({
-          where: { id: ep.id, teamId: input.teamId, state: "ACTIVE" },
-          data: { state: "DEACTIVATED", deactivatedAtUtc: new Date() },
-        })
-        .catch(() => null);
-      continue;
-    }
     if (creator.verdict !== "HOLDS") continue;
     // PRO-W2-05 / PRO-G1-04 / B7B-F05 / DEC-09 — entitlement and the daily
     // delivery quota at USE time, per delivery (the same gate the integration

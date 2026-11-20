@@ -74,6 +74,9 @@ import {
   suspendOrganizationWorkspaceAccessTx,
   // PRO-TZ-02 — invitation workspace-assignment role ceiling.
   workspaceAssignmentCeilingRefusal,
+  workspaceAssignmentCeilingReply,
+  // NEW-RG-07-4 — a resend re-applies the ceiling to the stored assignments.
+  storedInvitationCeilingRefusal,
 } from "../services/identity/membership-provisioning.service.js";
 // Phase 2.7X Stage 4 — audit emitter (writes inside the mutation tx).
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
@@ -1791,6 +1794,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
             revokedAt: true,
             expiresAt: true,
             resendCount: true,
+            workspaceAssignments: true,
           },
         });
         if (!invite) return { kind: "not_found" as const };
@@ -1799,6 +1803,17 @@ export async function organizationsRoutes(app: FastifyInstance) {
         if (invite.revokedAt) return { kind: "revoked" as const };
         if (invite.expiresAt <= new Date())
           return { kind: "expired" as const };
+
+        // NEW-RG-07-4 (DEC-18 / DEC-28) — the resend re-issues the invitation
+        // in this resender's name: its stored workspace assignments must sit
+        // within their ceiling. Asked before the cooldown claim, so a refusal
+        // writes nothing (no claim, no expiry change, no email).
+        const ceiling = await storedInvitationCeilingRefusal(tx, {
+          resenderUserId: userId,
+          resenderOrgRole: access.role,
+          storedAssignments: invite.workspaceAssignments,
+        });
+        if (ceiling) return { kind: "ceiling" as const, ceiling };
 
         // PRO-T2-06 — the per-invitation cooldown is the claim: a conditional
         // write, so two concurrent resends produce one send and the second is
@@ -1855,6 +1870,10 @@ export async function organizationsRoutes(app: FastifyInstance) {
 
       if (result.kind === "not_found") {
         return reply.code(404).send({ error: { code: "INVITE_NOT_FOUND" }, message: "Invite not found." });
+      }
+      if (result.kind === "ceiling") {
+        const refusal = workspaceAssignmentCeilingReply(result.ceiling);
+        return reply.code(refusal.status).send(refusal.body);
       }
       if (result.kind === "cooldown") {
         const refusal = orgInviteResendCooldownRefusal();

@@ -508,6 +508,16 @@ describe("free-user audit round 3: A2-12 … A2-17 (live PostgreSQL)", () => {
       // The case owner still reaches the subject: renew (with step-up) works.
       const byOwner = await renew(T, issued.grantId, T.owner, true);
       expect(byOwner.statusCode, byOwner.body).toBe(200);
+
+      // PRO-R1-11 — the invitation's activity trail follows the same reach.
+      const offActivity = await call("GET", `/v1/external-review/invitations/${issued.grantId}/activity`, offAdmin, undefined, ws(T.teamId));
+      expect(offActivity.statusCode, offActivity.body).toBe(404);
+      expect(offActivity.json()).toEqual({ denial: "GRANT_NOT_FOUND" });
+      const missingActivity = await call("GET", `/v1/external-review/invitations/${randomUUID()}/activity`, offAdmin, undefined, ws(T.teamId));
+      expect(missingActivity.json()).toEqual(offActivity.json());
+      const ownerActivity = await call("GET", `/v1/external-review/invitations/${issued.grantId}/activity`, T.owner, undefined, ws(T.teamId));
+      expect(ownerActivity.statusCode, ownerActivity.body).toBe(200);
+      expect(Array.isArray(ownerActivity.json().activity)).toBe(true);
     });
 
     it("renew now requires the step-up; with it the expiry moves", async () => {

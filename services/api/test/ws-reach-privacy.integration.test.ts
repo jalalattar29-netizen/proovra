@@ -123,6 +123,41 @@ describe("WS-REACH privacy and reach residuals (live PostgreSQL)", () => {
     expect(own.statusCode, own.body).toBe(200);
   });
 
+  it("PRO-E2-03 — a manager cannot rewrite another member's legal note (403 AUTHOR_ONLY_EDIT); the author can", async () => {
+    const ev = await record(member.id);
+    const posted = await send("POST", `/v1/evidence/${ev}/legal-notes`, member, { body: "original note", noteType: "GENERAL" });
+    expect(posted.statusCode, posted.body).toBe(201);
+    const noteId = posted.json().legalNote.id as string;
+    const refused = await send("PATCH", `/v1/evidence/${ev}/legal-notes/${noteId}`, tenant.owner, { body: "note never written" });
+    expect(refused.statusCode, refused.body).toBe(403);
+    expect(refused.json().code).toBe("AUTHOR_ONLY_EDIT");
+    const row = await prisma.evidenceLegalNote.findUniqueOrThrow({ where: { id: noteId } });
+    expect(row.body).toBe("original note");
+    const own = await send("PATCH", `/v1/evidence/${ev}/legal-notes/${noteId}`, member, { body: "my own note edit" });
+    expect(own.statusCode, own.body).toBe(200);
+    expect(own.json().legalNote).toMatchObject({ body: "my own note edit", viewerCanEdit: true });
+  });
+
+  it("PRO-E2-03 — a manager cannot rewrite another member's annotation (403 AUTHOR_ONLY_EDIT); the author can", async () => {
+    const ev = await record(member.id);
+    const posted = await send("POST", `/v1/evidence/${ev}/annotations`, member, {
+      annotationType: "TEXT",
+      body: "original annotation",
+      coordinateSpace: "TIME_ONLY",
+      mediaTimestampMs: 1000,
+    });
+    expect(posted.statusCode, posted.body).toBe(201);
+    const annotationId = posted.json().annotation.id as string;
+    const refused = await send("PATCH", `/v1/evidence/${ev}/annotations/${annotationId}`, tenant.owner, { body: "annotation never written" });
+    expect(refused.statusCode, refused.body).toBe(403);
+    expect(refused.json().code).toBe("AUTHOR_ONLY_EDIT");
+    const row = await prisma.evidenceAnnotation.findUniqueOrThrow({ where: { id: annotationId } });
+    expect(row.body).toBe("original annotation");
+    const own = await send("PATCH", `/v1/evidence/${ev}/annotations/${annotationId}`, member, { body: "my own annotation edit" });
+    expect(own.statusCode, own.body).toBe(200);
+    expect(own.json().annotation).toMatchObject({ body: "my own annotation edit" });
+  });
+
   it("PRO-E2-02 — an external submitter's address is masked for a record reader", async () => {
     const address = `ext-submitter-${tag()}@example.test`;
     const ev = await record(tenant.owner.id, { acquisitionMode: "SECURE_INTAKE_LINK", acquisitionModeSource: "RECORDED_AT_CREATION", submittedByEmail: address });
