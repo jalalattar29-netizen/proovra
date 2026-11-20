@@ -461,12 +461,20 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       }
       // B7B-F06 — the shared authoring gate; an engine failure is an error, never a publish.
       // PRO-G2-13 — the one trust write rule; publishing asks a step-up bound to this article.
+      // NEW-RG-20-2 — so does OVERWRITING a PUBLISHED article: a publish:false
+      // write over it replaces the live content and unpublishes it, which is
+      // the "overwrite of existing content" the rule above names. New drafts
+      // and edits of a draft are unchanged.
+      const existing = body.publish === true
+        ? null
+        : await getTrustArticleBySlug({ teamId: ctx.teamId, kind: body.kind, slug: body.slug });
+      const overwritesPublished = existing?.state === "PUBLISHED";
       if (
         await refuseTrustWrite(req, reply, ctx, {
           permission: "trust.article.publish",
           customerAuthored: true,
           stepUp:
-            body.publish === true
+            body.publish === true || overwritesPublished
               ? { purpose: "TRUST_CONTENT_PUBLISH", resourceKind: "TRUST_ARTICLE", resourceId: `${body.kind}:${body.slug}` }
               : null,
         })
