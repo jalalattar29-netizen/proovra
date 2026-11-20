@@ -101,13 +101,35 @@ async function webhookDeliveryFencedUpdate(args: {
   return res.count === 1;
 }
 
-function webhookDeliveryUpdate(args: {
+/**
+ * The states the poll picks up and the claim moves out of. A pre-claim write
+ * is allowed only while the row is still in one of them.
+ */
+const PRE_CLAIM_STATES = ["PENDING", "RETRYING"] as const;
+
+/**
+ * Matrix review NEW-RG-23-1 — a write decided BEFORE the claim (endpoint gone,
+ * workspace not operating, entitlement lost, creator authority, machine
+ * egress, refused destination, oversized payload, unreadable secret). The
+ * decision rests on a read that can be stale: across replicas another process
+ * may have claimed the row (DISPATCHING) or settled it meanwhile. Updating by
+ * id alone overwrote that claim — RETRYING made the row due again (a second
+ * send) and the holder's fenced outcome was then not recorded. The write is
+ * therefore conditional on the row still being in a pre-claim state; a row
+ * that moved on is left to whoever moved it. Resolves to whether it applied.
+ */
+async function webhookDeliveryPreClaimUpdate(args: {
   where: { id: string };
   data: WebhookDeliveryUpdateData;
-}): Promise<unknown> {
-  return (prisma.lifecycleWebhookDelivery.update as unknown as (
-    a: typeof args,
-  ) => Promise<unknown>)(args);
+}): Promise<boolean> {
+  const res = await (prisma.lifecycleWebhookDelivery.updateMany as unknown as (a: {
+    where: Record<string, unknown>;
+    data: WebhookDeliveryUpdateData;
+  }) => Promise<{ count: number }>)({
+    where: { id: args.where.id, state: { in: [...PRE_CLAIM_STATES] } },
+    data: args.data,
+  });
+  return res.count === 1;
 }
 
 // ---------------------------------------------------------------------------
@@ -433,17 +455,17 @@ async function dispatchOne(
   const delivery = await deliveryFindUnique(deliveryId);
 
   if (!delivery) return;
-  if (
-    delivery.state === "DELIVERED" ||
-    delivery.state === "DEAD_LETTERED" ||
-    delivery.state === "FAILED"
-  ) {
+  // NEW-RG-23-1 — only a row still in a polled state is ours to decide on: a
+  // settled row is final, and a DISPATCHING (or WITHHELD) row belongs to its
+  // holder / its decision. Every write below is also fenced on these states,
+  // since this read can be stale by the time it is acted on.
+  if (!(PRE_CLAIM_STATES as readonly string[]).includes(delivery.state)) {
     return;
   }
 
   const endpoint = await endpointFindUnique(delivery.endpointId);
   if (!endpoint || endpoint.state !== "ACTIVE") {
-    await webhookDeliveryUpdate({
+    await webhookDeliveryPreClaimUpdate({
       where: { id: deliveryId },
       data: { state: "FAILED", lastAttemptAtUtc: new Date() },
     }).catch(() => null);
@@ -457,7 +479,7 @@ async function dispatchOne(
   // the organization resumes. Closure also disables the endpoint, which the
   // check above turns into FAILED.
   if (!(await workspaceIsOperating(delivery.teamId))) {
-    await webhookDeliveryUpdate({
+    await webhookDeliveryPreClaimUpdate({
       where: { id: deliveryId },
       data: {
         state: "RETRYING",
@@ -477,7 +499,7 @@ async function dispatchOne(
   // with its reason; the endpoint stays ACTIVE, so the pause is reversible for
   // new events. Fails closed.
   if (!(await workerFeatureEntitled(delivery.teamId, "FEATURE_WEBHOOKS"))) {
-    await webhookDeliveryUpdate({
+    await webhookDeliveryPreClaimUpdate({
       where: { id: deliveryId },
       data: {
         state: "WITHHELD",
@@ -512,7 +534,7 @@ async function dispatchOne(
       where: { id: endpoint.id, state: "ACTIVE" },
       data: { state: "DEACTIVATED", deactivatedAtUtc: new Date() },
     }).catch(() => null);
-    await webhookDeliveryUpdate({
+    await webhookDeliveryPreClaimUpdate({
       where: { id: deliveryId },
       data: {
         state: "FAILED",
@@ -524,7 +546,7 @@ async function dispatchOne(
     return;
   }
   if (creator.verdict !== "HOLDS") {
-    await webhookDeliveryUpdate({
+    await webhookDeliveryPreClaimUpdate({
       where: { id: deliveryId },
       data: {
         state: "RETRYING",
@@ -545,7 +567,7 @@ async function dispatchOne(
       ? (delivery.payload as Record<string, unknown>)
       : {};
   if (await machineEgressRestricted(machineEgressTargetOf(egressPayload), prisma as never)) {
-    await webhookDeliveryUpdate({
+    await webhookDeliveryPreClaimUpdate({
       where: { id: deliveryId },
       data: {
         state: "WITHHELD",
@@ -572,15 +594,17 @@ async function dispatchOne(
       },
       "webhook.dispatcher.destination_refused",
     );
-    await webhookDeliveryUpdate({
+    const recorded = await webhookDeliveryPreClaimUpdate({
       where: { id: deliveryId },
       data: { state: "FAILED", lastAttemptAtUtc: new Date() },
-    }).catch(() => null);
-    await emitLifecycleEvent({
-      teamId: delivery.teamId,
-      deliveryId,
-      code: "WEBHOOK_FAILED",
-    });
+    }).catch(() => false);
+    if (recorded) {
+      await emitLifecycleEvent({
+        teamId: delivery.teamId,
+        deliveryId,
+        code: "WEBHOOK_FAILED",
+      });
+    }
     return;
   }
 
@@ -592,7 +616,7 @@ async function dispatchOne(
       { deliveryId, payloadBytes },
       "webhook.dispatcher.payload_too_large",
     );
-    await webhookDeliveryUpdate({
+    await webhookDeliveryPreClaimUpdate({
       where: { id: deliveryId },
       data: { state: "FAILED", lastAttemptAtUtc: new Date() },
     }).catch(() => null);
@@ -604,15 +628,17 @@ async function dispatchOne(
   const signingSecret = readLifecycleSigningSecret(endpoint.secret);
   if (!signingSecret) {
     logger.warn({ deliveryId }, "webhook.dispatcher.signing_secret_unreadable");
-    await webhookDeliveryUpdate({
+    const recorded = await webhookDeliveryPreClaimUpdate({
       where: { id: deliveryId },
       data: { state: "FAILED", lastAttemptAtUtc: new Date() },
-    }).catch(() => null);
-    await emitLifecycleEvent({
-      teamId: delivery.teamId,
-      deliveryId,
-      code: "WEBHOOK_FAILED",
-    });
+    }).catch(() => false);
+    if (recorded) {
+      await emitLifecycleEvent({
+        teamId: delivery.teamId,
+        deliveryId,
+        code: "WEBHOOK_FAILED",
+      });
+    }
     return;
   }
   const signature = signPayload(signingSecret, canonical);
