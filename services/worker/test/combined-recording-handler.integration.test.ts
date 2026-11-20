@@ -71,6 +71,34 @@ vi.mock("../src/storage.js", async () => {
   };
 });
 
+// M676 follow-up — the REAL media-intelligence module, with two seams a test
+// can arm: the settling COMPLETED write can be made to fail once, and a hook
+// runs after each run-lease renewal (to expire the reservation mid-job).
+const hooks = vi.hoisted(() => ({
+  failCompletedRecord: false,
+  renewCalls: 0,
+  afterRenewRunLease: null as null | ((call: number) => Promise<void>),
+}));
+vi.mock("@proovra/shared-runtime/media-intelligence", async (orig) => {
+  const real = await orig<typeof import("@proovra/shared-runtime/media-intelligence")>();
+  return {
+    ...real,
+    recordDerivedAsset: async (...args: Parameters<typeof real.recordDerivedAsset>) => {
+      if (hooks.failCompletedRecord && args[0].status === "COMPLETED") {
+        hooks.failCompletedRecord = false;
+        return { ok: false as const, reason: "upsert_failed:injected" };
+      }
+      return real.recordDerivedAsset(...args);
+    },
+    renewRunLease: async (...args: Parameters<typeof real.renewRunLease>) => {
+      const res = await real.renewRunLease(...args);
+      hooks.renewCalls += 1;
+      if (hooks.afterRenewRunLease) await hooks.afterRenewRunLease(hooks.renewCalls);
+      return res;
+    },
+  };
+});
+
 import {
   CreateBucketCommand,
   DeleteBucketCommand,
@@ -83,6 +111,12 @@ import {
 } from "@aws-sdk/client-s3";
 import { continuousCaptureManifestFacts, screenRecordingCombineIdempotencyKey, screenRecordingSourceSetCanonical, readScreenRecordingCombineLineage, CAPTURE_MANIFEST_FACTS_STAGE, type ScreenContinuousManifest } from "@proovra/shared";
 import { enqueueMediaIntelligenceRun } from "@proovra/shared-runtime/media-intelligence";
+import {
+  DERIVED_ASSET_STORAGE_RESERVATION_TTL_MS,
+  releaseExpiredDerivedAssetStorageReservations,
+  sumDerivedAssetStorageBytes,
+  sumLiveDerivedAssetStorageReservationBytes,
+} from "@proovra/shared-runtime";
 
 import { prisma } from "../src/db.js";
 import { s3 } from "../src/storage.js";
@@ -440,6 +474,140 @@ runIf("combine_screen_recording handler (live PostgreSQL + MinIO + ffmpeg)", () 
     await runJob(teamId, evidenceId, run);
     expect((await prisma.mediaIntelligenceRun.findUniqueOrThrow({ where: { id: run } })).status).toBe("COMPLETED");
     expect((await combinedRows(evidenceId)).map((x) => x.status)).toEqual(["COMPLETED"]);
+  });
+
+  // ---------------------------------------------------------------------------
+  // M676 follow-up — the storage reservation is renewed and fenced through the
+  // upload, and bytes that were written are never left uncounted.
+  // ---------------------------------------------------------------------------
+
+  /** Expire this generation's reservation on the database clock (what the meters and the reconciler see). */
+  async function expireReservation(evidenceId: string) {
+    const ttlSeconds = DERIVED_ASSET_STORAGE_RESERVATION_TTL_MS / 1000 + 1;
+    await prisma.$executeRaw`
+      UPDATE "evidence_part_derived_assets"
+         SET "storage_reserved_at_utc" = NOW() - make_interval(secs => ${ttlSeconds}::double precision)
+       WHERE "evidence_id" = ${evidenceId}::uuid AND "storage_reserved_bytes" IS NOT NULL`;
+  }
+
+  it("M676 follow-up — a reservation expired before the upload starts: nothing is sent or recorded, and the run is released for retry", async () => {
+    const { teamId, evidenceId } = await seedSealedSegmentedRecord();
+    const run = await newRun(teamId, evidenceId, 1);
+    // Call 1 renews before the combine, call 2 right after the reservation: expire it there.
+    hooks.renewCalls = 0;
+    hooks.afterRenewRunLease = async (call) => {
+      if (call === 2) await expireReservation(evidenceId);
+    };
+    const sends: string[] = [];
+    const realSend = s3.send.bind(s3) as (...a: unknown[]) => Promise<unknown>;
+    const sendSpy = vi.spyOn(s3, "send").mockImplementation((async (command: { constructor: { name: string } }, ...rest: unknown[]) => {
+      sends.push(command.constructor.name);
+      return realSend(command, ...rest);
+    }) as never);
+    let thrown: unknown = null;
+    try {
+      await runJob(teamId, evidenceId, run);
+    } catch (err) {
+      thrown = err;
+    } finally {
+      sendSpy.mockRestore();
+      hooks.afterRenewRunLease = null;
+    }
+    expect((thrown as Error | null)?.message).toBe("combine:storage_reservation_lost_before_upload");
+    expect(sends.filter((n) => n.includes("Multipart") || n === "UploadPartCommand")).toEqual([]);
+    const r = await prisma.mediaIntelligenceRun.findUniqueOrThrow({ where: { id: run } });
+    expect([r.status, r.lastError]).toEqual(["PENDING", "transient:combine:storage_reservation_lost_before_upload"]);
+    expect((await combinedRows(evidenceId)).filter((x) => x.status === "COMPLETED")).toEqual([]);
+    const listed = await s3.send(new ListObjectVersionsCommand({ Bucket: BUCKET, Prefix: `derived-assets/${evidenceId}/` }));
+    expect(listed.Versions ?? []).toEqual([]);
+    expect(await sumLiveDerivedAssetStorageReservationBytes(prisma, { teamId })).toBe(0n);
+
+    // The reconciler's sweep removes the expired placeholder; the retry completes.
+    await releaseExpiredDerivedAssetStorageReservations(prisma);
+    expect(await combinedRows(evidenceId)).toEqual([]);
+    await runJob(teamId, evidenceId, run);
+    expect((await prisma.mediaIntelligenceRun.findUniqueOrThrow({ where: { id: run } })).status).toBe("COMPLETED");
+    expect((await combinedRows(evidenceId)).map((x) => [x.status, x.storageReservedBytes])).toEqual([["COMPLETED", null]]);
+  });
+
+  it("M676 follow-up — a reservation expired during the upload: the completion is never sent, the upload is aborted, nothing is recorded", async () => {
+    const { teamId, evidenceId } = await seedSealedSegmentedRecord();
+    const run = await newRun(teamId, evidenceId, 1);
+    const sends: string[] = [];
+    const realSend = s3.send.bind(s3) as (...a: unknown[]) => Promise<unknown>;
+    const sendSpy = vi.spyOn(s3, "send").mockImplementation((async (command: { constructor: { name: string } }, ...rest: unknown[]) => {
+      const name = command.constructor.name;
+      sends.push(name);
+      const res = await realSend(command, ...rest);
+      if (name === "UploadPartCommand") await expireReservation(evidenceId);
+      return res;
+    }) as never);
+    let thrown: unknown = null;
+    try {
+      await runJob(teamId, evidenceId, run);
+    } catch (err) {
+      thrown = err;
+    } finally {
+      sendSpy.mockRestore();
+    }
+    expect((thrown as Error | null)?.message).toBe("multipart_upload_fence_lost");
+    expect(sends).toContain("UploadPartCommand");
+    expect(sends).not.toContain("CompleteMultipartUploadCommand");
+    expect(sends.at(-1)).toBe("AbortMultipartUploadCommand");
+    const r = await prisma.mediaIntelligenceRun.findUniqueOrThrow({ where: { id: run } });
+    expect([r.status, r.lastError]).toEqual(["PENDING", "transient:combine:upload_fence_lost"]);
+    expect((await combinedRows(evidenceId)).filter((x) => x.status === "COMPLETED")).toEqual([]);
+    const listed = await s3.send(new ListObjectVersionsCommand({ Bucket: BUCKET, Prefix: `derived-assets/${evidenceId}/` }));
+    expect(listed.Versions ?? []).toEqual([]);
+    const open = await s3.send(new ListMultipartUploadsCommand({ Bucket: BUCKET, Prefix: `derived-assets/${evidenceId}/` }));
+    expect(open.Uploads ?? []).toEqual([]);
+  });
+
+  it("M676 follow-up — a failed settle after a successful locked write keeps the bytes COUNTED on their own row (the object cannot be deleted)", async () => {
+    const { teamId, evidenceId } = await seedSealedSegmentedRecord();
+    const run = await newRun(teamId, evidenceId, 1);
+    hooks.failCompletedRecord = true;
+    let thrown: unknown = null;
+    try {
+      await runJob(teamId, evidenceId, run);
+    } catch (err) {
+      thrown = err;
+    } finally {
+      hooks.failCompletedRecord = false;
+    }
+    expect((thrown as Error | null)?.message).toBe("combined_persist_failed:upsert_failed:injected");
+    const r = await prisma.mediaIntelligenceRun.findUniqueOrThrow({ where: { id: run } });
+    expect([r.status, r.lastError]).toEqual(["PENDING", "transient:combined_persist_failed:upsert_failed:injected"]);
+
+    // The object exists (GOVERNANCE-locked: the delete was refused) ...
+    const listed = await s3.send(new ListObjectVersionsCommand({ Bucket: BUCKET, Prefix: `derived-assets/${evidenceId}/` }));
+    expect(listed.Versions ?? []).toHaveLength(1);
+    const version = listed.Versions![0]!;
+    // ... and is counted: its own FAILED row carries its pointer, version and size;
+    // the placeholder and its reservation are gone (released only once counted).
+    const rows = await combinedRows(evidenceId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      status: "FAILED",
+      storageBucket: BUCKET,
+      storageKey: version.Key,
+      storageVersionId: version.VersionId,
+      sizeBytes: Number(version.Size),
+      storageReservedBytes: null,
+    });
+    expect(rows[0]!.variantKey).toMatch(/^combined-v1~u[0-9a-f]{12}$/);
+    expect(rows[0]!.lastError).toBe("unsettled_object_retained:persist_failed:upsert_failed:injected");
+    expect(await sumDerivedAssetStorageBytes(prisma, { teamId })).toBe(BigInt(version.Size!));
+    expect(await sumLiveDerivedAssetStorageReservationBytes(prisma, { teamId })).toBe(0n);
+
+    // The retry completes; both stored versions stay counted (each by its row).
+    await runJob(teamId, evidenceId, run);
+    expect((await prisma.mediaIntelligenceRun.findUniqueOrThrow({ where: { id: run } })).status).toBe("COMPLETED");
+    const after = await combinedRows(evidenceId);
+    expect(after.map((x) => x.status).sort()).toEqual(["COMPLETED", "FAILED"]);
+    const versions = await s3.send(new ListObjectVersionsCommand({ Bucket: BUCKET, Prefix: `derived-assets/${evidenceId}/` }));
+    const stored = (versions.Versions ?? []).reduce((n, v) => n + BigInt(v.Size ?? 0), 0n);
+    expect(await sumDerivedAssetStorageBytes(prisma, { teamId })).toBe(stored);
   });
 
   it("a digest disagreeing with the manifest is refused before any byte is read", async () => {

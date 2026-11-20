@@ -307,6 +307,11 @@ export async function putObjectBuffer(params: {
    * lock it to "now + eight years" on every regeneration.
    */
   lock?: ResolvedObjectLock | null;
+  /**
+   * M676 follow-up — aborts the PUT in flight (a derived producer's write
+   * deadline, which ends before its storage reservation stops counting).
+   */
+  abortSignal?: AbortSignal;
 }) {
   const bucket = mustClean(params.bucket, "bucket");
   const key = mustClean(params.key, "key");
@@ -353,24 +358,25 @@ export async function putObjectBuffer(params: {
       // UC-DER-006 — the object VERSION written is returned, so a producer can
       // record it next to the key and digest (a versioned bucket keeps older
       // versions at the same key; the key alone does not identify the bytes).
-      const res = await s3.send(
-        new PutObjectCommand({
-          Bucket: bucket,
-          Key: key,
-          Body: params.body,
-          ContentType: normalizeContentType(params.contentType),
-          ContentLength: params.body.length,
-          Metadata: metadata,
-          ChecksumSHA256: checksumSha256Base64,
-          ContentMD5: contentMd5Base64,
-          ...(tagging ? { Tagging: tagging } : {}),
-          ...(objectLock.mode ? { ObjectLockMode: objectLock.mode } : {}),
-          ...(objectLock.retainUntilDate
-            ? { ObjectLockRetainUntilDate: objectLock.retainUntilDate }
-            : {}),
-          // No ObjectLockLegalHoldStatus. See readObjectLockDefaults.
-        }),
-      );
+      const command = new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: params.body,
+        ContentType: normalizeContentType(params.contentType),
+        ContentLength: params.body.length,
+        Metadata: metadata,
+        ChecksumSHA256: checksumSha256Base64,
+        ContentMD5: contentMd5Base64,
+        ...(tagging ? { Tagging: tagging } : {}),
+        ...(objectLock.mode ? { ObjectLockMode: objectLock.mode } : {}),
+        ...(objectLock.retainUntilDate
+          ? { ObjectLockRetainUntilDate: objectLock.retainUntilDate }
+          : {}),
+        // No ObjectLockLegalHoldStatus. See readObjectLockDefaults.
+      });
+      const res = params.abortSignal
+        ? await s3.send(command, { abortSignal: params.abortSignal })
+        : await s3.send(command);
       return { versionId: (res as { VersionId?: string } | undefined)?.VersionId ?? null };
     },
   );

@@ -31,6 +31,8 @@ import {
   clearOwnDerivedAssetStorageReservationTx,
   writeDerivedAssetStorageReservationTx,
   releaseDerivedAssetStorageReservation,
+  renewDerivedAssetStorageReservation,
+  derivedAssetReservationWriteDeadline,
   type DerivedAssetReservationKey,
 } from "@proovra/shared-runtime";
 
@@ -974,6 +976,65 @@ export async function workspaceAllowsDerivedArtifact(params: {
    */
   reservation?: Omit<DerivedAssetReservationKey, "evidenceId">;
 }): Promise<{ allowed: true } | { allowed: false; reason: "storage_limit" | "evidence_not_found" }> {
+  const verdict = await admitDerivedArtifact(params);
+  return verdict.allowed ? { allowed: true } : verdict;
+}
+
+/**
+ * M676 follow-up — what an admitted derived job HOLDS: the row, the database
+ * stamp it wrote (its fence token), and the local time by which it must have
+ * finished writing (`derivedAssetReservationWriteDeadline`). Renewed with
+ * `renewDerivedArtifactReservation`, never assumed.
+ */
+export type DerivedArtifactReservationHold = {
+  key: DerivedAssetReservationKey;
+  reservedAtUtc: Date;
+  writeDeadlineAt: number;
+};
+
+/**
+ * M676 follow-up — `workspaceAllowsDerivedArtifact` for a producer that holds
+ * a derived row: the same gate and reservation, returning the hold the
+ * producer renews before and during its upload and fences its release with.
+ */
+export async function reserveDerivedArtifactStorage(params: {
+  evidenceId: string;
+  incomingBytes: bigint | number;
+  reservation: Omit<DerivedAssetReservationKey, "evidenceId">;
+}): Promise<
+  | { allowed: true; hold: DerivedArtifactReservationHold }
+  | { allowed: false; reason: "storage_limit" | "evidence_not_found" }
+> {
+  const verdict = await admitDerivedArtifact(params);
+  if (!verdict.allowed) return verdict;
+  if (!verdict.hold) throw new Error("derived_storage_reservation_not_held");
+  return { allowed: true, hold: verdict.hold };
+}
+
+/**
+ * M676 follow-up — RENEW a held reservation (database clock, fenced on the
+ * holder's stamp). Null: the reservation is gone (settled, released, expired
+ * or replaced) and the holder must stop writing. A database error throws: the
+ * holder cannot prove its reservation and treats it like any transient
+ * failure (nothing more is written).
+ */
+export async function renewDerivedArtifactReservation(
+  hold: DerivedArtifactReservationHold,
+): Promise<DerivedArtifactReservationHold | null> {
+  const sentAt = Date.now();
+  const stamp = await renewDerivedAssetStorageReservation(prisma, hold.key, hold.reservedAtUtc);
+  if (!stamp) return null;
+  return { key: hold.key, reservedAtUtc: stamp, writeDeadlineAt: derivedAssetReservationWriteDeadline(sentAt) };
+}
+
+async function admitDerivedArtifact(params: {
+  evidenceId: string;
+  incomingBytes: bigint | number;
+  reservation?: Omit<DerivedAssetReservationKey, "evidenceId">;
+}): Promise<
+  | { allowed: true; hold: DerivedArtifactReservationHold | null }
+  | { allowed: false; reason: "storage_limit" | "evidence_not_found" }
+> {
   const ev = await prisma.evidence.findUnique({
     where: { id: params.evidenceId },
     select: { ownerUserId: true, teamId: true },
@@ -988,13 +1049,21 @@ export async function workspaceAllowsDerivedArtifact(params: {
     ? { ...params.reservation, evidenceId: params.evidenceId }
     : null;
   try {
-    await prisma.$transaction(async (tx) => {
+    // M676 follow-up — the write deadline is measured from BEFORE the stamp.
+    const sentAt = Date.now();
+    const reservedAtUtc = await prisma.$transaction(async (tx) => {
       await lockWorkspaceCapacityTx(tx, scope);
       if (key) await clearOwnDerivedAssetStorageReservationTx(tx, key);
       await assertWorkspaceStorageAvailable({ scope, incomingBytes: bytes, usageOptions: { client: tx } });
-      if (key) await writeDerivedAssetStorageReservationTx(tx, key, bytes, new Date());
+      return key ? await writeDerivedAssetStorageReservationTx(tx, key, bytes) : null;
     }, ARTIFACT_STORAGE_RESERVATION_TRANSACTION);
-    return { allowed: true };
+    return {
+      allowed: true,
+      hold:
+        key && reservedAtUtc
+          ? { key, reservedAtUtc, writeDeadlineAt: derivedAssetReservationWriteDeadline(sentAt) }
+          : null,
+    };
   } catch (err) {
     if ((err as { code?: string }).code === "STORAGE_LIMIT_REACHED") {
       // Refused: an earlier reservation of this row (a crashed attempt) must
@@ -1012,8 +1081,12 @@ export async function workspaceAllowsDerivedArtifact(params: {
  * row that never received an object is removed. Best effort: an unreleased
  * reservation stops counting at its TTL anyway.
  */
-export async function releaseDerivedArtifactReservation(key: DerivedAssetReservationKey): Promise<void> {
-  await releaseDerivedAssetStorageReservation(prisma, key).catch(() => undefined);
+export async function releaseDerivedArtifactReservation(
+  key: DerivedAssetReservationKey,
+  /** M676 follow-up — the holder's stamp: release only its own reservation. */
+  heldSince?: Date | null,
+): Promise<void> {
+  await releaseDerivedAssetStorageReservation(prisma, key, heldSince ?? null).catch(() => undefined);
 }
 
 export type ExchangeBuildAdmission =

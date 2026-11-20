@@ -44,18 +44,28 @@ import {
   screenRecordingCombinedVariantKey,
   selectCaptureManifestFacts,
 } from "@proovra/shared";
-import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 
 import { prisma } from "../db.js";
 import { detectFfmpegCapability } from "../ffmpeg-capability.js";
 import { getFfmpegVersion } from "../ffmpeg-derived-assets.js";
 import { logger } from "../logger.js";
 import { artifactLockFor } from "../object-retention.js";
-import { deleteObjectVersions, getObjectStream, isObjectLockEnabled, s3 } from "../storage.js";
+import { getObjectStream, isObjectLockEnabled, s3 } from "../storage.js";
 import { combineSegmentFiles } from "./combine-recording.js";
 import { decideCombineInputs, locateCombineManifest, type CombinePartRow } from "./combine-inputs.js";
-import { MultipartUploadDeadlineExceeded, uploadFileMultipart } from "./multipart-upload.js";
-import { releaseDerivedArtifactReservation, workspaceAllowsDerivedArtifact } from "../workspace-billing.js";
+import {
+  MultipartUploadCompletionUnknown,
+  MultipartUploadDeadlineExceeded,
+  MultipartUploadFenceLost,
+  uploadFileMultipart,
+} from "./multipart-upload.js";
+import {
+  releaseDerivedArtifactReservation,
+  renewDerivedArtifactReservation,
+  reserveDerivedArtifactStorage,
+  type DerivedArtifactReservationHold,
+} from "../workspace-billing.js";
+import { disposeUnsettledDerivedObject } from "../derived-unsettled-object.js";
 
 type JobInput = { jobId: string | undefined; teamId: string; evidenceId: string; runId: string };
 type MediaIntelligenceModule = typeof import("@proovra/shared-runtime/media-intelligence");
@@ -104,7 +114,13 @@ export async function processCombineScreenRecordingJob(
   let uploaded: { bucket: string; key: string; versionId: string | null } | null = null;
   // M676 — the derived row holding this attempt's storage reservation until
   // the settling recordDerivedAsset clears it (null: nothing held).
-  let reserved: Parameters<typeof releaseDerivedArtifactReservation>[0] | null = null;
+  // M676 follow-up — held with its database stamp (the fence token every
+  // renewal and the release are fenced on).
+  let hold: DerivedArtifactReservationHold | null = null;
+  // M676 follow-up — what the upload wrote (or may have written), for the
+  // disposal of an object that is never settled.
+  let written: { derivedSha256: string; sizeBytes: number } | null = null;
+  let unsettledReason = "not_recorded";
   try {
     // ---- the record ------------------------------------------------------
     const evidence = await prisma.evidence.findUnique({
@@ -224,13 +240,13 @@ export async function processCombineScreenRecordingJob(
       assetKind: SCREEN_RECORDING_COMBINED_ASSET_KIND,
       variantKey,
     };
-    const storageGate = await workspaceAllowsDerivedArtifact({
+    const storageGate = await reserveDerivedArtifactStorage({
       evidenceId,
       incomingBytes: combined.sizeBytes,
       reservation: reservationKey,
     });
     if (!storageGate.allowed) return fail(`combine:${storageGate.reason}`);
-    reserved = reservationKey;
+    hold = storageGate.hold;
     // WS-SCHED / PRO-W1C-08 — download + combine may have used most of the
     // run lease; renew it (fenced) so the upload is not overtaken by the
     // reconciler, and stop here if this attempt no longer holds the claim.
@@ -238,28 +254,64 @@ export async function processCombineScreenRecordingJob(
       logger.warn({ requestId, jobId, runId, evidenceId, generation }, "combined_recording.claim_lost_before_upload");
       return { ok: true, signalsEmitted: 0 };
     }
+    // M676 follow-up — the run lease and the storage reservation are renewed
+    // together: an upload starts only under a reservation this attempt still
+    // holds (fenced on its stamp), never one that expired or was replaced.
+    const renewedHold = await renewDerivedArtifactReservation(hold);
+    if (!renewedHold) {
+      logger.warn({ requestId, jobId, runId, evidenceId, generation }, "combined_recording.storage_reservation_lost_before_upload");
+      throw new Error("combine:storage_reservation_lost_before_upload");
+    }
+    hold = renewedHold;
     // PRO-W1C-08 — the upload is bounded too: from the fenced renewal it gets
     // the kind's attempt budget, which is kept below the run lease, so it can
     // never outlive this claim. At the deadline the upload is aborted
     // (MultipartUploadDeadlineExceeded, a transient outcome below): the run is
     // released for retry with the reason recorded, and the kind's attempt
     // ceiling bounds the retries.
-    const uploadDeadlineAt = Date.now() + BOUNDS.attemptTimeoutMs;
-    const put = await uploadFileMultipart({
-      client: s3,
-      bucket: anchor.storageBucket,
-      key,
-      file: combined.outputFile,
-      contentType: "video/mp4",
-      partBytes: SCREEN_RECORDING_COMBINE_BOUNDS.uploadPartBytes,
-      lock: await artifactLockFor(evidenceId),
-      objectLockEnabled: isObjectLockEnabled(),
-      metadata: { "proovra-artifact-class": "DERIVED", "proovra-transformation": SCREEN_RECORDING_COMBINE_TRANSFORMATION },
-      maxBytes: SCREEN_RECORDING_COMBINE_BOUNDS.maxOutputBytes,
-      deadlineAt: uploadDeadlineAt,
-    });
+    // M676 follow-up — and never past the reservation's write deadline (the
+    // reservation's end less the safety margin). Between parts and always
+    // before the completion the upload renews the run lease and the
+    // reservation (fenced); a lost fence aborts the upload, and the completion
+    // itself is bounded by the same deadline.
+    const uploadDeadlineAt = Math.min(Date.now() + BOUNDS.attemptTimeoutMs, hold.writeDeadlineAt);
+    written = { derivedSha256: outputSha256, sizeBytes: combined.sizeBytes };
+    let put: Awaited<ReturnType<typeof uploadFileMultipart>>;
+    try {
+      put = await uploadFileMultipart({
+        client: s3,
+        bucket: anchor.storageBucket,
+        key,
+        file: combined.outputFile,
+        contentType: "video/mp4",
+        partBytes: SCREEN_RECORDING_COMBINE_BOUNDS.uploadPartBytes,
+        lock: await artifactLockFor(evidenceId),
+        objectLockEnabled: isObjectLockEnabled(),
+        metadata: { "proovra-artifact-class": "DERIVED", "proovra-transformation": SCREEN_RECORDING_COMBINE_TRANSFORMATION },
+        maxBytes: SCREEN_RECORDING_COMBINE_BOUNDS.maxOutputBytes,
+        deadlineAt: uploadDeadlineAt,
+        fence: async () => {
+          if (!hold) return null;
+          if (!(await mi.renewRunLease(runId, teamId, fence, prisma)).held) return null;
+          const renewed = await renewDerivedArtifactReservation(hold);
+          if (!renewed) return null;
+          hold = renewed;
+          return { deadlineAt: renewed.writeDeadlineAt };
+        },
+      });
+    } catch (err) {
+      // M676 follow-up — a completion whose answer was lost may have stored
+      // the object: `finally` treats the key as written.
+      if (err instanceof MultipartUploadCompletionUnknown) {
+        uploaded = { bucket: anchor.storageBucket, key, versionId: null };
+        unsettledReason = "upload_completion_unknown";
+      }
+      throw err;
+    }
     uploaded = { bucket: anchor.storageBucket, key, versionId: put.versionId };
+    written = { derivedSha256: put.sha256, sizeBytes: put.sizeBytes };
     if (put.sha256 !== outputSha256 || put.sizeBytes !== combined.sizeBytes) {
+      unsettledReason = "upload_digest_mismatch";
       throw new CombineStructural("upload_digest_mismatch");
     }
 
@@ -267,8 +319,17 @@ export async function processCombineScreenRecordingJob(
     // PRO-W1C-08 — a stale attempt (claim taken over during the upload) never
     // records a row: its object stays unreferenced and `finally` removes it.
     if (!(await mi.renewRunLease(runId, teamId, fence, prisma)).held) {
+      unsettledReason = "claim_lost_before_record";
       throw new CombineStructural("claim_lost_before_record");
     }
+    // M676 follow-up — nor does an attempt whose reservation is gone: its
+    // object is disposed in `finally` (deleted, or kept counted on its own row).
+    const recordHold = await renewDerivedArtifactReservation(hold);
+    if (!recordHold) {
+      unsettledReason = "storage_reservation_lost_before_record";
+      throw new Error("combine:storage_reservation_lost_before_record");
+    }
+    hold = recordHold;
     const recorded = await mi.recordDerivedAsset(
       {
         teamId,
@@ -293,9 +354,12 @@ export async function processCombineScreenRecordingJob(
       },
       prisma,
     );
-    if (!recorded.ok) throw new Error(`combined_persist_failed:${recorded.reason}`);
+    if (!recorded.ok) {
+      unsettledReason = `persist_failed:${recorded.reason}`;
+      throw new Error(`combined_persist_failed:${recorded.reason}`);
+    }
     uploaded = null; // referenced by its row from here on
-    reserved = null; // the settling write cleared the reservation
+    hold = null; // the settling write cleared the reservation
     const previous = await prisma.evidencePartDerivedAsset.findMany({
       where: { evidenceId, assetKind: SCREEN_RECORDING_COMBINED_ASSET_KIND, status: "COMPLETED", NOT: { id: recorded.id } },
       select: { id: true },
@@ -330,12 +394,18 @@ export async function processCombineScreenRecordingJob(
     // WORKERS-06: transient, so the claim goes back to PENDING for the BullMQ
     // retry; FAILED would make that retry a replay no-op.
     // PRO-W1C-08 — an upload aborted at its deadline is recorded as such.
+    // M676 follow-up — an upload stopped by its lost fence, or whose
+    // completion's outcome is unknown, likewise.
     const reason =
       err instanceof MultipartUploadDeadlineExceeded
         ? "combine:upload_deadline_exceeded"
-        : err instanceof Error
-          ? err.message
-          : "transient_failure";
+        : err instanceof MultipartUploadFenceLost
+          ? "combine:upload_fence_lost"
+          : err instanceof MultipartUploadCompletionUnknown
+            ? "combine:upload_completion_unknown"
+            : err instanceof Error
+              ? err.message
+              : "transient_failure";
     await mi.releaseRunForRetry(runId, teamId, reason, prisma, fence);
     logger.error(
       { requestId, jobId, runId, evidenceId, err: err instanceof Error ? err.message : "unknown" },
@@ -343,19 +413,25 @@ export async function processCombineScreenRecordingJob(
     );
     throw err;
   } finally {
-    // M676 — an attempt that ends without recording gives its reservation
-    // back (and its placeholder row, which never received an object).
-    if (reserved) await releaseDerivedArtifactReservation(reserved);
-    // An object written but never referenced by a row is removed — unless a
-    // hold is in force (fail closed: unknown hold state keeps it).
-    if (uploaded) {
-      let held = true;
-      try {
-        held = (await evaluateEffectiveLegalHold(prisma, { teamId, evidenceId })).held;
-      } catch {
-        held = true;
-      }
-      if (!held) await deleteObjectVersions(uploaded).catch(() => undefined);
+    // M676 follow-up — an object written (or possibly written) but never
+    // referenced by a row is removed when no hold is in force and the store
+    // proves it gone, or else KEPT COUNTED on its own row; only then is the
+    // reservation given back. If neither is possible the reservation is kept
+    // (it still counts the bytes) — never silently released while the bytes
+    // exist (disposeUnsettledDerivedObject).
+    if (uploaded && hold && written) {
+      await disposeUnsettledDerivedObject({
+        key: hold.key,
+        heldSince: hold.reservedAtUtc,
+        object: uploaded,
+        written: { ...written, contentType: "video/mp4", engineVersion: SCREEN_RECORDING_COMBINE_ENGINE_VERSION },
+        reason: unsettledReason,
+      }).catch(() => undefined);
+    } else if (hold) {
+      // M676 — an attempt that ends without writing gives its reservation back
+      // (and its placeholder row, which never received an object), fenced on
+      // its own stamp.
+      await releaseDerivedArtifactReservation(hold.key, hold.reservedAtUtc);
     }
     if (workDir) await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
   }

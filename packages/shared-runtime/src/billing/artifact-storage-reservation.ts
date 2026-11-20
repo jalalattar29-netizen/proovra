@@ -85,7 +85,8 @@ export function liveArtifactStorageReservationWhere(
  * re-reserves (its package after its report, a retry) is not counted twice.
  */
 export async function sumLiveArtifactStorageReservationBytes(
-  prisma: Pick<PrismaClient, "reportGenerationRequest" | "evidencePartDerivedAsset">,
+  prisma: Pick<PrismaClient, "reportGenerationRequest" | "evidencePartDerivedAsset"> &
+    Partial<Pick<PrismaClient, "$queryRaw">>,
   input: { teamId: string | null; now?: Date; excludeRequestId?: string | null },
 ): Promise<bigint> {
   if (!input.teamId) return 0n;
@@ -97,7 +98,9 @@ export async function sumLiveArtifactStorageReservationBytes(
       _sum: { storageReservedBytes: true },
     }),
     // M676 — derived-artifact jobs in flight (unexpired reservations only).
-    sumLiveDerivedAssetStorageReservationBytes(prisma, { teamId: input.teamId, now }),
+    // M676 follow-up — judged on the database clock unless the caller pins
+    // `now` (the clock the derived holders stamp and renew against).
+    sumLiveDerivedAssetStorageReservationBytes(prisma, { teamId: input.teamId, now: input.now }),
   ]);
   const raw = agg?._sum?.storageReservedBytes ?? 0;
   const requests = typeof raw === "bigint" ? raw : BigInt(Math.max(0, Math.trunc(Number(raw))));
