@@ -214,10 +214,12 @@ describe("listActiveSessions — keyset over (lastSeenAtUtc, id)", () => {
     H.rows.authenticatedSession = [sessionRow(1), sessionRow(2), sessionRow(3)];
     const page = await listActiveSessions({ teamId: TEAM, limit: 2 });
     const q = H.findManyArgs[0]!.args;
-    // PRO-A2-04 — a workspace's sessions are the ones it issued (members'
-    // account-global sessions only when the Organization governs the identity).
+    // PRO-A2-04 / DEC-08 (final-phase correction) — a workspace's sessions
+    // are only those of members whose identity its Organization originated;
+    // this workspace has no Organization, so it governs nobody's sessions
+    // (teamId-at-issuance is not session scope).
     expect(q.where).toEqual({
-      OR: [{ teamId: TEAM }],
+      OR: [{ userId: { in: [] } }],
       revokedAtUtc: null,
       expiresAtUtc: { gt: expect.any(Date) },
     });
@@ -242,7 +244,7 @@ describe("listActiveSessions — keyset over (lastSeenAtUtc, id)", () => {
     expect(q.where.AND).toHaveLength(2);
     // includeRevoked drops the revokedAtUtc predicate; expired stays hidden.
     expect(q.where.AND[0]).toEqual({
-      OR: [{ teamId: TEAM }],
+      OR: [{ userId: { in: [] } }],
       expiresAtUtc: { gt: expect.any(Date) },
     });
     expect(q.where.AND[1]).toEqual(keysetAfter("lastSeenAtUtc", after));
