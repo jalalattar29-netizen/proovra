@@ -249,6 +249,46 @@ describe("Phase 7 §10.2 — workspace-keyed drafts cannot collide across worksp
       window.localStorage.getItem(tenantStorageKey("ws-B", "case-draft")),
     ).toBeNull();
   });
+
+  // The test above can only catch a leaked frame when its waitFor happens to
+  // sample between the switch commit and a passive-effect reload, which is why
+  // it failed only under full-suite load. This one records EVERY render and
+  // every committed DOM state, so a single frame pairing workspace B with
+  // A's draft fails it deterministically.
+  it("no render and no committed DOM frame ever pairs workspace B with A's draft", async () => {
+    const user = userEvent.setup();
+    const renders: string[] = [];
+    function RecordingProbe() {
+      const { value, setValue, activeWorkspaceId } = useTenantDraft<string>("case-draft", "");
+      renders.push(`${activeWorkspaceId}=${value}`);
+      return (
+        <div data-testid="pair">
+          {`${activeWorkspaceId}=${value}`}
+          <button data-testid="write-rec" onClick={() => setValue("A-secret")}>
+            write
+          </button>
+        </div>
+      );
+    }
+    render(
+      <Providers envelope={makeEnvelope("ws-A")}>
+        <SwitchControls />
+        <RecordingProbe />
+      </Providers>,
+    );
+    const frames: string[] = [];
+    const pair = screen.getByTestId("pair");
+    const observer = new MutationObserver(() => frames.push(pair.firstChild?.textContent ?? ""));
+    observer.observe(pair, { childList: true, characterData: true, subtree: true });
+    await user.click(screen.getByTestId("write-rec"));
+    expect(pair.firstChild?.textContent).toBe("ws-A=A-secret");
+    await user.click(screen.getByTestId("switch-b"));
+    await waitFor(() => expect(pair.firstChild?.textContent).toBe("ws-B="));
+    observer.disconnect();
+    expect(renders.filter((r) => r.startsWith("ws-B=") && r !== "ws-B="), JSON.stringify(renders)).toEqual([]);
+    expect(frames.filter((f) => f.startsWith("ws-B=") && f !== "ws-B="), JSON.stringify(frames)).toEqual([]);
+    expect(renders).toContain("ws-B=");
+  });
 });
 
 describe("Phase 7 §10.5 — context banner shows the authoritative workspace/org", () => {

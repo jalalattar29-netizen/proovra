@@ -87,10 +87,20 @@ export function useTenantDraft<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey]);
 
-  const [value, setValueState] = useState<T>(load);
+  // §10.2 — the value is bound to the key it was read under. On a tenant
+  // switch it is re-read IN THE SAME RENDER ("adjust state when a prop
+  // changes"), so no committed frame ever pairs the new workspace with the
+  // prior tenant's draft. Re-loading in an effect (the previous shape)
+  // committed one frame of workspace B showing workspace A's draft, which a
+  // value-driven consumer (autosave, validation) could act on under B's key.
+  const [state, setState] = useState<{ key: string; value: T }>(() => ({ key: storageKey, value: load() }));
+  let current = state;
+  if (state.key !== storageKey) {
+    current = { key: storageKey, value: load() };
+    setState(current);
+  }
 
-  // Re-load whenever the tenant-scoped key changes (workspace switch).
-  // §10.2 — old tenant data disappears immediately; optionally purge it.
+  // Optionally purge the prior tenant's entry after a switch.
   useEffect(() => {
     if (
       options.purgePriorTenantOnSwitch &&
@@ -100,24 +110,23 @@ export function useTenantDraft<T>(
       writeRaw(priorKeyRef.current, null);
     }
     priorKeyRef.current = storageKey;
-    setValueState(load());
-  }, [storageKey, load, options.purgePriorTenantOnSwitch]);
+  }, [storageKey, options.purgePriorTenantOnSwitch]);
 
   const setValue = useCallback(
     (next: T) => {
-      setValueState(next);
+      setState({ key: storageKey, value: next });
       writeRaw(storageKey, JSON.stringify(next));
     },
     [storageKey],
   );
 
   const clear = useCallback(() => {
-    setValueState(defaultValue);
+    setState({ key: storageKey, value: defaultValue });
     writeRaw(storageKey, null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey]);
 
-  return { value, setValue, clear, activeWorkspaceId };
+  return { value: current.value, setValue, clear, activeWorkspaceId };
 }
 
 /**
