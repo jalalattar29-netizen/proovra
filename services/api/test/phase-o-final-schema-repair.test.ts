@@ -352,7 +352,8 @@ describe("O-Final — closure documentation", () => {
     expect(src).toMatch(/Do not build on the server/);
     expect(src).toMatch(/deploy-prod-pull\.sh/);
     expect(exists("scripts/deploy-prod-pull.sh")).toBe(true);
-    expect(src).toMatch(/recreates the API\s+then the worker/);
+    // ROLLOUT-HANDOFF D2 — worker first on a deploy, API first on a rollback.
+    expect(src).toMatch(/recreates the worker\s+then the API/);
     expect(src).toMatch(/4\s*GB|low.?RAM|memory/i);
   });
 

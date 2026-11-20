@@ -291,11 +291,14 @@ describe("deploy-prod-pull.sh — a release deploy", () => {
     expect(r.out).toContain(`api image    = ghcr.io/${OWNER}/proovra-api:${TAG}`);
     expect(r.out).toContain(`worker image = ghcr.io/${OWNER}/proovra-worker:${TAG}`);
     expect(r.out).toContain(`Currently running: ${OLD_TAG} (${OLD_SHA})`);
+    expect(r.out).toContain("order        = worker-first (proovra-worker, then proovra-api)");
     expect(r.out).toContain("PLAN ONLY");
     expect(r.log.some((l) => / (pull|up|run) /.test(l) || l.startsWith("git "))).toBe(false);
   });
 
-  it("records the rollback point, checks out the release, pulls, proves revisions, gates the schema, then API before worker", () => {
+  it("records the rollback point, checks out the release, pulls, proves revisions, gates the schema, then WORKER before API", () => {
+    // ROLLOUT-HANDOFF D2 — a new API beside an old worker let the old worker
+    // build an EXTERNAL_DISCLOSURE package FULL_FORENSIC; the worker goes first.
     const r = run([], deployEnv);
     expect(r.status, r.out).toBe(0);
     const at = (re: RegExp) => r.log.findIndex((l) => re.test(l));
@@ -306,11 +309,11 @@ describe("deploy-prod-pull.sh — a release deploy", () => {
       at(/compose --env-file \S+ -f \S+ pull proovra-api proovra-worker$/),
       at(new RegExp(`image inspect .*proovra-worker:${TAG}$`)),
       at(/compose --env-file \S+ -f \S+ run --rm --no-deps -T --entrypoint node proovra-api scripts\/runtime-schema-gate\.mjs$/),
-      at(/compose --env-file \S+ -f \S+ up -d --no-deps proovra-api$/),
-      at(/^curl .*8080\/readyz$/),
       at(/compose --env-file \S+ -f \S+ up -d --no-deps proovra-worker$/),
       // AUD-023 — the worker is gated on readiness, like the API.
       at(/^curl .*8090\/readyz$/),
+      at(/compose --env-file \S+ -f \S+ up -d --no-deps proovra-api$/),
+      at(/^curl .*8080\/readyz$/),
     ];
     expect(order.every((i) => i >= 0), `${order}\n${r.log.join("\n")}`).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
@@ -347,12 +350,35 @@ describe("deploy-prod-pull.sh — a release deploy", () => {
     expect(r.log.some((l) => /git checkout| pull /.test(l))).toBe(false);
   });
 
-  it("an API that never becomes healthy fails before the worker is touched, and names the rollback", () => {
+  it("a worker that never becomes healthy fails before the API is touched, and names the rollback", () => {
     const r = run([], { ...deployEnv, STUB_HEALTH: "unhealthy" });
     expect(r.status).toBe(1);
-    expect(r.out).toMatch(/proovra-api did not become healthy/);
-    expect(r.out).toContain(`GHCR_OWNER=${OWNER} ./scripts/deploy-prod-pull.sh --rollback`);
-    expect(r.log.some((l) => /up -d --no-deps proovra-worker/.test(l))).toBe(false);
+    expect(r.out).toMatch(/proovra-worker did not become healthy/);
+    // The host copy is mode 644, so the hint runs it through bash (D8).
+    expect(r.out).toContain(`GHCR_OWNER=${OWNER} bash scripts/deploy-prod-pull.sh --rollback`);
+    expect(r.log.some((l) => /up -d --no-deps proovra-api/.test(l))).toBe(false);
+  });
+
+  it("DEPLOY_ORDER=api-first restores API before worker, and an unhealthy API then never touches the worker", () => {
+    const ok = run([], { ...deployEnv, DEPLOY_ORDER: "api-first" });
+    expect(ok.status, ok.out).toBe(0);
+    expect(ok.out).toContain("order        = api-first (proovra-api, then proovra-worker)");
+    const api = ok.log.findIndex((l) => /up -d --no-deps proovra-api$/.test(l));
+    const worker = ok.log.findIndex((l) => /up -d --no-deps proovra-worker$/.test(l));
+    expect(api).toBeGreaterThan(-1);
+    expect(worker).toBeGreaterThan(api);
+
+    const bad = run([], { ...deployEnv, DEPLOY_ORDER: "api-first", STUB_HEALTH: "unhealthy" });
+    expect(bad.status).toBe(1);
+    expect(bad.out).toMatch(/proovra-api did not become healthy/);
+    expect(bad.log.some((l) => /up -d --no-deps proovra-worker/.test(l))).toBe(false);
+  });
+
+  it("an unknown DEPLOY_ORDER is refused before touching docker or git", () => {
+    const r = run([], { ...deployEnv, DEPLOY_ORDER: "both-at-once" });
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/DEPLOY_ORDER must be 'worker-first' or 'api-first'/);
+    expect(r.log).toEqual([]);
   });
 });
 
@@ -367,6 +393,13 @@ describe("deploy-prod-pull.sh — rollback", () => {
     });
     expect(r.status, r.out).toBe(0);
     expect(r.log).toContain(`git checkout --quiet --detach ${OLD_SHA}`);
+    // A rollback restores the old API before the old worker: the old API stops
+    // writing what only the new worker understands before the old worker returns.
+    expect(r.out).toContain("order        = api-first (proovra-api, then proovra-worker)");
+    const api = r.log.findIndex((l) => /up -d --no-deps proovra-api$/.test(l));
+    const worker = r.log.findIndex((l) => /up -d --no-deps proovra-worker$/.test(l));
+    expect(api).toBeGreaterThan(-1);
+    expect(worker).toBeGreaterThan(api);
     expect(r.out).toContain(`DEPLOY SUCCEEDED: proovra-api + proovra-worker at ${OLD_TAG} (${OLD_SHA})`);
     expect(readFileSync(join(r.root, ".deploy-state", "previous-release"), "utf8")).toContain(OLD_SHA);
   });

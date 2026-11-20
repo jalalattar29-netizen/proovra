@@ -63,7 +63,7 @@ Approving the release approves `automatic-effects.md` section 2 and nothing else
 
 Only with an approved, published release commit:
 
-- `deploy-prod-pull.sh --plan` first, then the real run. It checks image revision labels and the schema gate, and recreates the API, then the worker.
+- `deploy-prod-pull.sh --plan` first, then the real run. It checks image revision labels and the schema gate, and recreates the worker, then the API (`--rollback`: the API, then the worker).
 - Confirm the images were actually built: a green `deploy-images` run may have skipped `build-and-push`. Check the jobs and the GHCR digests.
 
 The worker must take the same image: it shares Prisma models.
