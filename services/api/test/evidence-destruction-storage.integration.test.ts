@@ -676,6 +676,72 @@ describe("Evidence physical destruction — live PostgreSQL 16 + disposable obje
     expect(siuAfter).toEqual({ artifactStorageKey: null, exportStatus: "destroyed" });
   });
 
+  it("SIU caveat (PRO-K1-01): a bundle that NAMES the record is destroyed although the record was unlinked from its case afterwards", async () => {
+    const store = new DisposableStore();
+    const rec = await seed(
+      store,
+      trashedAndExpired({
+        retentionUntilUtc: new Date(Date.now() - 10 * DAY),
+        storageObjectLockMode: "COMPLIANCE",
+        storageObjectLockRetainUntilUtc: new Date(Date.now() - 10 * DAY),
+      }),
+    );
+    // The bundle was generated while the record was linked; the link is gone now.
+    const c = await prisma.case.create({
+      data: { name: "unlinked siu case", teamId: harness.fixtures.teamA.teamId, ownerUserId: harness.fixtures.teamA.ownerUserId } as never,
+      select: { id: true },
+    });
+    const profile = await prisma.caseSiuProfile.create({
+      data: { caseId: c.id, teamId: harness.fixtures.teamA.teamId, claimType: "auto", investigationStatus: "open" } as never,
+      select: { id: true },
+    });
+    const siuKey = `siu-exports/${harness.fixtures.teamA.teamId}/${c.id}/named.zip`;
+    const siu = await prisma.caseSiuExport.create({
+      data: {
+        siuProfileId: profile.id,
+        caseId: c.id,
+        readinessState: "ready",
+        artifactStorageBucket: rec.bucket,
+        artifactStorageKey: siuKey,
+        includedEvidenceIds: [rec.id],
+        includesPii: false,
+      } as never,
+      select: { id: true },
+    });
+    store.put(rec.bucket, siuKey);
+    // A bundle of the same case that does NOT name the record is not its derivative.
+    const otherKey = `siu-exports/${harness.fixtures.teamA.teamId}/${c.id}/other.zip`;
+    const other = await prisma.caseSiuExport.create({
+      data: {
+        siuProfileId: profile.id,
+        caseId: c.id,
+        readinessState: "ready",
+        artifactStorageBucket: rec.bucket,
+        artifactStorageKey: otherKey,
+        includedEvidenceIds: [randomUUID()],
+        includesPii: false,
+      } as never,
+      select: { id: true },
+    });
+    store.put(rec.bucket, otherKey);
+    expect(await prisma.caseEvidenceLink.count({ where: { evidenceId: rec.id } })).toBe(0);
+
+    const result = await executeEvidenceDestruction(
+      prisma,
+      { evidenceId: rec.id, trigger: "destruction_review", actorUserId: harness.fixtures.teamA.ownerUserId, legalHold: false, destructionApprovalRequired: true },
+      store.port,
+    );
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    expect(store.has(rec.bucket, siuKey), "the bundle naming the record is destroyed").toBe(false);
+    expect(store.has(rec.bucket, otherKey), "a bundle not naming it is untouched").toBe(true);
+    expect(
+      await prisma.caseSiuExport.findUniqueOrThrow({ where: { id: siu.id }, select: { artifactStorageKey: true, exportStatus: true } }),
+    ).toEqual({ artifactStorageKey: null, exportStatus: "destroyed" });
+    expect(
+      (await prisma.caseSiuExport.findUniqueOrThrow({ where: { id: other.id }, select: { artifactStorageKey: true } })).artifactStorageKey,
+    ).toBe(otherKey);
+  });
+
   // F-09 (independent forward audit) — destruction versus output publication.
   it("F-09: an object published under the record's prefixes after the inventory refuses the certificate", async () => {
     const store = new DisposableStore();

@@ -224,6 +224,56 @@ describe("SIU export — released artifacts only (live PostgreSQL 16, real HTTP)
     }
   });
 
+  it("SIU caveat (PRO-K1-01 / DEC-05): a stored bundle is not released again once a record it carries is trashed or destroyed; restore makes it downloadable again", async () => {
+    const { teamA } = h.fixtures;
+    const caseId = await siuCase();
+    const kept = await caseRecord(caseId, true);
+    const trashed = await caseRecord(caseId, true);
+    const first = await exportBundle(caseId);
+    expect(first.statusCode, first.body.slice(0, 300)).toBe(200);
+    const exportId = first.headers["x-proovra-siu-export-id"] as string;
+    const row = await prisma.caseSiuExport.findUniqueOrThrow({ where: { id: exportId }, select: { includedEvidenceIds: true } });
+    expect([...(row.includedEvidenceIds as string[])].sort()).toEqual([kept, trashed].sort());
+
+    const download = async () =>
+      h.app.inject({
+        method: "GET",
+        url: `/v1/cases/${caseId}/siu-exports/${exportId}/download`,
+        headers: {
+          authorization: `Bearer ${teamA.ownerToken}`,
+          "x-proovra-step-up-challenge-id": await stepUp(caseId, "SIU_PII_REVEAL"),
+        },
+      });
+    // Control: while every carried record is readable the bundle downloads.
+    const before = await download();
+    expect(before.statusCode, before.body.slice(0, 300)).toBe(200);
+
+    // The gap: the record left the case (unlinked) after the bundle was made,
+    // so the case's current population no longer names it, yet the stored
+    // bundle still carries its report and package. At the base this answered
+    // 200 and released them.
+    await prisma.caseEvidenceLink.deleteMany({ where: { caseId, evidenceId: trashed } });
+    for (const state of ["TRASHED", "PENDING_DESTRUCTION", "DESTROYED"] as const) {
+      await prisma.evidence.update({ where: { id: trashed }, data: { lifecycleState: state } as never });
+      const refused = await download();
+      expect(refused.statusCode, `${state}: ${refused.body.slice(0, 300)}`).toBe(409);
+      expect(refused.json().error.code).toBe("siu_export_records_unavailable");
+    }
+
+    // Still linked: the current-population gate refused already (403
+    // siu_export_blocked_by_policy); the bundle's own population now answers
+    // first, by name.
+    await prisma.caseEvidenceLink.create({ data: { caseId, evidenceId: trashed } as never });
+    await prisma.evidence.update({ where: { id: trashed }, data: { lifecycleState: "TRASHED" } as never });
+    const linkedTrashed = await download();
+    expect(linkedTrashed.statusCode, linkedTrashed.body.slice(0, 300)).toBe(409);
+    expect(linkedTrashed.json().error.code).toBe("siu_export_records_unavailable");
+    // A record restored from trash makes the stored bundle readable again.
+    await prisma.evidence.update({ where: { id: trashed }, data: { lifecycleState: "ACTIVE" } as never });
+    const after = await download();
+    expect(after.statusCode, after.body.slice(0, 300)).toBe(200);
+  });
+
   it("a case-scope legal hold withholds the export and a stored bundle's download", async () => {
     const { teamA } = h.fixtures;
     const caseId = await siuCase();
