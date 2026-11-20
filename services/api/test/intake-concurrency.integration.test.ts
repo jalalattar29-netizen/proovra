@@ -248,8 +248,11 @@ describe("ET-INT-09 — intake races (live PostgreSQL 16)", () => {
     const link = await linkRow();
     headPause.ms = 1500;
     const inflight = submit(t, sid);
-    // Wait until the submit has reserved its use (it is now inside the seal).
-    for (let i = 0; i < 100 && (await linkRow()).usedCount === 0; i++) await new Promise((r) => setTimeout(r, 20));
+    // Wait until the submit has reserved its use AND the seal has reached its
+    // first HEAD (which takes the pause). The use commits before completeEvidence
+    // starts, and completeEvidence does its own database reads before that HEAD,
+    // so seeing the use alone does not yet mean the seal is paused (CI 4b9815d50).
+    for (let i = 0; i < 250 && ((await linkRow()).usedCount === 0 || headPause.ms > 0); i++) await new Promise((r) => setTimeout(r, 20));
     expect((await linkRow()).usedCount, "the submit reserved its use before the revoke").toBe(1);
     expect(headPause.ms, "the seal's HEAD took the pause").toBe(0);
     const [res, revoke] = await Promise.all([
