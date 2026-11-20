@@ -135,8 +135,10 @@ async function requireRequestMember(
 
 /**
  * A2-07 — every authenticated request projection carries the recipient's
- * contact only as this caller's disclosure allows (masked unless they hold
- * `workflow.intake_recipient_contact.reveal`). Resolved once per response.
+ * contact masked; NEW-RG-19-1 (DEC-14) — for every reader, a holder of
+ * `workflow.intake_recipient_contact.reveal` included (they are told they may
+ * reveal; the raw values leave only through the audited reveal route).
+ * Resolved once per response.
  */
 type ProjectableRequest = Parameters<typeof projectRequestForAuthenticatedView>[0];
 

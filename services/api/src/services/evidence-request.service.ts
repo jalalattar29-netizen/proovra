@@ -62,7 +62,7 @@ import {
   assertWorkAssigneeEligible,
 } from "./assignment/assignee-eligibility.js";
 import {
-  projectRecipientContact,
+  projectRecipientContactMasked,
   type RecipientContactDisclosure,
   type RecipientContactProjection,
 } from "./privacy/recipient-contact-disclosure.js";
@@ -2133,7 +2133,13 @@ export async function projectRequestForExternalView(
 // A2-07 — the recipient's address and number are a third party's contact, not
 // part of "full visibility": they take the one disclosure decision
 // (`resolveRecipientContactDisclosure`), resolved by the route for the caller.
-// Raw only for REVEALED; every other reader gets the masked form.
+//
+// NEW-RG-19-1 / DEC-14 — masked for EVERY reader, the rule the intake-link
+// copy of the same contact follows (PRO-I1-08, `projectRecipientContactMasked`):
+// a holder of the reveal authority is told so (`recipientContactRevealAuthorized`)
+// and asks the audited reveal route for the raw values, so every disclosure of
+// a raw address is recorded. This projection used to hand the raw values to
+// every holder with no audit record.
 // -----------------------------------------------------------------------------
 
 export function projectRequestForAuthenticatedView(
@@ -2210,7 +2216,7 @@ export function projectRequestForAuthenticatedView(
     dueAtUtc: request.dueAtUtc?.toISOString() ?? null,
     recipientMode: request.recipientMode,
     recipientLabel: request.recipientLabel,
-    ...projectRecipientContact(request, disclosure),
+    ...projectRecipientContactMasked(request, disclosure),
     requestedByUserId: request.requestedByUserId,
     assignedReviewerUserId: request.assignedReviewerUserId,
     intakeLinkId: request.intakeLinkId,
