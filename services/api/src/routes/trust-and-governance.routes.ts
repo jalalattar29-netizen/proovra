@@ -180,14 +180,36 @@ async function refuseTrustAuthoring(
   reply: FastifyReply,
   ctx: { teamId: string; userId: string },
 ): Promise<boolean> {
-  const entitled = await assertFeatureEntitlement({
-    prisma,
-    teamId: ctx.teamId,
-    key: "FEATURE_TRUST_CENTER",
-    actorUserId: ctx.userId,
-  });
+  return refuseUnlessFeatureEntitled(reply, ctx, "FEATURE_TRUST_CENTER");
+}
+
+/**
+ * PRO-G2-10 (WS-ENT) / matrix review §6.1 — THE ONE ENTITLEMENT GATE OF THIS
+ * MODULE. Not entitled: 403 ENTITLEMENT_REQUIRED (the existing body). The
+ * engine could not answer (it threw): fail CLOSED with a retryable 503
+ * `ENTITLEMENT_UNAVAILABLE` naming the key, the shape of this API's other
+ * `*_UNAVAILABLE` denials — never an admission, and no longer the generic
+ * 500 the central handler gave (the route comments promised 503). Asked
+ * before anything is written. Answers true when a refusal was sent.
+ */
+async function refuseUnlessFeatureEntitled(
+  reply: FastifyReply,
+  ctx: { teamId: string; userId: string },
+  key: "FEATURE_TRUST_CENTER" | "FEATURE_DEPARTMENT_ISOLATION" | "FEATURE_CROSS_ORG_REVIEW" | "FEATURE_GOVERNANCE_PLATFORM",
+): Promise<boolean> {
+  let entitled: Awaited<ReturnType<typeof assertFeatureEntitlement>>;
+  try {
+    entitled = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key, actorUserId: ctx.userId });
+  } catch (err) {
+    reply.log.warn(
+      { event: "governance.entitlement_unavailable", key, err: err instanceof Error ? err.message.slice(0, 200) : "unknown" },
+      "entitlement engine unavailable; refused",
+    );
+    reply.code(503).send({ denial: "ENTITLEMENT_UNAVAILABLE", entitlement: key });
+    return true;
+  }
   if (entitled.ok) return false;
-  reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_TRUST_CENTER" });
+  reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: key });
   return true;
 }
 
@@ -998,9 +1020,8 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       // I6 — FEATURE_DEPARTMENT_ISOLATION gate. PRO-G2-10 (WS-ENT): an
       // authorization gate fails CLOSED — the swallow-all catch that let an
       // unexpected engine throw fall through to the write is gone; a throw is
-      // a retryable 503 by the central handler, never an admission.
-      const feOk = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_DEPARTMENT_ISOLATION", actorUserId: ctx.userId });
-      if (!feOk.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_DEPARTMENT_ISOLATION" });
+      // a retryable 503 ENTITLEMENT_UNAVAILABLE, never an admission.
+      if (await refuseUnlessFeatureEntitled(reply, ctx, "FEATURE_DEPARTMENT_ISOLATION")) return reply;
       const body = z
         .object({
           // PHASE 12B CLUSTER 14 — now OPTIONAL and non-authoritative. The
@@ -1136,8 +1157,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       // Enterprise entitlement (Pricing "Governance controls"), asked of the
       // packaging engine as cross-org review already does; the role permission
       // every personal OWNER holds was the only gate. (Deprecating stays open: it withdraws.)
-      const govOk = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_GOVERNANCE_PLATFORM", actorUserId: ctx.userId });
-      if (!govOk.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_GOVERNANCE_PLATFORM" });
+      if (await refuseUnlessFeatureEntitled(reply, ctx, "FEATURE_GOVERNANCE_PLATFORM")) return reply;
       const res = await createPolicy({
         teamId: ctx.teamId,
         kind: body.kind,
@@ -1166,8 +1186,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       // Enterprise entitlement (Pricing "Governance controls"), asked of the
       // packaging engine as cross-org review already does; the role permission
       // every personal OWNER holds was the only gate. 
-      const govOk = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_GOVERNANCE_PLATFORM", actorUserId: ctx.userId });
-      if (!govOk.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_GOVERNANCE_PLATFORM" });
+      if (await refuseUnlessFeatureEntitled(reply, ctx, "FEATURE_GOVERNANCE_PLATFORM")) return reply;
       const r = await activatePolicy({
         teamId: ctx.teamId,
         policyId: id,
@@ -1214,8 +1233,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       // Enterprise entitlement (Pricing "Governance controls"), asked of the
       // packaging engine as cross-org review already does; the role permission
       // every personal OWNER holds was the only gate. 
-      const govOk = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_GOVERNANCE_PLATFORM", actorUserId: ctx.userId });
-      if (!govOk.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_GOVERNANCE_PLATFORM" });
+      if (await refuseUnlessFeatureEntitled(reply, ctx, "FEATURE_GOVERNANCE_PLATFORM")) return reply;
       // TENANT BINDING. `assignPolicy` upserts on (policyId, scope,
       // scopeTargetId) and never checked that the policy — or the target —
       // belongs to the caller's workspace, so an ORG_ADMIN could attach a
@@ -1533,11 +1551,9 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       // I6 — FEATURE_CROSS_ORG_REVIEW + FEATURE_GOVERNANCE_PLATFORM gates.
-      // PRO-G2-10 (WS-ENT) — fail closed: no swallow-all catch around the gate.
-      const feOk1 = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_CROSS_ORG_REVIEW", actorUserId: ctx.userId });
-      if (!feOk1.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_CROSS_ORG_REVIEW" });
-      const feOk2 = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_GOVERNANCE_PLATFORM", actorUserId: ctx.userId });
-      if (!feOk2.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_GOVERNANCE_PLATFORM" });
+      // PRO-G2-10 (WS-ENT) — fail closed: a throw is a 503, never an admission.
+      if (await refuseUnlessFeatureEntitled(reply, ctx, "FEATURE_CROSS_ORG_REVIEW")) return reply;
+      if (await refuseUnlessFeatureEntitled(reply, ctx, "FEATURE_GOVERNANCE_PLATFORM")) return reply;
       const body = z
         .object({
           invitingOrganizationId: z.string().uuid(),

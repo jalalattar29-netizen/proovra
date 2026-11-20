@@ -184,14 +184,31 @@ describe("PRO-071 governance tenant attributes (live PostgreSQL)", () => {
       });
     }
 
-    // The engine throws: an error answer, never an admission.
+    // The engine throws: a retryable 503 ENTITLEMENT_UNAVAILABLE naming the key
+    // (matrix review follow-up: it answered the generic 500, not the 503 the
+    // route comments promise), never an admission.
     const aBefore = await counts(teamA.teamId);
     engine.fail = true;
     try {
       const failedDept = await post(teamA, "/v1/governance/departments", department());
-      expect(failedDept.statusCode, failedDept.body).toBe(500);
+      expect(failedDept.statusCode, failedDept.body).toBe(503);
+      expect(failedDept.json()).toEqual({ denial: "ENTITLEMENT_UNAVAILABLE", entitlement: "FEATURE_DEPARTMENT_ISOLATION" });
       const failedCross = await post(teamA, "/v1/governance/cross-org-review", crossOrg(orgA, teamA.evidenceId));
-      expect(failedCross.statusCode, failedCross.body).toBe(500);
+      expect(failedCross.statusCode, failedCross.body).toBe(503);
+      expect(failedCross.json()).toEqual({ denial: "ENTITLEMENT_UNAVAILABLE", entitlement: "FEATURE_CROSS_ORG_REVIEW" });
+      // The module's other governance gate answers the same way.
+      const policiesBefore = await prisma.governancePolicy.count({ where: { teamId: teamA.teamId } });
+      const failedPolicy = await post(teamA, "/v1/governance/policies", {
+        kind: "RETENTION",
+        slug: `p-${randomUUID().slice(0, 8)}`,
+        name: "Policy",
+        summary: "Policy",
+        enforcementMode: "AUDIT_ONLY",
+        rule: {},
+      });
+      expect(failedPolicy.statusCode, failedPolicy.body).toBe(503);
+      expect(failedPolicy.json()).toEqual({ denial: "ENTITLEMENT_UNAVAILABLE", entitlement: "FEATURE_GOVERNANCE_PLATFORM" });
+      expect(await prisma.governancePolicy.count({ where: { teamId: teamA.teamId } })).toBe(policiesBefore);
     } finally {
       engine.fail = false;
     }
