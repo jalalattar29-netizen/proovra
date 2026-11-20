@@ -26,7 +26,8 @@
  *   18. Create escalation
  *   19. Assert escalation count changed
  *   20. Invite external reviewer (POST /v1/external-review/grants)
- *   21. Assert external reviewer grant count changed
+ *   21. Assert the grant is listed for the case, and its token opens a
+ *       CASE review context (accept moves it to ACTIVE)
  *   22. Run media intelligence refresh (POST /v1/investigation/media-intelligence/refresh)
  *   23. Assert signal count changed OR honest CAPABILITY_UNAVAILABLE
  *   24. Assert audit events exist (auditEventCount delta > 0)
@@ -52,6 +53,7 @@ import {
   provisionEnterpriseOrg,
   type GuestSession,
   authorizeOriginalPart,
+  approvedStepUpHeader,
 } from "./helpers/api-client";
 import {
   counter,
@@ -539,60 +541,116 @@ test.describe("Wave 3 Phase 8 — Investigation enterprise data flow @critical",
       // -----------------------------------------------------------------
       // Step 20 — Invite external reviewer.
       // -----------------------------------------------------------------
+      //
+      // This step used to send `inviteeEmail` / `role`, which the route's
+      // schema (IssueGrantBodySchema in services/api/src/routes/
+      // external-review.routes.ts) does not know, and to treat any non-2xx
+      // — including the resulting 400 — as an "honest skip". It therefore
+      // never issued a grant and could not fail. It now sends the route's
+      // real payload (a CASE-scoped grant: scopeKind + caseId +
+      // reviewerEmail) with the step-up the route demands
+      // (EXTERNAL_REVIEW_GRANT_ISSUE, resource external_review_grant/<caseId>)
+      // and requires 201. The workspace is an Enterprise organization
+      // workspace, which includes External Review, and the session is its
+      // owner, so every gate on the route is expected to pass.
+      // -----------------------------------------------------------------
       const beforeGrants = counter(
         beforeReconcile,
         "externalReviewerGrantCount",
       );
-      let grantCreated = false;
-      await test.step("20: POST /v1/external-review/grants", async () => {
+      const reviewerEmail = `ext-reviewer-${Date.now()}@example.test`;
+      const issued = await test.step("20: POST /v1/external-review/grants", async () => {
+        const stepUp = await approvedStepUpHeader(session, {
+          teamId: teamId!,
+          purpose: "EXTERNAL_REVIEW_GRANT_ISSUE",
+          resourceKind: "external_review_grant",
+          resourceId: createdCase.id,
+        });
         const res = await session.api.post("/v1/external-review/grants", {
+          headers: stepUp,
           data: {
             teamId,
-            inviteeEmail: `ext-reviewer-${Date.now()}@example.test`,
-            role: "EXTERNAL_REVIEWER",
+            scopeKind: "CASE",
             caseId: createdCase.id,
+            reviewerEmail,
+            reviewerDisplayName: "Phase 8 external reviewer",
           },
         });
-        // Accept the bounded honest outcomes: 200/201 = grant
-        // issued; 403 = policy denied (e.g. no SSO connection bound
-        // on a guest workspace); 400 = validation envelope shape
-        // mismatch on the current build. We MUST NOT fake success —
-        // grantCreated only flips on real 2xx.
-        if (res.status() >= 200 && res.status() < 300) {
-          grantCreated = true;
-        } else {
-          // Honest skip — surface the body so the operator sees why.
-          // eslint-disable-next-line no-console
-          console.warn(
-            `[phase8] external-review/grants returned ${res.status()}: ${await res.text()}`,
-          );
-        }
+        expect(res.status(), `issue grant: ${await res.text()}`).toBe(201);
+        const body = (await res.json()) as {
+          grant: {
+            id: string;
+            teamId: string;
+            scopeKind: string;
+            caseId: string | null;
+            evidenceId: string | null;
+            reviewerEmail: string;
+            state: string;
+            allowOriginalDownload: boolean;
+          };
+          rawToken: string;
+        };
+        expect(body.grant).toMatchObject({
+          teamId,
+          scopeKind: "CASE",
+          caseId: createdCase.id,
+          evidenceId: null,
+          reviewerEmail,
+          state: "INVITED",
+          allowOriginalDownload: false,
+        });
+        // The bearer token is handed out exactly once, as 32 random bytes.
+        expect(body.rawToken).toMatch(/^[a-f0-9]{64}$/);
+        return body;
       });
 
       // -----------------------------------------------------------------
-      // Step 21 — Assert external reviewer grant count delta (honest).
+      // Step 21 — The grant is visible where it is read.
+      //
+      // Operator side: the grant list for this case names it (and never the
+      // token). Reviewer side: the token opens a CASE-scoped review context
+      // that releases no originals, and accepting it moves the grant to
+      // ACTIVE in the operator list.
+      //
+      // `externalReviewerGrantCount` on the diagnostics envelope counts
+      // portal role assignments (external_reviewer_role_assignments), which
+      // this route does not write, so it is not the read-side effect of a
+      // grant; it is only checked not to have moved backwards.
       // -----------------------------------------------------------------
-      await test.step("21: externalReviewerGrantCount honestly reflects step 20", async () => {
-        if (grantCreated) {
-          await waitForDiagnostics({
-            api: session.api,
-            teamId: teamId!,
-            predicate: (d) =>
-              counter(d, "externalReviewerGrantCount") >= beforeGrants + 1,
-            label: `externalReviewerGrantCount >= ${beforeGrants + 1}`,
-          });
-        } else {
-          // Honest no-grant path: assert count did NOT silently jump,
-          // proving the test did not fake state. The classifier on
-          // /investigation/reviewers will render TRUE_EMPTY honestly.
-          const d = await readDiagnostics({
-            api: session.api,
-            teamId: teamId!,
-          });
-          expect(
-            counter(d, "externalReviewerGrantCount"),
-          ).toBeGreaterThanOrEqual(beforeGrants);
-        }
+      await test.step("21: the grant is listed for the case and opens a CASE review context", async () => {
+        const listGrants = async () => {
+          const res = await session.api.get(
+            `/v1/external-review/grants?teamId=${teamId}&caseId=${createdCase.id}`,
+          );
+          expect(res.status(), `list grants: ${await res.text()}`).toBe(200);
+          const text = await res.text();
+          expect(text).not.toContain(issued.rawToken);
+          return (JSON.parse(text) as { grants: Array<{ id: string; state: string; scopeKind: string; caseId: string | null }> }).grants;
+        };
+        const listed = (await listGrants()).find((g) => g.id === issued.grant.id);
+        expect(listed, "the issued grant is listed for its case").toMatchObject({
+          state: "INVITED",
+          scopeKind: "CASE",
+          caseId: createdCase.id,
+        });
+
+        const accepted = await session.api.post(
+          `/v1/external-review/access/${issued.rawToken}`,
+        );
+        expect(accepted.status(), `accept grant: ${await accepted.text()}`).toBe(200);
+        const { context } = (await accepted.json()) as {
+          context: { scopeKind: string; state: string; allowOriginalDownload: boolean };
+        };
+        expect(context).toMatchObject({
+          scopeKind: "CASE",
+          state: "ACTIVE",
+          allowOriginalDownload: false,
+        });
+        const after = (await listGrants()).find((g) => g.id === issued.grant.id);
+        expect(after?.state).toBe("ACTIVE");
+
+        const d = await readDiagnostics({ api: session.api, teamId: teamId! });
+        expect(counter(d, "externalReviewerGrantCount")).toBeGreaterThanOrEqual(beforeGrants);
       });
 
       // -----------------------------------------------------------------
