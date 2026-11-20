@@ -223,7 +223,7 @@
       "problemCount": 0
     },
     "auditGovernance": {
-      "AuditFilesInventoried": 515,
+      "AuditFilesInventoried": 516,
       "AuditFilesUnclassified": 0,
       "AuditArtifactProducersUnknown": 0,
       "AuditArtifactConsumersUnknown": 0,
@@ -272,7 +272,7 @@
       "ProductionRuntimeFilesModifiedByPhase0": 0,
       "ProductBehaviorTestsRemoved": 0,
       "HistoricalMigrationsModifiedByPhase0": 0,
-      "ProductBehaviorTestsInventoried": 422
+      "ProductBehaviorTestsInventoried": 423
     },
     "proofFreshness": {
       "domainProofsRead": 10,
