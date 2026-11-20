@@ -12,6 +12,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { makeEnterpriseOrganizationWorkspace } from "./support/enterprise-organization.js";
 
 const WORKER_PREFIX = "aud019-ocr-";
 
@@ -23,6 +24,9 @@ describe("AUD-019 reviewer console — local OCR is the worker's reported probe 
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
+    // NEW-RG-13-1 — the reviewer console answers an Enterprise organization
+    // workspace only (refusal proven in ws-ent-enterprise-surfaces).
+    await makeEnterpriseOrganizationWorkspace(prisma, h.fixtures.teamA.teamId);
   }, 180_000);
   afterAll(async () => {
     await prisma?.workerTelemetrySnapshot.deleteMany({ where: { workerId: { startsWith: WORKER_PREFIX } } });
