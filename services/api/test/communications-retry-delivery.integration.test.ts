@@ -319,5 +319,9 @@ describe("Communications retry truth (live PostgreSQL)", () => {
     expect(["SENT", "QUEUED"]).toContain(after.status);
     expect(after.providerMessageId).not.toBeNull();
     expect((await prisma.communicationMessage.findUniqueOrThrow({ where: { id: fresh.id } })).status).toBe("QUEUED");
+    // The in-lease row is a fixture, not a send: end it so a later suite's
+    // global sweep on the shared CI database does not pick it up once the
+    // lease runs out.
+    await prisma.communicationMessage.update({ where: { id: fresh.id }, data: { status: "CANCELLED" } as never });
   });
 });

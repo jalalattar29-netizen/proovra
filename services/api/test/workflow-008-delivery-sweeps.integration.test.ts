@@ -110,7 +110,13 @@ describe("WORKFLOW-008 the worker sweeps against the real API", () => {
     const sweep = API_DELIVERY_SWEEPS.find((s) => s.name === "communication-retries")!;
     const result = await runApiDeliverySweep(sweep, { timeoutMs: 60_000 });
     expect(result.ok).toBe(true);
-    expect(recording.recordedMessages().map((m) => m.body)).toEqual(["Please add your photos to the request."]);
+    // CI runs every suite on one database and the sweep is global, so another
+    // suite's due row may be sent in the same pass. What this test owns is its
+    // recipient: exactly one send, with this row's body.
+    const mine = recording
+      .recordedMessages()
+      .filter((m) => m.recipientAlias === recording.recipientAliasForPhone(PHONE));
+    expect(mine.map((m) => m.body)).toEqual(["Please add your photos to the request."]);
     const after = await prisma.communicationMessage.findUniqueOrThrow({ where: { id: due.id } });
     expect(["SENT", "QUEUED"]).toContain(after.status);
     expect(after.attemptCount).toBe(2);
