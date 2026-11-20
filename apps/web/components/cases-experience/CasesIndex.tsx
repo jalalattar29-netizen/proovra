@@ -1543,10 +1543,9 @@ function RowActions({
   const platform = usePlatformContext();
   const listRole = actorRoleIn(platform?.envelope ?? null, activeWorkspaceId);
   const mayDestroy = listRole === null || listRole === "OWNER" || listRole === "ADMIN";
-  // PRO-K1-09 — the Enterprise case page (MatterWorkspace) has no Settings
-  // tab, so Rename / Change status are offered only where the detail page
-  // can perform them (the SimpleCaseDetail Settings tab reads ?tab=settings).
-  const enterpriseCasePage = useEnterpriseSurfaceAccess();
+  // PRO-K1-09 — both case pages (SimpleCaseDetail and the Enterprise
+  // MatterWorkspace) open their Settings tab from ?tab=settings, and Rename
+  // asks for the name field (focus=name), so the items are offered on both.
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -1666,18 +1665,14 @@ function RowActions({
           </button>
           {readOnly ? null : (
           <>
-          {enterpriseCasePage ? null : (
-            <>
-              {mayDestroy ? (
-                <button type="button" role="menuitem" className="cases-row-actions-item" onClick={() => go(`/cases/${caseId}?tab=settings`)}>
-                  Rename
-                </button>
-              ) : null}
-              <button type="button" role="menuitem" className="cases-row-actions-item" onClick={() => go(`/cases/${caseId}?tab=settings`)}>
-                Change status
-              </button>
-            </>
-          )}
+          {mayDestroy ? (
+            <button type="button" role="menuitem" className="cases-row-actions-item" onClick={() => go(`/cases/${caseId}?tab=settings&focus=name`)}>
+              Rename
+            </button>
+          ) : null}
+          <button type="button" role="menuitem" className="cases-row-actions-item" onClick={() => go(`/cases/${caseId}?tab=settings`)}>
+            Change status
+          </button>
           <button
             type="button"
             role="menuitem"
