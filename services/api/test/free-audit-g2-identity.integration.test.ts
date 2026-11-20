@@ -406,6 +406,155 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
   });
 
   // ===========================================================================
+  // Matrix review NEW-RG10-1 (DEC-29) — an operator ending a parent session
+  // ends the extension sessions it authorized, and nothing else
+  // ===========================================================================
+  describe("matrix review 6.1: mfa-admin trusted-device reset rank rule (PRO-A2-05) and policy PATCH ordering (PRO-A2C-05)", () => {
+    const device = (userId: string) =>
+      prisma.trustedDevice.create({
+        data: {
+          teamId: A().teamId,
+          userId,
+          deviceIdHash: createHash("sha256").update(randomUUID()).digest("hex"),
+          uaPreview: "g2-rank-agent",
+          ipPreview: "203.0.113.0/24",
+          trustedUntilUtc: future(),
+        },
+        select: { id: true },
+      });
+    const statusOf = async (id: string) =>
+      (await prisma.trustedDevice.findUniqueOrThrow({ where: { id }, select: { status: true } })).status;
+
+    it("POST /v1/identity/mfa-admin/trusted-devices/:teamId/:userId/reset: an ADMIN is refused 403 rank_insufficient on the OWNER before any step-up and the device stays trusted; the OWNER resets a MEMBER's devices with step-up (200)", async () => {
+      const ownerDevice = await device(A().ownerUserId);
+      const url = (userId: string) => `/v1/identity/mfa-admin/trusted-devices/${A().teamId}/${userId}/reset`;
+      const refused = await call("POST", url(A().ownerUserId), admin(), { reason: "rank probe" });
+      expect(refused.statusCode, refused.body).toBe(403);
+      expect(json(refused).error).toMatchObject({ code: "permission_denied", reason: "rank_insufficient" });
+      await h.handlersSettled();
+      expect(await statusOf(ownerDevice.id)).toBe("ACTIVE");
+
+      const m = await person("g2-rank-member", { role: "MEMBER" });
+      const memberDevice = await device(m.userId);
+      const proof = await ceremony.approvedHeader({
+        token: owner(),
+        userId: A().ownerUserId,
+        teamId: A().teamId,
+        purpose: "MFA_TRUSTED_DEVICE_RESET",
+        resourceKind: "user_trusted_devices",
+        resourceId: m.userId,
+      });
+      const ok = await call("POST", url(m.userId), owner(), { reason: "rank control" }, proof);
+      expect(ok.statusCode, ok.body).toBe(200);
+      expect(json(ok)).toMatchObject({ ok: true, targetUserId: m.userId });
+      expect(json(ok).resetCount).toBeGreaterThanOrEqual(1);
+      expect(await statusOf(memberDevice.id)).toBe("REVOKED");
+      expect(await statusOf(ownerDevice.id)).toBe("ACTIVE");
+    });
+
+    it("PATCH /v1/identity/mfa-admin/policy/:teamId: authorization runs before the Enterprise check — an outsider gets the concealed 404 for a non-Enterprise workspace, its own OWNER the 402; the policy is unchanged", async () => {
+      const B = h.fixtures.teamB;
+      const orgB = (await prisma.team.findUniqueOrThrow({ where: { id: B.teamId }, select: { organizationId: true } }))
+        .organizationId as string;
+      const policyOf = () =>
+        prisma.organizationSecurityPolicy.findMany({
+          where: { organizationId: orgB },
+          select: { id: true, policyVersion: true, mfaPolicyLevel: true },
+          orderBy: { id: "asc" },
+        });
+      const before = await policyOf();
+      const url = `/v1/identity/mfa-admin/policy/${B.teamId}`;
+      const payload = { expectedPolicyVersion: before[0]?.policyVersion ?? 0, level: "ALL_MEMBERS" };
+
+      const outsider = await call("PATCH", url, admin(), payload);
+      expect(outsider.statusCode, outsider.body).toBe(404);
+      expect(json(outsider).error.code).toBe("not_found");
+      // Indistinguishable from a workspace that does not exist.
+      const missing = await call("PATCH", `/v1/identity/mfa-admin/policy/${randomUUID()}`, admin(), payload);
+      expect(missing.statusCode, missing.body).toBe(404);
+      expect(json(missing)).toEqual(json(outsider));
+
+      const ownOwner = await call("PATCH", url, B.ownerToken, payload);
+      expect(ownOwner.statusCode, ownOwner.body).toBe(402);
+      expect(json(ownOwner).error.code).toBe("ENTERPRISE_FEATURE_REQUIRED");
+
+      await h.handlersSettled();
+      expect(await policyOf()).toEqual(before);
+    });
+  });
+
+  describe("NEW-RG10-1 (DEC-29): operator single-session revokes end the parent's extension child sessions", () => {
+    async function family(label: string) {
+      const u = await person(label, { role: "MEMBER" });
+      const row = (data: Record<string, unknown> = {}) =>
+        prisma.authenticatedSession.create({
+          data: {
+            userId: u.userId,
+            teamId: A().teamId,
+            sessionIdHash: createHash("sha256").update(randomUUID()).digest("hex"),
+            expiresAtUtc: future(),
+            ...data,
+          } as never,
+          select: { id: true, sessionIdHash: true },
+        });
+      const parent = await row();
+      const child = await row({ parentSessionIdHash: parent.sessionIdHash });
+      const unrelated = await row();
+      const unrelatedChild = await row({ parentSessionIdHash: unrelated.sessionIdHash });
+      return { u, parent, child, unrelated, unrelatedChild };
+    }
+    const state = (id: string) =>
+      prisma.authenticatedSession.findUniqueOrThrow({ where: { id }, select: { revokedAtUtc: true, revokedReason: true } });
+    async function expectFamilyEnded(f: Awaited<ReturnType<typeof family>>) {
+      expect(
+        await prisma.revokedSession.count({ where: { userId: f.u.userId, sessionIdHash: f.parent.sessionIdHash } }),
+      ).toBe(1);
+      const child = await state(f.child.id);
+      expect(child.revokedAtUtc).toBeInstanceOf(Date);
+      expect(child.revokedReason).toBe("PARENT_SESSION_ENDED");
+      expect(
+        await prisma.revokedSession.count({ where: { userId: f.u.userId, sessionIdHash: f.child.sessionIdHash } }),
+      ).toBe(1);
+      for (const id of [f.unrelated.id, f.unrelatedChild.id]) {
+        expect((await state(id)).revokedAtUtc).toBeNull();
+      }
+      expect(
+        await prisma.revokedSession.count({
+          where: { userId: f.u.userId, sessionIdHash: { in: [f.unrelated.sessionIdHash, f.unrelatedChild.sessionIdHash] } },
+        }),
+      ).toBe(0);
+    }
+
+    it("POST /v1/admin/identity/sessions/:id/revoke ends the parent and its extension child; the unrelated session and its child survive", async () => {
+      const f = await family("g2-rg10-admin");
+      const proof = await ceremony.approvedHeader({
+        token: admin(),
+        userId: A().adminUserId,
+        teamId: A().teamId,
+        purpose: "CONTRIBUTOR_SESSION_REVOKE",
+        resourceKind: "authenticated_session",
+        resourceId: f.parent.id,
+      });
+      const r = await call("POST", `/v1/admin/identity/sessions/${f.parent.id}/revoke`, admin(), { teamId: A().teamId }, proof);
+      expect(r.statusCode, r.body).toBe(200);
+      await expectFamilyEnded(f);
+    });
+
+    it("POST /v1/identity-security/sessions/revoke (by hash) ends the parent and its extension child; the unrelated session and its child survive", async () => {
+      const f = await family("g2-rg10-hash");
+      const r = await call(
+        "POST",
+        "/v1/identity-security/sessions/revoke",
+        owner(),
+        { teamId: A().teamId, userId: f.u.userId, sessionIdHash: f.parent.sessionIdHash },
+        { "x-proovra-workspace-id": A().teamId },
+      );
+      expect(r.statusCode, r.body).toBe(200);
+      await expectFamilyEnded(f);
+    });
+  });
+
+  // ===========================================================================
   // B3A-F-001 — the org roster's contact details follow the directory rule
   // ===========================================================================
   describe("B3A-F-001: ORG_MEMBER sees no addresses and cannot search by address", () => {
@@ -877,6 +1026,149 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
       const mr = await call("POST", "/v1/admin/identity/runtime/reconcile", null, { teamId: A().teamId }, machine);
       expect(mr.statusCode, mr.body).toBe(200);
       expect(await prisma.geoIntelligenceLookup.count({ where: { id: geo.id } })).toBe(0);
+    });
+  });
+
+  // ===========================================================================
+  // Matrix review NEW-RG08-3 / NEW-RG08-4 + PRO-A2-04 (DEC-11) — session
+  // governance is an Enterprise capability on EVERY admin-session door
+  // ===========================================================================
+  describe("DEC-11 sessionGovernance: a non-Enterprise workspace administrator is refused 402 on every session-governance door, with no effect", () => {
+    const B = () => h.fixtures.teamB;
+    const bSession = (data: Record<string, unknown> = {}) =>
+      prisma.authenticatedSession.create({
+        data: {
+          userId: B().memberUserId,
+          teamId: B().teamId,
+          sessionIdHash: createHash("sha256").update(randomUUID()).digest("hex"),
+          expiresAtUtc: future(),
+          ...data,
+        } as never,
+        select: { id: true },
+      });
+    const readB = (id: string) =>
+      prisma.authenticatedSession.findUniqueOrThrow({
+        where: { id },
+        select: { revokedAtUtc: true, quarantinedAtUtc: true, riskScore: true, lastRiskRecomputedAtUtc: true },
+      });
+    const expect402 = (r: Res, label: string) => {
+      expect(r.statusCode, `${label} ${r.body}`).toBe(402);
+      expect(json(r).error.code, label).toBe("ENTERPRISE_FEATURE_REQUIRED");
+    };
+
+    it("precondition: team B is not on an Enterprise plan; team A is", async () => {
+      const b = await prisma.team.findUniqueOrThrow({ where: { id: B().teamId }, select: { billingPlan: true } });
+      expect(b.billingPlan).not.toBe("ENTERPRISE");
+      const a = await prisma.team.findUniqueOrThrow({ where: { id: A().teamId }, select: { billingPlan: true } });
+      expect(a.billingPlan).toBe("ENTERPRISE");
+    });
+
+    it("NEW-RG08-4: GET /v1/admin/identity/quarantined-sessions answers 402 to team B's ADMIN (team A's ADMIN reads 200)", async () => {
+      await bSession({ quarantinedAtUtc: new Date(), quarantineReason: "MANUAL_OPERATOR" });
+      const r = await call("GET", `/v1/admin/identity/quarantined-sessions?teamId=${B().teamId}`, B().adminToken);
+      expect402(r, "quarantined-sessions");
+      expect(json(r).items).toBeUndefined();
+      const ok = await call("GET", `/v1/admin/identity/quarantined-sessions?teamId=${A().teamId}`, admin());
+      expect(ok.statusCode, ok.body).toBe(200);
+    });
+
+    it("NEW-RG08-3: operator POST /v1/admin/identity/sessions/reconcile-stale answers 402 to team B's ADMIN before step-up; the idle session is not revoked", async () => {
+      const idle = await bSession({ lastSeenAtUtc: new Date(Date.now() - 3 * 60 * 60 * 1000) });
+      const before = await prisma.revokedSession.count({ where: { teamId: B().teamId } });
+      const r = await call(
+        "POST",
+        "/v1/admin/identity/sessions/reconcile-stale",
+        B().adminToken,
+        { teamId: B().teamId, staleMinutes: 1 },
+        { "x-proovra-workspace-id": B().teamId },
+      );
+      expect402(r, "reconcile-stale");
+      await h.handlersSettled();
+      expect((await readB(idle.id)).revokedAtUtc).toBeNull();
+      expect(await prisma.revokedSession.count({ where: { teamId: B().teamId } })).toBe(before);
+    });
+
+    it("POST /v1/admin/identity/sessions/:id/score answers 402 to team B's ADMIN; the score is not recomputed", async () => {
+      const s = await bSession();
+      const was = await readB(s.id);
+      const r = await call("POST", `/v1/admin/identity/sessions/${s.id}/score`, B().adminToken, { teamId: B().teamId });
+      expect402(r, "score");
+      await h.handlersSettled();
+      expect(await readB(s.id)).toEqual(was);
+    });
+
+    it("POST /v1/admin/identity/sessions/:id/quarantine answers 402 to team B's ADMIN; the session is not quarantined", async () => {
+      const s = await bSession();
+      const r = await call("POST", `/v1/admin/identity/sessions/${s.id}/quarantine`, B().adminToken, {
+        teamId: B().teamId,
+        reason: "MANUAL_OPERATOR",
+      });
+      expect402(r, "quarantine");
+      await h.handlersSettled();
+      expect((await readB(s.id)).quarantinedAtUtc).toBeNull();
+    });
+
+    it("POST /v1/admin/identity/sessions/:id/release answers 402 to team B's ADMIN; the quarantine stays", async () => {
+      const s = await bSession({ quarantinedAtUtc: new Date(), quarantineReason: "MANUAL_OPERATOR" });
+      const r = await call("POST", `/v1/admin/identity/sessions/${s.id}/release`, B().adminToken, { teamId: B().teamId });
+      expect402(r, "release");
+      await h.handlersSettled();
+      expect((await readB(s.id)).quarantinedAtUtc).toBeInstanceOf(Date);
+    });
+
+    it("POST /v1/admin/identity/emergency-revoke answers 402 to team B's OWNER; nothing is revoked", async () => {
+      const s = await bSession();
+      const before = await prisma.revokedSession.count({ where: { teamId: B().teamId } });
+      const r = await call("POST", "/v1/admin/identity/emergency-revoke", B().ownerToken, {
+        teamId: B().teamId,
+        reason: "dec-11 refusal probe",
+      });
+      expect402(r, "emergency-revoke");
+      await h.handlersSettled();
+      expect((await readB(s.id)).revokedAtUtc).toBeNull();
+      expect(await prisma.revokedSession.count({ where: { teamId: B().teamId } })).toBe(before);
+    });
+
+    it("POST /v1/admin/identity/sessions/user/:userId/revoke-all answers 402 to team B's ADMIN; the member's session survives", async () => {
+      const s = await bSession();
+      const r = await call(
+        "POST",
+        `/v1/admin/identity/sessions/user/${B().memberUserId}/revoke-all`,
+        B().adminToken,
+        { teamId: B().teamId },
+      );
+      expect402(r, "revoke-all");
+      await h.handlersSettled();
+      expect((await readB(s.id)).revokedAtUtc).toBeNull();
+      expect(await prisma.revokedSession.count({ where: { userId: B().memberUserId, teamId: B().teamId } })).toBe(0);
+    });
+
+    it("authorized control (team A, Enterprise): revoke-all with step-up ends the member's session here (200); score answers 200", async () => {
+      const u = await person("g2-dec11-revoke-all", { role: "MEMBER" });
+      const here = await prisma.authenticatedSession.create({
+        data: { userId: u.userId, teamId: A().teamId, sessionIdHash: createHash("sha256").update(randomUUID()).digest("hex"), expiresAtUtc: future() },
+        select: { id: true },
+      });
+      const proof = await ceremony.approvedHeader({
+        token: admin(),
+        userId: A().adminUserId,
+        teamId: A().teamId,
+        purpose: "CONTRIBUTOR_SESSION_REVOKE",
+        resourceKind: "user",
+        resourceId: u.userId,
+      });
+      const r = await call("POST", `/v1/admin/identity/sessions/user/${u.userId}/revoke-all`, admin(), { teamId: A().teamId }, proof);
+      expect(r.statusCode, r.body).toBe(200);
+      expect(
+        (await prisma.authenticatedSession.findUniqueOrThrow({ where: { id: here.id }, select: { revokedAtUtc: true } })).revokedAtUtc,
+      ).toBeInstanceOf(Date);
+
+      const other = await prisma.authenticatedSession.create({
+        data: { userId: A().viewerUserId, teamId: A().teamId, sessionIdHash: createHash("sha256").update(randomUUID()).digest("hex"), expiresAtUtc: future() },
+        select: { id: true },
+      });
+      const scored = await call("POST", `/v1/admin/identity/sessions/${other.id}/score`, admin(), { teamId: A().teamId });
+      expect(scored.statusCode, scored.body).toBe(200);
     });
   });
 
