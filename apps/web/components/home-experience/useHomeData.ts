@@ -37,6 +37,7 @@ import {
   useOrganizations,
 } from "../../lib/platform-context";
 import { usePlatformContext } from "../../lib/platform-context/PlatformContextProvider";
+import { surfaceUserContextFromEnvelope } from "../../lib/surface/useSurfaceUserContext";
 
 import {
   normalizeHomeViewModel,
@@ -111,6 +112,11 @@ export function useHomeData(): HomeData {
   // and refetch the whole dashboard on every render.
   const orgsRef = useRef(orgs);
   orgsRef.current = orgs;
+  // NEW-RG-14-1 (DEC-11) — the navigation's surface context, read at publish
+  // time (a fresh object every render, so a ref rather than a dep; its
+  // entitlement inputs change with `planFeatures`, which IS a dep).
+  const surfaceAccessRef = useRef(surfaceUserContextFromEnvelope(envelope));
+  surfaceAccessRef.current = surfaceUserContextFromEnvelope(envelope);
 
   const [state, setState] = useState<HomeDataState>({
     status: "loading",
@@ -383,6 +389,7 @@ export function useHomeData(): HomeData {
         // PHASE 4C — CONSUMED, never derived. null means unavailable, and the
         // view model renders that honestly rather than substituting the feed.
         operationsSummary: settled.operationsSummary,
+        surfaceAccess: surfaceAccessRef.current,
         loadingSlices: new Set(pending),
       });
 

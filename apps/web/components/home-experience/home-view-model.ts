@@ -56,6 +56,11 @@ import {
   type HomeOperationsSourceId,
 } from "./operations-condition-map";
 import { notificationItemText } from "@proovra/shared";
+import {
+  ANONYMOUS_SURFACE_CONTEXT,
+  canAccessSurface,
+  type SurfaceUserContext,
+} from "../../lib/surface/access";
 
 export type HomePlan = "FREE" | "PAYG" | "PRO" | "TEAM" | null;
 
@@ -2049,9 +2054,24 @@ function buildChecklist(args: {
  *
  * An unrecognised source id produces the version-skew row — never silence.
  */
+/**
+ * NEW-RG-14-1 (DEC-11) — where an Operations row may send the viewer.
+ *
+ * The condition map names each source's natural destination, but some of those
+ * pages are plan-gated (review queues and escalations are TEAM and above). The
+ * row asks the SAME surface decision the navigation and the direct-URL gate use;
+ * when the viewer cannot open the page, the row opens Operations instead, which
+ * lists this very condition. Unknown surface context fails closed.
+ */
+const OPERATIONS_ROW_FALLBACK_HREF = "/operations";
+function operationsRowHref(href: string, surfaceAccess: SurfaceUserContext): string {
+  return canAccessSurface(surfaceAccess, href) ? href : OPERATIONS_ROW_FALLBACK_HREF;
+}
+
 function mergeOperationalConditions(
   derived: WorkspacePriority[],
   groups: ReadonlyArray<HomeOperationsConditionGroup> | null,
+  surfaceAccess: SurfaceUserContext = ANONYMOUS_SURFACE_CONTEXT,
 ): WorkspacePriority[] {
   if (!groups || groups.length === 0) return derived;
 
@@ -2102,7 +2122,7 @@ function mergeOperationalConditions(
       domains: [...representation.domains],
       count,
       ...operationsRowText(operations, "en"),
-      href: representation.href,
+      href: operationsRowHref(representation.href, surfaceAccess),
       operations,
       derivedFrom: [`ops/summary.groups.${group.sourceId}`],
     });
@@ -3726,6 +3746,12 @@ export type NormalizeInputs = {
    * substituting a health number derived from `inbox` above.
    */
   operationsSummary?: HomeOperationsSummaryInput | null;
+  /**
+   * NEW-RG-14-1 (DEC-11) — the viewer's surface context (the one the
+   * navigation uses). Operations rows link only to pages it opens. Absent:
+   * fail closed (gated pages fall back to /operations).
+   */
+  surfaceAccess?: SurfaceUserContext | null;
   communications: HomeCommunicationsInput | null;
   orgs: HomeOrgsInput | null;
   /** GET /v1/evidence?limit=100 — KPI sparkline / chart / donut source. */
@@ -4121,6 +4147,7 @@ export function normalizeHomeViewModel(
   const workspacePriorities = mergeOperationalConditions(
     derivedPriorities,
     inputs.operationsSummary?.groups ?? null,
+    inputs.surfaceAccess ?? ANONYMOUS_SURFACE_CONTEXT,
   );
   const workspaceHealthOverall: HomeViewModel["workspaceHealthOverall"] =
     workspaceHealth.some((m) => m.tone === "danger")
