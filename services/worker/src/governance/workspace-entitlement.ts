@@ -19,7 +19,7 @@ import type { EntitlementStanding, WorkerFeatureEntitlementKey } from "@proovra/
 import { readCommercialLifecycle, resolveWorkerFeatureEntitlement } from "@proovra/shared-runtime";
 
 import { prisma } from "../db.js";
-import { getTeamWorkspaceScope } from "../workspace-billing.js";
+import { getTeamWorkspaceScope, type WorkerDbClient } from "../workspace-billing.js";
 
 /**
  * Whether a contract's end date may take effect is behind the automatic
@@ -37,15 +37,16 @@ function contractTermEnded(endsAtUtc: Date | null, now: Date): boolean {
 export async function workerEnterpriseStanding(
   teamId: string,
   now: Date = new Date(),
+  client: WorkerDbClient = prisma,
 ): Promise<EntitlementStanding> {
-  const scope = await getTeamWorkspaceScope(teamId);
+  const scope = await getTeamWorkspaceScope(teamId, client);
   if (scope.plan !== "ENTERPRISE") return "NOT_ENTERPRISE";
-  const team = await prisma.team.findUnique({
+  const team = await client.team.findUnique({
     where: { id: teamId },
     select: { organizationId: true },
   });
   if (!team?.organizationId) return "CONTRACT_LAPSED";
-  const contract = await prisma.enterpriseContract.findUnique({
+  const contract = await client.enterpriseContract.findUnique({
     where: { organizationId: team.organizationId },
     select: { status: true, endsAtUtc: true },
   });
@@ -59,22 +60,34 @@ export async function workerFeatureEntitled(
   key: WorkerFeatureEntitlementKey,
 ): Promise<boolean> {
   try {
-    const standing = await workerEnterpriseStanding(teamId);
-    // PRO-R3-07 — the same lifecycle reader the API's commercial context uses.
-    const scope = await getTeamWorkspaceScope(teamId);
-    const lifecycle = await readCommercialLifecycle(
-      prisma as never,
-      scope.billingShape === "SINGLE_OCCUPANT"
-        ? { kind: "PERSONAL", ownerUserId: scope.ownerUserId, plan: String(scope.plan) }
-        : { kind: "WORKSPACE", teamId, plan: String(scope.plan) },
-    );
-    return await resolveWorkerFeatureEntitlement(prisma, {
-      teamId,
-      key,
-      standing,
-      paidLapsed: lifecycle.mutationsAllowed === false,
-    });
+    const facts = await workerEntitlementFacts(teamId);
+    return await resolveWorkerFeatureEntitlement(prisma, { teamId, key, ...facts });
   } catch {
     return false;
   }
+}
+
+/**
+ * The two commercial facts the shared entitlement decision takes from this
+ * host, read once: the Enterprise standing (contract status AND term end) and
+ * the PRO-R3-07 paid lapse (the same lifecycle reader the API's commercial
+ * context uses: mutationsAllowed === false). Every Worker entitlement reader
+ * asks here: the FEATURE sweeps and the exchange-build admission (matrix
+ * review NEW-RG-13-2: that admission read neither the lapse nor the term end).
+ */
+export async function workerEntitlementFacts(
+  teamId: string,
+  client: WorkerDbClient = prisma,
+  now: Date = new Date(),
+): Promise<{ standing: EntitlementStanding; paidLapsed: boolean }> {
+  const standing = await workerEnterpriseStanding(teamId, now, client);
+  const scope = await getTeamWorkspaceScope(teamId, client);
+  const lifecycle = await readCommercialLifecycle(
+    client as never,
+    scope.billingShape === "SINGLE_OCCUPANT"
+      ? { kind: "PERSONAL", ownerUserId: scope.ownerUserId, plan: String(scope.plan) }
+      : { kind: "WORKSPACE", teamId, plan: String(scope.plan) },
+    now,
+  );
+  return { standing, paidLapsed: lifecycle.mutationsAllowed === false };
 }

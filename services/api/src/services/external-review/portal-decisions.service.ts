@@ -21,7 +21,7 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
-import { emitPortalActivity } from "./portal-activity.service.js";
+import { emitPortalActivity, hasReleasedReviewMaterial } from "./portal-activity.service.js";
 
 export type SubmitExternalDecisionInput = {
   prisma?: PrismaClient;
@@ -89,6 +89,19 @@ export async function submitExternalDecision(
     return { ok: false, denial: "POLICY_REJECTED" };
   }
   const prisma = input.prisma ?? defaultPrisma;
+  // PRO-NC-09 (matrix review NEW-RG-27-3) - a decision records that the review
+  // material was presented: refused until it was released to this grant for
+  // this workflow, whichever client asks.
+  if (
+    !(await hasReleasedReviewMaterial({
+      prisma,
+      teamId: input.teamId,
+      grantId: input.grantId,
+      workflowId: input.workflowId,
+    }))
+  ) {
+    return { ok: false, denial: "MATERIAL_NOT_OPENED" };
+  }
   const existing = await prisma.externalReviewDecision.findUnique({
     where: {
       external_review_decision_grant_workflow_uniq: {

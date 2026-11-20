@@ -399,10 +399,19 @@ describe("Phase 4 §7.6 — access/switcher gates key off SUSPENDED", () => {
       "utf8",
     );
     // ET-SEC-25 — the rule is ONE function shared by the member decision and
-    // the API-key path; evaluateAccess delegates to it.
-    expect(src).toContain('state.organizationStatus !== "ACTIVE"');
+    // the API-key path; evaluateAccess delegates to it. NEW-RG-07-1 — that one
+    // function and the member decision now live in @proovra/shared-runtime
+    // (the Worker's creator-authority check asks the same rule); the engine
+    // delegates to them.
+    const shared = readFileSync(
+      join(ROOT, "..", "..", "..", "packages", "shared-runtime", "src", "standing-creator-authority.ts"),
+      "utf8",
+    );
     expect(src).toMatch(/export function workspaceLifecycleDenial\(/);
-    expect(src).toMatch(/const lifecycleDenial = workspaceLifecycleDenial\(actor\);\s*if \(lifecycleDenial\) return lifecycleDenial;/);
+    expect(src).toMatch(/return memberWorkspaceLifecycleDenial\(state\);/);
+    expect(src).toMatch(/return decideMemberPermission\(actor, permission, now\);/);
+    expect(shared).toContain('state.organizationStatus !== "ACTIVE"');
+    expect(shared).toMatch(/const lifecycleDenial = memberWorkspaceLifecycleDenial\(member\);\s*if \(lifecycleDenial\) return lifecycleDenial;/);
   });
 
   it("admin routes register suspend + resume behind platform admin + step-up", () => {

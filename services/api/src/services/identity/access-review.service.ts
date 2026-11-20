@@ -47,7 +47,11 @@ export type AccessReviewErrorCode =
   // from the status the caller saw: this one says the decision was legal and
   // somebody else got there. The route maps it to 409.
   | "review_already_decided"
-  | "subject_missing";
+  | "subject_missing"
+  // Matrix review NEW-RG-26-2 — a REVOKE_MEMBER decision on a member who still
+  // owns records in the workspace (rbac `owned_records_handover_required`):
+  // the review stays PENDING until the records are handed over.
+  | "owned_records_handover_required";
 
 export class AccessReviewError extends Error {
   readonly code: AccessReviewErrorCode;
@@ -401,6 +405,9 @@ async function completeAccessReviewInner(
       if (err instanceof RbacError) {
         // Translate RBAC failures into our error surface so the route
         // returns a meaningful code without leaking internals.
+        if (err.code === "owned_records_handover_required") {
+          throw new AccessReviewError("owned_records_handover_required");
+        }
         throw new AccessReviewError("invalid_status_transition");
       }
       throw err;

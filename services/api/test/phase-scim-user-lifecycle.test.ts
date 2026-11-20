@@ -445,6 +445,9 @@ function makeFake() {
     // external-review grants; this fixture holds none.
     verificationShareToken: { updateMany: async () => ({ count: 0 }) },
     externalReviewGrant: { updateMany: async () => ({ count: 0 }) },
+    // PRO-T1-15 / NEW-RG-26-3 — and the invitations they issued that no longer
+    // carry authority; this fixture holds none.
+    teamInvite: { updateMany: async () => ({ count: 0 }) },
     workflowIntakeLink: { updateMany: async () => ({ count: 0 }) },
     // A2-10 — and the integration keys they created.
     apiCredential: { updateMany: async () => ({ count: 0 }) },

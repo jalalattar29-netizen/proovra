@@ -59,6 +59,8 @@ beforeEach(() => {
     }
     if (url.endsWith("/comments")) return json(200, { comments: [] });
     if (url.endsWith("/view")) return json(200, { ok: true });
+    // NEW-RG-27-3 — the review material (a hash URL: jsdom does not navigate).
+    if (url.endsWith("/verification-package")) return json(200, { url: "#package", packageSha256: null });
     if (url === decisionsUrl) return json(200, { decisions: decisionRow() });
     if (url === decisionUrl && init.method === "POST") {
       const body = JSON.parse(String(init.body));
@@ -79,6 +81,18 @@ function renderPage() {
   return render(<PortalReviewPage params={resolved({ token: "tok", workflowId })} />);
 }
 
+/** NEW-RG-27-3 — open the review material; the decision controls follow it. */
+async function openMaterial() {
+  const button = await waitFor(() => {
+    const el = document.querySelector("[data-portal-package-download]");
+    expect(el).not.toBeNull();
+    return el as HTMLButtonElement;
+  });
+  fireEvent.click(button);
+  await waitFor(() => expect(document.querySelector("[data-portal-decision-rationale]")).not.toBeNull());
+}
+const viewPosts = () => fetchMock.mock.calls.filter(([url, init]) => String(url).endsWith("/view") && init?.method === "POST");
+
 describe("external portal recorded decision", () => {
   it("shows the decision the reviewer recorded after a reload, from the API origin", async () => {
     recorded = { verdict: "REJECT", rationale: "Faces are visible in frame 12." };
@@ -96,6 +110,7 @@ describe("external portal recorded decision", () => {
   it("submits the verdict and announces it only after the reread shows it", async () => {
     renderPage();
     await screen.findByText("You have not recorded a decision for this review yet.");
+    await openMaterial();
     fireEvent.change(document.querySelector("[data-portal-decision-rationale]")!, { target: { value: "Needs another pass." } });
     fireEvent.click(screen.getByRole("button", { name: "Request changes" }));
     await screen.findByText("Decision recorded: Request changes.");
@@ -111,6 +126,7 @@ describe("external portal recorded decision", () => {
     recorded = { verdict: "REJECT", rationale: "x" };
     renderPage();
     await screen.findByText("Your recorded decision");
+    await openMaterial();
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
     await screen.findByText("Decision recorded: Approve. It replaces your previous decision.");
   });
@@ -119,6 +135,7 @@ describe("external portal recorded decision", () => {
     override = (url) => (url === decisionsUrl ? { status: 200, body: { decisions: [] } } : undefined);
     renderPage();
     await screen.findByText("You have not recorded a decision for this review yet.");
+    await openMaterial();
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
     await screen.findByText(/the saved record does not show it yet/);
     expect(screen.queryByText(/^Decision recorded/)).toBeNull();
@@ -128,6 +145,7 @@ describe("external portal recorded decision", () => {
     override = (url, init) => (url === decisionUrl && init.method === "POST" ? { status: 403, body: { denial: "NOT_PERMITTED" } } : undefined);
     renderPage();
     await screen.findByText("You have not recorded a decision for this review yet.");
+    await openMaterial();
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
     await screen.findByText("Your role cannot record a decision on this review.");
     expect(screen.queryByText(/^Decision recorded/)).toBeNull();
@@ -167,6 +185,28 @@ describe("external portal recorded decision", () => {
     renderPage();
     await screen.findByText("Your role cannot view recorded decisions for this review.");
     expect(fetchMock.mock.calls.some(([url]) => url === decisionsUrl)).toBe(false);
+  });
+
+  it("NEW-RG-27-3: no decision controls and no viewed record until the material is opened", async () => {
+    renderPage();
+    await screen.findByText("You have not recorded a decision for this review yet.");
+    expect(document.querySelector("[data-portal-decision-needs-material]")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(viewPosts()).toHaveLength(0);
+    await openMaterial();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
+    await waitFor(() => expect(viewPosts()).toHaveLength(1));
+  });
+
+  it("NEW-RG-27-3: a MATERIAL_NOT_OPENED refusal asks to open the material and claims nothing", async () => {
+    override = (url, init) =>
+      url === decisionUrl && init.method === "POST" ? { status: 409, body: { denial: "MATERIAL_NOT_OPENED" } } : undefined;
+    renderPage();
+    await screen.findByText("You have not recorded a decision for this review yet.");
+    await openMaterial();
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    await screen.findByText("Open the review material before recording a decision.");
+    expect(screen.queryByText(/^Decision recorded/)).toBeNull();
   });
 
   it("keeps the portal's own single main landmark", async () => {

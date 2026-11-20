@@ -20,6 +20,11 @@ export * from "./reconciliation-run.js";
 // population than the page it feeds is the disagreement this ends.
 export * from "./workspace-scope.js";
 export * from "./case-visibility.js";
+// NEW-RG-11-2 — the machine-egress rule, for the API and the Worker alike.
+export * from "./machine-egress.js";
+// NEW-RG-07-1 — the member permission decision and the creator-authority
+// verdict standing credentials answer to, for the API and the Worker alike.
+export * from "./standing-creator-authority.js";
 // The Search-shaped face of that authority. Every entry point that can
 // start a Search reconciliation resolves through it.
 export * from "./search-index-reconciliation.js";

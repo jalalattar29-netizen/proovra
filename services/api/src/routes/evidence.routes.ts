@@ -1687,8 +1687,7 @@ type SafeEvidence = {
   lng: number | null;
   accuracyMeters: number | null;
   mimeType: string | null;
-  storageBucket: string | null;
-  storageKey: string | null;
+  // NEW-RG-25-4 — no storageBucket / storageKey: storage internals (DEC-14).
   storageRegion: string | null;
   storageObjectLockMode: string | null;
   storageObjectLockRetainUntilUtc: string | null;
@@ -3161,8 +3160,9 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
     lng: decimalToNumber(e.lng),
     accuracyMeters: decimalToNumber(e.accuracyMeters),
     mimeType: e.mimeType ?? null,
-    storageBucket: e.storageBucket ?? null,
-    storageKey: e.storageKey ?? null,
+    // PRO-C1-12 / DEC-14 (matrix review NEW-RG-25-4) — the bucket and object
+    // key are storage internals, never DTO fields: not projected here, as the
+    // parts route already does not (`withoutStorageCoordinates`).
     storageRegion: e.storageRegion ?? null,
     storageObjectLockMode: e.storageObjectLockMode ?? null,
     storageObjectLockRetainUntilUtc: e.storageObjectLockRetainUntilUtc

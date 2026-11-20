@@ -57,6 +57,8 @@ const CODE_COPY: Record<string, string> = {
     "A Collaboration Team this member belongs to is now full on your plan. Make room in that team before reinstating them.",
   workspace_seat_contention:
     "Another membership change is in progress for this workspace. Try again in a moment.",
+  owned_records_handover_required:
+    "This member still owns evidence or cases in this workspace. Remove them from Members & Access and choose who takes the records over.",
   member_owner_immutable:
     "The workspace owner cannot be suspended, revoked, or demoted here. Transfer ownership first.",
   role_transition_to_owner_forbidden:
@@ -102,6 +104,7 @@ const BLOCKED_CODES = new Set([
   "managed_identity_readonly",
   "owner_consent_required",
   "last_administrator_protected",
+  "owned_records_handover_required",
   "workspace_seat_limit_reached",
   "collaboration_team_capacity_reached",
   "member_owner_immutable",

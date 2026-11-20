@@ -60,6 +60,37 @@ export type ListPortalActivityInput = {
   limit?: number;
 };
 
+/**
+ * PRO-NC-09 (matrix review NEW-RG-27-3) — THE "material opened" fact. A review
+ * is marked viewed, and a decision is recorded, only after the review material
+ * (the record's disclosure package) was actually released to THIS grant for
+ * THIS workflow. The release route records `DOWNLOAD_PERMITTED` with the
+ * workflow in its payload, after the custody authorization and before the URL
+ * is returned; this asks for that row. The web portal posted "viewed" on mount
+ * and offered a decision with no material, and the server took both: the rule
+ * existed only in the native client. Fails closed: no row, no material.
+ */
+export const REVIEW_MATERIAL_RELEASED_CODE = "DOWNLOAD_PERMITTED" as const;
+
+export async function hasReleasedReviewMaterial(input: {
+  prisma?: PrismaClient;
+  teamId: string;
+  grantId: string;
+  workflowId: string;
+}): Promise<boolean> {
+  const prisma = input.prisma ?? defaultPrisma;
+  const row = await prisma.externalReviewActivity.findFirst({
+    where: {
+      teamId: input.teamId,
+      grantId: input.grantId,
+      code: REVIEW_MATERIAL_RELEASED_CODE,
+      payload: { path: ["workflowId"], equals: input.workflowId },
+    },
+    select: { id: true },
+  });
+  return row !== null;
+}
+
 export async function listPortalActivity(input: ListPortalActivityInput) {
   const prisma = input.prisma ?? defaultPrisma;
   return prisma.externalReviewActivity.findMany({

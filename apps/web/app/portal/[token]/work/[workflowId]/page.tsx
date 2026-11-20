@@ -110,6 +110,20 @@ export default function PortalReviewPage({
   const [decisionState, setDecisionState] = useState<DecisionState>({ kind: "idle" });
   const [deciding, setDeciding] = useState(false);
   const decisionSeq = useRef(0);
+  // PRO-NC-09 (matrix review NEW-RG-27-3) — "viewed" is a record the workspace
+  // relies on: sent once, only after the review material was actually opened,
+  // and a decision is offered only after that (the API refuses both before the
+  // material is released to this grant: MATERIAL_NOT_OPENED).
+  const [materialOpened, setMaterialOpened] = useState(false);
+  const viewed = useRef(false);
+  const onMaterialOpened = useCallback(() => {
+    setMaterialOpened(true);
+    if (viewed.current) return;
+    viewed.current = true;
+    void markReviewOpened(workflowId).catch(() => {
+      /* non-fatal */
+    });
+  }, [workflowId]);
 
   // D58 — route a lost session (or a lapsed MFA satisfaction) met by ANY
   // request to the page-level handling. Returns true when it took the error.
@@ -204,20 +218,8 @@ export default function PortalReviewPage({
   }, [reauth, workflowId, loadDecision]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      await refresh();
-      if (cancelled) return;
-      try {
-        await markReviewOpened(workflowId);
-      } catch {
-        /* non-fatal */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [refresh, workflowId]);
+    void refresh();
+  }, [refresh]);
 
   const onSubmitDecision = useCallback(
     async (verdict: ExternalDecisionVerdict) => {
@@ -246,6 +248,11 @@ export default function PortalReviewPage({
         } catch (err) {
           if (takeSessionLoss(err)) return;
           const status = portalStatus(err);
+          if (readPortalFailure(err).denial === "MATERIAL_NOT_OPENED") {
+            setMaterialOpened(false);
+            setDecisionStatus("Open the review material before recording a decision.");
+            return;
+          }
           setDecisionStatus(
             status === 403
               ? "Your role cannot record a decision on this review."
@@ -374,7 +381,7 @@ export default function PortalReviewPage({
             overflow: "hidden",
           }}
         >
-          <PortalPackagePanel workflowId={workflowId} />
+          <PortalPackagePanel workflowId={workflowId} onOpened={onMaterialOpened} />
           <WatermarkOverlay watermark={watermark} />
         </section>
 
@@ -388,6 +395,7 @@ export default function PortalReviewPage({
             busy={deciding}
             decision={decisionState}
             onRetry={() => void loadDecision()}
+            materialOpened={materialOpened}
           />
           <CommentsPanel
             canComment={(projection.reviewer.capabilities as ReadonlyArray<string>).includes("portal.comment")}
@@ -447,6 +455,7 @@ function DecisionPanel({
   busy,
   decision,
   onRetry,
+  materialOpened,
 }: {
   capabilities: ReadonlyArray<string>;
   rationale: string;
@@ -456,6 +465,8 @@ function DecisionPanel({
   busy: boolean;
   decision: DecisionState;
   onRetry: () => void;
+  /** NEW-RG-27-3 — the decision controls appear only once the material was opened. */
+  materialOpened: boolean;
 }) {
   const canDecide = capabilities.includes("portal.decide");
   const canReadHistory = canDecide || capabilities.includes("portal.history.read");
@@ -509,6 +520,17 @@ function DecisionPanel({
           Your role is read-only for decisions. You may still annotate
           and comment when permitted.
         </p>
+      ) : !materialOpened ? (
+        <>
+          <p data-portal-decision-needs-material style={{ color: "#475569", fontSize: 12 }}>
+            Open the review material first. A decision can be recorded once you have opened it.
+          </p>
+          {status ? (
+            <small data-portal-decision-status role="status" style={{ fontSize: 11 }}>
+              {status}
+            </small>
+          ) : null}
+        </>
       ) : (
         <>
           <textarea
@@ -577,7 +599,7 @@ const PACKAGE_REFUSALS: Record<string, string> = {
 };
 
 /** The one rendition a grant carries. Refusals say why, in product language. */
-function PortalPackagePanel({ workflowId }: { workflowId: string }) {
+function PortalPackagePanel({ workflowId, onOpened }: { workflowId: string; onOpened: () => void }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const download = async () => {
@@ -585,6 +607,9 @@ function PortalPackagePanel({ workflowId }: { workflowId: string }) {
     setMessage(null);
     try {
       const released = await fetchReviewPackage(workflowId);
+      // The release is recorded by the API before the URL is returned: the
+      // material counts as opened from here (NEW-RG-27-3).
+      onOpened();
       window.location.assign(released.url);
     } catch (err) {
       const { code } = readPortalFailure(err);

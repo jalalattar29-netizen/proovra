@@ -918,7 +918,8 @@ export function canLeaveWorkspace(m: WorkspaceMember, selfUserId: string | null)
 export function leaveFailureCopy(err: unknown, fallback: string | null): string {
   const e = (err ?? {}) as { code?: unknown; body?: { error?: { code?: unknown }; code?: unknown } };
   const code = [e.code, e.body?.error?.code, e.body?.code].find((c) => typeof c === "string") as string | undefined;
-  if (code === "OWNED_RECORDS_HANDOVER_REQUIRED") {
+  // The engine's in-transaction re-check answers the lower-case engine code.
+  if (code === "OWNED_RECORDS_HANDOVER_REQUIRED" || code === "owned_records_handover_required") {
     return "You still own evidence or cases in this workspace. Ask an administrator to take them over before you leave.";
   }
   if (code === "last_administrator_protected") {

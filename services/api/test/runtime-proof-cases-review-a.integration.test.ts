@@ -702,6 +702,22 @@ describe("K4-A — cases and external portal (live PostgreSQL 16)", () => {
       workflowOutOfScope = await workflowFor(a.teamId, (await newEvidence(a.teamId, a.ownerUserId)).id);
       reviewer = await issue("EXTERNAL_REVIEWER");
       observer = await issue("EXTERNAL_OBSERVER");
+      // NEW-RG-27-3 (PRO-NC-09) — view and decision follow the release of the
+      // review material to the grant. These records carry no published
+      // package, so the release fact the package route writes is seeded
+      // explicitly (cov-external-reviewer proves the route writes it, and the
+      // refusal without it).
+      const { emitPortalActivity, REVIEW_MATERIAL_RELEASED_CODE } = await import(
+        "../src/services/external-review/portal-activity.service.js"
+      );
+      for (const g of [reviewer, observer]) {
+        await emitPortalActivity({
+          teamId: a.teamId,
+          grantId: g.grantId,
+          code: REVIEW_MATERIAL_RELEASED_CODE,
+          payload: { workflowId: workflowInScope },
+        });
+      }
     });
 
     it("POST /v1/portal/work/:id/comments — an EXTERNAL_REVIEWER posts; comment row + COMMENT_POSTED activity re-read", async () => {

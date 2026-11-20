@@ -71,7 +71,9 @@ import {
 import { projectPortalDashboard } from "../services/external-review/portal-projection.service.js";
 import {
   emitPortalActivity,
+  hasReleasedReviewMaterial,
   listPortalActivity,
+  REVIEW_MATERIAL_RELEASED_CODE,
 } from "../services/external-review/portal-activity.service.js";
 import {
   listExternalDecisionsForWorkflow,
@@ -1248,6 +1250,18 @@ export async function externalPortalRoutes(app: FastifyInstance) {
       if (!released.ok) {
         return reply.code(released.status).send({ error: { code: released.code } });
       }
+      // PRO-NC-09 (matrix review NEW-RG-27-3) — the "material opened" fact
+      // the view and decision routes require, recorded before the URL leaves.
+      // A failure to record it fails the release (no URL without the fact).
+      await emitPortalActivity({
+        teamId: s.teamId,
+        grantId: s.grantId,
+        sessionId: s.sessionId,
+        code: REVIEW_MATERIAL_RELEASED_CODE,
+        payload: { workflowId, packageId: released.packageId },
+        ip: req.ip,
+        userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
+      });
       noStorePresignedResponse(reply);
       return reply.code(200).send({
         packageId: released.packageId,
@@ -1269,6 +1283,12 @@ export async function externalPortalRoutes(app: FastifyInstance) {
         .object({ workflowId: z.string().uuid() })
         .parse(req.params);
       if (!(await requireWorkflowInScope(s, workflowId, reply))) return reply;
+      // PRO-NC-09 (matrix review NEW-RG-27-3) — "viewed" is a record the
+      // workspace relies on: written only after the material was released to
+      // this grant for this workflow, never on a page mount.
+      if (!(await hasReleasedReviewMaterial({ teamId: s.teamId, grantId: s.grantId, workflowId }))) {
+        return reply.code(409).send({ denial: "MATERIAL_NOT_OPENED" });
+      }
       await emitPortalActivity({
         teamId: s.teamId,
         grantId: s.grantId,
