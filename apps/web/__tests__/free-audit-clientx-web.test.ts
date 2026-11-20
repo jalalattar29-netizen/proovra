@@ -36,6 +36,22 @@ test("B5B-F-205: /redaction follows planFeatures.redactionIncluded when the API 
   assert.equal(getDirectAccessDecision(ctx({ ...BASE, redactionIncluded: false }, true), "/redaction").kind, "notFound");
 });
 
+test("PRO-R3-06 / DEC-10: a lapsed entitlement keeps /redaction reachable (read-only) only while existing material is retained", () => {
+  const rule = findSurfaceTierRule("/redaction/p1");
+  assert.equal(rule?.readRetainedOverride, "redactionReadRetained");
+  const lapsedWithProjects = ctx({ ...BASE, redactionIncluded: false, redactionReadRetained: true });
+  assert.equal(canAccessSurface(lapsedWithProjects, "/redaction"), true);
+  assert.equal(getDirectAccessDecision(lapsedWithProjects, "/redaction/p1").kind, "allow");
+  // Never had redaction material: still hidden.
+  const lapsedEmpty = ctx({ ...BASE, redactionIncluded: false, redactionReadRetained: false }, true);
+  assert.equal(canAccessSurface(lapsedEmpty, "/redaction"), false);
+  assert.equal(getDirectAccessDecision(lapsedEmpty, "/redaction").kind, "notFound");
+  // An older API (no redactionReadRetained) answers as before.
+  assert.equal(canAccessSurface(ctx({ ...BASE, redactionIncluded: false }), "/redaction"), false);
+  // The retained flag never widens another surface.
+  assert.equal(canAccessSurface(ctx({ ...BASE, redactionReadRetained: true }), "/review/workspace"), false);
+});
+
 test("B5B-F-205: an older API (no redactionIncluded) keeps the ENTERPRISE tier fallback", () => {
   assert.equal(canAccessSurface(ctx({ ...BASE }), "/redaction"), false);
   assert.equal(canAccessSurface(ctx({ ...BASE, redactionIncluded: null }, true), "/redaction"), true);

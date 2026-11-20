@@ -79,8 +79,16 @@ export function ApprovalPanel({
   onTransition,
   onQuarantine,
   viewerUserId,
+  readOnly = false,
 }: {
   version: VersionLike;
+  /**
+   * PRO-R3-06 / DEC-10 — the redaction entitlement lapsed: the version is
+   * readable, its redacted copy can be previewed, downloaded and quarantined,
+   * and nothing that advances the work (submit, approve, publish, render) is
+   * offered.
+   */
+  readOnly?: boolean;
   /** PRO-R3-05 — the signed-in user, to say why the author cannot approve. */
   viewerUserId?: string | null;
   artifactKind: "IMAGE" | "PDF" | "VIDEO" | "AUDIO";
@@ -232,6 +240,8 @@ export function ApprovalPanel({
         </small>
       </header>
 
+      {readOnly ? null : (
+      <>
       <label style={{ fontSize: 11, color: "#475569" }}>
         Rationale (bounded ≤ 600 chars — required to reject or request changes)
         <textarea
@@ -333,6 +343,8 @@ export function ApprovalPanel({
           Publish
         </button>
       </div>
+      </>
+      )}
 
       <section
         data-redaction-derivative-panel
@@ -382,6 +394,7 @@ export function ApprovalPanel({
             ) : null}
 
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {readOnly ? null : (
               <button
                 type="button"
                 data-redaction-derivative-request
@@ -408,6 +421,7 @@ export function ApprovalPanel({
                   ? "Rendering…"
                   : "Request redacted copy"}
               </button>
+              )}
 
               {derivative?.state === "READY" ? (
                 <>

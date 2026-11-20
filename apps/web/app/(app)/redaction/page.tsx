@@ -18,6 +18,11 @@ import {
   REDACTION_READ_DENIED_MESSAGE,
   redactionRefusalMessage,
 } from "../../../lib/redaction/refusal";
+import {
+  REDACTION_READ_ONLY_MESSAGE,
+  REDACTION_READ_ONLY_TITLE,
+  useRedactionReadOnly,
+} from "../../../lib/redaction/read-only";
 import { AppListbox } from "../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
@@ -85,6 +90,9 @@ function RedactionProjectsShell() {
   // the whole page on a workspace switch (never show the prior tenant's
   // projects/summary/provider health).
   const { activeWorkspaceId } = usePlatformContext();
+  // PRO-R3-06 / DEC-10 — after a lapse the existing projects stay readable;
+  // opening a new project is new work and is not offered.
+  const readOnly = useRedactionReadOnly();
 
   const refresh = useCallback(async () => {
     let denied = false;
@@ -171,13 +179,20 @@ function RedactionProjectsShell() {
         </div>
       ) : null}
 
-      <RedactionOpenForm
-        onOpened={(msg) => {
-          setBanner(msg);
-          void refresh();
-        }}
-        onRefuse={(msg) => setBanner(msg)}
-      />
+      {readOnly ? (
+        <div className="app-alert app-alert--warn" role="status" data-redaction-read-only>
+          <strong>{REDACTION_READ_ONLY_TITLE}</strong>
+          <p>{REDACTION_READ_ONLY_MESSAGE}</p>
+        </div>
+      ) : (
+        <RedactionOpenForm
+          onOpened={(msg) => {
+            setBanner(msg);
+            void refresh();
+          }}
+          onRefuse={(msg) => setBanner(msg)}
+        />
+      )}
 
       {readDenied ? null : <ProjectsTable rows={rows ?? []} />}
     </PageShell>
