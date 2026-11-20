@@ -123,7 +123,8 @@ test("View-evidence-in-Search pivot link is gated to advanced (enterprise) mode 
 test("both /cases/[id] branches render the SAME header component", () => {
   // One implementation, not two that happen to look alike.
   assert.match(COMPONENT, /export function CaseDetailHeader\(/);
-  assert.match(MATTER, /import \{ CaseDetailHeader \} from "\.\/simple-case-detail\/SimpleCaseDetail";/);
+  // PRO-K1-09 — the Enterprise page also mounts the same Settings panel.
+  assert.match(MATTER, /import \{ CaseDetailHeader, SettingsTab \} from "\.\/simple-case-detail\/SimpleCaseDetail";/);
   assert.match(MATTER, /<CaseDetailHeader/);
   assert.match(COMPONENT, /<CaseDetailHeader/);
 });
@@ -588,6 +589,9 @@ test("AUD-0053: Settings mounts the same case-access panel as the Enterprise pag
   assert.match(COMPONENT, /import \{ MatterAccessTab \} from "\.\.\/MatterAccessTab";/);
   assert.match(
     settings,
-    /\{caseTeamId \? \(\s*<div className="cases-panel" data-simple-case-settings-access[^>]*>\s*<MatterAccessTab\s+caseId=\{caseId\}\s+teamId=\{caseTeamId\}\s+caseOwnerUserId=\{caseDetail\.ownerUserId\}\s+viewer=\{viewer\}\s*\/>/,
+    // PRO-K1-09 — the Enterprise page passes showAccess={false} (it has its own
+    // Access tab); the simple page keeps the panel here (default true).
+    /\{caseTeamId && showAccess \? \(\s*<div className="cases-panel" data-simple-case-settings-access[^>]*>\s*<MatterAccessTab\s+caseId=\{caseId\}\s+teamId=\{caseTeamId\}\s+caseOwnerUserId=\{caseDetail\.ownerUserId\}\s+viewer=\{viewer\}\s*\/>/,
   );
+  assert.match(settings, /showAccess = true,/);
 });
