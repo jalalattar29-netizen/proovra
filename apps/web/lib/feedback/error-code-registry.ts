@@ -263,6 +263,9 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   // Free audit B-03 — an organization re-invite issued before the member's
   // access ended cannot revive it (shared copy in user-facing-errors).
   INVITE_SUPERSEDED: { disposition: "customer", where: "global" },
+  // NEW-RG-07-4 / NEW-RG-26-3 (DEC-28) — the inviter can no longer grant the
+  // invitation's role (workspace and organization accept; shared copy).
+  INVITE_INVITER_AUTHORITY_LOST: { disposition: "customer", where: "global" },
   // Free audit B-16 — the organization accept route's refusals now carry the
   // workspace-invitation codes, so the accept page (web and native) can say
   // which one it was instead of "ask for a new invitation" for all of them.

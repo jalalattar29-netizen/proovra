@@ -30,6 +30,7 @@ const H = vi.hoisted(() => ({
   claimCount: 1,
   orgStatus: "ACTIVE" as string,
   winnerAcceptedBy: null as string | null,
+  inviterMembership: { role: "ORG_ADMIN", status: "ACTIVE", validUntilUtc: null } as Record<string, unknown> | null,
   team: { organizationId: "org-1", isPersonal: false } as Record<
     string,
     unknown
@@ -86,6 +87,12 @@ function makeTx() {
                 if (model === "organizationInvite" && method === "updateMany")
                   return { count: H.claimCount };
                 if (model === "team" && method === "findUnique") return H.team;
+                // NEW-RG-07-4 / NEW-RG-26-3 — the inviter's current organization membership
+                // (acceptance re-checks the authority behind the invitation).
+                if (model === "organizationMembership" && method === "findFirst") {
+                  const where = (args[0] as { where: Record<string, unknown> }).where;
+                  if (where.userId === "inviter-1") return H.inviterMembership;
+                }
                 if (method === "findFirst" || method === "findUnique")
                   return null;
                 if (method === "findMany") return [];
@@ -162,6 +169,7 @@ const FRESH_INVITE = {
   acceptedByUserId: null,
   revokedAt: null,
   workspaceAssignments: [{ teamId: "11111111-1111-4111-8111-111111111111", role: "MEMBER" }],
+  invitedByUserId: "inviter-1",
 };
 
 beforeEach(() => {
@@ -171,6 +179,7 @@ beforeEach(() => {
   H.claimCount = 1;
   H.orgStatus = "ACTIVE";
   H.winnerAcceptedBy = null;
+  H.inviterMembership = { role: "ORG_ADMIN", status: "ACTIVE", validUntilUtc: null };
   H.team = { organizationId: "org-1", isPersonal: false };
 });
 
@@ -310,6 +319,23 @@ describe("Phase 5 §8 — concurrent-accept race", () => {
     });
     expect(result).toEqual({ kind: "already_accepted" });
   });
+});
+
+describe("NEW-RG-07-4 / NEW-RG-26-3 (DEC-28) — the inviter's authority is re-checked before the claim", () => {
+  for (const [label, membership] of [
+    ["demoted to ORG_MEMBER", { role: "ORG_MEMBER", status: "ACTIVE", validUntilUtc: null }],
+    ["suspended", { role: "ORG_ADMIN", status: "SUSPENDED", validUntilUtc: null }],
+    ["removed", { role: "ORG_ADMIN", status: "REVOKED", validUntilUtc: null }],
+    ["never a member", null],
+  ] as const) {
+    it(`an inviter ${label} → inviter_authority_lost; no claim, no grant`, async () => {
+      H.inviterMembership = membership as Record<string, unknown> | null;
+      const result = await acceptOrganizationInvite({ tokenHash: "hash-1", userId: "u1" });
+      expect(result).toEqual({ kind: "inviter_authority_lost" });
+      // Only the rejection audit row is written.
+      expect(writes().map((c) => `${c.model}.${c.method}`)).toEqual(["organizationAuditEvent.create"]);
+    });
+  }
 });
 
 describe("Phase 5 §8 — unchanged rejection matrix", () => {

@@ -180,7 +180,10 @@ export function maskInvitedEmail(email: string): string {
  * `MEMBERSHIP_SUSPENDED` (409), `INVITE_SUPERSEDED` (409),
  * `ENTERPRISE_CONTRACT_REQUIRED` (409), `SUBSCRIPTION_INACTIVE` (402, the
  * inviting workspace's lifecycle) and `LEGAL_REACCEPT_REQUIRED` (428, the
- * accept route's legal-acceptance pre-handler).
+ * accept route's legal-acceptance pre-handler). Matrix review NEW-RG-07-4 /
+ * NEW-RG-26-3 (DEC-28) adds `INVITE_INVITER_AUTHORITY_LOST` (409): the person
+ * who sent the invitation can no longer grant its role; it stays pending until
+ * an owner or administrator resends it.
  *
  * The union is exhaustive on purpose. The resolver switches over it without a
  * `default`, so adding a refusal to the service and forgetting to decide what
@@ -201,6 +204,7 @@ export const WORKSPACE_INVITATION_REFUSAL_CODES = [
   "EMAIL_NOT_VERIFIED",
   "MEMBERSHIP_SUSPENDED",
   "INVITE_SUPERSEDED",
+  "INVITE_INVITER_AUTHORITY_LOST",
   "ENTERPRISE_CONTRACT_REQUIRED",
   "SUBSCRIPTION_INACTIVE",
   "LEGAL_REACCEPT_REQUIRED",

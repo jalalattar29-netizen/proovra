@@ -88,6 +88,9 @@ describe("POST /v1/org-invites/lookup (live PostgreSQL)", () => {
     orgB = randomUUID();
     await prisma.organization.create({ data: { id: orgA, name: `Lookup Org A ${tag}`, status: "ACTIVE", kind: "CUSTOMER" } as never });
     await prisma.organization.create({ data: { id: orgB, name: `Lookup Org B ${tag}`, status: "ACTIVE", kind: "CUSTOMER" } as never });
+    // The inviter holds the organization role the invite routes require (NEW-RG-07-4 /
+    // NEW-RG-26-3: acceptance re-checks the authority behind the invitation).
+    await prisma.organizationMembership.create({ data: { organizationId: orgA, userId: ownerId, role: "ORG_OWNER" } });
 
     const team = async (id: string, name: string, organizationId: string, isPersonal: boolean) => {
       await prisma.team.create({

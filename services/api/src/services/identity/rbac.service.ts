@@ -322,6 +322,36 @@ export function mayGrantWorkspaceRole(
  * only ACTIVE OWNER/ADMIN members may invite, within the ceiling above. The
  * owner may re-issue them deliberately.
  */
+/**
+ * The one answer to "may a member holding `inviterRole` (null: no ACTIVE
+ * membership) issue — or keep standing — a workspace invitation for `role`":
+ * only an ACTIVE OWNER/ADMIN, within the role ceiling above.
+ */
+function inviterMayIssueWorkspaceRole(inviterRole: string | null, role: string): boolean {
+  return inviterRole !== null && (RANK[inviterRole] ?? 0) >= RANK.ADMIN && mayGrantWorkspaceRole(inviterRole, role);
+}
+
+/**
+ * Matrix review NEW-RG-07-4 / NEW-RG-26-3, acceptance re-check (DEC-28:
+ * "pending invitations cannot be used to exercise authority the inviter no
+ * longer possesses"). Revocation on demotion only works going forward; an
+ * invitation issued before it (or an ADMIN invitation from an ADMIN, issued
+ * before the PRO-T1-04 ceiling) was still accepted at its stored role. The
+ * acceptance asks this, inside its transaction and before its claim: the
+ * person currently standing behind the invitation must still be able to issue
+ * it. An owner who resends re-authorizes it in their own name.
+ */
+export async function workspaceInviterStillAuthorizes(
+  tx: PrismaClient,
+  input: { teamId: string; inviterUserId: string; role: string },
+): Promise<boolean> {
+  const inviter = await tx.teamMember.findFirst({
+    where: { teamId: input.teamId, userId: input.inviterUserId, status: prismaPkg.TeamMemberStatus.ACTIVE },
+    select: { role: true },
+  });
+  return inviterMayIssueWorkspaceRole(inviter?.role ?? null, input.role);
+}
+
 export async function revokeInvitesBeyondInviterAuthority(
   tx: PrismaClient,
   // A directory transition (SCIM / IdP group) has no human actor: null.
@@ -331,10 +361,9 @@ export async function revokeInvitesBeyondInviterAuthority(
     where: { teamId: input.teamId, userId: input.inviterUserId, status: prismaPkg.TeamMemberStatus.ACTIVE },
     select: { role: true },
   });
-  const mayInvite = inviter !== null && (RANK[inviter.role] ?? 0) >= RANK.ADMIN;
-  const allowedRoles = mayInvite
-    ? (["ADMIN", "MEMBER", "VIEWER"] as const).filter((r) => mayGrantWorkspaceRole(inviter!.role, r))
-    : [];
+  const allowedRoles = (["ADMIN", "MEMBER", "VIEWER"] as const).filter((r) =>
+    inviterMayIssueWorkspaceRole(inviter?.role ?? null, r),
+  );
   const revoked = await tx.teamInvite.updateMany({
     where: {
       teamId: input.teamId,

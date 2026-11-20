@@ -458,6 +458,12 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message: "It was issued before your access to this workspace ended. Ask for a new invitation.",
     severity: "warning",
   },
+  // NEW-RG-07-4 / NEW-RG-26-3 (DEC-28).
+  INVITE_INVITER_AUTHORITY_LOST: {
+    title: "This invitation needs to be sent again",
+    message: "The person who sent it can no longer grant this access. Ask an owner or administrator to send it again.",
+    severity: "warning",
+  },
   MEMBERSHIP_SUSPENDED: {
     title: "Your membership is suspended",
     message: "Ask a workspace administrator to reinstate your membership.",

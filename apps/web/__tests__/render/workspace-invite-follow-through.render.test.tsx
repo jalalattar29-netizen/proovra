@@ -158,6 +158,8 @@ describe("workspace invitation follow-through", () => {
   it.each([
     ["MEMBERSHIP_SUSPENDED", 409, "Your access to this workspace is suspended"],
     ["INVITE_SUPERSEDED", 409, "This invitation is no longer valid for you"],
+    // NEW-RG-07-4 / NEW-RG-26-3 (DEC-28).
+    ["INVITE_INVITER_AUTHORITY_LOST", 409, "This invitation needs to be sent again"],
     ["ENTERPRISE_CONTRACT_REQUIRED", 409, "This workspace can't add members right now"],
     ["SUBSCRIPTION_INACTIVE", 402, "This workspace can't add members right now"],
   ])("%s has its own settled state", async (code, status, title) => {

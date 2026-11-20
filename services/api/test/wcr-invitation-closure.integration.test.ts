@@ -358,11 +358,14 @@ describe("WCR closure — workspace invitation + seat authority (live PostgreSQL
       expect(await activeMembers(t.personalTeamId)).toBe(3);
     });
 
-    it("the inviter losing authority does not invalidate an issued invitation", async () => {
-      // A deliberate decision, asserted so it cannot change by accident: the
-      // invitation is WORKSPACE-scoped, not inviter-scoped. The controls that
-      // matter — the seat, the workspace's liveness, the invited address — are
-      // all evaluated at acceptance, and none of them is the inviter.
+    it("the inviter losing authority stops an issued invitation until an owner re-authorizes it (DEC-28)", async () => {
+      // The decision this test used to pin ("the invitation is WORKSPACE-
+      // scoped, not inviter-scoped") was reversed by DEC-28: "pending
+      // invitations cannot be used to exercise authority the inviter no longer
+      // possesses; the owner may explicitly reauthorize within the role
+      // ceiling" (matrix review NEW-RG-07-4 / NEW-RG-26-3). Acceptance refuses,
+      // writes nothing, and leaves the invitation pending; the owner's resend
+      // re-authorizes it in their name.
       const t = await seedPersonalTenant(deps, "TEAM");
       const inviter = await outsider("losing-authority");
       await prisma.teamMember.create({
@@ -383,8 +386,29 @@ describe("WCR closure — workspace invitation + seat authority (live PostgreSQL
 
       const joiner = await outsider("still-valid-joiner");
       await prisma.user.update({ where: { id: joiner.userId }, data: { email } });
+      const before = await activeMembers(t.personalTeamId);
+      expect(
+        await refusal(() =>
+          invites.acceptWorkspaceInvitation(
+            { rawToken: created.rawToken, actorUserId: joiner.userId },
+            prisma as never,
+          ),
+        ),
+      ).toEqual({ code: "INVITE_INVITER_AUTHORITY_LOST", httpStatus: 409 });
+      expect(await activeMembers(t.personalTeamId)).toBe(before);
+      const pending = await prisma.teamInvite.findUniqueOrThrow({
+        where: { id: created.invite.id },
+        select: { acceptedAt: true, revokedAt: true },
+      });
+      expect(pending).toEqual({ acceptedAt: null, revokedAt: null });
+
+      // The owner re-authorizes it: the resent link is accepted.
+      const resent = await invites.resendWorkspaceInvitation(
+        { workspaceId: t.personalTeamId, inviteId: created.invite.id, actorUserId: t.owner.userId },
+        prisma as never,
+      );
       const accepted = await invites.acceptWorkspaceInvitation(
-        { rawToken: created.rawToken, actorUserId: joiner.userId },
+        { rawToken: resent.rawToken, actorUserId: joiner.userId },
         prisma as never,
       );
       expect(accepted.alreadyMember).toBe(false);

@@ -160,6 +160,9 @@ export function orgInviteRefusal(code: string | undefined, status: number): OrgI
       return r("Your membership in this organization is suspended", "Ask an organization administrator to reinstate it. A new invitation does not lift a suspension.");
     case "INVITE_SUPERSEDED":
       return r("This invitation is no longer valid", "It was issued before your access to this organization ended. Ask for a new invitation.");
+    // NEW-RG-07-4 / NEW-RG-26-3 (DEC-28) — the web page's words.
+    case "INVITE_INVITER_AUTHORITY_LOST":
+      return r("This invitation needs to be sent again", "The person who sent it can no longer grant this access, so nothing was changed. Ask an organization administrator to send the invitation again.");
     case "WORKSPACE_SEAT_CONTENTION":
       return r("Too many people are joining at once", "Your invitation is still valid. Try again in a moment.", true);
     case "INVITE_NOT_FOUND":

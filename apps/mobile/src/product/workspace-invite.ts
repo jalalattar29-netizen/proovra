@@ -149,6 +149,12 @@ export const WORKSPACE_INVITE_COPY: Record<InvitationViewKind, { title: string; 
     title: "This invitation is no longer valid for you",
     message: "It was sent before your access to this workspace ended. Ask a workspace administrator for a new invitation.",
   },
+  // NEW-RG-07-4 / NEW-RG-26-3 (DEC-28) — the web page's words.
+  "inviter-authority-lost": {
+    title: "This invitation needs to be sent again",
+    message:
+      "The person who sent it can no longer grant this role, so nothing was changed. Ask a workspace owner or administrator to send the invitation again.",
+  },
   "workspace-plan-inactive": {
     title: "This workspace can't add members right now",
     message:

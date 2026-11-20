@@ -1460,6 +1460,14 @@ export async function organizationsRoutes(app: FastifyInstance) {
             "Your membership in this organization is suspended. Ask an organization administrator to reinstate it.",
         });
       }
+      // NEW-RG-07-4 / NEW-RG-26-3 (DEC-28) — the same code as the workspace path.
+      if (result.kind === "inviter_authority_lost") {
+        return reply.code(409).send({
+          error: { code: "INVITE_INVITER_AUTHORITY_LOST" },
+          message:
+            "The person who sent this invitation can no longer grant this access. Ask an organization administrator to send it again.",
+        });
+      }
       if (result.kind === "invite_superseded") {
         return reply.code(409).send({
           error: { code: "INVITE_SUPERSEDED" },
@@ -1834,6 +1842,14 @@ export async function organizationsRoutes(app: FastifyInstance) {
             lastResentAt: new Date(),
             resendCount: { increment: 1 },
             expiresAt: newExpires,
+            // NEW-RG-07-4 / NEW-RG-26-3 (DEC-28) — a resender who may issue
+            // this invitation (org role at least the invited one; the
+            // assignment ceiling was asked above) re-authorizes it in their
+            // name; acceptance re-checks the person behind it. Otherwise the
+            // original inviter still stands behind it.
+            ...(ORG_ROLE_PRECEDENCE[invite.role as OrgRoleValue] <= ORG_ROLE_PRECEDENCE[access.role]
+              ? { invitedByUserId: userId }
+              : {}),
           },
           select: {
             id: true,
