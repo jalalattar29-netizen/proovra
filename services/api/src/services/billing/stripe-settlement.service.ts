@@ -445,6 +445,14 @@ export async function settleStripeCheckoutSession(input: {
       provider: STRIPE,
       providerRef: session.id,
     });
+    if (grant.refused === "ACCOUNT_CLOSED") {
+      // PRO-N1-01 — paid after the account closed: nothing granted, the review
+      // item (refund review owed) was written by the grant. The attempt says
+      // what the amount mismatch says: paid, not delivered, under review.
+      input.log?.warn({ provider: "STRIPE", sessionId: session.id }, "stripe.credit_after_account_closure");
+      await recordStripeSessionAttemptOutcome({ session, userId, product: attemptProduct, status: A.PENDING, checkoutState: "NEEDS_REVIEW" });
+      return { product, outcome: "REJECTED", reason: "ACCOUNT_CLOSED" };
+    }
     await recordStripeSessionAttemptOutcome({ session, userId, product: attemptProduct, status: A.COMPLETED, checkoutState: "SETTLED" });
     return { product, outcome: grant.granted ? "GRANTED" : "ALREADY_GRANTED" };
   }

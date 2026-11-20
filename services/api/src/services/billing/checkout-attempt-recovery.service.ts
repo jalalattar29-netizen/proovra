@@ -47,6 +47,7 @@ import {
 } from "./checkout-attempts.service.js";
 import {
   applyPayPalSubscriptionState,
+  isCreditOrderUnderReview,
   settlePayPalEvidenceCreditOrder,
 } from "./paypal-settlement.service.js";
 import { SELF_SERVICE_BASE_SUBSCRIPTION_PLANS } from "./base-subscription.service.js";
@@ -430,7 +431,7 @@ async function checkAttempt(
       capture: mode === "SETTLE",
     });
     settledPending = settled.outcome === "PENDING";
-    if (settled.outcome === "REJECTED" && settled.reason !== "AMOUNT_MISMATCH") {
+    if (settled.outcome === "REJECTED" && !isCreditOrderUnderReview(settled)) {
       return finish("PROVIDER_MALFORMED");
     }
   } catch {

@@ -69,6 +69,7 @@ import {
   type CheckoutState,
 } from "./checkout-attempts.service.js";
 import { syncPlanForSubscription } from "./subscription-lifecycle.handlers.js";
+import { isAccountClosed } from "../identity/account-closed.js";
 import { expireUnapprovedPlanChange, markPlanChangeApproved } from "./plan-transition.service.js";
 import { reclassifyLegacyLocalTermination } from "./subscription-cancellation.service.js";
 
@@ -215,7 +216,11 @@ export type LegacyStorageCaptureSettlement =
   | { outcome: "ALREADY_SETTLED"; addonId: string }
   | {
       outcome: "REVIEW";
-      reason: "LEGACY_STORAGE_CAPTURE_UNMATCHED" | "AMOUNT_MISMATCH" | "STORAGE_ACTIVATION_REFUSED";
+      reason:
+        | "LEGACY_STORAGE_CAPTURE_UNMATCHED"
+        | "AMOUNT_MISMATCH"
+        | "STORAGE_ACTIVATION_REFUSED"
+        | "PAYMENT_AFTER_ACCOUNT_CLOSURE";
       cause: string;
     }
   /** Nothing names a payer PROOVRA knows; nothing can be recorded against anyone. */
@@ -244,6 +249,7 @@ const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
  *   * a binding naming another payer, workspace or size   (same reason)
  *   * amount or currency not the binding's               AMOUNT_MISMATCH
  *   * the payer's workspace cannot hold it now           STORAGE_ACTIVATION_REFUSED
+ *   * the payer's account closed before it settled       PAYMENT_AFTER_ACCOUNT_CLOSURE
  *
  * Only a PENDING binding is settled. A live (or ended) one — this capture's
  * earlier delivery, or a grant made before this rule — is a redelivery or an
@@ -301,7 +307,11 @@ export async function settleLegacyStorageCapture(input: {
 
   const review = async (
     userId: string,
-    reason: "LEGACY_STORAGE_CAPTURE_UNMATCHED" | "AMOUNT_MISMATCH" | "STORAGE_ACTIVATION_REFUSED",
+    reason:
+      | "LEGACY_STORAGE_CAPTURE_UNMATCHED"
+      | "AMOUNT_MISMATCH"
+      | "STORAGE_ACTIVATION_REFUSED"
+      | "PAYMENT_AFTER_ACCOUNT_CLOSURE",
     cause: string,
     detail: Record<string, string | number | boolean | null> = {},
   ): Promise<LegacyStorageCaptureSettlement> => {
@@ -391,6 +401,16 @@ export async function settleLegacyStorageCapture(input: {
     });
   }
 
+  // PRO-N1-01 — a capture settling after the payer's account closed grants no
+  // capacity: the payment is recorded and an operator reviews the refund, as
+  // for a late plan, storage subscription or credit purchase.
+  if (await isAccountClosed(binding.ownerUserId, prisma)) {
+    await recordCapture();
+    return review(binding.ownerUserId, "PAYMENT_AFTER_ACCOUNT_CLOSURE", "ACCOUNT_CLOSED", {
+      bindingId: binding.id,
+    });
+  }
+
   try {
     await assertWebhookStorageAddonAllowed({
       userId: binding.ownerUserId,
@@ -461,8 +481,18 @@ export type PayPalCreditSettlement =
         | "NOT_OWNED"
         | "NOT_EVIDENCE_CREDIT"
         | "AMOUNT_MISMATCH"
-        | "MALFORMED";
+        | "MALFORMED"
+        /** PRO-N1-01 — a genuine credit order paid after the payer's account closed (under review). */
+        | "ACCOUNT_CLOSED";
     };
+
+/** A REJECTED credit settlement that is still a genuine, paid credit order under review. */
+export function isCreditOrderUnderReview(result: PayPalCreditSettlement): boolean {
+  return (
+    result.outcome === "REJECTED" &&
+    (result.reason === "AMOUNT_MISMATCH" || result.reason === "ACCOUNT_CLOSED")
+  );
+}
 
 type CreditPurchase = {
   userId: string;
@@ -641,6 +671,12 @@ async function applyCreditCapture(params: {
     provider: PROVIDER,
     providerRef: captureId,
   });
+  if (grant.refused === "ACCOUNT_CLOSED") {
+    // PRO-N1-01 — captured after the account closed: the payment is recorded
+    // (above), nothing is granted, and the grant wrote the
+    // PAYMENT_AFTER_ACCOUNT_CLOSURE review item (refund review owed).
+    return { outcome: "REJECTED", orderId, reason: "ACCOUNT_CLOSED" };
+  }
 
   if (status === "PARTIALLY_REFUNDED") {
     // The credit is indivisible: a partial refund is sent to review rather
@@ -761,10 +797,10 @@ async function recordCreditAttemptOutcome(input: {
       providerPaymentRef = result.captureId;
       break;
     case "REJECTED":
-      // Only an amount mismatch on a genuine credit order is the attempt's
-      // business: money or approval exists that the attempt's price does not
-      // match.
-      if (result.reason !== "AMOUNT_MISMATCH") return;
+      // Only a genuine credit order under review is the attempt's business:
+      // money or approval exists that the attempt's price does not match, or
+      // that settled after the payer's account closed (PRO-N1-01).
+      if (!isCreditOrderUnderReview(result)) return;
       status = A.PENDING;
       checkoutState = "NEEDS_REVIEW";
       break;
@@ -971,7 +1007,7 @@ export async function recoverPayPalCreditFromPayment(input: {
       capture: false,
       captureId: input.captureId,
     });
-    if (settlement.outcome === "REJECTED" && settlement.reason !== "AMOUNT_MISMATCH") {
+    if (settlement.outcome === "REJECTED" && !isCreditOrderUnderReview(settlement)) {
       return { outcome: "NOT_A_CREDIT" };
     }
     return { outcome: "SETTLED", settlement };

@@ -34,6 +34,10 @@ describe("PRO-N1-01 — closure and open provider billing relationships (live Po
   let preflight: typeof import("../src/services/identity/account-lifecycle-preflight.service.js");
   let closure: typeof import("../src/services/identity/account-closure.service.js");
   let hashPassword: (typeof import("../src/services/email-password-auth.service.js"))["hashPassword"];
+  let stripeSettlement: typeof import("../src/services/billing/stripe-settlement.service.js");
+  let paypalSettlement: typeof import("../src/services/billing/paypal-settlement.service.js");
+  let credits: typeof import("../src/services/billing/evidence-credits.service.js");
+  let creditPriceCents: (typeof import("../src/services/billing-pricing.service.js"))["getEvidenceCreditPriceCents"];
 
   beforeAll(async () => {
     const { bootIntegrationHarness } = await import("./integration-harness.js");
@@ -42,6 +46,10 @@ describe("PRO-N1-01 — closure and open provider billing relationships (live Po
     preflight = await import("../src/services/identity/account-lifecycle-preflight.service.js");
     closure = await import("../src/services/identity/account-closure.service.js");
     ({ hashPassword } = await import("../src/services/email-password-auth.service.js"));
+    stripeSettlement = await import("../src/services/billing/stripe-settlement.service.js");
+    paypalSettlement = await import("../src/services/billing/paypal-settlement.service.js");
+    credits = await import("../src/services/billing/evidence-credits.service.js");
+    ({ getEvidenceCreditPriceCents: creditPriceCents } = await import("../src/services/billing-pricing.service.js"));
     const { signJwt } = await import("../src/services/jwt.js");
     const secret = process.env.AUTH_JWT_SECRET!;
     deps = {
@@ -270,6 +278,113 @@ describe("PRO-N1-01 — closure and open provider billing relationships (live Po
     expect(
       await prisma.billingReviewItem.count({
         where: { providerResourceId: subscriptionId, reason: "PAYMENT_AFTER_ACCOUNT_CLOSURE", refundReviewRequired: true },
+      }),
+    ).toBe(1);
+  });
+
+  // ---- Closed-account caveat (2026-11-20): one-time purchases settling late --
+  const closedAccount = async () => {
+    const t = await seedPersonalTenant(deps, "FREE");
+    const req = await dueRequest(t.owner.userId);
+    await closure.processAccountClosures(new Date());
+    expect((await prisma.accountClosureRequest.findUniqueOrThrow({ where: { id: req.id } })).status).toBe("COMPLETED");
+    return t.owner.userId;
+  };
+  const walletCredits = async (userId: string) =>
+    (await prisma.entitlement.findFirst({ where: { userId, active: true }, orderBy: { createdAt: "desc" }, select: { credits: true } }))?.credits ?? 0;
+  const paidCreditSession = (userId: string) => ({
+    id: `cs_test_${randomUUID().replace(/-/g, "")}`,
+    mode: "payment",
+    status: "complete",
+    payment_status: "paid",
+    amount_total: creditPriceCents("USD"),
+    currency: "usd",
+    metadata: { userId, productKey: "EVIDENCE_CREDIT", currency: "USD" },
+  });
+
+  it("a Stripe credit purchase settling after the account closed grants nothing, keeps the payment and records a refund review (redelivery idempotent)", async () => {
+    const userId = await closedAccount();
+    const before = await walletCredits(userId);
+    const session = paidCreditSession(userId);
+
+    for (let delivery = 0; delivery < 2; delivery += 1) {
+      const settled = await stripeSettlement.settleStripeCheckoutSession({ session });
+      expect(settled).toEqual({ product: "EVIDENCE_CREDIT", outcome: "REJECTED", reason: "ACCOUNT_CLOSED" });
+    }
+    expect(await walletCredits(userId)).toBe(before);
+    expect(
+      await prisma.evidenceCreditLedgerEntry.count({ where: { provider: "STRIPE", providerRef: session.id } }),
+    ).toBe(0);
+    // The money is on record (a refund review needs the payment it refunds).
+    expect(
+      (await prisma.payment.findUniqueOrThrow({
+        where: { provider_providerPaymentId: { provider: "STRIPE", providerPaymentId: session.id } },
+        select: { status: true, userId: true },
+      })),
+    ).toEqual({ status: "SUCCEEDED", userId });
+    const items = await prisma.billingReviewItem.findMany({
+      where: { providerResourceId: session.id, reason: "PAYMENT_AFTER_ACCOUNT_CLOSURE" },
+      select: { product: true, refundReviewRequired: true, providerAction: true, userId: true },
+    });
+    expect(items).toEqual([{ product: "EVIDENCE_CREDIT", refundReviewRequired: true, providerAction: "NONE", userId }]);
+  });
+
+  it("control: the same paid credit session for an open account grants the credit once", async () => {
+    const t = await seedPersonalTenant(deps, "FREE");
+    const before = await walletCredits(t.owner.userId);
+    const session = paidCreditSession(t.owner.userId);
+    const settled = await stripeSettlement.settleStripeCheckoutSession({ session });
+    expect(settled).toEqual({ product: "EVIDENCE_CREDIT", outcome: "GRANTED" });
+    expect(await walletCredits(t.owner.userId)).toBeGreaterThan(before);
+    expect(
+      await prisma.billingReviewItem.count({ where: { providerResourceId: session.id, reason: "PAYMENT_AFTER_ACCOUNT_CLOSURE" } }),
+    ).toBe(0);
+  });
+
+  it("the purchase-grant authority every credit path uses (PayPal capture, sweep recovery) refuses a closed payer", async () => {
+    const userId = await closedAccount();
+    const before = await walletCredits(userId);
+    const captureId = `CAP${randomUUID().replace(/-/g, "").slice(0, 14).toUpperCase()}`;
+    const grant = await credits.grantEvidenceCredits({ userId, credits: 1, provider: "PAYPAL", providerRef: captureId });
+    expect(grant).toEqual({ granted: false, balanceAfter: before, refused: "ACCOUNT_CLOSED" });
+    expect(await walletCredits(userId)).toBe(before);
+    expect(await prisma.evidenceCreditLedgerEntry.count({ where: { provider: "PAYPAL", providerRef: captureId } })).toBe(0);
+    expect(
+      await prisma.billingReviewItem.count({
+        where: { providerResourceId: captureId, reason: "PAYMENT_AFTER_ACCOUNT_CLOSURE", product: "EVIDENCE_CREDIT", refundReviewRequired: true },
+      }),
+    ).toBe(1);
+    expect(paypalSettlement.isCreditOrderUnderReview({ outcome: "REJECTED", orderId: "O", reason: "ACCOUNT_CLOSED" })).toBe(true);
+  });
+
+  it("a legacy one-time PayPal storage capture settling after the account closed grants no capacity and is reviewed", async () => {
+    const userId = await closedAccount();
+    const captureId = `CAP${randomUUID().replace(/-/g, "").slice(0, 14).toUpperCase()}`;
+    const binding = await prisma.workspaceStorageAddon.create({
+      data: {
+        ownerUserId: userId,
+        teamId: null,
+        addonKey: "PERSONAL_10_GB",
+        extraStorageBytes: BigInt(10) * GB,
+        billingCycle: "ONE_TIME",
+        status: "PENDING",
+        paymentProvider: "PAYPAL",
+        externalPaymentId: captureId,
+        amountCents: 499,
+        currency: "USD",
+      },
+      select: { id: true },
+    });
+    const settled = await paypalSettlement.settleLegacyStorageCapture({
+      capture: { id: captureId, status: "COMPLETED", amount: { value: "4.99", currency_code: "USD" } },
+      claimed: { userId },
+      eventType: "PAYMENT.CAPTURE.COMPLETED",
+    });
+    expect(settled).toEqual({ outcome: "REVIEW", reason: "PAYMENT_AFTER_ACCOUNT_CLOSURE", cause: "ACCOUNT_CLOSED" });
+    expect((await prisma.workspaceStorageAddon.findUniqueOrThrow({ where: { id: binding.id } })).status).toBe("PENDING");
+    expect(
+      await prisma.billingReviewItem.count({
+        where: { providerResourceId: captureId, reason: "PAYMENT_AFTER_ACCOUNT_CLOSURE", refundReviewRequired: true },
       }),
     ).toBe(1);
   });
