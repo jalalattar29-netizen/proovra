@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "28109845be5def0ab38aefdd121fdaa3c0cf3d91b45445ac9901f0a76bb48335",
-  "consumerInventoryHash": "3f32f455fcccdb9694462fb2fe0324ad2753129055dc2252c080d95169163328",
+  "consumerInventoryHash": "798e00851c274db02c4a032d66ebe81951f347a4e26d7debd58a74708eb14e0a",
   "dispositionsHash": "4634dbb508d1b01f04e7988b8009af560f2bce0bd1af8e3f9c1c55ed205704a9",
   "totals": {
     "RegisteredRoutes": 1260,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 12351,
-      "UNRESOLVED_IDENTIFIER": 1794
+      "METHOD_ON_VALUE": 12354,
+      "UNRESOLVED_IDENTIFIER": 1796
     },
     "MutationFixpointRounds": 11,
     "MutationClosurePass": false,
@@ -328,7 +328,7 @@
       "method": "DELETE",
       "route": "/v1/cases/:id/assignments/:assignmentId",
       "registeringFile": "services/api/src/routes/case-workspace.routes.ts",
-      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:2013",
+      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:2033",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -352,7 +352,7 @@
       "method": "DELETE",
       "route": "/v1/cases/:id/evidence-links/:linkId",
       "registeringFile": "services/api/src/routes/case-workspace.routes.ts",
-      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:599",
+      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:607",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2092,7 +2092,7 @@
       "method": "GET",
       "route": "/v1/cases/:id/discussion-threads",
       "registeringFile": "services/api/src/routes/case-workspace.routes.ts",
-      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:1794",
+      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:1802",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2104,7 +2104,7 @@
       "method": "GET",
       "route": "/v1/cases/:id/evidence-requests",
       "registeringFile": "services/api/src/routes/case-workspace.routes.ts",
-      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:1274",
+      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:1282",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -9304,7 +9304,7 @@
       "method": "POST",
       "route": "/v1/cases/:id/assignments",
       "registeringFile": "services/api/src/routes/case-workspace.routes.ts",
-      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:1983",
+      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:2003",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -9352,7 +9352,7 @@
       "method": "POST",
       "route": "/v1/cases/:id/evidence-links",
       "registeringFile": "services/api/src/routes/case-workspace.routes.ts",
-      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:533",
+      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:541",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -108210,8 +108210,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/combined-recording/multipart-upload.ts#OBJECT_STORAGE.AbortMultipartUploadCommand@128",
-      "terminalLocation": "services/worker/src/combined-recording/multipart-upload.ts:128",
+      "writerId": "services/worker/src/combined-recording/multipart-upload.ts#OBJECT_STORAGE.AbortMultipartUploadCommand@174",
+      "terminalLocation": "services/worker/src/combined-recording/multipart-upload.ts:174",
       "file": "services/worker/src/combined-recording/multipart-upload.ts",
       "enclosingDeclaration": "uploadFileMultipart",
       "kind": "EXTERNAL",
@@ -108242,8 +108242,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/combined-recording/multipart-upload.ts#OBJECT_STORAGE.CompleteMultipartUploadCommand@112",
-      "terminalLocation": "services/worker/src/combined-recording/multipart-upload.ts:112",
+      "writerId": "services/worker/src/combined-recording/multipart-upload.ts#OBJECT_STORAGE.CompleteMultipartUploadCommand@158",
+      "terminalLocation": "services/worker/src/combined-recording/multipart-upload.ts:158",
       "file": "services/worker/src/combined-recording/multipart-upload.ts",
       "enclosingDeclaration": "uploadFileMultipart",
       "kind": "EXTERNAL",
@@ -108274,8 +108274,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/combined-recording/multipart-upload.ts#OBJECT_STORAGE.CreateMultipartUploadCommand@63",
-      "terminalLocation": "services/worker/src/combined-recording/multipart-upload.ts:63",
+      "writerId": "services/worker/src/combined-recording/multipart-upload.ts#OBJECT_STORAGE.CreateMultipartUploadCommand@97",
+      "terminalLocation": "services/worker/src/combined-recording/multipart-upload.ts:97",
       "file": "services/worker/src/combined-recording/multipart-upload.ts",
       "enclosingDeclaration": "uploadFileMultipart",
       "kind": "EXTERNAL",
@@ -108306,8 +108306,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/combined-recording/multipart-upload.ts#OBJECT_STORAGE.UploadPartCommand@94",
-      "terminalLocation": "services/worker/src/combined-recording/multipart-upload.ts:94",
+      "writerId": "services/worker/src/combined-recording/multipart-upload.ts#OBJECT_STORAGE.UploadPartCommand@135",
+      "terminalLocation": "services/worker/src/combined-recording/multipart-upload.ts:135",
       "file": "services/worker/src/combined-recording/multipart-upload.ts",
       "enclosingDeclaration": "uploadFileMultipart",
       "kind": "EXTERNAL",
@@ -113294,7 +113294,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
-          "line": 2459,
+          "line": 2476,
           "caller": "SettingsTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -113467,7 +113467,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
-          "line": 2013,
+          "line": 2033,
           "caller": "AssignmentsTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -113477,7 +113477,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:2013 (AssignmentsTab, WEB)",
+      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:2033 (AssignmentsTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -113537,7 +113537,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
-          "line": 2113,
+          "line": 2120,
           "caller": "NotesTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -113547,7 +113547,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/case/[id].tsx:260 (CaseDetailScreen, MOBILE); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:2113 (NotesTab, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/case/[id].tsx:260 (CaseDetailScreen, MOBILE); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:2120 (NotesTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -113601,7 +113601,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
-          "line": 599,
+          "line": 607,
           "caller": "MatterWorkspace",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -113611,7 +113611,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:599 (MatterWorkspace, WEB)",
+      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:607 (MatterWorkspace, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -113702,7 +113702,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
-          "line": 1098,
+          "line": 1102,
           "caller": "EvidenceTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -123535,7 +123535,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
-          "line": 1454,
+          "line": 1458,
           "caller": "AttachEvidenceModal",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -123545,7 +123545,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/case-detail-sections.tsx:89 (CaseAttachEvidenceSheet, MOBILE); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:1454 (AttachEvidenceModal, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/case-detail-sections.tsx:89 (CaseAttachEvidenceSheet, MOBILE); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:1458 (AttachEvidenceModal, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -123600,7 +123600,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
-          "line": 1794,
+          "line": 1802,
           "caller": "CommunicationsTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -123610,7 +123610,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:1794 (CommunicationsTab, WEB)",
+      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:1802 (CommunicationsTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -123661,7 +123661,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
-          "line": 1274,
+          "line": 1282,
           "caller": "EvidenceTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -123671,7 +123671,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:1274 (EvidenceTab, WEB)",
+      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:1282 (EvidenceTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -123935,7 +123935,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
-          "line": 483,
+          "line": 491,
           "caller": "MatterWorkspace",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -123943,7 +123943,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
-          "line": 514,
+          "line": 522,
           "caller": "MatterWorkspace",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -123951,7 +123951,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
-          "line": 245,
+          "line": 246,
           "caller": "SimpleCaseDetail",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -123961,7 +123961,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/case/[id].tsx:192 (CaseDetailScreen, MOBILE); apps/web/components/cases-experience/MatterWorkspace.tsx:483 (MatterWorkspace, WEB); apps/web/components/cases-experience/MatterWorkspace.tsx:514 (MatterWorkspace, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/case/[id].tsx:192 (CaseDetailScreen, MOBILE); apps/web/components/cases-experience/MatterWorkspace.tsx:491 (MatterWorkspace, WEB); apps/web/components/cases-experience/MatterWorkspace.tsx:522 (MatterWorkspace, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -156009,7 +156009,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
-          "line": 2373,
+          "line": 2390,
           "caller": "SettingsTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -156027,7 +156027,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/case/[id].tsx:276 (CaseDetailScreen, MOBILE); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:2373 (SettingsTab, WEB); apps/web/components/external-review/ReviewScopePicker.tsx:292 (ReviewScopePicker, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/case/[id].tsx:276 (CaseDetailScreen, MOBILE); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:2390 (SettingsTab, WEB); apps/web/components/external-review/ReviewScopePicker.tsx:292 (ReviewScopePicker, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -169028,7 +169028,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
-          "line": 1983,
+          "line": 2003,
           "caller": "AssignmentsTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -169038,7 +169038,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:1983 (AssignmentsTab, WEB)",
+      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:2003 (AssignmentsTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -169115,7 +169115,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
-          "line": 2055,
+          "line": 2062,
           "caller": "NotesTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -169125,7 +169125,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/case/[id].tsx:229 (CaseDetailScreen, MOBILE); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:2055 (NotesTab, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/case/[id].tsx:229 (CaseDetailScreen, MOBILE); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:2062 (NotesTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -169191,7 +169191,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
-          "line": 2076,
+          "line": 2083,
           "caller": "NotesTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -169201,7 +169201,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/case/[id].tsx:244 (CaseDetailScreen, MOBILE); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:2076 (NotesTab, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/case/[id].tsx:244 (CaseDetailScreen, MOBILE); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:2083 (NotesTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -169282,7 +169282,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
-          "line": 1528,
+          "line": 1532,
           "caller": "AttachEvidenceModal",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -169366,7 +169366,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
-          "line": 533,
+          "line": 541,
           "caller": "MatterWorkspace",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -169376,7 +169376,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:533 (MatterWorkspace, WEB)",
+      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:541 (MatterWorkspace, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -170083,7 +170083,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
-          "line": 2418,
+          "line": 2435,
           "caller": "SettingsTab",
           "class": "WEB",
           "primitive": "apiFetch",

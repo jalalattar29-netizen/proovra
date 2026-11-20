@@ -54,7 +54,7 @@ import { artifactLockFor } from "../object-retention.js";
 import { deleteObjectVersions, getObjectStream, isObjectLockEnabled, s3 } from "../storage.js";
 import { combineSegmentFiles } from "./combine-recording.js";
 import { decideCombineInputs, locateCombineManifest, type CombinePartRow } from "./combine-inputs.js";
-import { uploadFileMultipart } from "./multipart-upload.js";
+import { MultipartUploadDeadlineExceeded, uploadFileMultipart } from "./multipart-upload.js";
 import { workspaceAllowsDerivedArtifact } from "../workspace-billing.js";
 
 type JobInput = { jobId: string | undefined; teamId: string; evidenceId: string; runId: string };
@@ -219,6 +219,13 @@ export async function processCombineScreenRecordingJob(
       logger.warn({ requestId, jobId, runId, evidenceId, generation }, "combined_recording.claim_lost_before_upload");
       return { ok: true, signalsEmitted: 0 };
     }
+    // PRO-W1C-08 — the upload is bounded too: from the fenced renewal it gets
+    // the kind's attempt budget, which is kept below the run lease, so it can
+    // never outlive this claim. At the deadline the upload is aborted
+    // (MultipartUploadDeadlineExceeded, a transient outcome below): the run is
+    // released for retry with the reason recorded, and the kind's attempt
+    // ceiling bounds the retries.
+    const uploadDeadlineAt = Date.now() + BOUNDS.attemptTimeoutMs;
     const put = await uploadFileMultipart({
       client: s3,
       bucket: anchor.storageBucket,
@@ -230,6 +237,7 @@ export async function processCombineScreenRecordingJob(
       objectLockEnabled: isObjectLockEnabled(),
       metadata: { "proovra-artifact-class": "DERIVED", "proovra-transformation": SCREEN_RECORDING_COMBINE_TRANSFORMATION },
       maxBytes: SCREEN_RECORDING_COMBINE_BOUNDS.maxOutputBytes,
+      deadlineAt: uploadDeadlineAt,
     });
     uploaded = { bucket: anchor.storageBucket, key, versionId: put.versionId };
     if (put.sha256 !== outputSha256 || put.sizeBytes !== combined.sizeBytes) {
@@ -302,7 +310,14 @@ export async function processCombineScreenRecordingJob(
     if (err instanceof CombineStructural) return fail(`combine:${err.reason}`);
     // WORKERS-06: transient, so the claim goes back to PENDING for the BullMQ
     // retry; FAILED would make that retry a replay no-op.
-    await mi.releaseRunForRetry(runId, teamId, err instanceof Error ? err.message : "transient_failure", prisma, fence);
+    // PRO-W1C-08 — an upload aborted at its deadline is recorded as such.
+    const reason =
+      err instanceof MultipartUploadDeadlineExceeded
+        ? "combine:upload_deadline_exceeded"
+        : err instanceof Error
+          ? err.message
+          : "transient_failure";
+    await mi.releaseRunForRetry(runId, teamId, reason, prisma, fence);
     logger.error(
       { requestId, jobId, runId, evidenceId, err: err instanceof Error ? err.message : "unknown" },
       "combined_recording.transient_failure",
