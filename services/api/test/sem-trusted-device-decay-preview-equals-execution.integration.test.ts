@@ -56,7 +56,7 @@ describe("sem item 3c — trust decay: absolute time, preview == execution", () 
     );
 
   type DeviceItem = {
-    action: "REVOKE_DEVICE" | "QUARANTINE_DEVICE" | "DECAY_DEVICE";
+    action: "REVOKE_DEVICE" | "QUARANTINE_DEVICE" | "RELEASE_DEVICE_QUARANTINE" | "DECAY_DEVICE";
     deviceId: string;
     teamId: string;
     toDecay: number;
@@ -115,6 +115,21 @@ describe("sem item 3c — trust decay: absolute time, preview == execution", () 
       select: { id: true },
     });
 
+    // Review L-4 — a row the old formula pushed to 84 AND quarantined, though it
+    // was seen 25 days ago: the recompute (22) releases the quarantine.
+    const quarantinedResidue = await prisma.trustedDevice.create({
+      data: {
+        teamId: team.id,
+        userId: h.fixtures.teamA.memberUserId,
+        deviceIdHash: createHash("sha256").update(randomUUID()).digest("hex"),
+        trustedUntilUtc: new Date(t0.getTime() + 365 * DAY),
+        lastSeenAtUtc: new Date(t0.getTime() - 25 * DAY),
+        trustScoreDecay: 84,
+        quarantinedAtUtc: new Date(t0.getTime() - 2 * DAY),
+      },
+      select: { id: true },
+    });
+
     const first = await previewAt(t0, team.id);
     const ticks: Date[] = [];
     for (let k = 0; k < 288; k += 1) ticks.push(new Date(t0.getTime() + k * TICK));
@@ -139,6 +154,10 @@ describe("sem item 3c — trust decay: absolute time, preview == execution", () 
         // many runs came before.
         expect(a.trustScoreDecay, `device ${id} at tick ${k}`).toBe(absolute);
         if (a.status === "REVOKED") revokedAt.set(id, now);
+        // Review L-4 — quarantine is the same rule's STATE after every run.
+        if (a.status === "ACTIVE") {
+          expect(a.quarantinedAtUtc !== null, `quarantine state ${id} tick ${k}`).toBe(absolute >= 70);
+        }
         if (!predicted) continue;
         const item = predicted.get(id);
         if (!item) {
@@ -154,6 +173,10 @@ describe("sem item 3c — trust decay: absolute time, preview == execution", () 
         if (item.action === "QUARANTINE_DEVICE") {
           expect(b.quarantinedAtUtc).toBeNull();
           expect(a.quarantinedAtUtc).toBeInstanceOf(Date);
+        }
+        if (item.action === "RELEASE_DEVICE_QUARANTINE") {
+          expect(b.quarantinedAtUtc).toBeInstanceOf(Date);
+          expect(a.quarantinedAtUtc).toBeNull();
         }
       }
     }
@@ -182,8 +205,52 @@ describe("sem item 3c — trust decay: absolute time, preview == execution", () 
     const thirty = seeded.find((s) => s.age === 30)!;
     expect(revokedAt.get(thirty.id)!.getTime() - t0.getTime()).toBeGreaterThanOrEqual(34 * DAY - TICK);
     expect(first.get(residue.id)).toMatchObject({ action: "DECAY_DEVICE", toDecay: 12 });
+    expect(first.get(quarantinedResidue.id)).toMatchObject({ action: "RELEASE_DEVICE_QUARANTINE", toDecay: 22 });
     expect(first.get(thirty.id)).toMatchObject({ action: "DECAY_DEVICE", toDecay: 32 });
   }, 600_000);
+
+  it("review L-4: a lowered value says it was recomputed from last-seen time (never 'seen again'); an old-formula quarantine below 70 is released; one at 70+ stays", async () => {
+    const team = await prisma.team.create({
+      data: { name: `sem-decay-l4-${randomUUID().slice(0, 6)}`, ownerUserId: h.fixtures.teamA.ownerUserId, workspaceKind: "OWNED", organizationId: await orgOfTeamA() },
+      select: { id: true },
+    });
+    const now = new Date();
+    const mk = (daysUnseen: number, decay: number, quarantined: boolean) =>
+      prisma.trustedDevice.create({
+        data: {
+          teamId: team.id,
+          userId: h.fixtures.teamA.memberUserId,
+          deviceIdHash: createHash("sha256").update(randomUUID()).digest("hex"),
+          trustedUntilUtc: new Date(now.getTime() + 365 * DAY),
+          lastSeenAtUtc: new Date(now.getTime() - daysUnseen * DAY),
+          trustScoreDecay: decay,
+          ...(quarantined ? { quarantinedAtUtc: new Date(now.getTime() - DAY) } : {}),
+        },
+        select: { id: true },
+      });
+    const lowered = await mk(30, 96, false); // -> 32, not quarantined
+    const released = await mk(30, 90, true); // -> 32, quarantine released
+    const kept = await mk(55, 99, true); // -> 82, stays quarantined
+    const preview = await previewAt(now, team.id);
+    expect(preview.get(lowered.id)).toMatchObject({ action: "DECAY_DEVICE", toDecay: 32 });
+    expect(preview.get(released.id)).toMatchObject({ action: "RELEASE_DEVICE_QUARANTINE", toDecay: 32 });
+    expect(preview.get(kept.id)).toMatchObject({ action: "DECAY_DEVICE", toDecay: 82 });
+    const res = await decay.sweepTrustedDeviceDecay({ teamId: team.id, now }, prisma as never);
+    expect(res.quarantineReleased).toBe(1);
+    const read = (id: string) =>
+      prisma.trustedDevice.findUniqueOrThrow({ where: { id }, select: { trustScoreDecay: true, quarantinedAtUtc: true, decayReason: true } });
+    const l = await read(lowered.id);
+    expect(l).toMatchObject({ trustScoreDecay: 32, quarantinedAtUtc: null, decayReason: "Trust decay recomputed from last-seen time." });
+    expect(l.decayReason).not.toMatch(/seen again/);
+    expect(await read(released.id)).toMatchObject({
+      trustScoreDecay: 32,
+      quarantinedAtUtc: null,
+      decayReason: "Quarantine released: decay recomputed from last-seen time is below 70.",
+    });
+    const k = await read(kept.id);
+    expect(k.trustScoreDecay).toBe(82);
+    expect(k.quarantinedAtUtc).toBeInstanceOf(Date);
+  });
 
   it("running the decay many times at the same instant changes nothing after the first run (idempotent)", async () => {
     const team = await prisma.team.create({

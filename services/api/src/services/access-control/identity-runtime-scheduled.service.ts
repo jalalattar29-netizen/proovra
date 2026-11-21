@@ -276,7 +276,7 @@ export type IdentityRuntimeEnforcementPreviewItem =
       signalKinds: string[];
     }
   | {
-      action: "REVOKE_DEVICE" | "QUARANTINE_DEVICE" | "DECAY_DEVICE";
+      action: "REVOKE_DEVICE" | "QUARANTINE_DEVICE" | "RELEASE_DEVICE_QUARANTINE" | "DECAY_DEVICE";
       teamId: string;
       deviceId: string;
       fromDecay: number;
@@ -309,6 +309,8 @@ export type IdentityRuntimeEnforcementPreview = {
     devicesToRevokeFirstSweep: number;
     devicesToQuarantineFirstSweep: number;
     devicesToDecayFirstSweep: number;
+    /** Review L-4 — decay quarantines the recomputed decay (below 70) releases. */
+    devicesQuarantineReleasedFirstSweep: number;
     devicesRevokedWithin24h: number;
     /** Devices past the per-run batch (TRUST_DECAY_SWEEP_BATCH_DEFAULT): not reached by the next run. */
     devicesBeyondFirstSweepBatch: number;
@@ -333,6 +335,7 @@ export async function previewScheduledIdentityRuntimeEnforcement(
     devicesToRevokeFirstSweep: 0,
     devicesToQuarantineFirstSweep: 0,
     devicesToDecayFirstSweep: 0,
+    devicesQuarantineReleasedFirstSweep: 0,
     devicesRevokedWithin24h: 0,
     devicesBeyondFirstSweepBatch: 0,
     idleSessionsToRevoke: 0,
@@ -405,7 +408,7 @@ export async function previewScheduledIdentityRuntimeEnforcement(
       where: { teamId, status: "ACTIVE" },
       take: perTeamLimit,
       orderBy: { id: "asc" },
-      select: { id: true, lastSeenAtUtc: true, trustScoreDecay: true },
+      select: { id: true, lastSeenAtUtc: true, trustScoreDecay: true, quarantinedAtUtc: true },
     });
     const intervalMs = IDENTITY_RUNTIME_SCHEDULED_INTERVAL_MINUTES * 60_000;
     for (const [index, d] of devices.entries()) {
@@ -427,9 +430,12 @@ export async function previewScheduledIdentityRuntimeEnforcement(
           ? "REVOKE_DEVICE"
           : decision.action === "QUARANTINE"
             ? "QUARANTINE_DEVICE"
-            : "DECAY_DEVICE";
+            : decision.action === "RELEASE_QUARANTINE"
+              ? "RELEASE_DEVICE_QUARANTINE"
+              : "DECAY_DEVICE";
       if (action === "REVOKE_DEVICE") totals.devicesToRevokeFirstSweep += 1;
       else if (action === "QUARANTINE_DEVICE") totals.devicesToQuarantineFirstSweep += 1;
+      else if (action === "RELEASE_DEVICE_QUARANTINE") totals.devicesQuarantineReleasedFirstSweep += 1;
       else totals.devicesToDecayFirstSweep += 1;
       push({
         action,
