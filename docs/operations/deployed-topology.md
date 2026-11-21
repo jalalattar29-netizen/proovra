@@ -17,7 +17,7 @@ UNVERIFIED line with what you read, the date, and who read it.
 
 | Component | What the evidence says | Level | To settle it |
 |---|---|---|---|
-| API and worker | Containers from `ghcr.io/<owner>/proovra-{api,worker}:sha-<7>`, deployed by `scripts/deploy-prod-pull.sh` as compose project `docker`, one replica each | REPO | Host shell: `docker compose ls`, `docker ps` |
+| API and worker | Containers from `ghcr.io/<owner>/proovra-{api,worker}:sha-<7>`, deployed by `scripts/deploy-prod-pull.sh` as compose project `docker`, one replica each. The worker publishes no host port and its count is `WORKER_REPLICAS` (default 1); the deploy gate checks `/readyz` inside every worker container (B8-F-305) | REPO | Host shell: `docker compose ls`, `docker ps` |
 | Running release | Unknown. `GET /v1/admin/platform/release` now states the API and worker builds once this release is live; `.deploy-state/releases.jsonl` records each deploy from then on | UNVERIFIED | Platform admin session, or host shell |
 | Web | Vercel, deploying every `main` push whose build the `vercel.json` ignore gate lets through (live API compatible, not older than the live web) | REPO | Vercel build log lines `vercel-ignore-build:` |
 | Edge | Caddy from `infra/caddy/Caddyfile`, which is not versioned. Responses show `Via: 1.1 Caddy` and no Cloudflare markers, which fits one proxy hop but is a single observation | OBSERVED, file UNVERIFIED | Read the host file and compare with `infra/caddy/Caddyfile.example` |
@@ -28,8 +28,9 @@ UNVERIFIED line with what you read, the date, and who read it.
 | Bitcoin verifier | Off unless `/opt/proovra/app/secrets/bitcoin-rpc/verifier.env` exists and enables it. The worker logs `ots.bitcoin_verifier.state` at start. Node existence and sync are not visible | UNVERIFIED | Worker log line; node RPC |
 | Host cron | The repository defines none. The delivery sweeps now run from the worker and are safe beside a crontab | UNVERIFIED | Host: `crontab -l`, `/etc/cron.*`, systemd timers |
 | Monitoring | Whether anything is deployed is unknown. The documented command no longer starts a second stack | UNVERIFIED | Host: `docker compose ls`, Grafana access |
-| Backups | The services exist and are not started by a deploy | UNVERIFIED | `docker compose --profile backup ps`, `platform_backup_records`, the readiness page |
+| Backups | The services exist and are not started by a deploy. Observed 2026-11-21: never started; the image is now pinned pg17 for the PG 17.12 server; `BACKUP_RETAIN` default 4 for ~11 GB free | UNVERIFIED | `docker compose --profile backup ps`, `platform_backup_records`, the readiness page |
 | Capacity | **No user, seat or throughput figure is established.** See the audit's capacity report | not measured | A staging host of production size |
+| Worker scaling | Isolated local stack, 2026-11-21 (closure/ops): 2 workers from the production service definition; 30 records with 60 duplicate report jobs gave exactly 30 reports, 30 report objects and 60 packages (one full + one external-disclosure each); 6 concurrent claims refused; reconciliation never overlapped. Peak per worker during report rendering: ~2.3 GB RAM and >3.5 CPU cores (unconstrained 32-core workstation). Production is 2 vCPU / 3 GB in total, so a second worker does not fit; one stays | measured locally, not on a production-size host | A staging host of production size with container limits |
 
 ## Configuration
 
