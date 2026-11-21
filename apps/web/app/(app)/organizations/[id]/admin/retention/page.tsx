@@ -6,13 +6,20 @@ import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError"
  *
  * Reads the Phase B0 org-scoped retention policy endpoint
  * (/v1/orgs/:id/policies/retention) plus surfaces canonical deep-links
- * for retention runs and legal-hold workflows. Mutations happen on
- * Evidence Lifecycle pages, not here — this tab is read-only posture.
+ * for retention runs and legal-hold workflows.
+ *
+ * PRO-CENZ-01 / EP-0806 — the organization template is PUBLISHED here
+ * (POST /v1/orgs/:id/policies/retention). The page used to tell admins to
+ * "publish a template from Evidence Lifecycle → Retention", which only writes
+ * a workspace policy; no control reached the organization route. The form is
+ * offered only when the read says `viewer.canPublish` (the POST's own gate:
+ * organization owner or admin of a customer organization). Workspace
+ * retention runs, legal holds and destruction stay on Evidence Lifecycle.
  *
  * Constitutional checks satisfied:
  *
  *   - Wrapped in <PageRouteGate routeId="account.organization-detail">.
- *   - No raw window.confirm (read-only surface).
+ *   - No raw window.confirm.
  *   - No platform-context workspace-fragment reads — apiFetch only.
  *   - Strong TypeScript types throughout.
  *   - Surface honestly states "not configured" when no template exists.
@@ -45,7 +52,32 @@ interface RetentionResponse {
     activePolicyCount: number;
     workspacesWithPolicyCount: number;
   };
+  /**
+   * PRO-CENZ-01 / EP-0806 — whether this caller may publish, decided by the
+   * POST's own gate (organization owner or admin). Absent: not offered.
+   */
+  viewer?: { canPublish: boolean };
 }
+
+/** The template as the API stores it (organizations-governance.routes.ts). */
+type RetentionTemplateValue = {
+  retentionDays: number | null;
+  immutable: boolean;
+  description: string | null;
+};
+
+function readTemplate(value: Record<string, unknown> | null): RetentionTemplateValue | null {
+  if (!value) return null;
+  const days = value["retentionDays"];
+  const description = value["description"];
+  return {
+    retentionDays: typeof days === "number" ? days : null,
+    immutable: value["immutable"] === true,
+    description: typeof description === "string" ? description : null,
+  };
+}
+
+const MAX_RETENTION_DAYS = 365 * 50;
 
 type Loadable<T> =
   | { kind: "loading" }
@@ -68,9 +100,11 @@ function RetentionTab() {
     kind: "loading",
   });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { quiet?: boolean }) => {
     if (!orgId) return;
-    setPolicy({ kind: "loading" });
+    // After a publish the card re-reads without unmounting the form, so its
+    // confirmation stays on screen.
+    if (!opts?.quiet) setPolicy({ kind: "loading" });
     try {
       const data = (await apiFetch(
         `/v1/orgs/${orgId}/policies/retention`,
@@ -136,16 +170,10 @@ function RetentionTab() {
             framed
             compact
             title="No organization-wide default"
-            purpose="No organization-level retention template is published. Workspaces follow their own retention policies. Publish a template from Evidence Lifecycle → Retention to set the default."
-            action={
-              <Link
-                href="/evidence-lifecycle/retention"
-                style={{ textDecoration: "none" }}
-              >
-                <Button variant="secondary" size="sm">
-                  Open Evidence Lifecycle → Retention
-                </Button>
-              </Link>
+            purpose={
+              policy.data.viewer?.canPublish
+                ? "No organization-level retention template is published. Workspaces follow their own retention policies. Publish one below to set the default for every workspace without a policy of its own."
+                : "No organization-level retention template is published. Workspaces follow their own retention policies. An organization owner or admin can publish the default here."
             }
           />
         ) : (
@@ -187,6 +215,23 @@ function RetentionTab() {
             to this organization.
           </p>
         ) : null}
+        {policy.kind === "ready" ? (
+          policy.data.viewer?.canPublish ? (
+            <PublishRetentionTemplateForm
+              orgId={orgId}
+              current={readTemplate(policy.data.value)}
+              onPublished={() => void load({ quiet: true })}
+            />
+          ) : (
+            <p
+              data-testid="retention-publish-not-offered"
+              style={{ fontSize: 12.5, marginTop: 12, color: "var(--ink-secondary, #475569)" }}
+            >
+              Only an organization owner or admin can publish or change this
+              template. Your role can read it.
+            </p>
+          )
+        ) : null}
       </Card>
 
       <PageSection
@@ -218,6 +263,159 @@ function RetentionTab() {
         </div>
       </PageSection>
     </section>
+  );
+}
+
+/**
+ * EP-0806 — publish (or replace) the organization retention template. The
+ * body is the route's bounded shape: whole days 0..18250 or indefinite, the
+ * "workspaces may not shorten it" flag, and an optional description (≤400).
+ */
+function PublishRetentionTemplateForm({
+  orgId,
+  current,
+  onPublished,
+}: {
+  orgId: string;
+  current: RetentionTemplateValue | null;
+  onPublished: () => void;
+}) {
+  const [indefinite, setIndefinite] = useState(current !== null && current.retentionDays === null);
+  const [days, setDays] = useState(
+    current?.retentionDays !== null && current?.retentionDays !== undefined ? String(current.retentionDays) : "",
+  );
+  const [immutable, setImmutable] = useState(current?.immutable ?? false);
+  const [description, setDescription] = useState(current?.description ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const parsedDays = Number(days);
+  const daysValid =
+    indefinite || (days.trim() !== "" && Number.isInteger(parsedDays) && parsedDays >= 0 && parsedDays <= MAX_RETENTION_DAYS);
+
+  const publish = async () => {
+    if (!daysValid || busy) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await apiFetch(`/v1/orgs/${orgId}/policies/retention`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          retentionDays: indefinite ? null : parsedDays,
+          immutable,
+          description: description.trim() === "" ? null : description.trim(),
+        }),
+      });
+      setNotice("Template published. Workspaces without a retention policy of their own now inherit it.");
+      onPublished();
+    } catch (err) {
+      const code = (err as { code?: string }).code;
+      const status = (err as { statusCode?: number }).statusCode;
+      if (code === "forbidden" || status === 403) {
+        setError(
+          code === "session_quarantined"
+            ? "This session is restricted after a security check. Sign in again, then publish."
+            : "Only an organization owner or admin can publish the retention template.",
+        );
+      } else if (code === "not_found" || status === 404) {
+        setError("This organization is not available to you any more.");
+      } else {
+        setError(toSafeUserError(err, { message: "The template could not be published." }).message);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const inputStyle: React.CSSProperties = {
+    fontSize: 13,
+    padding: "6px 10px",
+    borderRadius: 8,
+    border: "1px solid var(--border-default, rgba(15,23,42,0.15))",
+  };
+
+  return (
+    <form
+      data-testid="retention-publish-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void publish();
+      }}
+      style={{ display: "grid", gap: 10, marginTop: 16, fontSize: 13 }}
+    >
+      <strong>{current ? "Change the template" : "Publish a template"}</strong>
+      <label style={{ display: "grid", gap: 4 }}>
+        Keep evidence for (days)
+        <input
+          type="number"
+          min={0}
+          max={MAX_RETENTION_DAYS}
+          step={1}
+          value={days}
+          disabled={indefinite || busy}
+          onChange={(e) => setDays(e.target.value)}
+          aria-invalid={!daysValid || undefined}
+          style={{ ...inputStyle, maxWidth: 160 }}
+        />
+      </label>
+      <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <input
+          type="checkbox"
+          checked={indefinite}
+          disabled={busy}
+          onChange={(e) => setIndefinite(e.target.checked)}
+        />
+        Indefinitely, until an explicit destruction decision
+      </label>
+      <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <input
+          type="checkbox"
+          checked={immutable}
+          disabled={busy}
+          onChange={(e) => setImmutable(e.target.checked)}
+        />
+        Make it a floor: a workspace policy may lengthen this period but never shorten it
+      </label>
+      <label style={{ display: "grid", gap: 4 }}>
+        Description (optional)
+        <textarea
+          value={description}
+          maxLength={400}
+          rows={2}
+          disabled={busy}
+          onChange={(e) => setDescription(e.target.value)}
+          style={inputStyle}
+        />
+      </label>
+      {!daysValid ? (
+        <p style={{ margin: 0, fontSize: 12, color: "var(--ink-secondary, #475569)" }}>
+          Enter a whole number of days from 0 to {MAX_RETENTION_DAYS}, or choose indefinitely.
+        </p>
+      ) : null}
+      <p style={{ margin: 0, fontSize: 12, color: "var(--ink-secondary, #475569)" }}>
+        A workspace with its own retention policy keeps it, except that a floor
+        replaces a shorter workspace period. Legal holds and the destruction
+        review still apply to every record.
+      </p>
+      <div>
+        <Button type="submit" variant="secondary" size="sm" loading={busy} disabled={busy || !daysValid}>
+          {current ? "Publish changes" : "Publish template"}
+        </Button>
+      </div>
+      {error ? (
+        <div role="alert" style={{ fontSize: 12.5, color: "#8f1d16" }}>
+          {error}
+        </div>
+      ) : null}
+      {notice ? (
+        <div role="status" style={{ fontSize: 12.5, color: "#215e44" }}>
+          {notice}
+        </div>
+      ) : null}
+    </form>
   );
 }
 
