@@ -1007,6 +1007,11 @@ export async function externalPortalRoutes(app: FastifyInstance) {
         if (sess.denial === "MFA_UNAVAILABLE" || sess.denial === "SESSION_UNAVAILABLE") {
           return reply.code(503).send({ denial: sess.denial });
         }
+        // Owner decision F — the invitation stays pending; an authorized
+        // operator re-sends it. A conflict, not an authentication failure.
+        if (sess.denial === "INVITER_AUTHORITY_LOST") {
+          return reply.code(409).send({ denial: sess.denial });
+        }
         return reply.code(401).send({ denial: sess.denial, ...(sess.mfa ?? {}) });
       }
       // Best-effort flip INVITED → ACTIVE on first arrival.

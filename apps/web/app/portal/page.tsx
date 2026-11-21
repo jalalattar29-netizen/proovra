@@ -45,6 +45,8 @@ function tokenProblem(denial: string | null, fallback: string): string {
       return "This invitation was withdrawn. Ask the person who invited you if you still need access.";
     case "TOKEN_INVALID":
       return "We couldn't open the portal with that invitation token. Check that you pasted all of it.";
+    case "INVITER_AUTHORITY_LOST":
+      return "The person who invited you can no longer grant this access. Ask the workspace to send the invitation again.";
     default:
       return fallback;
   }

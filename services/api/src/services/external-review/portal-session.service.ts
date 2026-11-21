@@ -35,6 +35,7 @@ import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import {
+  externalReviewInviterAuthorized,
   lookupExternalReviewGrantByToken,
   transitionExternalReviewGrant,
 } from "./external-review-grant.service.js";
@@ -175,6 +176,16 @@ export async function establishPortalSession(input: {
   // off this row, so a grant from the plain route has no session to record. It
   // stays usable on the path-token routes it was issued for.
   if (!role) return { ok: false, denial: "TOKEN_INVALID" };
+  // Owner decision F — an INVITED grant is accepted only while its issuer
+  // still holds the authority to issue it. Asked before the emailed code is
+  // sent, so an unacceptable invitation never costs the reviewer a code.
+  if (
+    input.acceptInvited === true &&
+    invited.state === "INVITED" &&
+    !(await externalReviewInviterAuthorized(prisma, invited))
+  ) {
+    return { ok: false, denial: "INVITER_AUTHORITY_LOST" };
+  }
   const roleId = role.role ?? "EXTERNAL_REVIEWER";
   const mfaRequired = role.mfaRequired === true;
   const authMethod: PortalAuthMethod =
@@ -331,7 +342,12 @@ export async function establishPortalSession(input: {
       },
       prisma,
     );
-    if (!accepted.ok) return { ok: false, denial: "TOKEN_INVALID" };
+    if (!accepted.ok) {
+      return {
+        ok: false,
+        denial: accepted.reason === "grant_inviter_authority_lost" ? "INVITER_AUTHORITY_LOST" : "TOKEN_INVALID",
+      };
+    }
     grant = accepted.grant;
   }
 
