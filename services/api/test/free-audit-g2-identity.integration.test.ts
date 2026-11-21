@@ -584,7 +584,8 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
         );
         expect(asB.statusCode, asB.body).toBe(404);
       } finally {
-        const { organizationId: _org, ...restore } = bBefore;
+        const restore: Record<string, unknown> = { ...bBefore };
+        delete restore.organizationId;
         await prisma.team.update({ where: { id: B.teamId }, data: restore as never });
         if (!bContractBefore) {
           await prisma.enterpriseContract.deleteMany({ where: { organizationId: bBefore.organizationId! } });
