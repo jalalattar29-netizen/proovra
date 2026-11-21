@@ -2,7 +2,39 @@
 
 import { evidenceRecordStatusLabel } from "@proovra/shared";
 import { Unlink } from "lucide-react";
+import { useState } from "react";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
+import { apiFetch } from "../../../../../lib/api";
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+
+/** The relationship types the API accepts (EvidenceRelationshipType). */
+export const RELATIONSHIP_TYPES = [
+  "RELATED",
+  "SUPPORTS",
+  "DUPLICATE_OF",
+  "DERIVED_FROM",
+  "SAME_INCIDENT",
+  "CONTRADICTS",
+  "REPLACES",
+  "REFERENCES",
+] as const;
+
+/** EP-0389 — the sentence for a refused relationship edit, from the API's answer. */
+export function relationshipEditRefusal(err: unknown): string {
+  const e = err as { statusCode?: number; code?: string } | null;
+  if (e?.statusCode === 404) {
+    return "This relationship is no longer available to you from this record. Nothing was changed.";
+  }
+  if (e?.statusCode === 403) {
+    return "Your role does not include editing relationships on this record. Nothing was changed.";
+  }
+  if (e?.statusCode === 409) {
+    return toSafeUserError(err, {
+      message: "This record cannot be changed in its current state (for example, it is in trash). Nothing was changed.",
+    }).message;
+  }
+  return toSafeUserError(err, { message: "The relationship could not be updated." }).message;
+}
 
 type RelationshipItem = {
   id: string;
@@ -43,7 +75,17 @@ export function EvidenceRelationshipsSection({
   // Optional so parents that don't yet wire it continue to render
   // without the Remove button.
   onRemoveRelationship,
+  evidenceId,
+  onRelationshipEdited,
 }: {
+  /**
+   * EP-0389 — with both of these, each relationship offers Edit (type and
+   * note) through PATCH /v1/evidence/:id/relationships/:relationshipId, on the
+   * same `canManageRelationships` answer as Remove. The API decides the rest
+   * (update_metadata on this record, the link's open end, an open record).
+   */
+  evidenceId?: string;
+  onRelationshipEdited?: () => void | Promise<void>;
   caseName: string | null;
   /**
    * UC-CASE-005 — every linked case the viewer may open (server-filtered).
@@ -73,6 +115,33 @@ export function EvidenceRelationshipsSection({
   onRemoveRelationship?: (relationshipId: string) => void | Promise<void>;
 }) {
   const { confirm } = useConfirmAction();
+  const [editing, setEditing] = useState<{ id: string; type: string; note: string } | null>(null);
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const canEdit = Boolean(evidenceId && onRelationshipEdited && canManageRelationships);
+
+  const saveEdit = async () => {
+    if (!editing || !evidenceId || editBusy) return;
+    setEditBusy(true);
+    setEditError(null);
+    try {
+      await apiFetch(
+        `/v1/evidence/${encodeURIComponent(evidenceId)}/relationships/${encodeURIComponent(editing.id)}`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ relationshipType: editing.type, note: editing.note.trim() || null }),
+        },
+      );
+      setEditing(null);
+      await onRelationshipEdited?.();
+    } catch (err) {
+      setEditError(relationshipEditRefusal(err));
+    } finally {
+      setEditBusy(false);
+    }
+  };
+
   return (
     <section
       id="relationships"
@@ -227,6 +296,61 @@ export function EvidenceRelationshipsSection({
                 {item.note ? (
                   <p className="evidence-detail-linked-card__meta">{item.note}</p>
                 ) : null}
+                {editing?.id === item.id ? (
+                  <div className="evidence-detail-linked-card__edit" data-evidence-relationship-edit-form={item.id}>
+                    <label className="evidence-detail-field">
+                      <span>Relationship type</span>
+                      <select
+                        className="app-form-input"
+                        aria-label="Relationship type"
+                        value={editing.type}
+                        onChange={(e) => setEditing({ ...editing, type: e.target.value })}
+                      >
+                        {RELATIONSHIP_TYPES.map((value) => (
+                          <option key={value} value={value}>
+                            {value.replace(/_/g, " ")}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="evidence-detail-field">
+                      <span>Note</span>
+                      <textarea
+                        className="evidence-detail-textarea"
+                        aria-label="Relationship note"
+                        maxLength={1000}
+                        value={editing.note}
+                        onChange={(e) => setEditing({ ...editing, note: e.target.value })}
+                      />
+                    </label>
+                    {editError ? (
+                      <p role="alert" className="evidence-detail-muted" data-evidence-relationship-edit-error>
+                        {editError}
+                      </p>
+                    ) : null}
+                    <div className="evidence-detail-linked-card__actions">
+                      <button
+                        type="button"
+                        className="app-secondary-action app-secondary-action--filled"
+                        onClick={() => void saveEdit()}
+                        disabled={editBusy}
+                      >
+                        {editBusy ? "Saving…" : "Save relationship"}
+                      </button>
+                      <button
+                        type="button"
+                        className="app-ghost-action"
+                        onClick={() => {
+                          setEditing(null);
+                          setEditError(null);
+                        }}
+                        disabled={editBusy}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="evidence-detail-linked-card__actions">
                   <button
                     type="button"
@@ -236,6 +360,20 @@ export function EvidenceRelationshipsSection({
                   >
                     Open linked evidence
                   </button>
+                  {canEdit && editing?.id !== item.id ? (
+                    <button
+                      type="button"
+                      className="app-ghost-action"
+                      disabled={actionBusy || editBusy}
+                      data-evidence-relationship-edit={item.id}
+                      onClick={() => {
+                        setEditError(null);
+                        setEditing({ id: item.id, type: item.relationshipType, note: item.note ?? "" });
+                      }}
+                    >
+                      Edit relationship
+                    </button>
+                  ) : null}
                   {onRemoveRelationship && canManageRelationships ? (
                     <button
                       type="button"

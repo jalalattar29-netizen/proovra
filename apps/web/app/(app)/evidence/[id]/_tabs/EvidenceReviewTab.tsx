@@ -282,6 +282,9 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         onOpenRelationshipEditor={() => setRelationshipOpen(true)}
         onOpenLinkedEvidence={(id) => routerPush(`/evidence/${id}`)}
         onRemoveRelationship={handleRemoveRelationship}
+        // EP-0389 — Edit (type, note) beside Remove; the section rereads the record after a save.
+        evidenceId={evidenceId}
+        onRelationshipEdited={() => ctx.loadWorkspace()}
       />
 
       {canSeeBasicReview ? (
