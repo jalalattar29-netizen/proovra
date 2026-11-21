@@ -204,6 +204,46 @@ test("PRO-114: a wrong password is said in the server's words and nothing is req
   assert.equal(r.byLabel("Cancel closure request").length, 0, "a refused request is shown as open");
 });
 
+test("PRO-N1-01: a provider relationship that appears after the screen loaded is refused at POST; the screen re-reads and shows the billing blocker in the server's words", async () => {
+  const addon = { code: "BILLING_ADDON_ACTIVE", message: "A monthly storage add-on is still renewing. Cancel it in Billing before closing your account." };
+  let blockers = [];
+  routes["/v1/identity/account-closure"] = (init) => {
+    if (init.method === "POST") {
+      const b = JSON.parse(init.body);
+      if (!b.stepUp) return stepUpRequired();
+      // account-closure.routes.ts: 409 { error: { code: "closure_blocked" }, blockers } (no message).
+      blockers = [addon];
+      return json(409, { error: { code: "closure_blocked" }, blockers });
+    }
+    return { request: null, blockers, consequences: [], coolingOffDays: 7, confirmationPhrase: "close my account" };
+  };
+  const r = await render();
+  await r.type("Confirmation phrase", "close my account");
+  await r.press("Request account closure");
+  await answerStepUp(r);
+  await settle();
+  // The refusal re-reads the closure state; the blocker list replaces the form.
+  assert.equal(requests.filter((q) => q.method === "GET" && q.path === "/v1/identity/account-closure").length >= 2, true, "the closure state was not re-read");
+  assert.ok(r.hasText(`• ${addon.message}`), "the billing blocker was not re-read and shown");
+  assert.ok(r.hasText("Resolve the items above to enable account closure."));
+  const ctl = r.byLabel("Close my account… Resolve the items above first.").find((n) => "disabled" in n.props || n.props.accessibilityState);
+  assert.equal(ctl?.props.disabled ?? ctl?.props.accessibilityState?.disabled, true, "closure stays requestable while a provider relationship is live");
+  assert.equal(r.byLabel("Cancel closure request").length, 0, "a refused request is shown as open");
+});
+
+test("PRO-N1-01 control: a request waiting for a cancelled subscription to end is SCHEDULED and cancellable", async () => {
+  routes["/v1/identity/account-closure"] = () => ({
+    request: { id: "c2", status: "SCHEDULED", reason: null, requestedAtUtc: "2026-09-22T10:00:00Z", coolingOffEndsAtUtc: "2099-01-01T00:00:00Z", cancelledAtUtc: null, completedAtUtc: null, failureCode: null },
+    blockers: [],
+    consequences: [],
+    coolingOffDays: 7,
+    confirmationPhrase: "close my account",
+  });
+  const r = await render();
+  assert.ok(r.hasText("Scheduled"), "the SCHEDULED request was not shown");
+  assert.equal(r.byLabel("Cancel closure request").length > 0, true);
+});
+
 test("PRO-114: Download is the route's POST with the proof; the package is saved to the export folder and shared, no URL is opened", async () => {
   const pkg = { schemaVersion: 1, user: { id: "user-1" } };
   routes["/v1/identity/data-export"] = (init, path) => {

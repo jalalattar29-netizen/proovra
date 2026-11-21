@@ -12,7 +12,7 @@
     "build:deps": "pnpm --filter @proovra/shared build && pnpm --filter @proovra/shared-evidence-presentation build",
     "prebuild": "pnpm run build:deps",
     "pretypecheck": "pnpm run build:deps",
-    "eas-build-post-install": "pnpm run build:deps",
+    "eas-build-post-install": "node scripts/validate-mobile-release.mjs --eas-build-env && pnpm run build:deps",
     "check:env": "node scripts/check-env-example.mjs"
   },
   "dependencies": {
