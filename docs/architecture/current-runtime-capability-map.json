@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 12369,
-      "UNRESOLVED_IDENTIFIER": 1803
+      "METHOD_ON_VALUE": 12381,
+      "UNRESOLVED_IDENTIFIER": 1804
     },
     "MutationFixpointRounds": 11,
     "MutationClosurePass": false,
@@ -32088,8 +32088,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.update@1517",
-      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1517",
+      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.update@1535",
+      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1535",
       "file": "services/api/src/routes/identity-security.routes.ts",
       "enclosingDeclaration": "identitySecurityRoutes",
       "kind": "DATABASE",
@@ -32121,8 +32121,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.updateMany@1299",
-      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1299",
+      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.updateMany@1317",
+      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1317",
       "file": "services/api/src/routes/identity-security.routes.ts",
       "enclosingDeclaration": "identitySecurityRoutes",
       "kind": "DATABASE",
@@ -32154,8 +32154,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.updateMany@1445",
-      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1445",
+      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.updateMany@1463",
+      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1463",
       "file": "services/api/src/routes/identity-security.routes.ts",
       "enclosingDeclaration": "identitySecurityRoutes",
       "kind": "DATABASE",
@@ -32187,8 +32187,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-security.routes.ts#stepUpChallenge.updateMany@1093",
-      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1093",
+      "writerId": "services/api/src/routes/identity-security.routes.ts#stepUpChallenge.updateMany@1111",
+      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1111",
       "file": "services/api/src/routes/identity-security.routes.ts",
       "enclosingDeclaration": "identitySecurityRoutes",
       "kind": "DATABASE",
@@ -32220,8 +32220,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-security.routes.ts#trustedDevice.updateMany@1102",
-      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1102",
+      "writerId": "services/api/src/routes/identity-security.routes.ts#trustedDevice.updateMany@1120",
+      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1120",
       "file": "services/api/src/routes/identity-security.routes.ts",
       "enclosingDeclaration": "identitySecurityRoutes",
       "kind": "DATABASE",
@@ -36385,8 +36385,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.update@801",
-      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:801",
+      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.update@816",
+      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:816",
       "file": "services/api/src/services/access-control/session-inventory.service.ts",
       "enclosingDeclaration": "sweepStaleSessions",
       "kind": "DATABASE",
@@ -37394,8 +37394,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/suspicious-session.service.ts#authenticatedSession.update@258",
-      "terminalLocation": "services/api/src/services/access-control/suspicious-session.service.ts:258",
+      "writerId": "services/api/src/services/access-control/suspicious-session.service.ts#authenticatedSession.update@129",
+      "terminalLocation": "services/api/src/services/access-control/suspicious-session.service.ts:129",
       "file": "services/api/src/services/access-control/suspicious-session.service.ts",
       "enclosingDeclaration": "detectAndScoreSession",
       "kind": "DATABASE",
@@ -62535,8 +62535,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.create@585",
-      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:585",
+      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.create@593",
+      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:593",
       "file": "services/api/src/services/identity-security/step-up.service.ts",
       "enclosingDeclaration": "startLadderChallenge",
       "kind": "DATABASE",
@@ -62568,8 +62568,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.update@1039",
-      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1039",
+      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.update@1052",
+      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1052",
       "file": "services/api/src/services/identity-security/step-up.service.ts",
       "enclosingDeclaration": "consumeApprovedChallenge",
       "kind": "DATABASE",
@@ -62665,6 +62665,7 @@
         "POST /v1/identity-security/devices/trust",
         "POST /v1/identity-security/passkeys/registration/options",
         "POST /v1/identity-security/reconcile",
+        "POST /v1/identity-security/sessions/revoke",
         "POST /v1/identity-security/sessions/revoke-all",
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/contributor-sessions/:id/revoke",
@@ -62805,8 +62806,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.update@756",
-      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:756",
+      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.update@764",
+      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:764",
       "file": "services/api/src/services/identity-security/step-up.service.ts",
       "enclosingDeclaration": "checkStepUpChallenge",
       "kind": "DATABASE",
@@ -62838,8 +62839,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1088",
-      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1088",
+      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1101",
+      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1101",
       "file": "services/api/src/services/identity-security/step-up.service.ts",
       "enclosingDeclaration": "consumeApprovedChallenge",
       "kind": "DATABASE",
@@ -62935,6 +62936,7 @@
         "POST /v1/identity-security/devices/trust",
         "POST /v1/identity-security/passkeys/registration/options",
         "POST /v1/identity-security/reconcile",
+        "POST /v1/identity-security/sessions/revoke",
         "POST /v1/identity-security/sessions/revoke-all",
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/contributor-sessions/:id/revoke",
@@ -63075,8 +63077,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1121",
-      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1121",
+      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1134",
+      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1134",
       "file": "services/api/src/services/identity-security/step-up.service.ts",
       "enclosingDeclaration": "answerPasskeyChallenge",
       "kind": "DATABASE",
@@ -63109,8 +63111,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1157",
-      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1157",
+      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1170",
+      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1170",
       "file": "services/api/src/services/identity-security/step-up.service.ts",
       "enclosingDeclaration": "markLadderChallengeApproved",
       "kind": "DATABASE",
@@ -63147,8 +63149,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1247",
-      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1247",
+      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1260",
+      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1260",
       "file": "services/api/src/services/identity-security/step-up.service.ts",
       "enclosingDeclaration": "beginIdpHandoff",
       "kind": "DATABASE",
@@ -63180,8 +63182,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1325",
-      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1325",
+      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1338",
+      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1338",
       "file": "services/api/src/services/identity-security/step-up.service.ts",
       "enclosingDeclaration": "cancelOutstandingStepUpChallenges",
       "kind": "DATABASE",
@@ -63229,8 +63231,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1508",
-      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1508",
+      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1529",
+      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1529",
       "file": "services/api/src/services/identity-security/step-up.service.ts",
       "enclosingDeclaration": "recordStepUpDenial",
       "kind": "DATABASE",
@@ -63263,8 +63265,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@789",
-      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:789",
+      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@797",
+      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:797",
       "file": "services/api/src/services/identity-security/step-up.service.ts",
       "enclosingDeclaration": "checkStepUpChallenge",
       "kind": "DATABASE",
@@ -63296,8 +63298,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@862",
-      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:862",
+      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@875",
+      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:875",
       "file": "services/api/src/services/identity-security/step-up.service.ts",
       "enclosingDeclaration": "checkStepUpChallenge",
       "kind": "DATABASE",
@@ -135211,7 +135213,7 @@
       "method": "GET",
       "path": "/v1/identity-security/devices",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:599",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:617",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -135284,7 +135286,7 @@
       "method": "GET",
       "path": "/v1/identity-security/mfa-policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:752",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:770",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -135348,7 +135350,7 @@
       "method": "GET",
       "path": "/v1/identity-security/my-sessions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1331",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1349",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -135472,7 +135474,7 @@
       "method": "GET",
       "path": "/v1/identity-security/risk/me",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:864",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:882",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -135529,7 +135531,7 @@
       "method": "GET",
       "path": "/v1/identity-security/risk/user/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:886",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:904",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/routes/graph.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -135593,7 +135595,7 @@
       "method": "GET",
       "path": "/v1/identity-security/security-events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1549",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1567",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -135651,7 +135653,7 @@
       "method": "GET",
       "path": "/v1/identity-security/session-policy-impact",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:940",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:958",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/routes/graph.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -135714,7 +135716,7 @@
       "method": "GET",
       "path": "/v1/identity-security/sessions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:573",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:591",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -182819,7 +182821,7 @@
       "method": "POST",
       "path": "/v1/identity-security/devices/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:723",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:741",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -182886,7 +182888,7 @@
       "method": "POST",
       "path": "/v1/identity-security/devices/trust",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:657",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:675",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/routes/graph.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -182961,7 +182963,7 @@
       "method": "POST",
       "path": "/v1/identity-security/my-sessions/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1473",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1491",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -183031,7 +183033,7 @@
       "method": "POST",
       "path": "/v1/identity-security/my-sessions/revoke-others",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1381",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1399",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -183226,7 +183228,7 @@
       "method": "POST",
       "path": "/v1/identity-security/password",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1164",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1182",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -183296,7 +183298,7 @@
       "method": "POST",
       "path": "/v1/identity-security/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1049",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1067",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
@@ -183410,11 +183412,14 @@
         "enterpriseContract",
         "entitlement",
         "externalIdentityMapping",
+        "mfaFactor",
         "organization",
         "organizationSecurityPolicy",
         "planGrant",
         "revokedSession",
+        "riskSignal",
         "ssoConnection",
+        "stepUpChallenge",
         "subscription",
         "team",
         "teamMember",
@@ -183424,7 +183429,8 @@
       "modelsWritten": [
         "authenticatedSession",
         "entitlement",
-        "revokedSession"
+        "revokedSession",
+        "stepUpChallenge"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
@@ -183432,7 +183438,9 @@
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate"
+        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
+        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -183447,7 +183455,7 @@
       "method": "POST",
       "path": "/v1/identity-security/sessions/revoke-all",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:530",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:548",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -208450,7 +208458,7 @@
       "method": "PUT",
       "path": "/v1/identity-security/mfa-policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:796",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:814",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
