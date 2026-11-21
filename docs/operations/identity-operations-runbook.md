@@ -126,6 +126,54 @@ Closed in P1.1 (shipped surfaces in parentheses):
 
 Operators should NOT assume the remaining item is coming on a fixed schedule; raise procurement requests if needed.
 
+## 4b. Scheduled identity runtime enforcement (PRO-W2C2-02), dormant
+
+**Status: shipped switched off. Nothing in this section has run in Production.** Turning it on is a Production configuration change that needs its own owner approval. Deploying a release does not approve it.
+
+### What runs today, with no switch
+
+The worker's `identity-runtime-reconcile` sweep (`services/worker/src/api-delivery-sweeps.ts`) runs every 5 minutes under the cron lock `api-delivery-identity-runtime-reconcile`. It calls `POST /v1/admin/identity/runtime/reconcile` with the identity reconcile secret and no `teamId`, and the API runs `runScheduledIdentityRuntimeSweep` across every workspace that has live sessions or active trusted devices. These legs remove no access:
+
+- quarantine auto-release, at the release time already recorded;
+- risk recompute, which writes scores and emits events but does not quarantine;
+- stale-session detection, which feeds the gauge and revokes nothing;
+- geo-cache expiry and stale SSO callback attempts.
+
+The sweep needs `API_DELIVERY_SWEEPS_ENABLED` (default on) on the worker, the same secret on both services (`IDENTITY_RECONCILE_CRON_SECRET`, or `INTEGRATION_CRON_SECRET` as the fallback), and the internal API base URL. If any of these is missing, the worker logs `api_delivery_sweep.not_configured` on every tick.
+
+### What `IDENTITY_RUNTIME_SCHEDULED_ENFORCEMENT=true` adds (API service)
+
+| Leg | Effect | Scope |
+|---|---|---|
+| Auto-quarantine | A session the scorer rates HIGH or CRITICAL (score 60 or more) that has no device binding and is not already quarantined is quarantined with `SUSPICIOUS_SESSION_AUTO` | Only sessions of identities the workspace governs (DEC-08, `sessionsOfWorkspaceWhere`) |
+| Trusted-device decay | Each run adds `2 × (days unseen − 14)` to the device's decay. At 70 or more the device is quarantined; at 100 it is revoked (`TRUST_DECAY_AUTO_INVALIDATED`) | The workspace's own trusted devices |
+| Idle revocation | A session idle past the organization's configured `idleTimeoutSeconds` is revoked (`RECONCILIATION_SWEEP`). The 30-minute operator default is never used on the schedule | Only organization workspaces whose policy sets a timeout, and only sessions of identities the workspace governs. An independent member's session is never revoked, because it is account-global (DEC-08) |
+
+**Decay compounds.** Before this switch, decay ran only when an operator pressed "reconcile". On the schedule it runs 288 times a day, so any active trusted device unseen for more than 15 days reaches 100 and is revoked within about 4 hours of activation. The preview reports this per device as `sweepsUntilRevoked` and `minutesUntilRevoked`, and in total as `devicesRevokedWithin24h`.
+
+**Still not switch-gated:** a machine call that names a `teamId` runs that workspace's risk recompute (with auto-quarantine) and decay whatever the switch says. That is the pre-existing per-workspace integration path. The worker never sends a `teamId`.
+
+### Preview (read-only)
+
+Run this as a one-off container of the deployed API image, with the switch still off:
+
+```bash
+node dist/scripts/identity-runtime-enforcement-preview.js
+```
+
+- It decides with the sweep's own rules: the scorer's signal collector (`collectSessionRiskSignals`), `computeTrustDecay`, `isSessionStale`, the configured idle timeout and the governed-identity set. It writes nothing: no score, cursor, event or metric. Postgres holds its connection read-only, and the script refuses to run otherwise. `free-audit-g2-identity.integration.test.ts` runs the preview inside a `READ ONLY` transaction and checks that no row changed.
+- Output: one JSON line per affected session or device. Each line has workspace, session or device ids, scores and decay values. It never includes a name, email, user id, IP or device hash. A summary line gives the totals.
+- Exit 0: complete. Exit 3: the scan hit its bounds (`truncated`), so the totals are a lower bound. Exit 2: the run failed; do not rely on it.
+
+### Evidence required before activation
+
+1. **The scheduler is live in Production.** Worker logs show `api_delivery_sweep.scheduler.started` with `identity-runtime-reconcile` in its list. There are no `api_delivery_sweep.not_configured` or `api_delivery_sweep.failed` lines for that sweep over at least 24 hours, and API responses report `scope: "all_workspaces"`, `enforcement: false` and `failedTeams: 0`. The API logs show no `identity.runtime.scheduled_sweep.incomplete` lines, or every one is explained.
+2. **A preview from the deployed image,** taken within 24 hours of the change, exit 0, attached to the approval along with its totals.
+3. **Owner sign-off on each total.** This covers `sessionsToQuarantine`, `devicesRevokedWithin24h` (the decay compounding above), and `idleSessionsToRevoke` by workspace. If `devicesRevokedWithin24h` is not acceptable, activation waits for a separate decision on decay cadence. That is not a reason to switch on anyway.
+4. **The affected organizations have been told.** Each organization with a configured idle timeout, or with stale trusted devices that would be revoked, has been notified.
+5. **A rollback plan:** unset the variable and restart the API. Quarantines already applied are released through the existing release flow (or at their release time). Revoked sessions and devices are not restored; those people sign in again or re-trust the device.
+6. **Watch after the switch.** For the first 24 hours, track `escalatedToQuarantine`, `devicesAutoInvalidated` and `staleSessionsRevoked` in the sweep responses, along with `runtime_risk_recompute_failed_total` and support contacts about unexpected sign-outs. Compare the first day's counts with the preview totals.
+
 ## 5. Cross-doc reference
 
 - [SAML Admin Guide](../security/saml-admin-guide.md)

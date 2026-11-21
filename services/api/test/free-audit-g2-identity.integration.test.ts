@@ -47,6 +47,7 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
   let mfaSvc: typeof import("../src/services/security/mfa.service.js");
   let recovery: typeof import("../src/services/security/mfa-recovery.js");
   let rateLimit: typeof import("../src/services/rate-limit.js");
+  let scheduled: typeof import("../src/services/access-control/identity-runtime-scheduled.service.js");
   let hashSessionId: (sid: string) => string;
   let ceremony: ReturnType<typeof import("./support/step-up-ceremony.js").createStepUpCeremony>;
   let cronHeader: string;
@@ -120,6 +121,7 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
     mfaSvc = await import("../src/services/security/mfa.service.js");
     recovery = await import("../src/services/security/mfa-recovery.js");
     rateLimit = await import("../src/services/rate-limit.js");
+    scheduled = await import("../src/services/access-control/identity-runtime-scheduled.service.js");
     ({ hashSessionId } = await import("../src/services/identity-security/session-revocation.service.js"));
     ({ REVIEWER_OPS_CRON_HEADER: cronHeader } = await import("../src/middleware/cron-secret.js"));
     const { createStepUpCeremony } = await import("./support/step-up-ceremony.js");
@@ -1455,7 +1457,7 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
       await prisma.trustedDevice.delete({ where: { id: device.id } });
     });
 
-    it("with enforcement on: idle sessions are revoked only where the organization configured an idle timeout, at that value; stale devices decay", async () => {
+    it("with enforcement on: idle sessions of identities the organization governs are revoked only where it configured an idle timeout, at that value; a self-serve member's idle session is kept (DEC-08); stale devices decay", async () => {
       const B = h.fixtures.teamB;
       const orgB = (await prisma.team.findUniqueOrThrow({ where: { id: B.teamId }, select: { organizationId: true } })).organizationId;
       const policy = await prisma.organizationSecurityPolicy.findFirst({ where: { organizationId: orgId }, select: { id: true, idleTimeoutSeconds: true } });
@@ -1467,8 +1469,14 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
         await prisma.organizationSecurityPolicy.updateMany({ where: { organizationId: orgB }, data: { idleTimeoutSeconds: null } });
       }
 
-      const idlePastPolicy = await session(A().teamId, A().viewerUserId);
-      const idleWithinPolicy = await session(A().teamId, A().viewerUserId, { lastSeenAtUtc: new Date(Date.now() - 40 * 60 * 1000) });
+      // DEC-08 — only an identity the Organization governs loses a session to
+      // the schedule; an independent member's session is account-global.
+      const governed = await person("g2-wssched-gov", { role: "MEMBER" });
+      await directoryIdentity(governed.userId, "g2-wssched-gov");
+      const selfServe = await person("g2-wssched-self", { role: "MEMBER" });
+      const idlePastPolicy = await session(A().teamId, governed.userId);
+      const idleWithinPolicy = await session(A().teamId, governed.userId, { lastSeenAtUtc: new Date(Date.now() - 40 * 60 * 1000) });
+      const idleSelfServe = await session(A().teamId, selfServe.userId);
       const idleNoPolicy = orgB && orgB !== orgId ? await session(B.teamId, B.ownerUserId) : null;
       const device = await prisma.trustedDevice.create({
         data: {
@@ -1491,6 +1499,8 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
         // 40 minutes idle is past the operator sweep's 30-minute default but
         // inside the hour this organization configured.
         expect((await read(idleWithinPolicy.id)).revokedAtUtc).toBeNull();
+        expect((await read(idleSelfServe.id)).revokedAtUtc).toBeNull();
+        expect(await prisma.revokedSession.count({ where: { userId: selfServe.userId } })).toBe(0);
         if (idleNoPolicy) expect((await read(idleNoPolicy.id)).revokedAtUtc).toBeNull();
         const after = await prisma.trustedDevice.findUniqueOrThrow({ where: { id: device.id }, select: { trustScoreDecay: true, status: true } });
         expect(after.trustScoreDecay > 0 || after.status === "REVOKED").toBe(true);
@@ -1513,6 +1523,141 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
       // No secret and no session: the fleet mode is not reachable.
       const anon = await call("POST", "/v1/admin/identity/runtime/reconcile", null, {});
       expect(anon.statusCode).toBe(401);
+    });
+
+    /**
+     * A governed member's session the real scorer rates HIGH (70): it carries
+     * no device hash although the person has signed in from a bound device
+     * (UNKNOWN_DEVICE_ANOMALY, 30) and its IP differs from that recent session
+     * (HIGH_RISK_IP_SHIFT, 40). Fewer than three concurrent sessions, no
+     * country: nothing else fires, so the level is HIGH, not CRITICAL.
+     */
+    async function highRiskSession(label: string) {
+      const g = await person(label, { role: "MEMBER" });
+      await directoryIdentity(g.userId, label);
+      const target = await session(A().teamId, g.userId, {
+        ipPreview: "203.0.113.0/24",
+        lastSeenAtUtc: new Date(),
+      });
+      const bound = await session(A().teamId, g.userId, {
+        ipPreview: "198.51.100.0/24",
+        deviceIdHash: createHash("sha256").update(randomUUID()).digest("hex"),
+        issuedAtUtc: new Date(Date.now() - 60 * 60 * 1000),
+        lastSeenAtUtc: new Date(),
+      });
+      return { g, target, bound };
+    }
+    const riskOf = (id: string) =>
+      prisma.authenticatedSession.findUniqueOrThrow({
+        where: { id },
+        select: { riskScore: true, quarantinedAtUtc: true, quarantineReason: true, lastRiskRecomputedAtUtc: true, revokedAtUtc: true },
+      });
+
+    it("a session the scorer rates HIGH is scored but NOT quarantined while enforcement is off; with enforcement on the same session is auto-quarantined within one sweep, and the device-bound one is not", async () => {
+      const { target, bound } = await highRiskSession("g2-wssched-high");
+
+      delete process.env.IDENTITY_RUNTIME_SCHEDULED_ENFORCEMENT;
+      const off = await sweepAll();
+      expect(off).toMatchObject({ scope: "all_workspaces", enforcement: false });
+      expect(off.totals.escalatedToQuarantine).toBe(0);
+      const scoredOff = await riskOf(target.id);
+      expect(scoredOff.riskScore).toBe(70);
+      expect(scoredOff.lastRiskRecomputedAtUtc).toBeInstanceOf(Date);
+      expect(scoredOff.quarantinedAtUtc).toBeNull();
+      expect(scoredOff.revokedAtUtc).toBeNull();
+
+      // Due again for re-scoring (the recompute window), then the switch on.
+      await prisma.authenticatedSession.updateMany({
+        where: { id: { in: [target.id, bound.id] } },
+        data: { lastRiskRecomputedAtUtc: null },
+      });
+      process.env.IDENTITY_RUNTIME_SCHEDULED_ENFORCEMENT = "true";
+      try {
+        const on = await sweepAll();
+        expect(on).toMatchObject({ scope: "all_workspaces", enforcement: true });
+        expect(on.totals.escalatedToQuarantine).toBeGreaterThanOrEqual(1);
+        const scoredOn = await riskOf(target.id);
+        expect(scoredOn.riskScore).toBe(70);
+        expect(scoredOn.quarantinedAtUtc).toBeInstanceOf(Date);
+        expect(scoredOn.quarantineReason).toBe("SUSPICIOUS_SESSION_AUTO");
+        expect(scoredOn.revokedAtUtc).toBeNull();
+        expect((await riskOf(bound.id)).quarantinedAtUtc).toBeNull();
+      } finally {
+        delete process.env.IDENTITY_RUNTIME_SCHEDULED_ENFORCEMENT;
+      }
+    });
+
+    it("the activation preview is READ-ONLY (it runs inside a read-only transaction) and lists exactly what the switch would do: the HIGH session, the governed idle session, the device decay; the self-serve idle session is counted as excluded", async () => {
+      const { target, bound } = await highRiskSession("g2-wssched-preview");
+      const governed = await person("g2-wssched-prev-gov", { role: "MEMBER" });
+      await directoryIdentity(governed.userId, "g2-wssched-prev-gov");
+      const selfServe = await person("g2-wssched-prev-self", { role: "MEMBER" });
+      const idleGoverned = await session(A().teamId, governed.userId, { deviceIdHash: createHash("sha256").update(randomUUID()).digest("hex") });
+      const idleSelfServe = await session(A().teamId, selfServe.userId);
+      const device = await prisma.trustedDevice.create({
+        data: {
+          teamId: A().teamId,
+          userId: governed.userId,
+          deviceIdHash: createHash("sha256").update(randomUUID()).digest("hex"),
+          uaPreview: "ws-sched-preview",
+          ipPreview: "203.0.113.0/24",
+          trustedUntilUtc: future(),
+          lastSeenAtUtc: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+        } as never,
+        select: { id: true, trustScoreDecay: true },
+      });
+      const policy = await prisma.organizationSecurityPolicy.findFirst({ where: { organizationId: orgId }, select: { id: true, idleTimeoutSeconds: true } });
+      const policyId = policy
+        ? policy.id
+        : (await prisma.organizationSecurityPolicy.create({ data: { organizationId: orgId } as never, select: { id: true } })).id;
+      await prisma.organizationSecurityPolicy.update({ where: { id: policyId }, data: { idleTimeoutSeconds: 3600 } });
+      const cursorBefore = await prisma.workerSweepCursor.findMany({ where: { key: "identity_runtime_reconcile_teams" } });
+      const snapshot = async () => ({
+        sessions: await prisma.authenticatedSession.findMany({
+          where: { id: { in: [target.id, bound.id, idleGoverned.id, idleSelfServe.id] } },
+          orderBy: { id: "asc" },
+          select: { id: true, riskScore: true, lastRiskRecomputedAtUtc: true, quarantinedAtUtc: true, revokedAtUtc: true },
+        }),
+        device: await prisma.trustedDevice.findUniqueOrThrow({
+          where: { id: device.id },
+          select: { status: true, trustScoreDecay: true, quarantinedAtUtc: true, revokedAtUtc: true },
+        }),
+        revoked: await prisma.revokedSession.count({ where: { userId: { in: [governed.userId, selfServe.userId] } } }),
+      });
+      const before = await snapshot();
+      try {
+        delete process.env.IDENTITY_RUNTIME_SCHEDULED_ENFORCEMENT;
+        const preview = await prisma.$transaction(
+          async (tx) => {
+            await tx.$executeRawUnsafe("SET TRANSACTION READ ONLY");
+            return scheduled.previewScheduledIdentityRuntimeEnforcement({}, tx as never);
+          },
+          { timeout: 120_000, maxWait: 10_000 },
+        );
+        expect(preview.enforcementCurrentlyOn).toBe(false);
+        const forTeam = preview.items.filter((i) => i.teamId === A().teamId);
+        expect(forTeam).toContainEqual(
+          expect.objectContaining({ action: "QUARANTINE_SESSION", sessionId: target.id, riskScore: 70, level: "HIGH" }),
+        );
+        // A device-bound session is never auto-quarantined.
+        expect(forTeam.some((i) => "sessionId" in i && i.sessionId === bound.id && i.action === "QUARANTINE_SESSION")).toBe(false);
+        expect(forTeam).toContainEqual(
+          expect.objectContaining({ action: "REVOKE_IDLE_SESSION", sessionId: idleGoverned.id, idleMinutesPolicy: 60 }),
+        );
+        expect(forTeam.some((i) => "sessionId" in i && i.sessionId === idleSelfServe.id)).toBe(false);
+        expect(preview.totals.idleSessionsExcludedSelfServe).toBeGreaterThanOrEqual(1);
+        // 30 days unseen, 14 stale: +32 per run, so revoked on the 4th run (15 minutes in).
+        expect(forTeam).toContainEqual(
+          expect.objectContaining({ action: "DECAY_DEVICE", deviceId: device.id, fromDecay: 0, toDecay: 32, sweepsUntilRevoked: 4, minutesUntilRevoked: 15 }),
+        );
+        expect(preview.totals.devicesRevokedWithin24h).toBeGreaterThanOrEqual(1);
+        // Nothing was written: not a score, a quarantine, a revocation, a decay or a cursor.
+        expect(await snapshot()).toEqual(before);
+        expect(await prisma.workerSweepCursor.findMany({ where: { key: "identity_runtime_reconcile_teams" } })).toEqual(cursorBefore);
+      } finally {
+        await prisma.organizationSecurityPolicy.update({ where: { id: policyId }, data: { idleTimeoutSeconds: policy?.idleTimeoutSeconds ?? null } });
+        await prisma.trustedDevice.deleteMany({ where: { id: device.id } });
+      }
     });
   });
 
