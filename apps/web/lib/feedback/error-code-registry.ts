@@ -112,6 +112,27 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     disposition: "internal",
     why: "GOV-012 — the legal-hold disclosure setting is changed only through the governance settings API by the workspace owner; no web page sends it, so a person never sees this refusal in the UI.",
   },
+  // The trash restore of a never-sealed capture (and MATRIX-M626's owner
+  // approval) refuse with this; shared copy in user-facing-errors.
+  EVIDENCE_NOT_SEALED: { disposition: "customer", where: "global" },
+  // MATRIX-M626 (decision I) — refusals of POST /v1/evidence/:id/owner-destruction-approval.
+  DESTRUCTION_REVIEW_REQUIRED: {
+    disposition: "internal",
+    why: "MATRIX-M626 — sent only by the record owner's destruction-approval route, which has no web or native caller yet (API-only; the web control is a recorded follow-up in docs/architecture/caller-less-routes.md).",
+  },
+  EVIDENCE_NOT_IN_TRASH: {
+    disposition: "internal",
+    why: "MATRIX-M626 — sent only by the owner destruction-approval route, which has no web or native caller yet.",
+  },
+  EVIDENCE_ALREADY_DESTROYED: {
+    disposition: "internal",
+    why: "MATRIX-M626 — sent only by the owner destruction-approval route, which has no web or native caller yet.",
+  },
+  // NEW-RG-19-1 (decision G) — POST /v1/evidence-requests/:id/recipient-contact.
+  REVEAL_VIA_INTAKE_LINK: {
+    disposition: "internal",
+    why: "NEW-RG-19-1 — sent only by the evidence-request contact reveal route, which has no web or native caller yet; the web reveals an intake-link request's contact on the intake link's own route.",
+  },
   SUPPRESSION_REASON_REQUIRED: {
     disposition: "internal",
     why: "OPS-030 — the Operations drawer and bulk toolbar ask for the reason and keep the control disabled until one is given, so a person never sends a suppression without it.",

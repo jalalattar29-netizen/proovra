@@ -57,6 +57,16 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
    * and paging critical; each now has a code and a sentence that says what to
    * do instead.
    */
+  /**
+   * A capture that was never sealed: restoring it from trash (evidence
+   * lifecycle) and approving its permanent deletion (MATRIX-M626) are both
+   * refused, because an abandoned upload has its own removal schedule.
+   */
+  EVIDENCE_NOT_SEALED: {
+    title: "This upload was never completed",
+    message: "This capture was never sealed, so this action isn't available for it. Capture the material again to create a new record.",
+    severity: "warning",
+  },
   EVIDENCE_RELATIONSHIP_SELF_LINK: {
     title: "Choose a different record",
     message: "A record can't be linked to itself. Enter a different evidence record ID.",
