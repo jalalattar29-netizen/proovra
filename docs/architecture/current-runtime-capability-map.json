@@ -5,19 +5,19 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "b5ce24784f6b6f0f682626bce7a399383d76c0f76601609ca55f11f14030e5e7",
-  "consumerInventoryHash": "4cb645ad6c4da3de842e6e84594dfd178e4d32ccaccf0691a888bbe59fe6f668",
-  "dispositionsHash": "acd2f7538981c463d88697c6258219fe41e4ac7080ba2e0c8aeb9686a69b7cd6",
+  "consumerInventoryHash": "d41e0969c6f2f4c6214e4da63bedda10528e25dba66c3e08677dcb9b5426356d",
+  "dispositionsHash": "3acfbd41d28268e2af352855cdbd24a5390deb0b7d976371e3dfb97452f6f49f",
   "totals": {
     "RegisteredRoutes": 1271,
     "ProductionRegisteredRoutes": 1270,
     "DevelopmentOnlyRoutes": 1,
-    "ProductConsumedRoutes": 1043,
-    "NonProductDispositionedRoutes": 198,
-    "UndisposedRoutes": 29,
+    "ProductConsumedRoutes": 1053,
+    "NonProductDispositionedRoutes": 192,
+    "UndisposedRoutes": 25,
     "ConservationIdentityHolds": true,
-    "ProductConsumerRoutes": 1043,
+    "ProductConsumerRoutes": 1053,
     "MachineOnlyConsumerRoutes": 7,
-    "NoConsumerRoutes": 221,
+    "NoConsumerRoutes": 211,
     "AuthorizationUnresolved": 0,
     "PublicUnguardedRoutes": 43,
     "DynamicUnresolvedRouteRegistrations": 0,
@@ -54,7 +54,7 @@
       "INTENTIONALLY_BACKEND_ONLY": 22,
       "DEAD_REMOVE": 0,
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
-      "MISSING_PRODUCT_UI_POST_RELEASE": 25
+      "MISSING_PRODUCT_UI_POST_RELEASE": 19
     },
     "TerminalWriters": 1712,
     "ReachableSensitiveMutations": 1679,
@@ -133,8 +133,8 @@
     "PreservationEntriesUnmatched": 0,
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
-      "UNDISPOSED": 29,
-      "PRODUCT_CONNECTED": 1048,
+      "UNDISPOSED": 25,
+      "PRODUCT_CONNECTED": 1058,
       "EXTERNAL_API": 19,
       "MACHINE_OR_CRON": 22,
       "WEBHOOK": 4,
@@ -143,7 +143,7 @@
       "INTENTIONALLY_BACKEND_ONLY": 24,
       "DEAD_REMOVE": 0,
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
-      "MISSING_PRODUCT_UI_POST_RELEASE": 25
+      "MISSING_PRODUCT_UI_POST_RELEASE": 19
     },
     "MandateDispositionConservationHolds": true,
     "TenantBindingResolved": 1269,
@@ -242,10 +242,10 @@
   },
   "totalRoutes": 1271,
   "classificationCounts": {
-    "BACKEND_ONLY_UNWIRED": 29,
+    "BACKEND_ONLY_UNWIRED": 25,
     "COMPATIBILITY_TEMPORARY": 15,
-    "INTERNAL_REQUIRED": 184,
-    "TARGET_COMPLETE": 1043
+    "INTERNAL_REQUIRED": 178,
+    "TARGET_COMPLETE": 1053
   },
   "evidenceLevelCounts": {
     "BEHAVIORALLY_PROVEN": 405,
@@ -328,7 +328,7 @@
       "method": "DELETE",
       "route": "/v1/cases/:id/assignments/:assignmentId",
       "registeringFile": "services/api/src/routes/case-workspace.routes.ts",
-      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:2056",
+      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:2063",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2116,7 +2116,7 @@
       "method": "GET",
       "route": "/v1/cases/:id/discussion-threads",
       "registeringFile": "services/api/src/routes/case-workspace.routes.ts",
-      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:1807",
+      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:1814",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2128,7 +2128,7 @@
       "method": "GET",
       "route": "/v1/cases/:id/evidence-requests",
       "registeringFile": "services/api/src/routes/case-workspace.routes.ts",
-      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:1285",
+      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:1292",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2200,7 +2200,7 @@
       "method": "GET",
       "route": "/v1/cases/:id/siu-export/preflight",
       "registeringFile": "services/api/src/routes/siu.routes.ts",
-      "productConsumer": "apps/web/app/(app)/cases/components/SiuPanel.tsx:277",
+      "productConsumer": "apps/web/app/(app)/cases/components/SiuPanel.tsx:307",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2212,7 +2212,7 @@
       "method": "GET",
       "route": "/v1/cases/:id/siu-exports",
       "registeringFile": "services/api/src/routes/siu.routes.ts",
-      "productConsumer": "apps/web/app/(app)/cases/components/SiuPanel.tsx:240",
+      "productConsumer": "apps/web/app/(app)/cases/components/SiuPanel.tsx:270",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2224,7 +2224,7 @@
       "method": "GET",
       "route": "/v1/cases/:id/siu-exports/:exportId/download",
       "registeringFile": "services/api/src/routes/siu.routes.ts",
-      "productConsumer": "apps/web/app/(app)/cases/components/SiuPanel.tsx:402",
+      "productConsumer": "apps/web/app/(app)/cases/components/SiuPanel.tsx:432",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2236,7 +2236,7 @@
       "method": "GET",
       "route": "/v1/cases/:id/siu-profile",
       "registeringFile": "services/api/src/routes/siu.routes.ts",
-      "productConsumer": "apps/web/app/(app)/cases/components/SiuPanel.tsx:199",
+      "productConsumer": "apps/web/app/(app)/cases/components/SiuPanel.tsx:227",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -5452,10 +5452,10 @@
       "method": "GET",
       "route": "/v1/orgs/:id/data-export",
       "registeringFile": "services/api/src/routes/organizations.routes.ts",
-      "productConsumer": null,
+      "productConsumer": "apps/web/app/(app)/organizations/[id]/_components/OrgDataExportPanel.tsx:134",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
-      "classification": "BACKEND_ONLY_UNWIRED",
+      "classification": "TARGET_COMPLETE",
       "evidenceLevel": "UNPROVEN"
     },
     {
@@ -9364,7 +9364,7 @@
       "method": "POST",
       "route": "/v1/cases/:id/assignments",
       "registeringFile": "services/api/src/routes/case-workspace.routes.ts",
-      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:2026",
+      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:2033",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -9448,7 +9448,7 @@
       "method": "POST",
       "route": "/v1/cases/:id/siu-export",
       "registeringFile": "services/api/src/routes/siu.routes.ts",
-      "productConsumer": "apps/web/app/(app)/cases/components/SiuPanel.tsx:323",
+      "productConsumer": "apps/web/app/(app)/cases/components/SiuPanel.tsx:353",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -9460,10 +9460,10 @@
       "method": "POST",
       "route": "/v1/cases/:id/siu-profile/checklist/:itemId/map-evidence",
       "registeringFile": "services/api/src/routes/siu.routes.ts",
-      "productConsumer": null,
+      "productConsumer": "apps/web/app/(app)/cases/components/SiuReviewActions.tsx:227",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "INTERNAL_REQUIRED",
+      "classification": "TARGET_COMPLETE",
       "evidenceLevel": "UNPROVEN"
     },
     {
@@ -9472,10 +9472,10 @@
       "method": "POST",
       "route": "/v1/cases/:id/siu-profile/checklist/:itemId/status",
       "registeringFile": "services/api/src/routes/siu.routes.ts",
-      "productConsumer": null,
+      "productConsumer": "apps/web/app/(app)/cases/components/SiuReviewActions.tsx:186",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "INTERNAL_REQUIRED",
+      "classification": "TARGET_COMPLETE",
       "evidenceLevel": "UNPROVEN"
     },
     {
@@ -9484,10 +9484,10 @@
       "method": "POST",
       "route": "/v1/cases/:id/siu-profile/follow-ups",
       "registeringFile": "services/api/src/routes/siu.routes.ts",
-      "productConsumer": null,
+      "productConsumer": "apps/web/app/(app)/cases/components/SiuReviewActions.tsx:312",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "INTERNAL_REQUIRED",
+      "classification": "TARGET_COMPLETE",
       "evidenceLevel": "UNPROVEN"
     },
     {
@@ -9496,10 +9496,10 @@
       "method": "POST",
       "route": "/v1/cases/:id/siu-profile/follow-ups/:followUpId/status",
       "registeringFile": "services/api/src/routes/siu.routes.ts",
-      "productConsumer": null,
+      "productConsumer": "apps/web/app/(app)/cases/components/SiuReviewActions.tsx:409",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "INTERNAL_REQUIRED",
+      "classification": "TARGET_COMPLETE",
       "evidenceLevel": "UNPROVEN"
     },
     {
@@ -9508,10 +9508,10 @@
       "method": "POST",
       "route": "/v1/cases/:id/siu-profile/indicators",
       "registeringFile": "services/api/src/routes/siu.routes.ts",
-      "productConsumer": null,
+      "productConsumer": "apps/web/app/(app)/cases/components/SiuReviewActions.tsx:268",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "INTERNAL_REQUIRED",
+      "classification": "TARGET_COMPLETE",
       "evidenceLevel": "UNPROVEN"
     },
     {
@@ -9520,7 +9520,7 @@
       "method": "POST",
       "route": "/v1/cases/:id/siu-profile/reveal-pii",
       "registeringFile": "services/api/src/routes/siu.routes.ts",
-      "productConsumer": "apps/web/app/(app)/cases/components/SiuPanel.tsx:252",
+      "productConsumer": "apps/web/app/(app)/cases/components/SiuPanel.tsx:282",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -13396,10 +13396,10 @@
       "method": "POST",
       "route": "/v1/orgs/:id/data-export",
       "registeringFile": "services/api/src/routes/organizations.routes.ts",
-      "productConsumer": null,
+      "productConsumer": "apps/web/app/(app)/organizations/[id]/_components/OrgDataExportPanel.tsx:163",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
-      "classification": "BACKEND_ONLY_UNWIRED",
+      "classification": "TARGET_COMPLETE",
       "evidenceLevel": "UNPROVEN"
     },
     {
@@ -13408,10 +13408,10 @@
       "method": "POST",
       "route": "/v1/orgs/:id/data-export/:requestId/links",
       "registeringFile": "services/api/src/routes/organizations.routes.ts",
-      "productConsumer": null,
+      "productConsumer": "apps/web/app/(app)/organizations/[id]/_components/OrgDataExportPanel.tsx:225",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
-      "classification": "BACKEND_ONLY_UNWIRED",
+      "classification": "TARGET_COMPLETE",
       "evidenceLevel": "UNPROVEN"
     },
     {
@@ -13420,10 +13420,10 @@
       "method": "POST",
       "route": "/v1/orgs/:id/data-export/:requestId/manifest",
       "registeringFile": "services/api/src/routes/organizations.routes.ts",
-      "productConsumer": null,
+      "productConsumer": "apps/web/app/(app)/organizations/[id]/_components/OrgDataExportPanel.tsx:193",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
-      "classification": "BACKEND_ONLY_UNWIRED",
+      "classification": "TARGET_COMPLETE",
       "evidenceLevel": "UNPROVEN"
     },
     {
@@ -13576,10 +13576,10 @@
       "method": "POST",
       "route": "/v1/orgs/:id/policies/retention",
       "registeringFile": "services/api/src/routes/organizations-governance.routes.ts",
-      "productConsumer": null,
+      "productConsumer": "apps/web/app/(app)/organizations/[id]/admin/retention/page.tsx:303",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
-      "classification": "INTERNAL_REQUIRED",
+      "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -15400,7 +15400,7 @@
       "method": "PUT",
       "route": "/v1/cases/:id/siu-profile",
       "registeringFile": "services/api/src/routes/siu.routes.ts",
-      "productConsumer": "apps/web/app/(app)/cases/components/SiuPanel.tsx:185",
+      "productConsumer": "apps/web/app/(app)/cases/components/SiuPanel.tsx:213",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -114685,7 +114685,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
-          "line": 2056,
+          "line": 2063,
           "caller": "AssignmentsTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -114695,7 +114695,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:2056 (AssignmentsTab, WEB)",
+      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:2063 (AssignmentsTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -117307,7 +117307,7 @@
       "method": "DELETE",
       "path": "/v1/siu/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1228",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1340",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -124971,7 +124971,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
-          "line": 1807,
+          "line": 1814,
           "caller": "CommunicationsTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -124981,7 +124981,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:1807 (CommunicationsTab, WEB)",
+      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:1814 (CommunicationsTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -125032,7 +125032,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
-          "line": 1285,
+          "line": 1292,
           "caller": "EvidenceTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -125042,7 +125042,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:1285 (EvidenceTab, WEB)",
+      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:1292 (EvidenceTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -125490,7 +125490,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/siu-export/preflight",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:767",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:879",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -125501,7 +125501,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/cases/components/SiuPanel.tsx",
-          "line": 277,
+          "line": 307,
           "caller": "SiuPanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -125511,7 +125511,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/cases/components/SiuPanel.tsx:277 (SiuPanel, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/cases/components/SiuPanel.tsx:307 (SiuPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -125560,7 +125560,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/siu-exports",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:965",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1077",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -125571,7 +125571,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/cases/components/SiuPanel.tsx",
-          "line": 240,
+          "line": 270,
           "caller": "SiuPanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -125581,7 +125581,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/cases/components/SiuPanel.tsx:240 (SiuPanel, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/cases/components/SiuPanel.tsx:270 (SiuPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -125622,7 +125622,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/siu-exports/:exportId/download",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1306",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1418",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -125633,7 +125633,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/cases/components/SiuPanel.tsx",
-          "line": 402,
+          "line": 432,
           "caller": "SiuPanel",
           "class": "WEB",
           "primitive": "fetch",
@@ -125643,7 +125643,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/cases/components/SiuPanel.tsx:402 (SiuPanel, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/cases/components/SiuPanel.tsx:432 (SiuPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -125708,7 +125708,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/siu-profile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:466",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:575",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -125719,7 +125719,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/cases/components/SiuPanel.tsx",
-          "line": 199,
+          "line": 227,
           "caller": "SiuPanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -125729,7 +125729,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/cases/components/SiuPanel.tsx:199 (SiuPanel, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/cases/components/SiuPanel.tsx:227 (SiuPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -144716,7 +144716,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 334,
+          "line": 335,
           "caller": "OrganizationDetailInner",
           "class": "WEB",
           "primitive": "safeFetch",
@@ -144824,7 +144824,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 337,
+          "line": 338,
           "caller": "OrganizationDetailInner",
           "class": "WEB",
           "primitive": "safeFetch",
@@ -144870,7 +144870,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/billing/rollup",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations-governance.routes.ts:344",
+      "registrationEvidence": "services/api/src/routes/organizations-governance.routes.ts:351",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrgAdmin -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -144973,7 +144973,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 1377,
+          "line": 1387,
           "caller": "OrgLifecycleControls",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -144983,7 +144983,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:236 (OrganizationDetailScreen, MOBILE); apps/mobile/app/(stack)/organizations/[id].tsx:258 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1377 (OrgLifecycleControls, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:236 (OrganizationDetailScreen, MOBILE); apps/mobile/app/(stack)/organizations/[id].tsx:258 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1387 (OrgLifecycleControls, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -145037,14 +145037,23 @@
         "ORGANIZATION_GATED",
         "AUTHENTICATED"
       ],
-      "productConsumers": [],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/organizations/[id]/_components/OrgDataExportPanel.tsx",
+          "line": 134,
+          "caller": "OrgDataExportPanel",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
       "nonProductConsumers": [],
-      "primaryDisposition": null,
-      "dispositionSource": null,
-      "dispositionEvidence": null,
-      "dispositionReason": null,
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/_components/OrgDataExportPanel.tsx:134 (OrgDataExportPanel, WEB)",
+      "dispositionReason": "reached from a product surface",
       "replacement": null,
-      "result": "UNDISPOSED",
+      "result": "DISPOSED_PRODUCT_CONSUMED",
       "primarySecurityFamily": "ORGANIZATION_AUTHORIZED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "MULTI_GATE",
@@ -145076,7 +145085,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/governance/control-center",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations-governance.routes.ts:465",
+      "registrationEvidence": "services/api/src/routes/organizations-governance.routes.ts:472",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrgAdmin -> services/api/src/routes/org-notification-policy.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -145185,7 +145194,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 338,
+          "line": 339,
           "caller": "OrganizationDetailInner",
           "class": "WEB",
           "primitive": "safeFetch",
@@ -145333,7 +145342,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 335,
+          "line": 336,
           "caller": "OrganizationDetailInner",
           "class": "WEB",
           "primitive": "safeFetch",
@@ -145341,7 +145350,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 1345,
+          "line": 1355,
           "caller": "OrgLifecycleControls",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -145629,7 +145638,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/admin/retention/page.tsx",
-          "line": 75,
+          "line": 109,
           "caller": "RetentionTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -145639,7 +145648,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/admin/overview/page.tsx:217 (Overview, WEB); apps/web/app/(app)/organizations/[id]/admin/retention/page.tsx:75 (RetentionTab, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/admin/overview/page.tsx:217 (Overview, WEB); apps/web/app/(app)/organizations/[id]/admin/retention/page.tsx:109 (RetentionTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -146281,7 +146290,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 336,
+          "line": 337,
           "caller": "OrganizationDetailInner",
           "class": "WEB",
           "primitive": "safeFetch",
@@ -152815,7 +152824,7 @@
       "method": "GET",
       "path": "/v1/siu/intake-templates",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:378",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:487",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -152872,7 +152881,7 @@
       "method": "GET",
       "path": "/v1/siu/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1003",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1115",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -152930,7 +152939,7 @@
       "method": "GET",
       "path": "/v1/siu/saved-views/custom",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1130",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1242",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -152988,7 +152997,7 @@
       "method": "GET",
       "path": "/v1/siu/worklist",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:419",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:528",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -159556,7 +159565,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 405,
+          "line": 406,
           "caller": "OrganizationDetailInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -159582,7 +159591,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/org-settings.tsx:52 (save, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:405 (OrganizationDetailInner, WEB); apps/web/app/(app)/organizations/[id]/setup/page.tsx:453 (OrganizationSetupInner, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/org-settings.tsx:52 (save, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:406 (OrganizationDetailInner, WEB); apps/web/app/(app)/organizations/[id]/setup/page.tsx:453 (OrganizationSetupInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -160024,7 +160033,7 @@
       "method": "PATCH",
       "path": "/v1/siu/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1186",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1298",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -170731,7 +170740,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
-          "line": 2026,
+          "line": 2033,
           "caller": "AssignmentsTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -170741,7 +170750,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:2026 (AssignmentsTab, WEB)",
+      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:2033 (AssignmentsTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -171289,7 +171298,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/siu-export",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:806",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:918",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171300,7 +171309,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/cases/components/SiuPanel.tsx",
-          "line": 323,
+          "line": 353,
           "caller": "SiuPanel",
           "class": "WEB",
           "primitive": "fetch",
@@ -171310,7 +171319,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/cases/components/SiuPanel.tsx:323 (SiuPanel, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/cases/components/SiuPanel.tsx:353 (SiuPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -171377,7 +171386,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/siu-profile/checklist/:itemId/map-evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:557",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:669",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171385,14 +171394,23 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/cases/components/SiuReviewActions.tsx",
+          "line": 227,
+          "caller": "SiuChecklistItemEditor",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
       "nonProductConsumers": [],
-      "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "dispositionSource": "REVIEWED",
-      "dispositionEvidence": "reg services/api/src/routes/siu.routes.ts:338; apps/web/app/(app)/cases/components/SiuPanel.tsx wired calls: :170 apiFetch(`/v1/cases/${caseId}/siu-profile`) GET, :211 `/v1/cases/${caseId}/siu-exports`, :223 `/v1/cases/${caseId}/siu-profile/reveal-pii`, :246 `/v1/cases/${caseId}/siu-export/preflight`, :288 fetch(`${apiBaseUrl()}/v1/cases/${caseId}/siu-export`) — no write to any siu-profile sub-resource; apps/web/app/(app)/cases/components/SiuPanel.tsx:430 <table data-testid=\"siu-checklist\"> and :461 <ul data-testid=\"siu-indicators\"> render read-only rows; docs/verticals/insurance-siu.md documents the vertical",
-      "dispositionReason": "checklist evidence mapping has no control; the SIU vertical panel is read-only",
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/cases/components/SiuReviewActions.tsx:227 (SiuChecklistItemEditor, WEB)",
+      "dispositionReason": "reached from a product surface",
       "replacement": null,
-      "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
+      "result": "DISPOSED_PRODUCT_CONSUMED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -171439,7 +171457,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/siu-profile/checklist/:itemId/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:586",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:698",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171447,14 +171465,23 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/cases/components/SiuReviewActions.tsx",
+          "line": 186,
+          "caller": "SiuChecklistItemEditor",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
       "nonProductConsumers": [],
-      "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "dispositionSource": "REVIEWED",
-      "dispositionEvidence": "reg services/api/src/routes/siu.routes.ts:366; apps/web/app/(app)/cases/components/SiuPanel.tsx wired calls: :170 apiFetch(`/v1/cases/${caseId}/siu-profile`) GET, :211 `/v1/cases/${caseId}/siu-exports`, :223 `/v1/cases/${caseId}/siu-profile/reveal-pii`, :246 `/v1/cases/${caseId}/siu-export/preflight`, :288 fetch(`${apiBaseUrl()}/v1/cases/${caseId}/siu-export`) — no write to any siu-profile sub-resource; apps/web/app/(app)/cases/components/SiuPanel.tsx:430 <table data-testid=\"siu-checklist\"> and :461 <ul data-testid=\"siu-indicators\"> render read-only rows; docs/verticals/insurance-siu.md documents the vertical",
-      "dispositionReason": "checklist item status has no control; the SIU vertical panel is read-only",
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/cases/components/SiuReviewActions.tsx:186 (SiuChecklistItemEditor, WEB)",
+      "dispositionReason": "reached from a product surface",
       "replacement": null,
-      "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
+      "result": "DISPOSED_PRODUCT_CONSUMED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -171500,7 +171527,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/siu-profile/follow-ups",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:665",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:777",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171508,14 +171535,23 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/cases/components/SiuReviewActions.tsx",
+          "line": 312,
+          "caller": "SiuChecklistItemEditor",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
       "nonProductConsumers": [],
-      "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "dispositionSource": "REVIEWED",
-      "dispositionEvidence": "reg services/api/src/routes/siu.routes.ts:445; apps/web/app/(app)/cases/components/SiuPanel.tsx wired calls: :170 apiFetch(`/v1/cases/${caseId}/siu-profile`) GET, :211 `/v1/cases/${caseId}/siu-exports`, :223 `/v1/cases/${caseId}/siu-profile/reveal-pii`, :246 `/v1/cases/${caseId}/siu-export/preflight`, :288 fetch(`${apiBaseUrl()}/v1/cases/${caseId}/siu-export`) — no write to any siu-profile sub-resource; apps/web/app/(app)/cases/components/SiuPanel.tsx:430 <table data-testid=\"siu-checklist\"> and :461 <ul data-testid=\"siu-indicators\"> render read-only rows; docs/verticals/insurance-siu.md documents the vertical",
-      "dispositionReason": "follow-up request create has no control; the SIU vertical panel is read-only",
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/cases/components/SiuReviewActions.tsx:312 (SiuChecklistItemEditor, WEB)",
+      "dispositionReason": "reached from a product surface",
       "replacement": null,
-      "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
+      "result": "DISPOSED_PRODUCT_CONSUMED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -171558,7 +171594,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/siu-profile/follow-ups/:followUpId/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:714",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:826",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171566,14 +171602,23 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/cases/components/SiuReviewActions.tsx",
+          "line": 409,
+          "caller": "save",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
       "nonProductConsumers": [],
-      "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "dispositionSource": "REVIEWED",
-      "dispositionEvidence": "reg services/api/src/routes/siu.routes.ts:494; apps/web/app/(app)/cases/components/SiuPanel.tsx wired calls: :170 apiFetch(`/v1/cases/${caseId}/siu-profile`) GET, :211 `/v1/cases/${caseId}/siu-exports`, :223 `/v1/cases/${caseId}/siu-profile/reveal-pii`, :246 `/v1/cases/${caseId}/siu-export/preflight`, :288 fetch(`${apiBaseUrl()}/v1/cases/${caseId}/siu-export`) — no write to any siu-profile sub-resource; apps/web/app/(app)/cases/components/SiuPanel.tsx:430 <table data-testid=\"siu-checklist\"> and :461 <ul data-testid=\"siu-indicators\"> render read-only rows; docs/verticals/insurance-siu.md documents the vertical",
-      "dispositionReason": "follow-up status change has no control; the SIU vertical panel is read-only",
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/cases/components/SiuReviewActions.tsx:409 (save, WEB)",
+      "dispositionReason": "reached from a product surface",
       "replacement": null,
-      "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
+      "result": "DISPOSED_PRODUCT_CONSUMED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -171617,7 +171662,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/siu-profile/indicators",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:619",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:731",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171625,14 +171670,23 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/cases/components/SiuReviewActions.tsx",
+          "line": 268,
+          "caller": "SiuChecklistItemEditor",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
       "nonProductConsumers": [],
-      "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "dispositionSource": "REVIEWED",
-      "dispositionEvidence": "reg services/api/src/routes/siu.routes.ts:399; apps/web/app/(app)/cases/components/SiuPanel.tsx wired calls: :170 apiFetch(`/v1/cases/${caseId}/siu-profile`) GET, :211 `/v1/cases/${caseId}/siu-exports`, :223 `/v1/cases/${caseId}/siu-profile/reveal-pii`, :246 `/v1/cases/${caseId}/siu-export/preflight`, :288 fetch(`${apiBaseUrl()}/v1/cases/${caseId}/siu-export`) — no write to any siu-profile sub-resource; apps/web/app/(app)/cases/components/SiuPanel.tsx:430 <table data-testid=\"siu-checklist\"> and :461 <ul data-testid=\"siu-indicators\"> render read-only rows; docs/verticals/insurance-siu.md documents the vertical",
-      "dispositionReason": "review-indicator write has no control; the SIU vertical panel is read-only",
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/cases/components/SiuReviewActions.tsx:268 (SiuChecklistItemEditor, WEB)",
+      "dispositionReason": "reached from a product surface",
       "replacement": null,
-      "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
+      "result": "DISPOSED_PRODUCT_CONSUMED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -171678,7 +171732,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/siu-profile/reveal-pii",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1035",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1147",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171689,7 +171743,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/cases/components/SiuPanel.tsx",
-          "line": 252,
+          "line": 282,
           "caller": "SiuPanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -171699,7 +171753,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/cases/components/SiuPanel.tsx:252 (SiuPanel, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/cases/components/SiuPanel.tsx:282 (SiuPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -196603,7 +196657,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 1455,
+          "line": 1465,
           "caller": "OrgLifecycleControls",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -196613,7 +196667,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:329 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1455 (OrgLifecycleControls, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:329 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1465 (OrgLifecycleControls, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -196692,7 +196746,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 1502,
+          "line": 1512,
           "caller": "OrgLifecycleControls",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -196702,7 +196756,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:351 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1502 (OrgLifecycleControls, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:351 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1512 (OrgLifecycleControls, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -196755,14 +196809,23 @@
         "ORGANIZATION_GATED",
         "AUTHENTICATED"
       ],
-      "productConsumers": [],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/organizations/[id]/_components/OrgDataExportPanel.tsx",
+          "line": 163,
+          "caller": "OrgDataExportPanel",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
       "nonProductConsumers": [],
-      "primaryDisposition": null,
-      "dispositionSource": null,
-      "dispositionEvidence": null,
-      "dispositionReason": null,
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/_components/OrgDataExportPanel.tsx:163 (OrgDataExportPanel, WEB)",
+      "dispositionReason": "reached from a product surface",
       "replacement": null,
-      "result": "UNDISPOSED",
+      "result": "DISPOSED_PRODUCT_CONSUMED",
       "primarySecurityFamily": "ORGANIZATION_AUTHORIZED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "MULTI_GATE",
@@ -196816,14 +196879,23 @@
         "ORGANIZATION_GATED",
         "AUTHENTICATED"
       ],
-      "productConsumers": [],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/organizations/[id]/_components/OrgDataExportPanel.tsx",
+          "line": 225,
+          "caller": "OrgDataExportPanel",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
       "nonProductConsumers": [],
-      "primaryDisposition": null,
-      "dispositionSource": null,
-      "dispositionEvidence": null,
-      "dispositionReason": null,
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/_components/OrgDataExportPanel.tsx:225 (OrgDataExportPanel, WEB)",
+      "dispositionReason": "reached from a product surface",
       "replacement": null,
-      "result": "UNDISPOSED",
+      "result": "DISPOSED_PRODUCT_CONSUMED",
       "primarySecurityFamily": "ORGANIZATION_AUTHORIZED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "MULTI_GATE",
@@ -196886,14 +196958,23 @@
         "ORGANIZATION_GATED",
         "AUTHENTICATED"
       ],
-      "productConsumers": [],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/organizations/[id]/_components/OrgDataExportPanel.tsx",
+          "line": 193,
+          "caller": "OrgDataExportPanel",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
       "nonProductConsumers": [],
-      "primaryDisposition": null,
-      "dispositionSource": null,
-      "dispositionEvidence": null,
-      "dispositionReason": null,
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/_components/OrgDataExportPanel.tsx:193 (OrgDataExportPanel, WEB)",
+      "dispositionReason": "reached from a product surface",
       "replacement": null,
-      "result": "UNDISPOSED",
+      "result": "DISPOSED_PRODUCT_CONSUMED",
       "primarySecurityFamily": "ORGANIZATION_AUTHORIZED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "MULTI_GATE",
@@ -197438,7 +197519,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 466,
+          "line": 467,
           "caller": "OrganizationDetailInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -197448,7 +197529,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:281 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:466 (OrganizationDetailInner, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:281 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:467 (OrganizationDetailInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -198009,14 +198090,23 @@
         "ORGANIZATION_GATED",
         "AUTHENTICATED"
       ],
-      "productConsumers": [],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/organizations/[id]/admin/retention/page.tsx",
+          "line": 303,
+          "caller": "publish",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
       "nonProductConsumers": [],
-      "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "dispositionSource": "REVIEWED",
-      "dispositionEvidence": "reg services/api/src/routes/organizations-governance.routes.ts:124 app.post(\"/v1/orgs/:id/policies/retention\", { preHandler: [requireAuth, requireLegalAcceptance] }); reads only: apps/web/app/(app)/organizations/[id]/admin/retention/page.tsx:71 apiFetch(`/v1/orgs/${orgId}/policies/retention`), admin/overview/page.tsx:209 fetchOne(...), admin/reports/page.tsx:113 source: \"GET /v1/orgs/:id/policies/retention\"; admin/retention/page.tsx:9-10 \"Mutations happen on Evidence Lifecycle pages, not here\" and :134 empty state \"Publish a template from Evidence Lifecycle → Retention\" while apps/web only POSTs the workspace-scoped /v1/lifecycle/retention/policies",
-      "dispositionReason": "org retention template publish has no control; every org surface only reads the template",
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/admin/retention/page.tsx:303 (publish, WEB)",
+      "dispositionReason": "reached from a product surface",
       "replacement": null,
-      "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
+      "result": "DISPOSED_PRODUCT_CONSUMED",
       "primarySecurityFamily": "ORGANIZATION_AUTHORIZED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "MULTI_GATE",
@@ -198077,7 +198167,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 1407,
+          "line": 1417,
           "caller": "OrgLifecycleControls",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -198087,7 +198177,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:304 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1407 (OrgLifecycleControls, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:304 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1417 (OrgLifecycleControls, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -205853,7 +205943,7 @@
       "method": "POST",
       "path": "/v1/siu/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1152",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1264",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -205914,7 +206004,7 @@
       "method": "POST",
       "path": "/v1/siu/saved-views/:id/use",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1253",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1365",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -210259,7 +210349,7 @@
       "method": "PUT",
       "path": "/v1/cases/:id/siu-profile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:500",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:612",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -210270,7 +210360,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/cases/components/SiuPanel.tsx",
-          "line": 185,
+          "line": 213,
           "caller": "createProfile",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -210280,7 +210370,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/cases/components/SiuPanel.tsx:185 (createProfile, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/cases/components/SiuPanel.tsx:213 (createProfile, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

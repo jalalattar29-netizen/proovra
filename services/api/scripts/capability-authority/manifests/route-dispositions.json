@@ -584,41 +584,6 @@
       "replacement": "POST /v1/cases/:id/access"
     },
     {
-      "routeId": "POST /v1/cases/:id/siu-profile/checklist/:itemId/map-evidence",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "checklist evidence mapping has no control; the SIU vertical panel is read-only",
-      "evidence": "reg services/api/src/routes/siu.routes.ts:338; apps/web/app/(app)/cases/components/SiuPanel.tsx wired calls: :170 apiFetch(`/v1/cases/${caseId}/siu-profile`) GET, :211 `/v1/cases/${caseId}/siu-exports`, :223 `/v1/cases/${caseId}/siu-profile/reveal-pii`, :246 `/v1/cases/${caseId}/siu-export/preflight`, :288 fetch(`${apiBaseUrl()}/v1/cases/${caseId}/siu-export`) — no write to any siu-profile sub-resource; apps/web/app/(app)/cases/components/SiuPanel.tsx:430 <table data-testid=\"siu-checklist\"> and :461 <ul data-testid=\"siu-indicators\"> render read-only rows; docs/verticals/insurance-siu.md documents the vertical",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "POST /v1/cases/:id/siu-profile/checklist/:itemId/status",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "checklist item status has no control; the SIU vertical panel is read-only",
-      "evidence": "reg services/api/src/routes/siu.routes.ts:366; apps/web/app/(app)/cases/components/SiuPanel.tsx wired calls: :170 apiFetch(`/v1/cases/${caseId}/siu-profile`) GET, :211 `/v1/cases/${caseId}/siu-exports`, :223 `/v1/cases/${caseId}/siu-profile/reveal-pii`, :246 `/v1/cases/${caseId}/siu-export/preflight`, :288 fetch(`${apiBaseUrl()}/v1/cases/${caseId}/siu-export`) — no write to any siu-profile sub-resource; apps/web/app/(app)/cases/components/SiuPanel.tsx:430 <table data-testid=\"siu-checklist\"> and :461 <ul data-testid=\"siu-indicators\"> render read-only rows; docs/verticals/insurance-siu.md documents the vertical",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "POST /v1/cases/:id/siu-profile/follow-ups",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "follow-up request create has no control; the SIU vertical panel is read-only",
-      "evidence": "reg services/api/src/routes/siu.routes.ts:445; apps/web/app/(app)/cases/components/SiuPanel.tsx wired calls: :170 apiFetch(`/v1/cases/${caseId}/siu-profile`) GET, :211 `/v1/cases/${caseId}/siu-exports`, :223 `/v1/cases/${caseId}/siu-profile/reveal-pii`, :246 `/v1/cases/${caseId}/siu-export/preflight`, :288 fetch(`${apiBaseUrl()}/v1/cases/${caseId}/siu-export`) — no write to any siu-profile sub-resource; apps/web/app/(app)/cases/components/SiuPanel.tsx:430 <table data-testid=\"siu-checklist\"> and :461 <ul data-testid=\"siu-indicators\"> render read-only rows; docs/verticals/insurance-siu.md documents the vertical",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "POST /v1/cases/:id/siu-profile/follow-ups/:followUpId/status",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "follow-up status change has no control; the SIU vertical panel is read-only",
-      "evidence": "reg services/api/src/routes/siu.routes.ts:494; apps/web/app/(app)/cases/components/SiuPanel.tsx wired calls: :170 apiFetch(`/v1/cases/${caseId}/siu-profile`) GET, :211 `/v1/cases/${caseId}/siu-exports`, :223 `/v1/cases/${caseId}/siu-profile/reveal-pii`, :246 `/v1/cases/${caseId}/siu-export/preflight`, :288 fetch(`${apiBaseUrl()}/v1/cases/${caseId}/siu-export`) — no write to any siu-profile sub-resource; apps/web/app/(app)/cases/components/SiuPanel.tsx:430 <table data-testid=\"siu-checklist\"> and :461 <ul data-testid=\"siu-indicators\"> render read-only rows; docs/verticals/insurance-siu.md documents the vertical",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "POST /v1/cases/:id/siu-profile/indicators",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "review-indicator write has no control; the SIU vertical panel is read-only",
-      "evidence": "reg services/api/src/routes/siu.routes.ts:399; apps/web/app/(app)/cases/components/SiuPanel.tsx wired calls: :170 apiFetch(`/v1/cases/${caseId}/siu-profile`) GET, :211 `/v1/cases/${caseId}/siu-exports`, :223 `/v1/cases/${caseId}/siu-profile/reveal-pii`, :246 `/v1/cases/${caseId}/siu-export/preflight`, :288 fetch(`${apiBaseUrl()}/v1/cases/${caseId}/siu-export`) — no write to any siu-profile sub-resource; apps/web/app/(app)/cases/components/SiuPanel.tsx:430 <table data-testid=\"siu-checklist\"> and :461 <ul data-testid=\"siu-indicators\"> render read-only rows; docs/verticals/insurance-siu.md documents the vertical",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "POST /v1/coding/schemas",
       "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
       "reason": "Custom coding-schema authoring (create) is not offered; the shipped page ships list + seed-defaults only.",
@@ -830,13 +795,6 @@
       "evidence": "reg services/api/src/routes/organizations.routes.ts:663 app.post(\"/v1/orgs\", { preHandler: requireAuthAndLegal }, async (_req, reply) => reply.code(403).send({ error: { code: \"org_self_service_creation_retired\", message: \"Organizations are provisioned with a PROOVRA Enterprise agreement. To work with a team, create a workspace instead.\" } })); services/api/src/routes/organizations.routes.ts:656-662 \"The route stays registered so authenticated legacy clients receive a bounded, explanatory denial instead of a confusing 404. The sole web caller (the /organizations 'Create organization' modal) was migrated in the same change\"; apps/web/app/(app)/organizations/page.tsx:127 now reads \"/v1/me/orgs\" | replacement detail: POST /v1/teams (services/api/src/routes/teams.routes.ts:374) or Enterprise provisioning (services/api/src/services/enterprise-provisioning.service.ts)",
       "reviewedAtUtc": "2026-08-16",
       "replacement": "POST /v1/teams"
-    },
-    {
-      "routeId": "POST /v1/orgs/:id/policies/retention",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "org retention template publish has no control; every org surface only reads the template",
-      "evidence": "reg services/api/src/routes/organizations-governance.routes.ts:124 app.post(\"/v1/orgs/:id/policies/retention\", { preHandler: [requireAuth, requireLegalAcceptance] }); reads only: apps/web/app/(app)/organizations/[id]/admin/retention/page.tsx:71 apiFetch(`/v1/orgs/${orgId}/policies/retention`), admin/overview/page.tsx:209 fetchOne(...), admin/reports/page.tsx:113 source: \"GET /v1/orgs/:id/policies/retention\"; admin/retention/page.tsx:9-10 \"Mutations happen on Evidence Lifecycle pages, not here\" and :134 empty state \"Publish a template from Evidence Lifecycle → Retention\" while apps/web only POSTs the workspace-scoped /v1/lifecycle/retention/policies",
-      "reviewedAtUtc": "2026-08-16"
     },
     {
       "routeId": "POST /v1/reviewer-ops/reviews/:workflowId/reassign",
