@@ -159,3 +159,16 @@ When one is retired:
   - disp has no entry for EP-0842..0844;
   - runbook 32 says there is no customer-facing export;
   - `apps/web/app/(app)/teams/[id]/page.tsx:1255` claims case linking is still in the product.
+
+## Closure-integration addendum (2026-11-21, `closure/integration`)
+
+The register above is the census at 9c76edede. Three write routes added by other
+closure branches also have no shipped web, native, extension or worker caller on
+the integrated tree. They are recorded here so the register stays complete; none
+is defective under decision K, and each has route-level authorization tests.
+
+| Route | Branch / finding | Class | Authz tests | Action |
+|---|---|---|---|---|
+| POST /v1/evidence/:id/owner-destruction-approval | closure/money, MATRIX-M626 (decision I) | MISSING_INTENDED_UI | m626-teamless-destruction-approval "the approval is the owner's, for this record and this trash cycle only — never retention, never another person"; "an Enterprise record needs its own governed approval; an owner approval is refused and does not count" | Keep; web control for the record owner is a follow-up (out-money.md) |
+| DELETE /v1/evidence/:id/owner-destruction-approval | closure/money, MATRIX-M626 (decision I) | MISSING_INTENDED_UI | same file (withdrawal) | Keep; same follow-up |
+| POST /v1/evidence-requests/:id/recipient-contact | closure/reach, NEW-RG-19-1 (decision G) | MISSING_INTENDED_UI | new-rg-19-1-request-contact-reveal "a reveal without a step-up is refused…", "a role without the reveal authority (VIEWER) is refused (403)…", "cross-tenant…", "a request on a restricted case the caller cannot reach answers as missing" | Keep; masked contact plus a step-up reveal control on the request detail page is a follow-up (out-reach.md) |
