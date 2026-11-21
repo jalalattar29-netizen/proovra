@@ -23,7 +23,7 @@ had none. The fixtures agreed, because they were written from the same guess.
 
 ## Coverage
 
-**182 bindings — OK 182, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
+**183 bindings — OK 183, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
 
 A binding is one place the app hands a fetched response to a parser. The
 route column is the handler in `services/api/src/routes` that answers that
@@ -124,6 +124,7 @@ top level of it.
 | OK | `parseClosureState` | `GET /v1/orgs/:id/closure` | blockers, confirmationPhrase, contractManaged, coolingOffDays, request | blockers, confirmationPhrase, coolingOffDays, request, workspaceClosed |
 | OK | `parseOrgPendingInviteTotal` | `GET /v1/orgs/:id/invites` | invites, organizationId, summary | summary |
 | OK | `parseOrgMembers` | `GET /v1/orgs/:id/members` | members, nextCursor, organizationId, summary | members |
+| OK | `parseOrgOwnershipOffer` | `GET /v1/orgs/:id/ownership-offer` | billingOwnerStays, billingOwnerUserId, offer | billingOwnerUserId, offer |
 | OK | `parseOrgWorkspaces` | `GET /v1/orgs/:id/workspaces` | callerCanSeeBilling, organizationId, summary, workspaces | teams, workspaces |
 | OK | `parseOrgWorkspacesCanSeeBilling` | `GET /v1/orgs/:id/workspaces` | callerCanSeeBilling, organizationId, summary, workspaces | callerCanSeeBilling |
 | OK | `parseRbacMatrix` | `GET /v1/platform/rbac/matrix` | categories, generatedAt, roles, version | categories, roles, version |

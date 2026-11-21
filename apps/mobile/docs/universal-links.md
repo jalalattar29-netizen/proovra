@@ -31,6 +31,7 @@ sometimes goes nowhere useful.
 | `/auth/mfa-recovery/*` | `(stack)/mfa-recovery-verify.tsx` |
 | `/evidence/<id>`, `/cases/<id>` | `(stack)/evidence/[id].tsx`, `(stack)/case/[id].tsx`, after the server resolve |
 | `/evidence/archive` | `(stack)/evidence-archive.tsx` |
+| `/organizations/????????????????????????????????????` (a 36-character organization uuid, optional `?ownershipOffer=<uuid>`) | `(stack)/organizations/[id].tsx` — the organization page with its ownership offer (NEW-RG-26-4); signed out, it waits behind sign-in; never a workspace resolve or switch |
 | (`proovra://sso/complete`, scheme only) | `(stack)/sso-complete.tsx` — the Organization SSO return |
 
 `/portal/sso/callback` is deliberately absent: it is a browser redirect target
@@ -49,6 +50,15 @@ links in notifications and e-mails open the app, which asks the server
 before anything is shown; a signed-out person signs in first and the link
 resumes; a denial is one generic "not available". `/evidence/archive`, the web
 archive page under the same prefix, opens the app's archive screen.
+
+`/organizations/<uuid>` is claimed by its exact shape (Android `pathPattern`
+`/organizations/` plus 36 `.`, iOS `/organizations/` plus 36 `?`), so the
+organization admin console under it (`/organizations/<id>/admin/...`, web
+only) stays in the browser. It is the ownership-offer handoff (owner decision
+E): the recipient opens the link, signs in if needed, and the organization
+page shows the offer only to the offer's two parties. The iOS half needs the
+updated AASA file deployed with the web app; the Android half ships with the
+next native build.
 
 A path with no route lands on `+not-found.tsx`.
 

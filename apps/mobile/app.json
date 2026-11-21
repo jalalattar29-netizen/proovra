@@ -299,6 +299,16 @@
               "scheme": "https",
               "host": "proovra.com",
               "pathPrefix": "/cases/"
+            },
+            {
+              "scheme": "https",
+              "host": "www.proovra.com",
+              "pathPattern": "/organizations/...................................."
+            },
+            {
+              "scheme": "https",
+              "host": "proovra.com",
+              "pathPattern": "/organizations/...................................."
             }
           ],
           "category": [

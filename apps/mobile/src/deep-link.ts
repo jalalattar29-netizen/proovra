@@ -395,6 +395,59 @@ export function workspacePageDeepLink(url: string): string | null {
 }
 
 /**
+ * NEW-RG-26-4 (decision E) — ORGANIZATION LINKS, the ownership-offer handoff.
+ *
+ * A FIFTH family. An organization is a governance tenant, not a workspace, so
+ * its link does not pass through `POST /v1/deep-link/resolve` (which
+ * re-derives a WORKSPACE) and never switches the active workspace. It does
+ * need a session: a signed-out person is sent through sign-in and the link is
+ * replayed (pending route), exactly as an organization invitation is. The
+ * organization screen proves the id with its own authorized read (a
+ * non-member gets the uniform not-found) and reads the ownership offer, which
+ * the server answers only to the offer's two parties.
+ *
+ *   https://<host>/organizations/<uuid>[?ownershipOffer=<uuid>]   (the web page)
+ *   proovra://organizations/<uuid>[?ownershipOffer=<uuid>]
+ *
+ * Exactly that shape: the admin console under /organizations/<id>/admin/…
+ * stays in the browser, and a non-uuid id is no link at all.
+ */
+const ORG_LINK_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export type ParsedOrganizationLink = {
+  family: "organization";
+  organizationId: string;
+  offerId: string | null;
+  route: string;
+};
+
+export function parseOrganizationDeepLink(url: string): ParsedOrganizationLink | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "proovra:") return null;
+  const segments =
+    parsed.protocol === "proovra:"
+      ? [parsed.hostname, ...parsed.pathname.split("/").filter(Boolean)]
+      : parsed.pathname.split("/").filter(Boolean);
+  if (segments.length !== 2 || segments[0] !== "organizations") return null;
+  const organizationId = segments[1] ?? "";
+  if (!ORG_LINK_UUID.test(organizationId)) return null;
+  const rawOffer = (parsed.searchParams.get("ownershipOffer") ?? "").trim();
+  const offerId = ORG_LINK_UUID.test(rawOffer) ? rawOffer : null;
+  const base = `/organizations/${encodeURIComponent(organizationId)}`;
+  return {
+    family: "organization",
+    organizationId,
+    offerId,
+    route: offerId ? `${base}?ownershipOffer=${encodeURIComponent(offerId)}` : base,
+  };
+}
+
+/**
  * Extract a public verification id from whatever the user pastes: a full web
  * verification URL (…/verify/<id> or ?id=<id>), a proovra://verify?id=<id> link,
  * or a bare id. Public/read-only — it does NOT go through the tenant resolve gate
