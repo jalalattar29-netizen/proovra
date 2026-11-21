@@ -294,6 +294,10 @@ describe("billing remediation convergence (live PostgreSQL, real HTTP)", () => {
     const userId = await freshUser();
     const a = `sub_${randomUUID().slice(0, 12)}`;
     const b = `sub_${randomUUID().slice(0, 12)}`;
+    // NEW-RG-02-1 — every supersession attempt (first and retry) reads both
+    // subscriptions at the provider first; Stripe is this file's fake.
+    S.subscriptions.set(a, stripeSub({ id: a, userId, status: "active", plan: "PRO" }));
+    S.subscriptions.set(b, stripeSub({ id: b, userId, status: "active", plan: "TEAM" }));
     const failing = async () => ({ canceled: false, observedAtUtc: null });
     const outcomes = await Promise.all([
       syncPlanForSubscription({ userId, plan: "PRO", provider: "STRIPE", providerSubId: a, status: "ACTIVE", cancelSupersededAtProvider: failing }),
@@ -310,10 +314,6 @@ describe("billing remediation convergence (live PostgreSQL, real HTTP)", () => {
     await syncPlanForSubscription({ userId, plan: (await subRow(loser)).plan, provider: "STRIPE", providerSubId: loser, status: "ACTIVE", cancelSupersededAtProvider: failing });
     expect(await entitlementPlan(userId)).toBe(winnerPlan);
 
-    // NEW-RG-02-1 — the retry first reads both subscriptions at the provider
-    // (the retained one must be ACTIVE there); Stripe is this file's fake.
-    S.subscriptions.set(winner, stripeSub({ id: winner, userId, status: "active", plan: winnerPlan }));
-    S.subscriptions.set(loser, stripeSub({ id: loser, userId, status: "active", plan: (await subRow(loser)).plan }));
     const retried = await retrySupersededCancellations({
       now: new Date(Date.now() + 60 * 60 * 1000),
       cancel: async () => ({ canceled: true, observedAtUtc: new Date() }),

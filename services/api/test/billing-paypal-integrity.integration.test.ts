@@ -20,6 +20,23 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+
+/** NEW-RG-02-1 — Stripe READS only: subscriptions a case registered here answer as live. */
+const STRIPE_LIVE = vi.hoisted(() => new Set<string>());
+vi.mock("../src/services/stripe.service.js", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    stripeGet: async (path: string, ...rest: unknown[]) => {
+      const m = /^\/subscriptions\/([^?/]+)/.exec(path);
+      const id = m ? decodeURIComponent(m[1]!) : null;
+      if (id && STRIPE_LIVE.has(id)) {
+        return { id, status: "active", cancel_at_period_end: false, items: { data: [] } };
+      }
+      return (actual.stripeGet as (p: string, ...r: unknown[]) => Promise<unknown>)(path, ...rest);
+    },
+  };
+});
 import {
   seedPersonalTenant,
   type FixtureDeps,
@@ -441,7 +458,10 @@ describe("BILLING PAYPAL INTEGRITY (live PostgreSQL 16)", () => {
         });
         // The customer then buys TEAM by card.
         const { syncPlanForSubscription } = await import("../src/services/billing/subscription-lifecycle.handlers.js");
-        await syncPlanForSubscription({ userId: t.owner.userId, plan: "TEAM", provider: "STRIPE", providerSubId: `sub_${randomUUID()}`, status: "ACTIVE", observedAtUtc: new Date() });
+        // (NEW-RG-02-1: Stripe confirms this card subscription live when asked.)
+        const cardSubId = `sub_${randomUUID()}`;
+        STRIPE_LIVE.add(cardSubId);
+        await syncPlanForSubscription({ userId: t.owner.userId, plan: "TEAM", provider: "STRIPE", providerSubId: cardSubId, status: "ACTIVE", observedAtUtc: new Date() });
         expect(await planOf(t.owner.userId)).toBe("TEAM");
 
         // …and completes the abandoned PayPal approval in an old tab.

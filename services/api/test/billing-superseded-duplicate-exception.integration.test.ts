@@ -289,6 +289,77 @@ describe("NEW-RG-02-1 — superseded duplicate cancellation is a narrow exceptio
     ).toBe(0);
   });
 
+  // --- The FIRST attempt (syncPlanForSubscription, under the per-payer lock) ---
+
+  /** A retained subscription, then a second ACTIVE base fact for the same payer. */
+  async function firstAttempt(opts: { retained?: Record<string, unknown>; retainedAtProvider?: ObservedState | null } = {}) {
+    const userId = await user("PRO");
+    const retained = await sub(userId, { provider: "STRIPE", ...opts.retained });
+    retainedRefs.add(retained.providerSubId);
+    if (opts.retainedAtProvider !== null) facts.set(retained.providerSubId, { state: opts.retainedAtProvider ?? "SUCCEEDED" });
+    const ref = `I-${randomUUID().slice(0, 12)}`;
+    facts.set(ref, { state: "SUCCEEDED" });
+    const outcome = await handlers.syncPlanForSubscription({
+      userId,
+      plan: "TEAM",
+      provider: "PAYPAL",
+      providerSubId: ref,
+      status: "ACTIVE",
+      observedAtUtc: new Date(),
+      cancelSupersededAtProvider: cancel as never,
+      readSupersededProvider: readProvider as never,
+    });
+    const duplicate = await prisma.subscription.findUniqueOrThrow({
+      where: { provider_providerSubId: { provider: "PAYPAL", providerSubId: ref } },
+    });
+    return { userId, retained, duplicate, outcome };
+  }
+
+  it("first attempt, conclusive duplicate: cancelled once; the duplicate grants nothing", async () => {
+    const { userId, retained, duplicate, outcome } = await firstAttempt();
+    expect(outcome).toMatchObject({ outcome: "SUPERSEDED", keptSubscriptionId: retained.id, canceledAtProvider: true });
+    expect(callsFor(duplicate.providerSubId)).toEqual([{ provider: "PAYPAL", ref: duplicate.providerSubId }]);
+    expect(await row(duplicate.id)).toMatchObject({
+      status: "CANCELED",
+      supersededBySubscriptionId: retained.id,
+      supersessionCancelState: "CONFIRMED",
+    });
+    expect(await row(retained.id)).toMatchObject({ status: "ACTIVE", canceledAtUtc: null });
+    expect(await plan(userId)).toBe("PRO");
+    // Nothing is left for the retry step.
+    await retry(new Date(Date.now() + 2 * DAY));
+    expect(callsFor(duplicate.providerSubId)).toHaveLength(1);
+  });
+
+  it("first attempt, retained subscription PAST_DUE: review, no cancel, still grants nothing", async () => {
+    const { userId, retained, duplicate, outcome } = await firstAttempt({ retained: { status: "PAST_DUE" } });
+    expect(outcome).toMatchObject({ outcome: "SUPERSEDED", keptSubscriptionId: retained.id, canceledAtProvider: false });
+    expect(callsFor(duplicate.providerSubId)).toEqual([]);
+    expect(await row(duplicate.id)).toMatchObject({
+      status: "ACTIVE",
+      supersededBySubscriptionId: retained.id,
+      supersessionCancelState: "REVIEW_REQUIRED",
+    });
+    expect((await reviews(duplicate.providerSubId))[0]).toMatchObject({
+      reason: "DUPLICATE_BASE_SUBSCRIPTION_UNCONFIRMED",
+      providerAction: "NONE",
+      detail: expect.objectContaining({ why: "RETAINED_NOT_ACTIVE", firstAttempt: true }),
+    });
+    expect(await plan(userId)).toBe("PRO");
+  });
+
+  it("first attempt, provider read fails: review, no cancel", async () => {
+    const { userId, duplicate, outcome } = await firstAttempt({ retainedAtProvider: null });
+    expect(outcome).toMatchObject({ outcome: "SUPERSEDED", canceledAtProvider: false });
+    expect(callsFor(duplicate.providerSubId)).toEqual([]);
+    expect(await row(duplicate.id)).toMatchObject({ status: "ACTIVE", supersessionCancelState: "REVIEW_REQUIRED" });
+    expect((await reviews(duplicate.providerSubId))[0]).toMatchObject({
+      reason: "DUPLICATE_BASE_SUBSCRIPTION_UNCONFIRMED",
+      detail: expect.objectContaining({ why: "RETAINED_PROVIDER_FACTS_MISSING" }),
+    });
+    expect(await plan(userId)).toBe("PRO");
+  });
+
   it("the automatic-effects preview lists every candidate with the outcome the sweep would take", async () => {
     const conclusive = await pair();
     const orphan = await pair({ retainedId: randomUUID() });
