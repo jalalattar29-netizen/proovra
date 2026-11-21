@@ -20,6 +20,7 @@ import { AppState } from "react-native";
 import { apiFetch, setActiveWorkspaceId } from "../api";
 import { useAuth } from "../auth-context";
 import { isPersonalSpaceDisallowed } from "../personal-space";
+import { SWITCH_WORKSPACE_PATH, buildSwitchWorkspaceBody } from "./spaces";
 
 export type ActiveSpaceType = "PERSONAL" | "ORGANIZATION";
 
@@ -325,4 +326,18 @@ export function adoptSwitchedWorkspace(response: unknown, requestedWorkspaceId: 
     publish({ owner: snapshot.owner, loading: false, error: false, context: projected, envelope: response });
   }
   readContext(snapshot.owner, true);
+}
+
+/**
+ * PRO-NA-06 — THE switch, for screens that only need to move the account into a
+ * workspace: ask the server, then apply its answer at once (adoptSwitchedWorkspace).
+ * A refused or failed switch throws and leaves the header where it was — the
+ * server kept the previous context.
+ */
+export async function switchToWorkspace(workspaceId: string): Promise<void> {
+  const switched = await apiFetch(SWITCH_WORKSPACE_PATH, {
+    method: "POST",
+    body: JSON.stringify(buildSwitchWorkspaceBody(workspaceId)),
+  });
+  adoptSwitchedWorkspace(switched, workspaceId);
 }

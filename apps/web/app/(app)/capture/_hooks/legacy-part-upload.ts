@@ -97,6 +97,10 @@ export function partClientSignals(item: SessionItem, locationIncluded: boolean) 
         clientHintSha256Base64: s.clientHintSha256Base64,
         // F-P1-09 parity — a video recorded without microphone says so, as native does.
         ...(s.audioNotCapturedReason ? { audioTracks: s.audioTracks ?? [], audioNotCapturedReason: s.audioNotCapturedReason } : {}),
+        // PRO-C1-10 — the microphone ended or was muted mid-recording: the record states it.
+        ...(s.audioInterrupted === true
+          ? { audioInterrupted: true, ...(s.audioInterruptedReason ? { audioInterruptedReason: s.audioInterruptedReason } : {}) }
+          : {}),
       }
     : undefined;
 }

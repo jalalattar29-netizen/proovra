@@ -33,6 +33,7 @@ import {
   custodyEventLabel,
   WITHHELD_BY_DISCLOSURE_POLICY,
   PART_AUDIO_NOT_RECORDED_STATEMENT,
+  PART_AUDIO_INTERRUPTED_STATEMENT,
   genericItemLabel,
   withholdIdentityRows,
   withholdIdentitySignals,
@@ -188,14 +189,22 @@ function projectContentArtifacts(artifacts: unknown, d: PublicVerifyDisclosureFa
     // B4-F-206 (free audit 0ea0) — F-P1-09 per file: "no audio was recorded",
     // by part index, in the generic wording only (the builder never sends the
     // reason). Content-preview answers only, like every artifact fact here.
+    // PRO-C1-10 — and the generic "audio may be missing" statement of a
+    // recording whose microphone ended or was muted mid-recording.
     ...(Array.isArray(artifacts.audioNotRecorded)
       ? {
           audioNotRecorded: (artifacts.audioNotRecorded as unknown[])
             .filter(
               (x): x is Obj =>
-                isObj(x) && typeof x.partIndex === "number" && x.statement === PART_AUDIO_NOT_RECORDED_STATEMENT,
+                isObj(x) &&
+                typeof x.partIndex === "number" &&
+                (x.statement === PART_AUDIO_NOT_RECORDED_STATEMENT || x.statement === PART_AUDIO_INTERRUPTED_STATEMENT),
             )
-            .map((x) => ({ partIndex: x.partIndex as number, statement: PART_AUDIO_NOT_RECORDED_STATEMENT })),
+            .map((x) => ({
+              partIndex: x.partIndex as number,
+              statement:
+                x.statement === PART_AUDIO_INTERRUPTED_STATEMENT ? PART_AUDIO_INTERRUPTED_STATEMENT : PART_AUDIO_NOT_RECORDED_STATEMENT,
+            })),
         }
       : {}),
   };
