@@ -17,9 +17,21 @@ const STATEMENTS: Record<string, string> = {
 
 export const PART_AUDIO_NOT_RECORDED_FALLBACK = "No audio was recorded with this video (stated by the capture client).";
 
+/** PRO-C1-10 — audio captured at the start, then ended or muted mid-recording. */
+const INTERRUPTED: Record<string, string> = {
+  TRACK_ENDED: "Audio may be missing from part of this video: the microphone stopped during the recording (permission revoked or device disconnected).",
+  TRACK_MUTED: "Audio may be missing from part of this video: the microphone was muted during the recording.",
+};
+export const PART_AUDIO_INTERRUPTED_FALLBACK = "Audio may be missing from part of this video: the audio stopped during the recording (stated by the capture client).";
+
 export function partAudioStatement(clientSignals: unknown): string | null {
   if (!clientSignals || typeof clientSignals !== "object" || Array.isArray(clientSignals)) return null;
   const reason = (clientSignals as { audioNotCapturedReason?: unknown }).audioNotCapturedReason;
-  if (typeof reason !== "string" || !reason.trim()) return null;
+  if (typeof reason !== "string" || !reason.trim()) {
+    const signals = clientSignals as { audioInterrupted?: unknown; audioInterruptedReason?: unknown };
+    if (signals.audioInterrupted !== true) return null;
+    const why = typeof signals.audioInterruptedReason === "string" ? signals.audioInterruptedReason.trim().toUpperCase() : "";
+    return INTERRUPTED[why] ?? PART_AUDIO_INTERRUPTED_FALLBACK;
+  }
   return STATEMENTS[reason.trim().toUpperCase()] ?? PART_AUDIO_NOT_RECORDED_FALLBACK;
 }

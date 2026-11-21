@@ -640,12 +640,45 @@ export function partAudioNotCapturedReason(clientSignals: unknown): string | nul
   return typeof reason === "string" && reason.trim() ? reason.trim().toUpperCase() : null;
 }
 
+/**
+ * PRO-C1-10 — a recording whose audio track ENDED (permission revoked, device
+ * unplugged) or was MUTED after recording started. Audio was captured at the
+ * start, so this is not "no audio": it is audio that may be missing for part
+ * of the clip. The web recorders store `clientSignals.audioInterrupted: true`
+ * with `audioInterruptedReason`; client-reported, and labelled so.
+ */
+export const PART_AUDIO_INTERRUPTED_REASONS = ["TRACK_ENDED", "TRACK_MUTED"] as const;
+export type PartAudioInterruptedReason = (typeof PART_AUDIO_INTERRUPTED_REASONS)[number];
+
+const PART_AUDIO_INTERRUPTED_REASON_STATEMENTS: Record<PartAudioInterruptedReason, string> = {
+  TRACK_ENDED:
+    "Audio may be missing from part of this video: the microphone stopped during the recording (permission revoked or device disconnected; stated by the capture client).",
+  TRACK_MUTED:
+    "Audio may be missing from part of this video: the microphone was muted during the recording (stated by the capture client).",
+};
+
+export const PART_AUDIO_INTERRUPTED_STATEMENT =
+  "Audio may be missing from part of this video: the audio stopped during the recording (stated by the capture client)." as const;
+
+/** True when the part states its audio was interrupted mid-recording. */
+export function partAudioInterrupted(clientSignals: unknown): boolean {
+  if (!clientSignals || typeof clientSignals !== "object" || Array.isArray(clientSignals)) return false;
+  return (clientSignals as { audioInterrupted?: unknown }).audioInterrupted === true;
+}
+
 export function partAudioNotRecordedStatement(
   clientSignals: unknown,
   options: { detail?: "reason" | "generic" } = {},
 ): string | null {
   const reason = partAudioNotCapturedReason(clientSignals);
-  if (!reason) return null;
+  if (!reason) {
+    // PRO-C1-10 — audio captured at the start, then interrupted.
+    if (!partAudioInterrupted(clientSignals)) return null;
+    if (options.detail !== "reason") return PART_AUDIO_INTERRUPTED_STATEMENT;
+    const raw = (clientSignals as { audioInterruptedReason?: unknown }).audioInterruptedReason;
+    const key = typeof raw === "string" ? raw.trim().toUpperCase() : "";
+    return PART_AUDIO_INTERRUPTED_REASON_STATEMENTS[key as PartAudioInterruptedReason] ?? PART_AUDIO_INTERRUPTED_STATEMENT;
+  }
   if (options.detail !== "reason") return PART_AUDIO_NOT_RECORDED_STATEMENT;
   return (
     PART_AUDIO_NOT_RECORDED_REASON_STATEMENTS[reason as PartAudioNotCapturedReason] ??

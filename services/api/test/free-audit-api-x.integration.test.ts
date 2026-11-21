@@ -541,6 +541,97 @@ describe("free-audit 0ea0 — API-X cross-lane completions (live PostgreSQL)", (
   });
 
   // ---------------------------------------------------------------------------
+  // PRO-C1-10 — a microphone that ended or was muted mid-recording: the part
+  // keeps the client's marker and the record states it (generic on Verify).
+  // ---------------------------------------------------------------------------
+  it("PRO-C1-10 — the resumable door persists audioInterrupted on the part", async () => {
+    const teamId = A().teamId;
+    const created = await call("POST", "/v1/evidence", A().ownerToken, { type: "VIDEO", mimeType: "video/webm", teamId });
+    expect(created.statusCode, created.body).toBe(201);
+    const evidenceId = json(created).id as string;
+    const bytes = randomBytes(2048);
+    const sha = createHash("sha256").update(bytes).digest("hex");
+    const clientSignals = { audioTracks: ["MICROPHONE"], audioInterrupted: true, audioInterruptedReason: "TRACK_ENDED", captureTimeUtc: new Date().toISOString() };
+    const open = await call("POST", "/v1/uploads/sessions", A().ownerToken, {
+      teamId,
+      evidenceId,
+      expectedPartCount: 1,
+      expectedTotalBytes: bytes.length,
+      expectedSha256: sha,
+      targetPartIndex: 0,
+      originalFileName: "clip.webm",
+      expectedMimeType: "video/webm",
+      clientSignals,
+    });
+    expect(open.statusCode, open.body).toBe(201);
+    const base = `/v1/uploads/sessions/${json(open).session.id as string}`;
+    expect((await call("POST", `${base}/multipart/initiate`, A().ownerToken, { teamId })).statusCode).toBe(200);
+    const presign = await call("POST", `${base}/parts/0/presign`, A().ownerToken, { teamId, sizeBytes: bytes.length });
+    expect(presign.statusCode, presign.body).toBe(200);
+    const put = await fetch(json(presign).uploadUrl as string, { method: "PUT", body: bytes });
+    expect(put.status).toBe(200);
+    const uploaded = await call("POST", `${base}/parts/0/uploaded`, A().ownerToken, { teamId, partEtag: put.headers.get("etag"), partSizeBytes: bytes.length });
+    expect(uploaded.statusCode, uploaded.body).toBe(200);
+    const done = await call("POST", `${base}/multipart/complete`, A().ownerToken, { teamId, verifyHash: true, clientSignals });
+    expect(done.statusCode, done.body).toBe(200);
+    const part = await prisma.evidencePart.findFirstOrThrow({ where: { evidenceId, partIndex: 0 }, select: { clientSignals: true } });
+    expect(part.clientSignals).toMatchObject({ audioInterrupted: true, audioInterruptedReason: "TRACK_ENDED" });
+  });
+
+  it("PRO-C1-10 — public Verify states an interrupted recording in the generic wording; an uninterrupted one states nothing", async () => {
+    const ev = await signedEvidenceIn(A().teamId, A().ownerUserId);
+    await prisma.evidencePart.createMany({
+      data: [
+        {
+          evidenceId: ev.id,
+          partIndex: 0,
+          storageBucket: "b",
+          storageKey: `evidence/${ev.id}/parts/000-clip.webm`,
+          mimeType: "video/webm",
+          sha256: "a".repeat(64),
+          clientSignals: { audioTracks: ["MICROPHONE"], audioInterrupted: true, audioInterruptedReason: "TRACK_ENDED" },
+        },
+        {
+          evidenceId: ev.id,
+          partIndex: 1,
+          storageBucket: "b",
+          storageKey: `evidence/${ev.id}/parts/001-clip.webm`,
+          mimeType: "video/webm",
+          sha256: "b".repeat(64),
+          clientSignals: { audioTracks: ["MICROPHONE"] },
+        },
+      ] as never,
+    });
+    const keyId = `c110-${randomUUID().slice(0, 8)}`;
+    const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+    await prisma.signingKey.create({
+      data: { keyId, version: 1, publicKeyPem: publicKey.export({ type: "spki", format: "pem" }).toString().trim() },
+    });
+    const fileSha256 = createHash("sha256").update(randomUUID()).digest("hex");
+    const canonical = JSON.stringify({ v: 1, evidenceId: ev.id, sha256: fileSha256 });
+    const fingerprintHash = createHash("sha256").update(canonical).digest("hex");
+    await prisma.evidence.update({
+      where: { id: ev.id },
+      data: {
+        fileSha256,
+        fingerprintCanonicalJson: canonical,
+        fingerprintHash,
+        signatureBase64: sign(null, Buffer.from(fingerprintHash, "hex"), privateKey).toString("base64"),
+        signingKeyId: keyId,
+        signingKeyVersion: 1,
+        signedAtUtc: new Date(),
+      } as never,
+    });
+    const res = await h.app.inject({ method: "GET", url: `/public/verify/${await shareLinkFor(prisma, ev.id)}` });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(json(res as unknown as Res).evidenceContent?.artifacts?.audioNotRecorded).toEqual([
+      { partIndex: 0, statement: "Audio may be missing from part of this video: the audio stopped during the recording (stated by the capture client)." },
+    ]);
+    // Minimal disclosure: the device's reason is not published on Verify.
+    expect(res.body).not.toContain("TRACK_ENDED");
+  });
+
+  // ---------------------------------------------------------------------------
   // B5B-F-205 — planFeatures.redactionIncluded from FEATURE_REDACTION.
   // ---------------------------------------------------------------------------
   it("B5B-F-205 — planFeatures.redactionIncluded follows FEATURE_REDACTION (resolveEntitlement)", async () => {
