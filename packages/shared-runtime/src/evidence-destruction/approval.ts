@@ -10,7 +10,8 @@
  * THE RULE
  * ---------------------------------------------------------------------------
  * WORKSPACE-scoped evidence always requires an approved destruction record.
- * PERSONAL-scope evidence never does.
+ * A SEALED team-less record requires its owner's approval (MATRIX-M626 below);
+ * only an UNSEALED team-less record (an abandoned upload) requires none.
  *
  * That is a deliberate choice of the conservative reading over a configurable
  * one. There is no "destruction requires approval" column on
@@ -22,10 +23,14 @@
  * which an unreviewed automatic sweep may destroy another organisation's
  * evidence.
  *
- * Personal-scope evidence is excluded because there is no second party to
- * approve to: the owner asked for it, the owner is the workspace, and every
- * other boundary (trash grace, retention, Object Lock, legal hold) still
- * applies to it in full.
+ * MATRIX-M626 (owner decision I, 2026-11-21) — a NULL team_id is NOT an
+ * exemption. A SEALED record stored with team_id NULL (a legacy personal
+ * record) requires its own owner's explicit approval for that record
+ * (`EvidenceOwnerDestructionApproval`); no workspace is fabricated for it and
+ * nothing approves old records in bulk. Only an UNSEALED record (an abandoned
+ * upload) keeps no approval requirement — its expiry is a separate lifecycle.
+ * Every other boundary (trash grace, retention, Object Lock, legal hold) still
+ * applies in full whatever the approval says.
  *
  * WHAT COUNTS AS APPROVED (GOV-002, GOV-003)
  * ---------------------------------------------------------------------------
@@ -52,7 +57,72 @@ export interface DestructionApprovalVerdict {
   refusedNamedRecord?: boolean;
 }
 
-type ApprovalClient = Pick<PrismaClient, "destructionReview" | "destructionRequest" | "team">;
+type ApprovalClient = Pick<
+  PrismaClient,
+  "destructionReview" | "destructionRequest" | "team" | "evidence" | "evidenceOwnerDestructionApproval"
+>;
+
+/**
+ * The statuses of a record that was never sealed (an abandoned upload, a
+ * discarded draft). Their expiry is a separate lifecycle (reservation release,
+ * trash grace) with its own server-authoritative retention protections; the
+ * owner-approval requirement is about SEALED records only.
+ */
+const UNSEALED_STATUSES: ReadonlySet<string> = new Set(["CREATED", "UPLOADING"]);
+
+/**
+ * MATRIX-M626 (owner decision I, 2026-11-21) — a record stored with team_id
+ * NULL (a legacy personal record).
+ *
+ *   - UNSEALED (CREATED / UPLOADING): no approval requirement, exactly as
+ *     before — the safe expiry of abandoned uploads is its own lifecycle.
+ *   - SEALED (anything else, including an unknown status): an explicit
+ *     approval is REQUIRED, and only the record's own owner can give it, for
+ *     that one record, in its current trash cycle
+ *     (`EvidenceOwnerDestructionApproval`, not withdrawn, bound to the record's
+ *     current `deleted_at`). No workspace is invented for the record.
+ *
+ * The approval satisfies the approval requirement and nothing else: trash
+ * grace, application retention (the eight-year platform period), Object Lock,
+ * legal hold and the executor's switches are decided by the authority as
+ * before. FAIL-CLOSED: a lookup failure or a missing record is "required, not
+ * approved".
+ */
+async function verdictForTeamlessRecord(
+  prisma: ApprovalClient,
+  evidenceId: string,
+): Promise<DestructionApprovalVerdict> {
+  const refused: DestructionApprovalVerdict = { required: true, approved: false, destructionReviewId: null };
+  try {
+    const record = await prisma.evidence.findUnique({
+      where: { id: evidenceId },
+      select: { teamId: true, ownerUserId: true, status: true, deletedAt: true },
+    });
+    if (!record || record.teamId) return refused;
+    if (UNSEALED_STATUSES.has(String(record.status))) {
+      return { required: false, approved: false, destructionReviewId: null };
+    }
+    if (!record.deletedAt || !record.ownerUserId) return refused;
+    const approval = await prisma.evidenceOwnerDestructionApproval.findFirst({
+      where: {
+        evidenceId,
+        ownerUserId: record.ownerUserId,
+        evidenceDeletedAtUtc: record.deletedAt,
+        withdrawnAtUtc: null,
+      },
+      select: { id: true },
+    });
+    if (!approval) return refused;
+    return {
+      required: true,
+      approved: true,
+      destructionReviewId: null,
+      approvedByUserIds: [record.ownerUserId],
+    };
+  } catch {
+    return refused;
+  }
+}
 
 /**
  * `DESTRUCTION_EXECUTION_ENABLED` — THE switch (GOV-002, OPS-002). Off unless it
@@ -136,7 +206,8 @@ export async function resolveDestructionApproval(
 ): Promise<DestructionApprovalVerdict> {
   const named = Boolean(input.destructionReviewId || input.destructionRequestId);
   if (!input.teamId && !named) {
-    return { required: false, approved: false, destructionReviewId: null };
+    // MATRIX-M626 — a missing team_id is not a policy; the record decides.
+    return verdictForTeamlessRecord(prisma, input.evidenceId);
   }
   try {
     if (input.destructionRequestId) {
