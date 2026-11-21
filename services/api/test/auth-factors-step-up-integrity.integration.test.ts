@@ -1060,6 +1060,220 @@ describe("Round 3 auth-factors — factors, step-up and recovery integrity (live
   });
 
   // ===========================================================================
+  // MATRIX-M054 (owner decision B) — an explicitly selected factor binds
+  // ===========================================================================
+
+  describe("MATRIX-M054 (decision B): an explicitly selected TOTP factor binds its challenge; unbound challenges keep any-active-factor", () => {
+    type SeededTotp = { id: string; code: () => string };
+
+    /**
+     * An authenticator app of `status`, sealed exactly as enrolment seals it.
+     * `verifiedAgoMs` orders them (the newest verified one is what a challenge
+     * started without a factorId is bound to); ENROLLING apps are unverified.
+     */
+    async function seedTotp(
+      userId: string,
+      status: "ACTIVE" | "ENROLLING" | "REVOKED",
+      verifiedAgoMs = 0,
+    ): Promise<SeededTotp> {
+      const secret = totpLib.generateTotpSecretBytes();
+      const sealed = sealSecretFn(secret);
+      const at = new Date(Date.now() - verifiedAgoMs);
+      const row = await prisma.mfaFactor.create({
+        data: {
+          userId,
+          kind: "TOTP",
+          status,
+          label: `${status.toLowerCase()} app`,
+          secretCiphertext: Buffer.from(sealed.ciphertext),
+          secretIv: Buffer.from(sealed.iv),
+          secretAuthTag: Buffer.from(sealed.authTag),
+          secretKekId: sealed.kekId,
+          verifiedAtUtc: status === "ENROLLING" ? null : at,
+          enrolledAt: at,
+          ...(status === "REVOKED" ? { revokedAt: new Date() } : {}),
+        },
+        select: { id: true },
+      });
+      return {
+        id: row.id,
+        code: () => totpLib.computeTotpCode(secret, totpLib.timeStep(Math.floor(Date.now() / 1000))),
+      };
+    }
+
+    /** Two ACTIVE apps (A older, B newest), one ENROLLING, one REVOKED. */
+    async function fourApps(userId: string) {
+      const a = await seedTotp(userId, "ACTIVE", 60 * 60 * 1000);
+      const b = await seedTotp(userId, "ACTIVE", 0);
+      const enrolling = await seedTotp(userId, "ENROLLING");
+      const revoked = await seedTotp(userId, "REVOKED", 2 * 60 * 60 * 1000);
+      return { a, b, enrolling, revoked };
+    }
+
+    it("workspace step-up: a challenge started with factorId=A refuses B's code (and is spent), and the reverse; each pinned app's own code approves", async () => {
+      const o = await org(1);
+      const owner = o.owner;
+      const { a, b, enrolling, revoked } = await fourApps(owner.userId);
+      const tm = await tmOf(o.workspaceId, o.members[0]!.userId);
+      const start = (factorId?: string) =>
+        call("POST", "/v1/identity-security/step-up/start", owner.token, {
+          teamId: o.workspaceId,
+          purpose: "MEMBER_SUSPEND",
+          resourceKind: "team_member",
+          resourceId: tm.id,
+          ...(factorId ? { factorId } : {}),
+        });
+      const started = async (factorId: string) => {
+        const r = await start(factorId);
+        expect(r.statusCode, r.body).toBe(200);
+        return (r.json().challenge as { id: string }).id;
+      };
+      const check = (challengeId: string, code: string) =>
+        call("POST", "/v1/identity-security/step-up/check", owner.token, { teamId: o.workspaceId, challengeId, code });
+      const rowOf = (id: string) => prisma.stepUpChallenge.findUniqueOrThrow({ where: { id } });
+
+      // Pinned to the OLDER app A: the newest app B's valid code is refused.
+      const c1 = await started(a.id);
+      expect((await rowOf(c1)).factorPinned).toBe(true);
+      expect((await rowOf(c1)).factorId).toBe(a.id);
+      const r1 = await check(c1, b.code());
+      expect(r1.statusCode, r1.body).toBe(400);
+      expect((await rowOf(c1)).status).toBe("DENIED");
+
+      // Pinned to B: A's valid (still unclaimed) code is refused.
+      const c2 = await started(b.id);
+      const r2 = await check(c2, a.code());
+      expect(r2.statusCode, r2.body).toBe(400);
+      expect((await rowOf(c2)).status).toBe("DENIED");
+
+      // The pinned app's own code approves, for each.
+      const c3 = await started(a.id);
+      const r3 = await check(c3, a.code());
+      expect(r3.statusCode, r3.body).toBe(200);
+      expect((await rowOf(c3)).status).toBe("APPROVED");
+      const c4 = await started(b.id);
+      const r4 = await check(c4, b.code());
+      expect(r4.statusCode, r4.body).toBe(200);
+      expect((await rowOf(c4)).status).toBe("APPROVED");
+
+      // A challenge started WITHOUT a factorId is not pinned.
+      const plain = await start();
+      expect(plain.statusCode, plain.body).toBe(200);
+      const plainId = (plain.json().challenge as { id: string }).id;
+      expect((await rowOf(plainId)).factorPinned).toBeNull();
+      // ...and an unverified or revoked app answers it with nothing.
+      const r5 = await check(plainId, enrolling.code());
+      expect(r5.statusCode, r5.body).toBe(400);
+      expect((await rowOf(plainId)).status).toBe("DENIED");
+      const plain2 = (await start()).json().challenge as { id: string };
+      const r6 = await check(plain2.id, revoked.code());
+      expect(r6.statusCode, r6.body).toBe(400);
+      expect((await rowOf(plain2.id)).status).toBe("DENIED");
+
+      // An unverified or revoked app cannot be SELECTED either: nothing starts.
+      const before = await prisma.stepUpChallenge.count({ where: { initiatedByUserId: owner.userId } });
+      for (const f of [enrolling, revoked]) {
+        const r = await start(f.id);
+        expect(r.statusCode, r.body).toBe(403);
+        expect(errorCode(r)).toBe("STEP_UP_ENROLLMENT_REQUIRED");
+      }
+      expect(await prisma.stepUpChallenge.count({ where: { initiatedByUserId: owner.userId } })).toBe(before);
+    });
+
+    it("workspace step-up without a factorId: either ACTIVE app answers (unbound behaviour retained)", async () => {
+      const o = await org(1);
+      const owner = o.owner;
+      const { a, b } = await fourApps(owner.userId);
+      const tm = await tmOf(o.workspaceId, o.members[0]!.userId);
+      for (const app of [a, b]) {
+        const s = await call("POST", "/v1/identity-security/step-up/start", owner.token, {
+          teamId: o.workspaceId,
+          purpose: "MEMBER_SUSPEND",
+          resourceKind: "team_member",
+          resourceId: tm.id,
+        });
+        expect(s.statusCode, s.body).toBe(200);
+        const id = (s.json().challenge as { id: string }).id;
+        const r = await call("POST", "/v1/identity-security/step-up/check", owner.token, {
+          teamId: o.workspaceId,
+          challengeId: id,
+          code: app.code(),
+        });
+        expect(r.statusCode, r.body).toBe(200);
+      }
+    });
+
+    it("sign-in (never selects a factor): either ACTIVE app completes it; an unverified or revoked app's code does not", async () => {
+      const o = await org(1);
+      const m = o.members[0]!;
+      const password = "Correct-Horse-9-battery";
+      await prisma.user.update({
+        where: { id: m.userId },
+        data: { providerUserId: m.email, emailVerifiedAt: new Date() },
+      });
+      await withPassword(m.userId, password);
+      const { a, b, enrolling, revoked } = await fourApps(m.userId);
+      const signInWith = async (code: string) => {
+        const login = await call("POST", "/v1/auth/email/login", undefined, { email: m.email, password });
+        expect(login.statusCode, login.body).toBe(200);
+        expect(login.json().mfaRequired).toBe(true);
+        return call("POST", "/v1/auth/mfa/verify", undefined, {
+          mfaPendingToken: login.json().mfaPendingToken,
+          code,
+        });
+      };
+      for (const bad of [enrolling, revoked]) {
+        const r = await signInWith(bad.code());
+        expect(r.statusCode, r.body).toBe(401);
+        expect(r.json().token).toBeUndefined();
+      }
+      for (const good of [a, b]) {
+        const r = await signInWith(good.code());
+        expect(r.statusCode, r.body).toBe(200);
+        expect(typeof r.json().token).toBe("string");
+      }
+    });
+
+    it("account step-up (never selects a factor): either ACTIVE app's code is accepted; an unverified or revoked app's code is refused", async () => {
+      const o = await org(1);
+      const owner = o.owner;
+      const { a, b, enrolling, revoked } = await fourApps(owner.userId);
+      const regenerate = (code: string) =>
+        call("POST", "/v1/identity/mfa/recovery-codes/regenerate", owner.token, {
+          stepUp: { method: "mfa", code },
+        });
+      for (const bad of [enrolling, revoked]) {
+        const r = await regenerate(bad.code());
+        expect(r.statusCode, r.body).toBe(401);
+        expect(errorCode(r)).toBe("STEP_UP_INVALID");
+      }
+      for (const good of [a, b]) {
+        const r = await regenerate(good.code());
+        expect(r.statusCode, r.body).toBe(200);
+        expect(Array.isArray(r.json().recoveryCodes)).toBe(true);
+      }
+    });
+
+    it("self-check (never selects a factor): either ACTIVE app's code checks out and names its own factor; an unverified or revoked app's code does not", async () => {
+      const o = await org(1);
+      const owner = o.owner;
+      const { a, b, enrolling, revoked } = await fourApps(owner.userId);
+      const selfCheck = (code: string) =>
+        call("POST", "/v1/identity/mfa/challenge/verify", owner.token, { code });
+      for (const bad of [enrolling, revoked]) {
+        const r = await selfCheck(bad.code());
+        expect(r.statusCode, r.body).toBe(400);
+        expect(r.json().error).toBe("code_invalid");
+      }
+      for (const good of [a, b]) {
+        const r = await selfCheck(good.code());
+        expect(r.statusCode, r.body).toBe(200);
+        expect(r.json().factorId).toBe(good.id);
+      }
+    });
+  });
+
+  // ===========================================================================
   // PRO-032 — delegated scope self-extension
   // ===========================================================================
 

@@ -283,7 +283,7 @@ export async function sessionsOfWorkspaceWhere(
  * Organization originated. Fails closed: an unreadable provenance counts as
  * self-serve, and a workspace with no Organization governs nobody's sessions.
  */
-async function governedMemberIds(teamId: string, client: PrismaClient): Promise<string[]> {
+export async function governedMemberIds(teamId: string, client: PrismaClient = defaultPrisma): Promise<string[]> {
   const team = await client.team.findUnique({ where: { id: teamId }, select: { organizationId: true } });
   const organizationId = team?.organizationId ?? null;
   if (!organizationId) return [];
@@ -748,10 +748,25 @@ export async function sweepStaleSessions(
     staleMinutes?: number;
     batchSize?: number;
     revoke?: boolean;
+    /**
+     * PRO-W2C2-02 (DEC-08) — revoke only the sessions of identities this
+     * workspace GOVERNS (`governedMemberIds`, the same set
+     * `sessionsOfWorkspaceWhere` admits). A session's `teamId` is its
+     * workspace at issuance, not its scope: an independent member's session
+     * is account-global and also opens their Personal Space, so a scheduled
+     * idle revocation must not end it. Detection (the gauge) still counts
+     * every stale session. The unattended scheduler passes true; the operator
+     * path is unchanged.
+     */
+    governedOnly?: boolean;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<StaleSessionSweepResult> {
   const staleMinutes = input.staleMinutes ?? SESSION_STALE_DEFAULT_MINUTES;
+  const governed =
+    input.governedOnly === true && input.revoke !== false
+      ? new Set(await governedMemberIds(input.teamId, client))
+      : null;
   const batch = Math.min(Math.max(input.batchSize ?? 200, 1), 1000);
   const now = new Date();
   const candidates = await client.authenticatedSession.findMany({
@@ -784,7 +799,7 @@ export async function sweepStaleSessions(
     }
     staleDetected += 1;
     bump("stale_session_total");
-    if (input.revoke !== false) {
+    if (input.revoke !== false && (governed === null || governed.has(c.userId))) {
       try {
         await revokeSession(
           {

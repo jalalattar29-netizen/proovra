@@ -438,6 +438,14 @@ export async function startStepUpChallenge(
        */
       factorId: factor.factorId,
       factorGeneration: generation,
+      /**
+       * MATRIX-M054 (owner decision B) — an EXPLICIT selection binds. Only
+       * when the caller named a factor (and it resolved to exactly that one)
+       * is the challenge pinned; a challenge the server bound to the newest
+       * verified authenticator on its own stays answerable by any of them.
+       */
+      factorPinned:
+        input.factorId != null && factor.factorId === input.factorId ? true : null,
       method: factor.method,
     },
   });
@@ -805,7 +813,12 @@ export async function checkStepUpChallenge(
      * replayed code spends the challenge exactly as a wrong SMS code does.
      */
     const accepted = await verifyStepUpTotp(
-      { userId: input.userId, factorId: row.factorId, code: input.code },
+      {
+        userId: input.userId,
+        factorId: row.factorId,
+        pinned: row.factorPinned === true,
+        code: input.code,
+      },
       client,
     );
     if (!accepted) {
@@ -1445,9 +1458,16 @@ async function resolveStepUpFactor(
  * is no longer an active authenticator of this user.
  */
 async function verifyStepUpTotp(
-  input: { userId: string; factorId: string; code: string },
+  input: { userId: string; factorId: string; pinned: boolean; code: string },
   client: PrismaClient,
 ): Promise<boolean> {
+  /*
+   * MATRIX-M054 (owner decision B, 2026-11-21) — an EXPLICITLY selected factor
+   * binds: a challenge whose start request named `factorId` is answered by
+   * that factor alone, and another app's code is refused (and spends the
+   * challenge, as any wrong code does). Unpinned challenges keep the approved
+   * multi-factor behaviour below.
+   */
   /*
    * Matrix review M054 (DEC-19, PRO-A1-11) — EVERY verified authenticator of
    * the account answers, as at sign-in and on the account step-up
@@ -1465,6 +1485,7 @@ async function verifyStepUpTotp(
       status: "ACTIVE",
       revokedAt: null,
       verifiedAtUtc: { not: null },
+      ...(input.pinned ? { id: input.factorId } : {}),
     },
     select: {
       id: true,

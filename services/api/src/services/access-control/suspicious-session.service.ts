@@ -117,6 +117,75 @@ export async function detectAndScoreSession(
     typeof session.riskScore === "number" ? session.riskScore : null;
 
   const now = (input.nowUtc ?? new Date()).getTime();
+  const signals = await collectSessionRiskSignals(
+    { teamId: input.teamId, session, nowMs: now },
+    client,
+  );
+
+  const riskScore = computeSuspiciousSessionRisk(signals);
+  const level = sessionRiskLevel(riskScore);
+
+  // Persist the score on the session row.
+  await client.authenticatedSession.update({
+    where: { id: session.id },
+    data: { riskScore },
+  });
+
+  if (level === "MEDIUM" || level === "HIGH" || level === "CRITICAL") {
+    bump("suspicious_session_total");
+    safeEmitSecurityEvent({
+      teamId: input.teamId,
+      eventType: "suspicious_session_detected",
+      severity: level === "CRITICAL" ? "HIGH" : level === "HIGH" ? "HIGH" : "WARNING",
+      details: {
+        sessionId: session.id,
+        userId: session.userId,
+        riskScore,
+        level,
+        signalKinds: signals.map((s) => s.kind),
+      },
+    });
+  }
+
+  /*
+   * The previous score was read off the session row BEFORE the update above
+   * overwrote it. Reading it afterwards would report the new value as the old
+   * one, which is the failure mode a before/after display exists to prevent.
+   */
+  const previousLevel =
+    previousRiskScore === null ? null : sessionRiskLevel(previousRiskScore);
+  return {
+    sessionId: session.id,
+    riskScore,
+    level,
+    signals: signals.filter((s) => SIGNAL_SET.has(s.kind)),
+    previousRiskScore,
+    previousLevel,
+    evaluatedAtUtc: new Date(now).toISOString(),
+    changed: previousRiskScore !== riskScore || previousLevel !== level,
+  };
+}
+
+/**
+ * PRO-W2C2-02 (activation preview) — the scorer's SIGNALS, READ-ONLY.
+ *
+ * Extracted unchanged from `detectAndScoreSession` so the identity-runtime
+ * impact preview decides with exactly the rules the sweep scores with, without
+ * persisting a score, emitting an event or bumping a metric. Only reads.
+ */
+export async function collectSessionRiskSignals(
+  input: {
+    teamId: string;
+    session: Pick<
+      DbSession,
+      "id" | "userId" | "countryCode" | "ipPreview" | "issuedAtUtc" | "ssoConnectionId" | "deviceIdHash"
+    >;
+    nowMs: number;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<SuspiciousSessionSignal[]> {
+  const { session } = input;
+  const now = input.nowMs;
   const signals: SuspiciousSessionSignal[] = [];
 
   // (1) Concurrent risky sessions: count of other active sessions for
@@ -251,48 +320,7 @@ export async function detectAndScoreSession(
     }
   }
 
-  const riskScore = computeSuspiciousSessionRisk(signals);
-  const level = sessionRiskLevel(riskScore);
-
-  // Persist the score on the session row.
-  await client.authenticatedSession.update({
-    where: { id: session.id },
-    data: { riskScore },
-  });
-
-  if (level === "MEDIUM" || level === "HIGH" || level === "CRITICAL") {
-    bump("suspicious_session_total");
-    safeEmitSecurityEvent({
-      teamId: input.teamId,
-      eventType: "suspicious_session_detected",
-      severity: level === "CRITICAL" ? "HIGH" : level === "HIGH" ? "HIGH" : "WARNING",
-      details: {
-        sessionId: session.id,
-        userId: session.userId,
-        riskScore,
-        level,
-        signalKinds: signals.map((s) => s.kind),
-      },
-    });
-  }
-
-  /*
-   * The previous score was read off the session row BEFORE the update above
-   * overwrote it. Reading it afterwards would report the new value as the old
-   * one, which is the failure mode a before/after display exists to prevent.
-   */
-  const previousLevel =
-    previousRiskScore === null ? null : sessionRiskLevel(previousRiskScore);
-  return {
-    sessionId: session.id,
-    riskScore,
-    level,
-    signals: signals.filter((s) => SIGNAL_SET.has(s.kind)),
-    previousRiskScore,
-    previousLevel,
-    evaluatedAtUtc: new Date(now).toISOString(),
-    changed: previousRiskScore !== riskScore || previousLevel !== level,
-  };
+  return signals;
 }
 
 // -----------------------------------------------------------------------------
