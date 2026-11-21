@@ -65,6 +65,8 @@ export async function runOutageWatchdogNow(logger?: Logger): Promise<OutageWatch
             waiting: q.counts.waiting,
             oldestWaitingAgeMs: q.oldestWaitingAgeMs,
             isWorkQueue: q.role !== "DEAD_LETTER" && q.health !== "disabled" && q.health !== "unconfigured",
+            // "unknown" (budget spent) and "outage" (Redis refused the probe) are not measurements.
+            readable: q.health !== "unknown" && q.health !== "outage",
           })),
       }),
   });

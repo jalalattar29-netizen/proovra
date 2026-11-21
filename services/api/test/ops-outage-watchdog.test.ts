@@ -43,7 +43,8 @@ function outageFacts(nowMs = NOW): OutageFacts {
   return {
     nowMs,
     // a refusing worker restarts about every 5 minutes
-    bootStartsMs: Array.from({ length: 12 }, (_, i) => nowMs - i * 5 * MIN),
+    // the same container restarting about every 5 minutes (its hostname survives a restart)
+    boots: Array.from({ length: 12 }, (_, i) => ({ workerId: "abc123-1", atMs: nowMs - i * 5 * MIN })),
     schemaRefusal: { kind: "HEAD_NOT_APPLIED", expected: HEAD, workerId: "abc123-1", atMs: nowMs - 2 * MIN },
     // the previous instance had shut down cleanly: STOPPED, "nothing indicates a fault"
     fleet: { state: "STOPPED", liveInstances: 0, lastHeartbeatAgeSeconds: 25 * 3600, reason: "Every instance recorded a clean shutdown." },
@@ -60,7 +61,7 @@ function outageFacts(nowMs = NOW): OutageFacts {
 function healthyFacts(nowMs = NOW): OutageFacts {
   return {
     nowMs,
-    bootStartsMs: [nowMs - 3 * H],
+    boots: [{ workerId: "abc123-1", atMs: nowMs - 3 * H }],
     schemaRefusal: null,
     fleet: { state: "HEALTHY", liveInstances: 1, lastHeartbeatAgeSeconds: 20, reason: "1 live" },
     queues: [{ queueName: "report-generation", waiting: 2, oldestWaitingAgeMs: 40_000, isWorkQueue: true }],
@@ -87,7 +88,7 @@ describe("detectors", () => {
     );
     expect(byCat.get("WORKER_SCHEMA_HEAD_REFUSAL")!.severity).toBe("CRITICAL");
     expect(byCat.get("WORKER_SCHEMA_HEAD_REFUSAL")!.summary).toContain(`HEAD_NOT_APPLIED, it expects migration ${HEAD}`);
-    expect(byCat.get("WORKER_RESTART_LOOP")!.summary).toMatch(/^12 worker process starts in the last 60 min/);
+    expect(byCat.get("WORKER_RESTART_LOOP")!.summary).toMatch(/^12 process starts of worker abc123-1 in the last 60 min/);
     expect(byCat.get("WORKER_NOT_LIVE")!.severity).toBe("CRITICAL");
     expect(byCat.get("WORKER_NOT_LIVE")!.summary).toMatch(/0 live worker instance\(s\), 1 expected; fleet STOPPED/);
     expect(byCat.get("RECONCILIATION_RUNS_MISSING")!.summary).toMatch(/started 1542 min ago/);
@@ -104,7 +105,7 @@ describe("detectors", () => {
 
   it("thresholds: just inside each limit is quiet, just past it alerts", () => {
     const quiet = healthyFacts();
-    quiet.bootStartsMs = [NOW - 1 * MIN, NOW - 10 * MIN, NOW - 59 * MIN]; // 3 < 4
+    quiet.boots = [NOW - 1 * MIN, NOW - 10 * MIN, NOW - 59 * MIN].map((atMs) => ({ workerId: "w1", atMs })); // 3 < 4
     quiet.schemaRefusal = { kind: "HEAD_NOT_APPLIED", expected: HEAD, workerId: "w", atMs: NOW - 31 * MIN }; // stale
     quiet.queues = [{ queueName: "q", waiting: 1000, oldestWaitingAgeMs: 29 * MIN, isWorkQueue: true }];
     quiet.newestReconciliationRunAtMs = NOW - 60 * MIN;
@@ -112,7 +113,7 @@ describe("detectors", () => {
     expect(detectOutageSignals(quiet, cfg)).toEqual([]);
 
     const loud = healthyFacts();
-    loud.bootStartsMs = [NOW - 1 * MIN, NOW - 10 * MIN, NOW - 30 * MIN, NOW - 59 * MIN];
+    loud.boots = [NOW - 1 * MIN, NOW - 10 * MIN, NOW - 30 * MIN, NOW - 59 * MIN].map((atMs) => ({ workerId: "w1", atMs }));
     loud.schemaRefusal = { kind: "HEAD_FAILED", expected: HEAD, workerId: "w", atMs: NOW - 29 * MIN };
     loud.queues = [
       { queueName: "stalled", waiting: 1, oldestWaitingAgeMs: 30 * MIN, isWorkQueue: true },
@@ -150,10 +151,34 @@ describe("detectors", () => {
     expect(detectOutageSignals(f, cfg).map((s) => s.category)).toEqual(["WORKER_NOT_LIVE"]);
   });
 
+  it("restarts are counted per worker identity: a deploy of N replicas is not a loop; one container restarting is", () => {
+    const f = healthyFacts();
+    // A 6-replica deploy plus its predecessors stopping: 12 starts, each identity once or twice.
+    f.boots = Array.from({ length: 12 }, (_, i) => ({ workerId: `host${i % 6}-1`, atMs: NOW - i * MIN }));
+    expect(detectOutageSignals(f, cfg)).toEqual([]);
+    f.boots.push(...[2, 4, 6, 8].map((m) => ({ workerId: "looping-1", atMs: NOW - m * MIN })));
+    const [s] = detectOutageSignals(f, cfg);
+    expect(s!.category).toBe("WORKER_RESTART_LOOP");
+    expect(s!.summary).toMatch(/^4 process starts of worker looping-1 in the last 60 min/);
+  });
+
+  it("expected workers follow WORKER_REPLICAS unless OPS_WATCHDOG_EXPECTED_WORKERS is set", () => {
+    expect(readOutageWatchdogConfig({}).expectedWorkers).toBe(1);
+    expect(readOutageWatchdogConfig({ WORKER_REPLICAS: "2" }).expectedWorkers).toBe(2);
+    expect(readOutageWatchdogConfig({ WORKER_REPLICAS: "2", OPS_WATCHDOG_EXPECTED_WORKERS: "1" }).expectedWorkers).toBe(1);
+    expect(readOutageWatchdogConfig({ WORKER_REPLICAS: "nonsense" }).expectedWorkers).toBe(1);
+    const c = readOutageWatchdogConfig({ WORKER_REPLICAS: "2" });
+    const f = healthyFacts();
+    f.fleet = { state: "HEALTHY", liveInstances: 2, lastHeartbeatAgeSeconds: 10, reason: "2 live" };
+    expect(detectOutageSignals(f, c)).toEqual([]);
+    f.fleet = { state: "HEALTHY", liveInstances: 1, lastHeartbeatAgeSeconds: 10, reason: "1 live" };
+    expect(detectOutageSignals(f, c).map((s) => [s.category, s.severity])).toEqual([["WORKER_NOT_LIVE", "HIGH"]]);
+  });
+
   it("unreadable sources raise nothing rather than a guess", () => {
     const f: OutageFacts = {
       nowMs: NOW,
-      bootStartsMs: null,
+      boots: null,
       schemaRefusal: null,
       fleet: { state: "UNAVAILABLE", liveInstances: 0, lastHeartbeatAgeSeconds: null, reason: "db down" },
       queues: null,
@@ -249,7 +274,7 @@ describe("dispatch through the real alert path (fake provider)", () => {
 
     facts = healthyFacts(NOW + 75 * MIN);
     const fifth = await runOutageWatchdog(deps);
-    expect(fifth).toEqual({ active: [], alerted: [], reminded: [], resolved: [], undelivered: 0 });
+    expect(fifth).toEqual({ active: [], alerted: [], reminded: [], resolved: [], carried: [], undelivered: 0 });
     expect(provider.sent).toHaveLength(18);
   });
 
@@ -267,7 +292,7 @@ describe("dispatch through the real alert path (fake provider)", () => {
     expect((await runOutageWatchdog(deps)).alerted).toEqual([]);
     facts = healthyFacts(NOW + 5 * MIN);
     facts.fleet = { state: "HEALTHY", liveInstances: 2, lastHeartbeatAgeSeconds: 10, reason: "2 live" };
-    expect(await runOutageWatchdog(deps)).toEqual({ active: [], alerted: [], reminded: [], resolved: [], undelivered: 0 });
+    expect(await runOutageWatchdog(deps)).toEqual({ active: [], alerted: [], reminded: [], resolved: [], carried: [], undelivered: 0 });
     expect(provider.sent).toEqual([]);
 
     facts = partial(NOW + 10 * MIN);
@@ -275,6 +300,65 @@ describe("dispatch through the real alert path (fake provider)", () => {
     facts = partial(NOW + 20 * MIN);
     expect((await runOutageWatchdog(deps)).alerted).toEqual(["worker-not-live"]);
     expect(provider.sent.map((a) => [a.category, a.severity])).toEqual([["WORKER_NOT_LIVE", "HIGH"]]);
+  });
+
+  it("an unreadable source neither resolves nor re-announces: alert, unreadable, still bad, good -> one start, one resolve", async () => {
+    const provider = new FakeProvider();
+    setAlertProviderForTests(provider);
+    const store = memoryState();
+    const unreadable = (nowMs: number): OutageFacts => ({
+      nowMs,
+      boots: null,
+      schemaRefusal: null,
+      schemaRefusalReadable: false,
+      fleet: { state: "UNAVAILABLE", liveInstances: 0, lastHeartbeatAgeSeconds: null, reason: "db down" },
+      queues: [{ queueName: "report-generation", waiting: 0, oldestWaitingAgeMs: null, isWorkQueue: true, readable: false }],
+      newestReconciliationRunAtMs: undefined,
+      backups: null,
+    });
+    let facts = outageFacts(NOW);
+    const deps = { readFacts: async () => facts, dispatch: dispatchOpsAlert, config: cfg, ...store };
+
+    expect((await runOutageWatchdog(deps)).alerted).toHaveLength(6);
+
+    facts = unreadable(NOW + 5 * MIN);
+    const blind = await runOutageWatchdog(deps);
+    expect(blind.resolved).toEqual([]);
+    expect(blind.carried.sort()).toEqual(
+      [
+        "database-backup-missing",
+        "queue-backlog:report-generation",
+        "reconciliation-runs-missing",
+        "worker-not-live",
+        "worker-restart-loop",
+        "worker-schema-head-refusal",
+      ].sort(),
+    );
+
+    facts = outageFacts(NOW + 10 * MIN);
+    const stillBad = await runOutageWatchdog(deps);
+    expect(stillBad.alerted).toEqual([]);
+    expect(stillBad.resolved).toEqual([]);
+
+    facts = healthyFacts(NOW + 15 * MIN);
+    expect((await runOutageWatchdog(deps)).resolved).toHaveLength(6);
+    expect(provider.sent.filter((a) => a.title.startsWith("Resolved: "))).toHaveLength(6);
+    expect(provider.sent.filter((a) => !a.title.startsWith("Resolved: ") && !a.title.startsWith("Still ongoing: "))).toHaveLength(6);
+  });
+
+  it("each source is judged on its own: a readable source still resolves while another is unreadable", async () => {
+    const provider = new FakeProvider();
+    setAlertProviderForTests(provider);
+    const store = memoryState();
+    let facts = outageFacts(NOW);
+    const deps = { readFacts: async () => facts, dispatch: dispatchOpsAlert, config: cfg, ...store };
+    await runOutageWatchdog(deps);
+    // Backups now fine and readable; Redis (boots, refusal) unreadable.
+    facts = { ...outageFacts(NOW + 5 * MIN), boots: null, schemaRefusal: null, schemaRefusalReadable: false };
+    facts.backups = { newestSucceededAtMs: NOW, newestRecord: { outcome: "SUCCEEDED", atMs: NOW } };
+    const tick = await runOutageWatchdog(deps);
+    expect(tick.resolved).toEqual(["database-backup-missing"]);
+    expect(tick.carried.sort()).toEqual(["worker-restart-loop", "worker-schema-head-refusal"]);
   });
 
   it("with no alert provider configured, every would-be alert is logged as undelivered", async () => {
@@ -342,7 +426,11 @@ describe("readOutageFacts — the authorities the detectors read", () => {
       readFleet: async () => ({ state: "STOPPED", liveInstances: 0, lastHeartbeatAgeSeconds: 3600, reason: "r" }),
       readQueues: async () => [],
     });
-    expect(facts.bootStartsMs).toEqual([NOW - 10 * MIN, NOW - 5 * MIN]);
+    expect(facts.boots).toEqual([
+      { workerId: "w", atMs: NOW - 10 * MIN },
+      { workerId: "w", atMs: NOW - 5 * MIN },
+    ]);
+    expect(facts.schemaRefusalReadable).toBe(true);
     expect(facts.schemaRefusal).toEqual({ kind: "HEAD_NOT_APPLIED", expected: HEAD, workerId: "w", atMs: NOW - MIN });
     expect(facts.newestReconciliationRunAtMs).toBe(NOW - 26 * H);
     expect(JSON.stringify(runWhere[0])).toContain('"RETENTION"');
@@ -377,8 +465,9 @@ describe("readOutageFacts — the authorities the detectors read", () => {
     });
     expect(facts).toEqual({
       nowMs: NOW,
-      bootStartsMs: null,
+      boots: null,
       schemaRefusal: null,
+      schemaRefusalReadable: false,
       fleet: null,
       queues: null,
       newestReconciliationRunAtMs: undefined,
@@ -419,7 +508,7 @@ describe("the platform maintenance sweep runs the watchdog under its own lease",
     let calls = 0;
     const runOutageWatchdog = async () => {
       calls += 1;
-      return { active: ["worker-not-live"], alerted: ["worker-not-live"], reminded: [], resolved: [], undelivered: 0 };
+      return { active: ["worker-not-live"], alerted: ["worker-not-live"], reminded: [], resolved: [], carried: [], undelivered: 0 };
     };
     const res = await runPlatformMaintenanceSweep({ trigger: "scheduler" }, {
       runMasterReconcile: noop,

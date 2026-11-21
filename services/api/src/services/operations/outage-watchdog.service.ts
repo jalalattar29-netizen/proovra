@@ -122,7 +122,15 @@ export function readOutageWatchdogConfig(env: NodeJS.ProcessEnv = process.env): 
     restartThreshold: intEnv(env, "OPS_WATCHDOG_RESTART_THRESHOLD", d.restartThreshold, 2, 1000),
     restartWindowMinutes: intEnv(env, "OPS_WATCHDOG_RESTART_WINDOW_MINUTES", d.restartWindowMinutes, 5, 1440),
     refusalWindowMinutes: intEnv(env, "OPS_WATCHDOG_REFUSAL_WINDOW_MINUTES", d.refusalWindowMinutes, 5, 1440),
-    expectedWorkers: intEnv(env, "OPS_WATCHDOG_EXPECTED_WORKERS", d.expectedWorkers, 0, 64),
+    // Unset: the deployment's own replica count (WORKER_REPLICAS, which the
+    // API reads from the same env file the compose file interpolates).
+    expectedWorkers: intEnv(
+      env,
+      "OPS_WATCHDOG_EXPECTED_WORKERS",
+      intEnv(env, "WORKER_REPLICAS", d.expectedWorkers, 0, 64),
+      0,
+      64,
+    ),
     workerNotLiveGraceMinutes: intEnv(env, "OPS_WATCHDOG_WORKER_GRACE_MINUTES", d.workerNotLiveGraceMinutes, 1, 1440),
     queueStalledMinutes: intEnv(env, "OPS_WATCHDOG_QUEUE_STALLED_MINUTES", d.queueStalledMinutes, 1, 1440),
     queueBacklogCeiling: intEnv(env, "OPS_WATCHDOG_QUEUE_BACKLOG_CEILING", d.queueBacklogCeiling, 1, 10_000_000),
@@ -159,7 +167,15 @@ export type QueueFact = {
   oldestWaitingAgeMs: number | null;
   /** Dead-letter sinks and disabled/unconfigured queues are not work backlogs. */
   isWorkQueue: boolean;
+  /**
+   * false: this queue could not be probed this tick (Redis refused, or the
+   * inventory budget ran out); its counts are not a measurement. Default true.
+   */
+  readable?: boolean;
 };
+
+/** One process start the worker recorded about itself. */
+export type BootFact = { workerId: string; atMs: number };
 
 export type BackupFact = {
   newestSucceededAtMs: number | null;
@@ -169,8 +185,10 @@ export type BackupFact = {
 export type OutageFacts = {
   nowMs: number;
   /** null: Redis could not be read (the detectors that need it stay silent). */
-  bootStartsMs: number[] | null;
+  boots: BootFact[] | null;
   schemaRefusal: SchemaRefusalFact | null;
+  /** false: the refusal record could not be read (default: readable when boots were). */
+  schemaRefusalReadable?: boolean;
   fleet: FleetFact | null;
   queues: QueueFact[] | null;
   /** undefined: unreadable; null: no run of these kinds was ever recorded. */
@@ -216,16 +234,25 @@ export function detectOutageSignals(facts: OutageFacts, config: OutageWatchdogCo
     });
   }
 
-  if (facts.bootStartsMs) {
+  if (facts.boots) {
+    // Counted PER WORKER IDENTITY: a deploy of N replicas starts N new
+    // identities once each and is not a loop; a container that keeps exiting
+    // restarts under the same identity (its hostname survives a restart).
     const since = now - config.restartWindowMinutes * MIN;
-    const starts = facts.bootStartsMs.filter((t) => t >= since && t <= now).length;
+    const perWorker = new Map<string, number>();
+    for (const b of facts.boots) {
+      if (b.atMs >= since && b.atMs <= now) perWorker.set(b.workerId, (perWorker.get(b.workerId) ?? 0) + 1);
+    }
+    let starts = 0;
+    let loopingWorker = "";
+    for (const [id, n] of perWorker) if (n > starts) { starts = n; loopingWorker = id; }
     if (starts >= config.restartThreshold) {
       out.push({
         category: "WORKER_RESTART_LOOP",
         severity: "HIGH",
         title: "Worker is restarting repeatedly",
         summary:
-          `${starts} worker process starts in the last ${config.restartWindowMinutes} min ` +
+          `${starts} process starts of worker ${loopingWorker} in the last ${config.restartWindowMinutes} min ` +
           `(threshold ${config.restartThreshold}). Read the worker container's log for the exit reason.`,
         fingerprint: "worker-restart-loop",
       });
@@ -261,7 +288,7 @@ export function detectOutageSignals(facts: OutageFacts, config: OutageWatchdogCo
   }
 
   for (const q of facts.queues ?? []) {
-    if (!q.isWorkQueue) continue;
+    if (!q.isWorkQueue || q.readable === false) continue;
     const stalled = q.waiting > 0 && q.oldestWaitingAgeMs !== null && q.oldestWaitingAgeMs >= config.queueStalledMinutes * MIN;
     const backlog = q.waiting > config.queueBacklogCeiling;
     if (!stalled && !backlog) continue;
@@ -317,6 +344,35 @@ export function detectOutageSignals(facts: OutageFacts, config: OutageWatchdogCo
   return out;
 }
 
+/**
+ * Whether THIS tick read the source a signal comes from. A signal that is not
+ * raised because its source could not be read is not "cleared": resolving it
+ * then would flap (Resolved, then a fresh start alert on the next good read).
+ */
+export function signalSourceReadable(facts: OutageFacts, category: AlertCategory, fingerprint: string): boolean {
+  switch (category) {
+    case "WORKER_SCHEMA_HEAD_REFUSAL":
+      return facts.schemaRefusalReadable ?? facts.boots !== null;
+    case "WORKER_RESTART_LOOP":
+      return facts.boots !== null;
+    case "WORKER_NOT_LIVE":
+      return facts.fleet !== null && facts.fleet.state !== "UNAVAILABLE";
+    case "QUEUE_BACKLOG_STALLED": {
+      if (facts.queues === null) return false;
+      const name = fingerprint.startsWith("queue-backlog:") ? fingerprint.slice("queue-backlog:".length) : "";
+      const q = facts.queues.find((x) => x.queueName === name);
+      // A queue no longer listed was measured as absent; one listed unreadable was not measured.
+      return q ? q.readable !== false : true;
+    }
+    case "RECONCILIATION_RUNS_MISSING":
+      return facts.newestReconciliationRunAtMs !== undefined;
+    case "DATABASE_BACKUP_MISSING":
+      return facts.backups !== null;
+    default:
+      return true;
+  }
+}
+
 // -----------------------------------------------------------------------------
 // Dispatch with start / reminder / resolved
 // -----------------------------------------------------------------------------
@@ -339,6 +395,8 @@ export type OutageWatchdogSummary = {
   alerted: string[];
   reminded: string[];
   resolved: string[];
+  /** Ongoing signals whose source could not be read this tick (kept, not resolved). */
+  carried: string[];
   /** Dispatches that reached no receiver (no provider, or the provider failed). */
   undelivered: number;
 };
@@ -349,7 +407,7 @@ export async function runOutageWatchdog(deps: OutageWatchdogDeps): Promise<Outag
   const signals = detectOutageSignals(facts, config);
   const state = await deps.loadState().catch(() => ({}) as WatchdogState);
   const now = facts.nowMs;
-  const summary: OutageWatchdogSummary = { active: [], alerted: [], reminded: [], resolved: [], undelivered: 0 };
+  const summary: OutageWatchdogSummary = { active: [], alerted: [], reminded: [], resolved: [], carried: [], undelivered: 0 };
 
   const send = async (input: AlertInput, signalKey: string) => {
     let result: AlertDispatchResult;
@@ -404,6 +462,11 @@ export async function runOutageWatchdog(deps: OutageWatchdogDeps): Promise<Outag
 
   for (const [fingerprint, entry] of Object.entries(state)) {
     if (seen.has(fingerprint)) continue;
+    // Unreadable this tick: carried forward untouched, neither resolved nor re-announced.
+    if (!signalSourceReadable(facts, entry.category, fingerprint)) {
+      summary.carried.push(fingerprint);
+      continue;
+    }
     delete state[fingerprint];
     // Never announced (it cleared inside its hold): nothing to resolve.
     if (entry.lastAlertMs === null) continue;
@@ -422,7 +485,7 @@ export async function runOutageWatchdog(deps: OutageWatchdogDeps): Promise<Outag
   }
 
   await deps.saveState(state).catch(() => undefined);
-  if (summary.active.length > 0 || summary.resolved.length > 0) {
+  if (summary.active.length > 0 || summary.resolved.length > 0 || summary.carried.length > 0) {
     deps.logger?.info({ ...summary }, "ops_watchdog.evaluated");
   }
   return summary;
@@ -451,11 +514,13 @@ export type WatchdogRedis = {
   set(key: string, value: string, mode: "EX", seconds: number): Promise<unknown>;
 };
 
-export function parseBootStarts(members: string[]): number[] {
-  const out: number[] = [];
+/** Members are "<workerId>|<pid>|<epoch ms>" (services/worker/src/boot-signal.ts). */
+export function parseBoots(members: string[]): BootFact[] {
+  const out: BootFact[] = [];
   for (const m of members) {
-    const at = Number(m.split("|").pop());
-    if (Number.isFinite(at)) out.push(at);
+    const parts = m.split("|");
+    const at = Number(parts[parts.length - 1]);
+    if (parts.length >= 3 && Number.isFinite(at)) out.push({ workerId: parts.slice(0, -2).join("|"), atMs: at });
   }
   return out;
 }
@@ -497,15 +562,25 @@ export async function readOutageFacts(input: {
     }
   };
   const redis = input.redis;
-  const [bootStartsMs, schemaRefusal, fleet, queues, run, backups] = await Promise.all([
+  let schemaRefusalReadable = redis !== null;
+  const [boots, schemaRefusal, fleet, queues, run, backups] = await Promise.all([
     redis
       ? settle(async () =>
-          parseBootStarts(
+          parseBoots(
             await redis.zrangebyscore(OPS_WORKER_BOOT_EVENTS_KEY, nowMs - input.config.restartWindowMinutes * MIN, "+inf"),
           ),
         )
       : Promise.resolve(null),
-    redis ? settle(async () => parseSchemaRefusal(await redis.get(OPS_WORKER_SCHEMA_REFUSAL_KEY))) : Promise.resolve(null),
+    redis
+      ? (async () => {
+          try {
+            return parseSchemaRefusal(await redis.get(OPS_WORKER_SCHEMA_REFUSAL_KEY));
+          } catch {
+            schemaRefusalReadable = false;
+            return null;
+          }
+        })()
+      : Promise.resolve(null),
     settle(input.readFleet),
     settle(input.readQueues),
     (async (): Promise<number | null | undefined> => {
@@ -541,8 +616,9 @@ export async function readOutageFacts(input: {
   ]);
   return {
     nowMs,
-    bootStartsMs,
+    boots,
     schemaRefusal,
+    schemaRefusalReadable,
     fleet,
     queues,
     newestReconciliationRunAtMs: run,
