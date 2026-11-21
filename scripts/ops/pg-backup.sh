@@ -77,7 +77,9 @@ SERVER_VERSION_NUM="$(psql "$DATABASE_URL" -X -q -A -t -v ON_ERROR_STOP=1 -c "SH
   fail "could not connect to the database to read its server version"
 [[ "$SERVER_VERSION_NUM" =~ ^[0-9]{5,6}$ ]] || fail "could not read the database server version"
 SERVER_MAJOR=$((SERVER_VERSION_NUM / 10000))
-CLIENT_MAJOR="$(pg_dump --version | sed -nE 's/^pg_dump \(PostgreSQL\) ([0-9]+).*/\1/p')"
+CLIENT_VERSION="$(pg_dump --version 2>/dev/null)" ||
+  fail "could not run 'pg_dump --version' to read the client version"
+CLIENT_MAJOR="$(printf '%s\n' "$CLIENT_VERSION" | sed -nE 's/^pg_dump \(PostgreSQL\) ([0-9]+).*/\1/p')"
 [[ "$CLIENT_MAJOR" =~ ^[0-9]+$ ]] || fail "could not read the pg_dump client version"
 [ "$CLIENT_MAJOR" -ge "$SERVER_MAJOR" ] ||
   fail "version mismatch — pg_dump client is PostgreSQL ${CLIENT_MAJOR} and the server is PostgreSQL ${SERVER_MAJOR}; pg_dump cannot dump a newer server. Run this in the pgvector/pgvector:pg${SERVER_MAJOR} image (infra/docker/docker-compose.prod.yml, service pg-backup)."
@@ -96,7 +98,8 @@ else
 fi
 [[ "$ESTIMATE_BYTES" =~ ^[0-9]+$ ]] || fail "could not size the backup for the free-space check"
 NEED_KB=$(((2 * ESTIMATE_BYTES) / 1024 + BACKUP_FREE_MARGIN_MB * 1024))
-FREE_KB="$(df -Pk "$BACKUP_DIR" | awk 'NR == 2 {print $4}')"
+FREE_KB="$(df -Pk "$BACKUP_DIR" 2>/dev/null | awk 'NR == 2 {print $4}')" ||
+  fail "could not read the free space of the backup directory"
 [[ "$FREE_KB" =~ ^[0-9]+$ ]] || fail "could not read the free space of the backup directory"
 [ "$FREE_KB" -ge "$NEED_KB" ] ||
   fail "insufficient disk space — ${BACKUP_DIR} has $((FREE_KB / 1024)) MB free and needs $((NEED_KB / 1024)) MB (2 x ${ESTIMATE_FROM}, $((ESTIMATE_BYTES / 1048576)) MB, + ${BACKUP_FREE_MARGIN_MB} MB margin). Nothing was written; free space or lower BACKUP_RETAIN."

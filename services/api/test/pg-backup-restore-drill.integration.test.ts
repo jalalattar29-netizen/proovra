@@ -69,6 +69,11 @@ function fromContainer(url: string): string {
 
 /** Run one of the ops scripts in the PostgreSQL client image, on the drill network. */
 function runScript(script: string, env: Record<string, string>, backups: string, image: string = IMAGE) {
+  return runInClientImage(["bash", `/ops/${script}`], env, backups, image);
+}
+
+/** A shell command in the client image, with the same mounts and user as runScript. */
+function runInClientImage(command: string[], env: Record<string, string>, backups: string, image: string = IMAGE) {
   const res = spawnSync(
     "docker",
     [
@@ -82,7 +87,7 @@ function runScript(script: string, env: Record<string, string>, backups: string,
       "-v", `${OPS_DIR}:/ops:ro`,
       "-v", `${backups}:/backups`,
       ...Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
-      image, "bash", `/ops/${script}`,
+      image, ...command,
     ],
     { encoding: "utf8" },
   );
@@ -250,6 +255,47 @@ describe("AUD-023 — pg-backup.sh + pg-restore-drill.sh against disposable Post
     expect(res.code).not.toBe(0);
     expect(res.out).toMatch(/pg-restore-drill-local: FAILED — insufficient disk space — the drill scratch has \d+ MB free/);
     expect(res.out).not.toMatch(/restore OK/);
+  }, 120_000);
+
+  it("a pg_dump that cannot report its version fails loudly, before anything is written", () => {
+    const before = readdirSync(backups).sort();
+    const res = runInClientImage(
+      [
+        "bash", "-c",
+        "mkdir -p /tmp/broken && printf '#!/bin/sh\\nexit 7\\n' > /tmp/broken/pg_dump && chmod +x /tmp/broken/pg_dump && PATH=/tmp/broken:$PATH bash /ops/pg-backup.sh",
+      ],
+      { DATABASE_URL: SRC_URL, BACKUP_DIR: "/backups" },
+      backups,
+    );
+    expect(res.code).not.toBe(0);
+    expect(res.out).toMatch(/pg-backup: FAILED — could not run 'pg_dump --version' to read the client version/);
+    expect(readdirSync(backups).sort()).toEqual(before);
+  }, 120_000);
+
+  it("the local drill fails loudly on a dump it cannot size, and leaves no scratch directory behind", () => {
+    const res = runInClientImage(
+      ["bash", "-c", "bash /ops/pg-restore-drill-local.sh; rc=$?; echo \"left=$(ls -d /tmp/proovra-drill-* 2>/dev/null | wc -l)\"; exit $rc"],
+      { BACKUP_FILE: "/backups/does-not-exist.dump" },
+      backups,
+    );
+    expect(res.code).not.toBe(0);
+    expect(res.out).toMatch(/pg-restore-drill-local: FAILED — could not size the dump/);
+    expect(res.out).toMatch(/left=0/);
+  }, 120_000);
+
+  it("the local drill fails loudly when free space cannot be read, and leaves no scratch directory behind", () => {
+    const res = runInClientImage(
+      [
+        "bash", "-c",
+        "mkdir -p /tmp/broken && printf '#!/bin/sh\\nexit 3\\n' > /tmp/broken/df && chmod +x /tmp/broken/df && " +
+          "PATH=/tmp/broken:$PATH bash /ops/pg-restore-drill-local.sh; rc=$?; echo \"left=$(ls -d /tmp/proovra-drill-* 2>/dev/null | wc -l)\"; exit $rc",
+      ],
+      { BACKUP_FILE: `/backups/${dumpName}` },
+      backups,
+    );
+    expect(res.code).not.toBe(0);
+    expect(res.out).toMatch(/pg-restore-drill-local: FAILED — could not read the free space of the drill scratch/);
+    expect(res.out).toMatch(/left=0/);
   }, 120_000);
 
   it("the drill restores into a fresh database on a disposable server and every fact matches", async () => {
