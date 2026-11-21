@@ -67,7 +67,8 @@ import {
   processGraphSearchProjectionJob,
 } from "./subsystem-queue-processors.js";
 import { startHealthServer, type HealthServer } from "./health.js";
-import { startTelemetrySampler, type TelemetrySampler } from "./telemetry.js";
+import { resolveWorkerId, startTelemetrySampler, type TelemetrySampler } from "./telemetry.js";
+import { clearSchemaRefusal, recordSchemaRefusal, recordWorkerBoot } from "./boot-signal.js";
 import { captureException, initSentry } from "./sentry.js";
 // Phase O1.3 — cross-service trace propagation helper + bounded span
 // enum. The helper wraps the BullMQ job processor so it inherits the
@@ -2200,7 +2201,19 @@ function safeRegisterWorker(
 {
   const { prisma: schemaDb } = await import("./db.js");
   const { enforceSchemaHeadBeforeConsumers } = await import("./schema-head.js");
+  // OPS outage watchdog — the boot and any refusal are recorded in the shared
+  // Redis before the gate can exit, so the API can alert on a refusing or
+  // crash-looping worker that never reaches its first heartbeat.
+  const bootWorkerId = resolveWorkerId();
+  await recordWorkerBoot(redisConnection, { workerId: bootWorkerId, pid: process.pid });
   await enforceSchemaHeadBeforeConsumers({
+    onRefused: (problem) =>
+      recordSchemaRefusal(redisConnection, {
+        kind: problem.kind,
+        expected: problem.expected,
+        workerId: bootWorkerId,
+      }),
+    onCurrent: () => clearSchemaRefusal(redisConnection),
     readRows: (name) =>
       schemaDb.$queryRaw<Array<{ migration_name: string; finished_at: Date | null; rolled_back_at: Date | null }>>`
         SELECT migration_name, finished_at, rolled_back_at FROM "_prisma_migrations" WHERE migration_name = ${name}`,

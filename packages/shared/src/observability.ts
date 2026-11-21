@@ -159,9 +159,34 @@ export const ALERT_CATEGORIES = [
   "IDENTITY_SECURITY_RISK_CRITICAL",
   "STORAGE_WRITE_FAILURE",
   "REPORT_BACKLOG_HIGH",
+  // OPS outage watchdog (2026-11-21). The worker refused to start for ~25 h
+  // (schema head behind its build, 306 restarts), scheduled reconciliation
+  // stopped, and nothing alerted. Each category below is one detector of
+  // services/api/src/services/operations/outage-watchdog.service.ts.
+  "WORKER_SCHEMA_HEAD_REFUSAL",
+  "WORKER_RESTART_LOOP",
+  "WORKER_NOT_LIVE",
+  "QUEUE_BACKLOG_STALLED",
+  "RECONCILIATION_RUNS_MISSING",
+  "DATABASE_BACKUP_MISSING",
 ] as const;
 export const AlertCategorySchema = z.enum(ALERT_CATEGORIES);
 export type AlertCategory = z.infer<typeof AlertCategorySchema>;
+
+/**
+ * Redis keys the worker writes about its own boots, read by the API's outage
+ * watchdog. The worker can fail before it ever registers a lease or writes a
+ * heartbeat (the schema-head gate runs first), so these are the only trace a
+ * refusing or crash-looping worker leaves. Plain keys (no BullMQ prefix), on
+ * the Redis both processes share through REDIS_URL.
+ *
+ *   OPS_WORKER_BOOT_EVENTS_KEY      sorted set; one member per process start,
+ *                                   scored by its epoch ms; trimmed to 24 h.
+ *   OPS_WORKER_SCHEMA_REFUSAL_KEY   JSON of the newest schema-head refusal;
+ *                                   deleted by a worker whose head is current.
+ */
+export const OPS_WORKER_BOOT_EVENTS_KEY = "ops:worker:boots";
+export const OPS_WORKER_SCHEMA_REFUSAL_KEY = "ops:worker:schema-refusal";
 
 // -----------------------------------------------------------------------------
 // Log redaction key allowlist
