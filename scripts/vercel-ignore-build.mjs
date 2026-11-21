@@ -55,6 +55,15 @@
  * against the now-current API. docs/operations/web-release-after-api.md is the
  * runbook.
  *
+ * TWO PLACES (2026-11-21). The 5b9fa29e4 production build was made without the
+ * gate asking the live API anything (the API logged no /health request during
+ * the build). So: an environment with neither VERCEL_ENV nor
+ * VERCEL_GIT_COMMIT_REF is treated as production, and vercel.json's
+ * buildCommand runs this script with --enforce before `next build`. There a
+ * production build the gate would skip exits 1: the build fails, nothing is
+ * promoted, and the live web keeps serving. The ignore step saves the build
+ * minutes; the build step is the guarantee.
+ *
  * PROOVRA_WEB_IGNORE_API_EPOCH=1 (a Vercel environment variable, set by the
  * owner for one deliberate release) forces the build: break-glass.
  *
@@ -99,8 +108,14 @@ function isEpoch(n) {
 }
 
 function isProduction(env) {
+  // 2026-11-21: with neither variable visible the environment is unknown, and an
+  // unknown environment is production (fail closed). The 5b9fa29e4 production
+  // build made no request to the live API, which only the preview path skips.
+  if (!env.VERCEL_ENV && !env.VERCEL_GIT_COMMIT_REF) return true;
   return env.VERCEL_ENV === "production" || env.VERCEL_GIT_COMMIT_REF === "main";
 }
+
+export { isProduction };
 
 /**
  * The decision.
@@ -402,6 +417,14 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     d = isProduction(process.env)
       ? { build: false, reason: `the gate failed (${String(e?.message ?? e)}); production fails closed` }
       : { build: true, reason: `the gate failed (${String(e?.message ?? e)}); previews build` };
+  }
+  if (process.argv.includes("--enforce")) {
+    // Build-command mode (vercel.json buildCommand): runs whether or not Vercel
+    // ran the ignore step. A production build the gate would skip FAILS here,
+    // so it is never promoted and the live web keeps serving. Previews proceed.
+    const refuse = isProduction(process.env) && !d.build;
+    console.log(`vercel-ignore-build --enforce: ${refuse ? "REFUSED (build fails, nothing is promoted)" : "OK"} — ${d.reason}`);
+    process.exit(refuse ? 1 : 0);
   }
   console.log(`vercel-ignore-build: ${d.build ? "BUILD" : "SKIP"} — ${d.reason}`);
   process.exit(d.build ? 1 : 0);

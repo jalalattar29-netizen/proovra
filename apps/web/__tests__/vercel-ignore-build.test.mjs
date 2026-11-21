@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import {
   API_FACING_PATHS,
   decide,
+  isProduction,
   readApiFacingDiff,
   readLiveApi,
   readLiveApiRouteEpoch,
@@ -234,6 +235,38 @@ test("API-facing diff on this repository: the remediation is ahead of cdcb8aef8 
   const diff = readApiFacingDiff("cdcb8aef8", run);
   assert.ok(Array.isArray(diff) && diff.length > 0);
   assert.ok(!diff.some((f) => /^packages\/shared\/src\/i18n/.test(f)), "locale text is not API-facing");
+});
+
+test("the build command enforces the gate before next build", () => {
+  const cfg = JSON.parse(readFileSync(resolve(REPO, "vercel.json"), "utf8"));
+  assert.match(cfg.buildCommand, /^node scripts\/vercel-ignore-build\.mjs --enforce && pnpm --filter proovra-web build$/);
+});
+
+test("an environment with neither VERCEL_ENV nor VERCEL_GIT_COMMIT_REF is production (5b9fa29e4 build)", () => {
+  assert.equal(isProduction({}), true);
+  assert.equal(isProduction({ VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "feature/x" }), false);
+  assert.equal(isProduction({ VERCEL_GIT_COMMIT_REF: "feature/x" }), false);
+  // The unknown environment gets the production rules: an unreadable API skips.
+  const d = decide({ env: {}, changedFiles: ["apps/web/a.tsx"], own, live: { error: "timeout" }, apiFacingDiff: null });
+  assert.equal(d.build, false, d.reason);
+});
+
+test("--enforce: a production build the gate refuses FAILS (exit 1); a preview proceeds (exit 0)", () => {
+  const run = (env) =>
+    spawnSync(process.execPath, [SCRIPT, "--enforce"], {
+      cwd: REPO,
+      encoding: "utf8",
+      env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, ...env },
+      timeout: 60_000,
+    });
+  const prodRun = run({ VERCEL_ENV: "production", VERCEL_GIT_COMMIT_REF: "main", NEXT_PUBLIC_API_BASE: "https://127.0.0.1:1" });
+  assert.equal(prodRun.status, 1, prodRun.stdout + prodRun.stderr);
+  assert.match(prodRun.stdout, /--enforce: REFUSED/);
+  const unknownRun = run({ NEXT_PUBLIC_API_BASE: "https://127.0.0.1:1" });
+  assert.equal(unknownRun.status, 1, unknownRun.stdout + unknownRun.stderr);
+  const previewRun = run({ VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "feature/x", NEXT_PUBLIC_API_BASE: "https://127.0.0.1:1" });
+  assert.equal(previewRun.status, 0, previewRun.stdout + previewRun.stderr);
+  assert.match(previewRun.stdout, /--enforce: OK/);
 });
 
 test("the script process: production with an unreachable API exits 0 (SKIP)", () => {

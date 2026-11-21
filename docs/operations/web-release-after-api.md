@@ -27,6 +27,20 @@ Every run writes two lines to the Vercel build log, beginning
 `vercel-ignore-build:`. The first says what was compared. The second gives
 `BUILD` or `SKIP` and the reason.
 
+The same check runs a second time at the start of the build command
+(`node scripts/vercel-ignore-build.mjs --enforce && pnpm --filter proovra-web build`).
+There, a production build the gate refuses **fails** (`--enforce: REFUSED`): the
+deployment errors, nothing is promoted, and the current web keeps serving. This
+holds even if Vercel does not run the ignore step, which is what the 5b9fa29e4
+production build showed: the API logged no `/health` request from it. A
+build whose environment shows neither `VERCEL_ENV` nor `VERCEL_GIT_COMMIT_REF` is
+treated as production.
+
+**Evidence without Vercel access:** each gate run requests
+`https://api.proovra.com/health`, which the production API logs as a
+`request.completed` line for `/health`. A deployment window with no such line
+means the gate did not ask the API.
+
 ## Releasing a web that needs a newer API
 
 A push whose API-facing source the live API does not serve yet is skipped, by
