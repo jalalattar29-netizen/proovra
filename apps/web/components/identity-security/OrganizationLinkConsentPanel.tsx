@@ -74,6 +74,8 @@ const REFUSALS: Record<string, string> = {
     "Your organization sign-in is already linked to a different PROOVRA account, so nothing was linked. Ask your administrator.",
   organization_link_seat_limit_reached:
     "Your organization has no seats left, so nothing was linked. Ask your administrator.",
+  organization_link_membership_inactive:
+    "Your membership in this organization is suspended or has ended, so nothing was linked. Ask your administrator to restore it, then approve again.",
   organization_link_seat_contention:
     "Your organization is busy adding people. Nothing was linked yet; try again in a moment.",
   rate_limited: "Too many verification attempts. Wait a minute and try again.",

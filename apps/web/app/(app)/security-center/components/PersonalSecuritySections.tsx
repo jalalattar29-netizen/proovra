@@ -65,6 +65,7 @@ import { useTeamId } from "../../../../lib/platform-context";
 import { ContactFactorEnrollmentPanel } from "../../../../components/identity-security/ContactFactorEnrollmentPanel";
 import { PasskeysCard } from "../../../../components/identity-security/PasskeysCard";
 import { OrganizationLinkConsentPanel } from "../../../../components/identity-security/OrganizationLinkConsentPanel";
+import { OrganizationLinkConsentsCard } from "../../../../components/identity-security/OrganizationLinkConsentsCard";
 import {
   RecoveryCodesNotice,
   recoveryCodesActionLabel,
@@ -2196,6 +2197,10 @@ export function PersonalSecuritySections() {
       {/* B5B-F-302 — a refused organization sign-in's pending link, approved
           by the owner here (renders nothing when there is none). */}
       <OrganizationLinkConsentPanel StepUpPrompt={StepUpVerify} />
+      {/* PRO-A2-02 (owner decision A) — organizations whose sign-in this
+          account approved; the owner withdraws a consent here (renders
+          nothing when there is none). */}
+      <OrganizationLinkConsentsCard StepUpPrompt={StepUpVerify} />
       <SummaryStrip mfa={mfa} sessions={sessions} loginMethods={loginMethods} />
       <LoginMethodsCard
         state={loginMethods}
