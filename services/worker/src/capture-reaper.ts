@@ -722,6 +722,7 @@ export async function removeReleasedReservationObjects(options: {
       if (options.listKeys && bucket) {
         for (const key of await options.listKeys({ bucket, prefix: `evidence/${record.id}/` })) add(bucket, key);
       }
+      let recordDeletesFailed = 0;
       for (const o of await releasedObjectKeysOnly([...keys.values()], now)) {
         result.objectDeletesRequested++;
         try {
@@ -730,14 +731,22 @@ export async function removeReleasedReservationObjects(options: {
           if (removal.retainedVersions > 0) result.objectsRetained++;
           if (removal.failed > 0) {
             result.objectDeletesFailed++;
+            recordDeletesFailed++;
             result.pendingObjectDeletes.push(o);
           }
         } catch {
           result.objectDeletesFailed++;
+          recordDeletesFailed++;
           result.pendingObjectDeletes.push(o);
         }
       }
-      // Stamped once; anything that failed is carried forward, not re-listed.
+      // CLOSURE2 (2026-11-21) — the stamp says the released objects WERE
+      // removed, so a record with any failed delete is not stamped. It stays
+      // in scope and is re-listed on the next run. The carried list
+      // (pendingObjectDeletes) is capped at MAX_PENDING_OBJECT_DELETES, so it
+      // could not be the only memory of a failure: before this, an overflow
+      // left a stamped record whose objects still existed.
+      if (recordDeletesFailed > 0) continue;
       const stamped = await prisma.evidence.updateMany({
         where: { id: record.id, deletedAt: { not: null }, status: { in: UNSEALED }, releasedObjectsRemovedAtUtc: null },
         data: { releasedObjectsRemovedAtUtc: now },

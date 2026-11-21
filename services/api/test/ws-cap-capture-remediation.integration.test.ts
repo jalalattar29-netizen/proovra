@@ -688,6 +688,45 @@ t0: Date, staged: boolean) {
     expect(deleted.filter((k) => k.includes(evidenceId))).toEqual([]);
   }, 240_000);
 
+  it("CLOSURE2 reaper truth: a record whose object delete FAILED is not stamped as removed, and is retried until the delete succeeds", async () => {
+    const evidenceId = await reservedRecord();
+    const partKey = `evidence/${evidenceId}/parts/000-b.jpg`;
+    await prisma.evidencePart.create({ data: { evidenceId, partIndex: 0, storageBucket: "ws-cap-test-bucket", storageKey: partKey } });
+    await prisma.evidence.update({
+      where: { id: evidenceId },
+      data: { deletedAt: new Date(Date.now() - 120 * MIN), createdAt: new Date(Date.now() - 25 * 60 * MIN) },
+    });
+    const listKeys = async ({ prefix }: { bucket: string; prefix: string }) =>
+      prefix === `evidence/${evidenceId}/` ? [partKey] : [];
+    // 1. The store refuses (one reported failure, then a thrown error): no stamp.
+    const refusing = async () => ({ deleted: false, deletedVersions: 0, retainedVersions: 0, deleteMarkerOnly: false, failed: 1 });
+    const r1 = await reaper.removeReleasedReservationObjects({ deleteObject: refusing, listKeys, bucket: "ws-cap-test-bucket", batchSize: 1000 });
+    expect(r1.objectDeletesFailed).toBeGreaterThan(0);
+    let row = await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { releasedObjectsRemovedAtUtc: true } });
+    expect(row.releasedObjectsRemovedAtUtc).toBeNull();
+    const throwing = async () => {
+      throw new Error("NoSuchBucket");
+    };
+    await reaper.removeReleasedReservationObjects({ deleteObject: throwing, listKeys, bucket: "ws-cap-test-bucket", batchSize: 1000 });
+    row = await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { releasedObjectsRemovedAtUtc: true } });
+    expect(row.releasedObjectsRemovedAtUtc).toBeNull();
+    // 2. Still in scope: the next run re-lists it, and a successful delete stamps it.
+    const ok = recordingDeleterForTruth();
+    await reaper.removeReleasedReservationObjects({ deleteObject: ok.deleteObject, listKeys, bucket: "ws-cap-test-bucket", batchSize: 1000 });
+    expect(ok.deleted).toContain(partKey);
+    row = await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { releasedObjectsRemovedAtUtc: true } });
+    expect(row.releasedObjectsRemovedAtUtc).not.toBeNull();
+  }, 240_000);
+
+  function recordingDeleterForTruth() {
+    const deleted: string[] = [];
+    const deleteObject = async (o: { bucket: string; key: string }) => {
+      deleted.push(o.key);
+      return { deleted: true, deletedVersions: 1, retainedVersions: 0, deleteMarkerOnly: false, failed: 0 };
+    };
+    return { deleted, deleteObject };
+  }
+
   // --- PRO-NB-01 (review gap 1): installed older clients -----------------------
 
   const recordingDeleter = () => {
