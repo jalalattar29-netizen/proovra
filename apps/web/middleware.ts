@@ -11,10 +11,18 @@ import { findSurfaceTierRule } from "./lib/surface/tiers";
 import { REQUEST_PATHNAME_HEADER } from "./lib/request-pathname-header";
 import { isLocalOrPreviewHost } from "./lib/security/request-host";
 import { resolveApprovedTileTemplate } from "@proovra/shared/tile-endpoint-policy";
+import {
+  REPORTING_ENDPOINTS_HEADER,
+  buildReportOnlyCsp,
+  readReportOnlyInputs,
+} from "./lib/security/csp-report-only";
 
 const APP_BASE = process.env.NEXT_PUBLIC_APP_BASE;
 const WEB_BASE = process.env.NEXT_PUBLIC_WEB_BASE;
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "https://api.proovra.com";
+
+/** Read once at module load, like the enforced policy's inputs. */
+const REPORT_ONLY_INPUTS = readReportOnlyInputs(API_BASE);
 
 /**
  * Phase IA-surface-tier — direct-URL gate.
@@ -256,15 +264,42 @@ function applyStaticSecurityHeaders(response: NextResponse, pathname: string) {
  * the one path meant to "never fail OPEN" allowed inline scripts and scripts
  * from any https origin. Same-origin bundles still load; inline and foreign
  * scripts do not.
+ *
+ * PRO-PW-09 (closure, decision J) — and no directive is wider than the
+ * enforced policy's: the old `default-src 'self' https: data: blob:
+ * 'unsafe-inline'` let every fetch-type directive without its own entry
+ * (connect, frame, media, worker, manifest) reach any https origin, which the
+ * normal path never allows for frames. Without a nonce the page cannot hydrate
+ * anyway, so the failure path keeps only same-origin resources, inline style,
+ * and data:/blob: images and data: fonts.
  */
-export const FAIL_SAFE_CSP = "default-src 'self' https: data: blob: 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'";
+export const FAIL_SAFE_CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  "object-src 'none'",
+  "base-uri 'self'",
+].join("; ");
 
-function applySecurityHeaders(response: NextResponse, csp: string, pathname: string) {
+/** The request's two policies: the enforced one and the observed named-origin one. */
+type RequestPolicies = { enforced: string; reportOnly: string };
+
+function applySecurityHeaders(response: NextResponse, policies: RequestPolicies, pathname: string) {
   applyStaticSecurityHeaders(response, pathname);
   // The policy is BUILT ONCE per request and passed in, so the header the
   // browser enforces and the header the render read are the same string with
   // the same nonce. Building it twice was safe only by coincidence.
-  if (process.env.NODE_ENV === "production") response.headers.set("Content-Security-Policy", csp);
+  if (process.env.NODE_ENV === "production") {
+    response.headers.set("Content-Security-Policy", policies.enforced);
+    // PRO-PW-09 — the named-origin policy, observed before it is enforced
+    // (docs/operations/csp-report-only.md). It never replaces the header above.
+    response.headers.set("Content-Security-Policy-Report-Only", policies.reportOnly);
+    response.headers.set("Reporting-Endpoints", REPORTING_ENDPOINTS_HEADER);
+  }
 
 
   // ✅ لا ترسل nonce كـ response header (غير ضروري)
@@ -293,6 +328,15 @@ function nextWithNonce(req: NextRequest, nonce: string, csp: string) {
   requestHeaders.set(REQUEST_PATHNAME_HEADER, req.nextUrl.pathname);
   requestHeaders.set("Content-Security-Policy", csp);
   return NextResponse.next({ request: { headers: requestHeaders } });
+}
+
+/** A rewrite that, like nextWithNonce, hands the render the nonce and policy. */
+function rewriteWithNonce(req: NextRequest, target: URL, nonce: string, csp: string) {
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set(REQUEST_PATHNAME_HEADER, req.nextUrl.pathname);
+  requestHeaders.set("Content-Security-Policy", csp);
+  return NextResponse.rewrite(target, { request: { headers: requestHeaders } });
 }
 
 function normalizeBaseUrl(base: string | undefined) {
@@ -330,6 +374,7 @@ export async function middleware(req: NextRequest) {
     // (so the render can read the nonce) and the response header (so the
     // browser enforces it). Two builds could drift; one cannot.
     const csp = buildCsp(nonce, isProd, relaxed, allowEval);
+    const policies: RequestPolicies = { enforced: csp, reportOnly: buildReportOnlyCsp(nonce, REPORT_ONLY_INPUTS) };
 
     const host = req.headers.get("host");
     const pathname = req.nextUrl.pathname;
@@ -372,10 +417,17 @@ export async function middleware(req: NextRequest) {
         decodedSlug = null;
       }
       const canonical = decodedSlug === null ? null : resolveRunbookSlug(decodedSlug);
+      // PRO-PW-09 (closure) — these early answers left the middleware with NO
+      // security headers at all: the malformed-slug not-found rewrite, the
+      // denial page and the alias rewrite went out without a CSP. Each now
+      // carries the same enforced policy (and nonce, for a rewritten render)
+      // as every other response.
       if (canonical === null) {
         const target = req.nextUrl.clone();
         target.pathname = "/not-found";
-        return NextResponse.rewrite(target);
+        const res = rewriteWithNonce(req, target, nonce, csp);
+        applySecurityHeaders(res, policies, pathname);
+        return res;
       }
 
       const access = await resolveRunbookAccessForRequest(req);
@@ -384,19 +436,23 @@ export async function middleware(req: NextRequest) {
         // not the runbook's title, not its summary, not its slug.
         // The body is a complete accessible page (one <main>, a heading, the
         // way forward) because the app shell never renders for this response.
-        return new NextResponse(runbookDenialHtml(access, pathname), {
+        const res = new NextResponse(runbookDenialHtml(access, pathname), {
           status: access === "UNAUTHENTICATED" ? 401 : 403,
           headers: {
             "content-type": "text/html; charset=utf-8",
             "cache-control": "private, no-store, max-age=0, must-revalidate",
           },
         });
+        applySecurityHeaders(res, policies, pathname);
+        return res;
       }
 
       if (canonical !== runbookSlug) {
         const target = req.nextUrl.clone();
         target.pathname = `/admin/platform/runbooks/${canonical}`;
-        return NextResponse.rewrite(target);
+        const res = rewriteWithNonce(req, target, nonce, csp);
+        applySecurityHeaders(res, policies, pathname);
+        return res;
       }
     }
 
@@ -407,7 +463,7 @@ export async function middleware(req: NextRequest) {
     // dev / vercel preview: no host switching
     if (!host || isLocalOrPreviewHost(host)) {
       const res = nextWithNonce(req, nonce, csp);
-      applySecurityHeaders(res, csp, pathname);
+      applySecurityHeaders(res, policies, pathname);
       return res;
     }
 
@@ -416,7 +472,7 @@ export async function middleware(req: NextRequest) {
 
     if (!appBaseUrl && !webBaseUrl) {
       const res = nextWithNonce(req, nonce, csp);
-      applySecurityHeaders(res, csp, pathname);
+      applySecurityHeaders(res, policies, pathname);
       return res;
     }
 
@@ -451,13 +507,13 @@ export async function middleware(req: NextRequest) {
           const target = req.nextUrl.clone();
           target.pathname = `/settings/legal/${internalSlug}`;
           const res = NextResponse.redirect(target, 308);
-          applySecurityHeaders(res, csp, pathname);
+          applySecurityHeaders(res, policies, pathname);
           return res;
         }
       }
 
       const res = nextWithNonce(req, nonce, csp);
-      applySecurityHeaders(res, csp, pathname);
+      applySecurityHeaders(res, policies, pathname);
       return res;
     }
 
@@ -466,7 +522,7 @@ export async function middleware(req: NextRequest) {
       const target = new URL(req.url);
       target.pathname = "/home";
       const res = NextResponse.redirect(target);
-      applySecurityHeaders(res, csp, pathname);
+      applySecurityHeaders(res, policies, pathname);
       return res;
     }
 
@@ -476,7 +532,7 @@ export async function middleware(req: NextRequest) {
       target.pathname = pathname;
       req.nextUrl.searchParams.forEach((v, k) => target.searchParams.set(k, v));
       const res = NextResponse.redirect(target);
-      applySecurityHeaders(res, csp, pathname);
+      applySecurityHeaders(res, policies, pathname);
       return res;
     }
 
@@ -578,7 +634,7 @@ export async function middleware(req: NextRequest) {
       // still sanitises what it reads.
       target.search = req.nextUrl.search;
       const res = NextResponse.redirect(target);
-      applySecurityHeaders(res, csp, pathname);
+      applySecurityHeaders(res, policies, pathname);
       return res;
     }
 
@@ -590,13 +646,13 @@ export async function middleware(req: NextRequest) {
     if (isAppHost) {
       const tierGated = applySurfaceTierGate(req, pathname);
       if (tierGated) {
-        applySecurityHeaders(tierGated, csp, pathname);
+        applySecurityHeaders(tierGated, policies, pathname);
         return tierGated;
       }
     }
 
     const res = nextWithNonce(req, nonce, csp);
-    applySecurityHeaders(res, csp, pathname);
+    applySecurityHeaders(res, policies, pathname);
     return res;
   } catch {
     // AUD-48 (2026-10-20) — never fail OPEN: a middleware error still answers

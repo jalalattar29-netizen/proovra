@@ -22,6 +22,11 @@ export function AnnotationPanel({
   const [loadFailed, setLoadFailed] = useState(false);
   const [writeError, setWriteError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  // PRO-CENZ-01 — the author edits their own annotation (DEC-15 / PRO-E2-03:
+  // PATCH /v1/evidence/:id/annotations/:annotationId is author-only, and the
+  // list projects viewerCanEdit). The control was missing; the route was not.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingBody, setEditingBody] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -78,6 +83,24 @@ export function AnnotationPanel({
     }
   };
 
+  const saveEdit = async () => {
+    if (!editingId) return;
+    setWriteError(null);
+    try {
+      const data = (await apiFetch(`/v1/evidence/${evidenceId}/annotations/${editingId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ body: editingBody }),
+      })) as EvidenceAnnotationsResponse;
+      if (data.annotation) {
+        setItems((current) => current.map((item) => (item.id === editingId ? data.annotation! : item)));
+        setEditingId(null);
+        setEditingBody("");
+      }
+    } catch (err) {
+      setWriteError(panelWriteError(err, "The edit was not saved."));
+    }
+  };
+
   return (
     <section className="evidence-library-panel">
       <details open={open} onToggle={(event) => setOpen((event.target as HTMLDetailsElement).open)}>
@@ -121,14 +144,48 @@ export function AnnotationPanel({
               <strong>{item.annotationType}</strong>
               <p className="evidence-library-muted">
                 {item.author.displayName || item.author.email || "Reviewer"} •{" "}
-                {formatUserDateTime(item.createdAt)}
+                {formatUserDateTime(item.createdAt)} {item.edited ? "• Edited" : ""}
               </p>
-              <p>{item.body || "Annotation metadata recorded."}</p>
-              {canWrite ? (
-                <div className="evidence-library-panel__actions evd-block--tight">
-                  <button type="button" className="app-ghost-action evidence-detail-destructive-action" onClick={() => void deleteAnnotation(item.id)}>Delete</button>
-                </div>
-              ) : null}
+              {editingId === item.id ? (
+                <>
+                  <textarea
+                    className="evidence-library-textarea"
+                    aria-label="Edit annotation"
+                    value={editingBody}
+                    onChange={(event) => setEditingBody(event.target.value)}
+                  />
+                  <div className="evidence-library-panel__actions evd-block--tight">
+                    <button type="button" className="app-secondary-action app-secondary-action--filled" onClick={() => void saveEdit()} disabled={!editingBody.trim()}>
+                      Save
+                    </button>
+                    <button type="button" className="app-secondary-action" onClick={() => setEditingId(null)}>
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p>{item.body || "Annotation metadata recorded."}</p>
+                  {canWrite ? (
+                    <div className="evidence-library-panel__actions evd-block--tight">
+                      {/* Only the author is offered Edit (server-projected viewerCanEdit). */}
+                      {item.viewerCanEdit !== false ? (
+                        <button
+                          type="button"
+                          className="app-secondary-action"
+                          onClick={() => {
+                            setEditingId(item.id);
+                            setEditingBody(item.body ?? "");
+                          }}
+                        >
+                          Edit
+                        </button>
+                      ) : null}
+                      <button type="button" className="app-ghost-action evidence-detail-destructive-action" onClick={() => void deleteAnnotation(item.id)}>Delete</button>
+                    </div>
+                  ) : null}
+                </>
+              )}
             </div>
           ))}
         </div>
