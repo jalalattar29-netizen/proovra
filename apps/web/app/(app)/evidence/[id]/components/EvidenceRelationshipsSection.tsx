@@ -4,6 +4,7 @@ import { evidenceRecordStatusLabel } from "@proovra/shared";
 import { Unlink } from "lucide-react";
 import { useState } from "react";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
+import { AppListbox } from "../../../../../components/app-primitives";
 import { apiFetch } from "../../../../../lib/api";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 
@@ -298,21 +299,15 @@ export function EvidenceRelationshipsSection({
                 ) : null}
                 {editing?.id === item.id ? (
                   <div className="evidence-detail-linked-card__edit" data-evidence-relationship-edit-form={item.id}>
-                    <label className="evidence-detail-field">
+                    <div className="evidence-detail-field">
                       <span>Relationship type</span>
-                      <select
-                        className="app-form-input"
-                        aria-label="Relationship type"
+                      <AppListbox
                         value={editing.type}
-                        onChange={(e) => setEditing({ ...editing, type: e.target.value })}
-                      >
-                        {RELATIONSHIP_TYPES.map((value) => (
-                          <option key={value} value={value}>
-                            {value.replace(/_/g, " ")}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                        ariaLabel="Relationship type"
+                        onChange={(next) => setEditing({ ...editing, type: next })}
+                        options={RELATIONSHIP_TYPES.map((value) => ({ value, label: value.replace(/_/g, " ") }))}
+                      />
+                    </div>
                     <label className="evidence-detail-field">
                       <span>Note</span>
                       <textarea

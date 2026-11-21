@@ -75,7 +75,8 @@ describe("EP-0389 — edit a relationship", () => {
   it("saves the type and note through PATCH and rereads the record", async () => {
     const { onRelationshipEdited } = renderSection();
     fireEvent.click(screen.getByRole("button", { name: "Edit relationship" }));
-    fireEvent.change(screen.getByLabelText("Relationship type"), { target: { value: "CONTRADICTS" } });
+    fireEvent.click(screen.getByRole("combobox", { name: "Relationship type" }));
+    fireEvent.click(screen.getByRole("option", { name: "CONTRADICTS" }));
     fireEvent.change(screen.getByLabelText("Relationship note"), { target: { value: "  Timestamps disagree  " } });
     fireEvent.click(screen.getByRole("button", { name: "Save relationship" }));
     await waitFor(() => expect(onRelationshipEdited).toHaveBeenCalledTimes(1));

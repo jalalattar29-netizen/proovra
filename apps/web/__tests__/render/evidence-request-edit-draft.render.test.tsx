@@ -96,12 +96,15 @@ describe("EP-0343 — Edit a DRAFT evidence request", () => {
     // The masked address is shown, never a raw one.
     expect(screen.getByText(/c\*\*\*@example\.test/)).toBeTruthy();
     fireEvent.change(title, { target: { value: "Roof photos (north side)" } });
+    fireEvent.click(screen.getByRole("combobox", { name: "Priority" }));
+    fireEvent.click(screen.getByRole("option", { name: "Urgent" }));
     const listReadsBefore = calls.filter((c) => c.path.startsWith("/v1/evidence-requests?")).length;
     fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
     await waitFor(() => expect(patches()).toHaveLength(1));
     const body = patches()[0]!.body as Record<string, unknown>;
     expect(patches()[0]!.path).toBe("/v1/evidence-requests/rq-1");
     expect(body.title).toBe("Roof photos (north side)");
+    expect(body.priority).toBe("URGENT");
     // Unchanged deliverables are not resent (the API replaces them whole),
     // and a blank email field changes no contact.
     expect("deliverables" in body).toBe(false);

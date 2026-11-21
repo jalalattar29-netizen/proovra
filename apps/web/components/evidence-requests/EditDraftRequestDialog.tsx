@@ -22,6 +22,7 @@
 
 import { useEffect, useId, useState } from "react";
 
+import { AppListbox } from "../app-primitives";
 import { apiFetch } from "../../lib/api";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 
@@ -243,30 +244,22 @@ export function EditDraftRequestDialog({
             />
             <div className="evd-row">
               <div className="evd-grow">
-                <label className="evd-label" htmlFor={`${titleId}-type`}>Type</label>
-                <select
-                  id={`${titleId}-type`}
-                  className="app-form-input evd-input"
+                <span className="evd-label">Type</span>
+                <AppListbox
                   value={requestType}
-                  onChange={(e) => setRequestType(e.target.value)}
-                >
-                  {REQUEST_TYPES.map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
+                  ariaLabel="Request type"
+                  onChange={(next) => setRequestType(next)}
+                  options={REQUEST_TYPES.map(([value, label]) => ({ value, label }))}
+                />
               </div>
               <div className="evd-grow">
-                <label className="evd-label" htmlFor={`${titleId}-priority`}>Priority</label>
-                <select
-                  id={`${titleId}-priority`}
-                  className="app-form-input evd-input"
+                <span className="evd-label">Priority</span>
+                <AppListbox
                   value={priority}
-                  onChange={(e) => setPriority(e.target.value)}
-                >
-                  {PRIORITIES.map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
+                  ariaLabel="Priority"
+                  onChange={(next) => setPriority(next)}
+                  options={PRIORITIES.map(([value, label]) => ({ value, label }))}
+                />
               </div>
             </div>
             <label className="evd-label" htmlFor={`${titleId}-due`}>Due (UTC, optional)</label>
