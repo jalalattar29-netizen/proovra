@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 26
     },
-    "TerminalWriters": 1701,
-    "ReachableSensitiveMutations": 1669,
-    "ClassifiedSensitiveMutations": 1669,
+    "TerminalWriters": 1702,
+    "ReachableSensitiveMutations": 1670,
+    "ClassifiedSensitiveMutations": 1670,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 32,
@@ -80,7 +80,7 @@
       "EVIDENCE_CUSTODY_FINALIZATION": 396,
       "LEGAL_HOLD_RETENTION_DELETION": 63,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 107,
-      "BILLING_SUBSCRIPTION_SEAT": 119,
+      "BILLING_SUBSCRIPTION_SEAT": 120,
       "SSO_OIDC_SCIM_PROVISIONING": 67,
       "AUTOMATION_QUEUE_WEBHOOK": 133,
       "REPORT_EXPORT_REDACTION": 80,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1484,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1485,
       "JOB_ATTRIBUTED_REACHABLE": 173,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 11,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 12379,
+      "METHOD_ON_VALUE": 12380,
       "UNRESOLVED_IDENTIFIER": 1807
     },
     "MutationFixpointRounds": 11,
@@ -49131,8 +49131,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@238",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:238",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@240",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:240",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "syncPlanForSubscription",
       "kind": "DATABASE",
@@ -49172,8 +49172,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@461",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:461",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@465",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:465",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "retrySupersededCancellations",
       "kind": "DATABASE",
@@ -49202,8 +49202,8 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@477",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:477",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@481",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:481",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "retrySupersededCancellations",
       "kind": "DATABASE",
@@ -49232,8 +49232,8 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@514",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:514",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@518",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:518",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "retrySupersededCancellations",
       "kind": "DATABASE",
@@ -49262,8 +49262,8 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@544",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:544",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@548",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:548",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "retrySupersededCancellations",
       "kind": "DATABASE",
@@ -49292,8 +49292,8 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@576",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:576",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@580",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:580",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "retrySupersededCancellations",
       "kind": "DATABASE",
@@ -49322,8 +49322,8 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.updateMany@447",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:447",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.updateMany@451",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:451",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "retrySupersededCancellations",
       "kind": "DATABASE",
@@ -49352,8 +49352,49 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.updateMany@709",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:709",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.updateMany@712",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:712",
+      "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
+      "enclosingDeclaration": "supersede",
+      "kind": "DATABASE",
+      "target": "subscription",
+      "mutationKind": "updateMany",
+      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /paypal",
+        "POST /stripe",
+        "POST /v1/billing/accounts/:type/:id/reconcile",
+        "POST /v1/billing/checkout/paypal",
+        "POST /v1/billing/checkout/paypal/subscriptions/:subscriptionId/confirm",
+        "POST /v1/billing/credits/checkout/paypal",
+        "POST /v1/billing/credits/checkout/stripe",
+        "POST /v1/billing/subscription/plan"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/billing.routes.ts",
+        "MODULE services/api/src/routes/webhooks.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.updateMany@758",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:758",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "supersede",
       "kind": "DATABASE",
@@ -159647,7 +159688,7 @@
         "services/api/src/services/billing/subscription-cancellation.service.ts: subscription.updateMany — no tenant or self predicate",
         "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.findUnique — no tenant or self predicate",
         "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.update — no tenant or self predicate",
-        "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.updateMany — no tenant or self predicate",
+        "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.findUnique — no tenant or self predicate",
         "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "MEMBERSHIP_LOOKUP",
@@ -159732,7 +159773,7 @@
         "services/api/src/services/billing/stripe-settlement.service.ts: subscription.findUnique — no tenant or self predicate",
         "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.findUnique — no tenant or self predicate",
         "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.update — no tenant or self predicate",
-        "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.updateMany — no tenant or self predicate",
+        "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.findUnique — no tenant or self predicate",
         "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "MEMBERSHIP_LOOKUP",
@@ -167004,6 +167045,9 @@
         "services/api/src/services/organization/org-access.ts: organization.findUnique — no tenant or self predicate",
         "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.findUnique — no tenant or self predicate",
         "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.update — no tenant or self predicate",
+        "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.findUnique — no tenant or self predicate",
+        "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.findUnique — no tenant or self predicate",
+        "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.updateMany — no tenant or self predicate",
         "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.updateMany — no tenant or self predicate",
         "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.findUnique — no tenant or self predicate",
         "services/api/src/services/billing/subscription-lifecycle.handlers.ts: payment.findFirst — no tenant or self predicate"
@@ -167197,10 +167241,10 @@
         "services/api/src/services/billing/stripe-settlement.service.ts: subscription.findUnique — no tenant or self predicate",
         "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.findUnique — no tenant or self predicate",
         "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.update — no tenant or self predicate",
-        "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.updateMany — no tenant or self predicate",
         "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.findUnique — no tenant or self predicate",
-        "services/api/src/services/billing/subscription-lifecycle.handlers.ts: payment.findFirst — no tenant or self predicate",
-        "services/api/src/services/billing/stripe-settlement.service.ts: subscription.findUnique — no tenant or self predicate"
+        "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.findUnique — no tenant or self predicate",
+        "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.updateMany — no tenant or self predicate",
+        "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
