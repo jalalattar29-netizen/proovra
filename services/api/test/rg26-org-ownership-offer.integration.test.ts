@@ -25,6 +25,9 @@ describe("NEW-RG-26-4 — organization ownership by offer, acceptance and step-u
   let prisma: (typeof import("../src/db.js"))["prisma"];
   let fx: typeof import("./point7/product-fixtures.js");
   let hashPassword: (typeof import("../src/services/email-password-auth.service.js"))["hashPassword"];
+  let scim: typeof import("../src/services/access-control/scim.service.js");
+  let provisioningSvc: typeof import("../src/services/identity/membership-provisioning.service.js");
+  let offerSvc: typeof import("../src/services/organization/org-ownership-offer.service.js");
   let deps: FixtureDeps;
 
   const PASSWORD = "Owner-Password-1234";
@@ -37,6 +40,9 @@ describe("NEW-RG-26-4 — organization ownership by offer, acceptance and step-u
     ({ prisma } = await import("../src/db.js"));
     fx = await import("./point7/product-fixtures.js");
     ({ hashPassword } = await import("../src/services/email-password-auth.service.js"));
+    scim = await import("../src/services/access-control/scim.service.js");
+    provisioningSvc = await import("../src/services/identity/membership-provisioning.service.js");
+    offerSvc = await import("../src/services/organization/org-ownership-offer.service.js");
     const jwt = await import("../src/services/jwt.js");
     deps = {
       prisma: prisma as never,
@@ -388,5 +394,135 @@ describe("NEW-RG-26-4 — organization ownership by offer, acceptance and step-u
     const late = await act(o, recipient, second, "accept", proof);
     expect(late.statusCode).toBe(404);
     await expectNothingMoved(o);
+  });
+
+  // -------------------------------------------------------------------------
+  // Review follow-ups: expiry is recorded; acceptance vs. directory suspension.
+  // -------------------------------------------------------------------------
+
+  it("an expired offer is refused 410 AND recorded EXPIRED (the write is not rolled back)", async () => {
+    const o = await organization();
+    const recipient = await member(o, "ORG_ADMIN");
+    const offerId = await pendingOffer(o, recipient);
+    await prisma.organizationOwnershipOffer.update({
+      where: { id: offerId },
+      data: { expiresAtUtc: new Date(Date.now() - 60_000) },
+    });
+    // The read route already hides it; the accept is addressed by id.
+    const res = await h.app.inject({
+      method: "POST",
+      url: `/v1/orgs/${o.orgId}/ownership-offer/${offerId}/accept`,
+      headers: bearer(recipient.token),
+      payload: proof,
+    });
+    // The route's pre-check finds no live offer for the recipient (404); the
+    // service is asked directly so the expiry branch itself is exercised.
+    expect([404, 410], res.body).toContain(res.statusCode);
+    await expect(
+      offerSvc.acceptOrganizationOwnershipOffer({ organizationId: o.orgId, offerId, actorUserId: recipient.userId }),
+    ).rejects.toMatchObject({ statusCode: 410, code: "ownership_offer_expired" });
+    expect(
+      await prisma.organizationOwnershipOffer.findUniqueOrThrow({ where: { id: offerId }, select: { status: true } }),
+    ).toEqual({ status: "EXPIRED" });
+    await expectNothingMoved(o);
+  });
+
+  /** Make a member reachable by this Organization's directory (PRO-014 / PRO-A2-02). */
+  async function directoryManaged(o: Org, userId: string) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { providerUserId: `scim-${o.orgId}:rg264-${randomUUID()}` },
+    });
+    await prisma.externalIdentityMapping.create({
+      data: {
+        teamId: o.workspaceId,
+        organizationId: o.orgId,
+        userId,
+        provider: "GENERIC_SCIM",
+        externalSubjectId: `rg264-${randomUUID()}`,
+      },
+    });
+  }
+  const deactivate = (o: Org, userId: string) =>
+    scim.scimDeactivateUser(
+      { teamId: o.workspaceId, organizationId: o.orgId, tokenId: randomUUID(), baseUrl: "https://local.test" },
+      userId,
+      prisma as never,
+    );
+
+  it("a directory suspension waits for the owners' lock an acceptance holds", async () => {
+    const o = await organization();
+    const target = await member(o, "ORG_MEMBER");
+    await directoryManaged(o, target.userId);
+    let release!: () => void;
+    const released = new Promise<void>((r) => (release = r));
+    let locked!: () => void;
+    const lockHeld = new Promise<void>((r) => (locked = r));
+    const holder = prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`org-owners:${o.orgId}`}))`;
+        locked();
+        await released;
+      },
+      { timeout: 30_000 },
+    );
+    await lockHeld;
+    let done = false;
+    const suspension = deactivate(o, target.userId).then((r) => {
+      done = true;
+      return r;
+    });
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(done, "the directory suspension ran while the owners' lock was held").toBe(false);
+    release();
+    await holder;
+    await suspension;
+    expect(done).toBe(true);
+    expect(
+      await prisma.organizationMembership.findUniqueOrThrow({ where: { id: target.membershipId }, select: { status: true } }),
+    ).toEqual({ status: "SUSPENDED" });
+  });
+
+  it("a directory push never suspends the organization owner's governance membership", async () => {
+    const o = await organization();
+    await directoryManaged(o, o.owner.userId);
+    await deactivate(o, o.owner.userId);
+    expect(await owners(o.orgId)).toEqual([o.owner.userId]);
+  });
+
+  it("acceptance racing a directory suspension of the recipient never leaves the organization without one live owner", async () => {
+    for (let i = 0; i < 3; i += 1) {
+      const o = await organization();
+      const recipient = await member(o, "ORG_ADMIN");
+      await directoryManaged(o, recipient.userId);
+      const offerId = await pendingOffer(o, recipient);
+      await Promise.allSettled([act(o, recipient, offerId, "accept", proof), deactivate(o, recipient.userId)]);
+      const rows = await prisma.organizationMembership.findMany({
+        where: { organizationId: o.orgId, role: "ORG_OWNER" },
+        select: { userId: true, status: true },
+      });
+      expect(rows.filter((r) => r.status === "ACTIVE"), JSON.stringify(rows)).toHaveLength(1);
+      expect(rows.filter((r) => r.status !== "ACTIVE"), JSON.stringify(rows)).toHaveLength(0);
+    }
+  });
+
+  it("the guarded role write refuses a membership that is not ACTIVE", async () => {
+    const o = await organization();
+    const m = await member(o, "ORG_MEMBER");
+    await prisma.organizationMembership.update({
+      where: { id: m.membershipId },
+      data: { status: "SUSPENDED", suspendedAtUtc: new Date(), statusChangedAtUtc: new Date() } as never,
+    });
+    await expect(
+      provisioningSvc.updateOrganizationMembershipRole(prisma as never, {
+        organizationMembershipId: m.membershipId,
+        role: "ORG_OWNER",
+        actorUserId: o.owner.userId,
+        requireActive: true,
+      }),
+    ).rejects.toMatchObject({ name: "OrgMembershipNotActiveError" });
+    expect(
+      await prisma.organizationMembership.findUniqueOrThrow({ where: { id: m.membershipId }, select: { role: true } }),
+    ).toEqual({ role: "ORG_MEMBER" });
   });
 });

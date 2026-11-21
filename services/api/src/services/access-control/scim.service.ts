@@ -57,6 +57,7 @@ import {
 } from "../identity/org-security-policy.service.js";
 // ARCH-004 — governance-membership transitions have ONE orchestrator.
 import {
+  lockOrganizationOwnersTx,
   restoreOrganizationMembership,
   suspendOrganizationMembership,
 } from "../identity/org-membership-lifecycle.service.js";
@@ -1435,12 +1436,22 @@ export async function scimDeactivateUser(
       where: { id: ctx.teamId },
       select: { organizationId: true },
     });
+    // NEW-RG-26-4 review — the owners' lock, the one every ownership act
+    // (offer acceptance, role change, removal) takes, so a directory
+    // suspension cannot interleave with an ownership acceptance.
+    if (team) await lockOrganizationOwnersTx(txc as never, team.organizationId);
     const orgMembership = team
       ? await txc.organizationMembership.findFirst({
           where: {
             organizationId: team.organizationId,
             userId,
             status: "ACTIVE",
+            // The ORGANIZATION OWNER's governance membership is not suspended by
+            // a directory push, exactly as a workspace OWNER is not (above):
+            // ownership is a human decision, and a suspended owner would leave
+            // the Organization with no live owner (PROV-012). Their workspace
+            // memberships below the owner role are still suspended.
+            role: { not: "ORG_OWNER" },
           },
           select: { id: true },
         })

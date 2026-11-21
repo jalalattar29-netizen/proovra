@@ -1006,6 +1006,9 @@ function makeDb() {
     // The owners lock: a behaviour of PostgreSQL, proven in
     // org-ownership-continuity.integration.test.ts.
     $executeRaw: async () => 0,
+    // NEW-RG-26-4 — the acceptance's membership row lock (FOR UPDATE), also
+    // a PostgreSQL behaviour proven in rg26-org-ownership-offer.integration.
+    $queryRaw: async () => [],
     $transaction: async (arg: unknown) =>
       Array.isArray(arg)
         ? Promise.all(arg)

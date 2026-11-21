@@ -341,4 +341,66 @@ describe("NEW-RG-07-4 / NEW-RG-26-3 — every invitation family re-checks its in
     expect(refused.statusCode, refused.body).toBe(409);
     expect((await grantRow(inv.grantId)).state).toBe("INVITED");
   });
+
+  // Review follow-up: each grant kind answers to the permission that issues it.
+  async function capability(userId: string, permission: string) {
+    const A = h.fixtures.teamA;
+    const tm = await prisma.teamMember.findFirstOrThrow({ where: { teamId: A.teamId, userId }, select: { id: true } });
+    await prisma.memberCapabilityGrant.create({
+      data: { teamMemberId: tm.id, teamId: A.teamId, permission, grantedByUserId: A.ownerUserId, reason: "rg26 test" },
+    });
+    return tm.id;
+  }
+
+  it("portal: a demoted issuer who keeps governance.legal_hold.manage cannot validate a PORTAL invitation (that permission issues only plain grants)", async () => {
+    try {
+      const inv = await portalInvite(h.fixtures.teamA.adminUserId);
+      await setAdmin({ role: "MEMBER" });
+      const tmId = await capability(h.fixtures.teamA.adminUserId, "governance.legal_hold.manage");
+      try {
+        const refused = await portalAuth(inv.rawToken);
+        expect(refused.statusCode, refused.body).toBe(409);
+        expect(refused.json()).toMatchObject({ denial: "INVITER_AUTHORITY_LOST" });
+        expect((await grantRow(inv.grantId)).state).toBe("INVITED");
+      } finally {
+        await prisma.memberCapabilityGrant.deleteMany({ where: { teamMemberId: tmId } });
+      }
+    } finally {
+      await setAdmin({ role: "ADMIN", status: "ACTIVE" });
+    }
+  });
+
+  it("plain grant: an issuer who holds governance.legal_hold.manage -> accepted; one who does not -> refused", async () => {
+    const A = h.fixtures.teamA;
+    const plain = async () => {
+      const issued = await grants.issueExternalReviewGrant({
+        teamId: A.teamId,
+        invitedByUserId: A.ownerUserId,
+        scopeKind: "EVIDENCE",
+        evidenceId: A.evidenceId,
+        reviewerEmail: `rgfam-plain-${tag()}@test.proovra.local`,
+        expiresAtUtc: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+      } as never);
+      if (!issued.ok) throw new Error(`grant refused: ${issued.reason}`);
+      // The issuer of record becomes a plain MEMBER (no issuing role).
+      await prisma.externalReviewGrant.update({ where: { id: issued.grant.id }, data: { invitedByUserId: A.memberUserId } });
+      return issued;
+    };
+    const access = (token: string) => h.app.inject({ method: "POST", url: `/v1/external-review/access/${token}` });
+
+    const without = await plain();
+    const refused = await access(without.rawToken);
+    expect(refused.statusCode, refused.body).toBe(401);
+    expect((await grantRow(without.grant.id)).state).toBe("INVITED");
+
+    const tmId = await capability(A.memberUserId, "governance.legal_hold.manage");
+    try {
+      const withIt = await plain();
+      const ok = await access(withIt.rawToken);
+      expect(ok.statusCode, ok.body).toBe(200);
+      expect((await grantRow(withIt.grant.id)).state).toBe("ACTIVE");
+    } finally {
+      await prisma.memberCapabilityGrant.deleteMany({ where: { teamMemberId: tmId } });
+    }
+  });
 });
