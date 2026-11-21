@@ -7374,6 +7374,14 @@ model StepUpChallenge {
    */
   factorId         String? @map("factor_id") @db.Uuid
   factorGeneration Int?    @map("factor_generation")
+  /**
+   * MATRIX-M054 (owner decision B, 2026-11-21) — TRUE when the start request
+   * EXPLICITLY named `factorId`: an authenticator-app challenge is then
+   * answered by that factor's code only. NULL (no factor named, and every row
+   * written before the column) keeps the approved behaviour where any ACTIVE
+   * verified authenticator of the account answers.
+   */
+  factorPinned     Boolean? @map("factor_pinned")
 
   /**
    * COLLABORATION TEAM ARCHIVE STEP-UP (2026-10-28) — the authenticator
