@@ -363,6 +363,30 @@ export async function findCurrentOwnerConsent(
     select: { id: true, approvedAtUtc: true, connectionId: true },
   });
   if (!consent) return null;
+  // Defence in depth beside the membership triggers: a recorded membership
+  // transition AFTER the approval (a suspension, a removal or departure, or a
+  // governance status change such as a restore) means the consent predates the
+  // membership as it stands now, so it is not current.
+  const after = { gt: consent.approvedAtUtc };
+  const [movedGovernance, movedWorkspace] = await Promise.all([
+    client.organizationMembership.findFirst({
+      where: {
+        organizationId: input.organizationId,
+        userId: input.userId,
+        OR: [{ statusChangedAtUtc: after }, { suspendedAtUtc: after }, { revokedAtUtc: after }],
+      },
+      select: { id: true },
+    }),
+    client.teamMember.findFirst({
+      where: {
+        userId: input.userId,
+        team: { organizationId: input.organizationId },
+        OR: [{ suspendedAtUtc: after }, { revokedAtUtc: after }],
+      },
+      select: { id: true },
+    }),
+  ]);
+  if (movedGovernance || movedWorkspace) return null;
   const lapsedWindow = { gt: consent.approvedAtUtc, lte: new Date() };
   const [lapsedGovernance, lapsedWorkspace] = await Promise.all([
     client.organizationMembership.findFirst({
