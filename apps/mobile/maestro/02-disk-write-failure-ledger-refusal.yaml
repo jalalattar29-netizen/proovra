@@ -1,0 +1,38 @@
+# JOURNEY 2 — disk-write failure: the recorder refuses to start without a durable ledger (PRO-NBC-04).
+# Device-only, Android, DEBUG build (run-as). The pre-step is shell, not Maestro — run it through
+# run-device-journeys.sh, which blocks the ledger's atomic temp file before this flow:
+#   adb shell run-as com.jalalattar29.proovra sh -c \
+#     'mkdir -p files/proovra-continuous/ledger.json.tmp && touch files/proovra-continuous/ledger.json.tmp/x'
+# and removes it afterwards. Expected: start refused with the storage message, the capture session
+# released, no recording file, nothing "active".
+appId: com.jalalattar29.proovra
+env:
+  EMAIL: ${EMAIL_A}
+  PASSWORD: ${PASSWORD_A}
+---
+- launchApp
+- runFlow:
+    when:
+      visible:
+        id: "auth-email"
+    file: subflows/sign-in.yaml
+- openLink: proovra://continuous-capture
+- extendedWaitUntil:
+    visible: "Start Continuous Capture"
+    timeout: 20000
+- tapOn: "Start Continuous Capture"
+- runFlow:
+    when:
+      visible: "Start now"
+    commands:
+      - tapOn: "Start now"
+- runFlow:
+    when:
+      visible: "Start"
+    commands:
+      - tapOn: "Start"
+- extendedWaitUntil:
+    visible: "PROOVRA could not save the recording's recovery record on this device (storage may be full), so nothing was recorded. Free some space and try again."
+    timeout: 30000
+- assertNotVisible: "Continuous capture active"
+- assertVisible: "Try Again"

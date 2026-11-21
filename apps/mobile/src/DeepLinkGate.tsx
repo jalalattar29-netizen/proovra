@@ -21,6 +21,7 @@ import {
   parseCredentialDeepLink,
   parsePublicDocumentDeepLink,
   parseExternalFlowDeepLink,
+  parseOrganizationDeepLink,
   resolveMobileDeepLink,
   workspacePageDeepLink,
 } from "./deep-link";
@@ -132,6 +133,21 @@ export function DeepLinkGate() {
     // finished, "no token" says nothing about whether this person is signed in.
     if (!authReady) return;
     handled.current = url;
+
+    // NEW-RG-26-4 — an organization link (the ownership-offer handoff). Not a
+    // workspace: no server resolve, no workspace switch, so an active capture
+    // is not disturbed by it. Signed out, it waits behind sign-in like an
+    // organization invitation; the screen authorizes it with its own reads.
+    const organization = parseOrganizationDeepLink(url);
+    if (organization) {
+      if (!getAuthToken()) {
+        setPendingRoute(organization.route);
+        router.replace("/(stack)/auth");
+        return;
+      }
+      router.push(organization.route as never);
+      return;
+    }
 
     // Unauthenticated: preserve the intent and route to the gateway. The server
     // resolve requires a session, so we do not call it here; the destination is

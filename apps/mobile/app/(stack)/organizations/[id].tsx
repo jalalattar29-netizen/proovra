@@ -33,6 +33,10 @@ import { useToast } from "../../../src/toast-context";
 import { StepUpSheet, useStepUp } from "../../../src/ui/step-up-sheet";
 import { OrgSettings } from "../../../src/ui/org-settings";
 import { OrgWorkspaceLifecycleControls } from "../../../src/ui/org-workspace-lifecycle";
+import { OrgOwnershipOfferPanel } from "../../../src/ui/org-ownership-offer";
+import { useAuth } from "../../../src/auth-context";
+import { usePlatformContext } from "../../../src/product/platform-context";
+import { isOrgUuid } from "../../../src/product/org-ownership-offer";
 import { withStepUp } from "../../../src/product/step-up";
 import {
   buildClosureBody,
@@ -134,8 +138,14 @@ export const ORG_ADMIN_SCOPE_NOTE =
 
 export default function OrganizationDetailScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ id?: string | string[] }>();
+  const params = useLocalSearchParams<{ id?: string | string[]; ownershipOffer?: string | string[] }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  // NEW-RG-26-4 — the offer an ownership-offer link named (opaque; the server decides).
+  const rawLinkedOffer = Array.isArray(params.ownershipOffer) ? params.ownershipOffer[0] : params.ownershipOffer;
+  const linkedOfferId = isOrgUuid(rawLinkedOffer) ? rawLinkedOffer : null;
+  const { user } = useAuth();
+  const { refresh: refreshPlatformContext } = usePlatformContext();
+  const [offerRefresh, setOfferRefresh] = useState(0);
 
   const [state, setState] = useState<State>({ phase: "loading" });
   const [members, setMembers] = useState<OrgMember[] | null>(null);
@@ -306,13 +316,14 @@ export default function OrganizationDetailScreen() {
           body: JSON.stringify(withStepUp({ targetUserId: target.userId }, proof)),
         })) as { pendingAcceptance?: boolean } | null;
         // NEW-RG-26-4 — the API now records an OFFER (202 pendingAcceptance);
-        // ownership moves only when the member accepts on the web.
+        // ownership moves only when the member accepts (web or this app).
         addToast(
           res?.pendingAcceptance
             ? "Offer sent. Ownership changes only when the member accepts."
             : "Ownership transferred. You are now an organization admin.",
           "success",
         );
+        setOfferRefresh((n) => n + 1);
         await load();
       },
       (err) => fail(err, "Could not transfer ownership."),
@@ -439,6 +450,30 @@ export default function OrganizationDetailScreen() {
           presence="page"
           title="This organization is not available to you"
           purpose="You may have left it, or your membership may no longer be active."
+        />
+      ) : null}
+
+      {state.phase === "loaded" && id ? (
+        // NEW-RG-26-4 — the ownership offer, for its two parties only (the server filters).
+        <OrgOwnershipOfferPanel
+          orgId={id}
+          orgName={state.org.name}
+          viewerUserId={user?.id ?? null}
+          viewerEmail={user?.email ?? null}
+          people={(members ?? []).map((m) => ({ userId: m.userId, displayName: m.displayName, email: m.email }))}
+          linkedOfferId={linkedOfferId}
+          refreshKey={offerRefresh}
+          onAccepted={async () => {
+            // The new owner's roles changed: re-read the organization, its members,
+            // the owner-only closure state and the switchable spaces — in place, so
+            // the acceptance message stays on screen.
+            await reloadOrg();
+            await apiFetch(buildOrgMembersPath(id))
+              .then((d) => setMembers(parseOrgMembers(d)))
+              .catch(() => setMembers(null));
+            await reloadClosure();
+            void refreshPlatformContext();
+          }}
         />
       ) : null}
 
@@ -791,8 +826,9 @@ export default function OrganizationDetailScreen() {
             onClose={() => setTransferring(false)}
           >
             <ProovraText variant="label" color={theme.color.ink.secondary}>
-              The person you choose becomes the organization owner and you become an admin.
-              Billing ownership follows the owner. This is atomic and audited.
+              The person you choose is offered ownership. Nothing changes until they accept with
+              their own confirmation; then they become the organization owner and you become an
+              admin. Billing ownership does not move with it.
             </ProovraText>
             {members === null || transferTargets(members).length === 0 ? (
               <ProovraEmpty
@@ -817,8 +853,8 @@ export default function OrganizationDetailScreen() {
           <ProovraConfirmSheet
             visible={transferTarget !== null}
             title={`Transfer ownership of ${state.org.name ?? "this organization"}?`}
-            consequence={`${transferTarget?.displayName ?? "The selected member"} becomes the organization owner and you become an admin. Billing ownership follows the owner. This is atomic and audited.`}
-            confirmLabel="Transfer ownership"
+            consequence={`${transferTarget?.displayName ?? "The selected member"} is offered ownership. Nothing changes until they accept; then they become the organization owner and you become an admin. Billing ownership does not move. The offer is audited.`}
+            confirmLabel="Offer ownership"
             tone="danger"
             busy={busy}
             onConfirm={() => void transfer()}

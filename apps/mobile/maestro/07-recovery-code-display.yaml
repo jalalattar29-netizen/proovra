@@ -1,0 +1,47 @@
+# JOURNEY 7 — recovery codes are shown once, must be acknowledged, and are not shown again.
+# Needs account A with a verified authenticator (TOTP) on the LOCAL stack; TOTP_CODE is a fresh code
+# from the local test secret (the flow cannot compute it). The regenerate path is used so the flow is
+# repeatable. Render-tested in node (settings-security / recovery-codes tests); this run proves the
+# native sheet, share sheet and secure-text behaviour on a device.
+appId: com.jalalattar29.proovra
+env:
+  EMAIL: ${EMAIL_A}
+  PASSWORD: ${PASSWORD_A}
+---
+- launchApp
+- runFlow:
+    when:
+      visible:
+        id: "auth-email"
+    file: subflows/sign-in.yaml
+- openLink: proovra://settings/security
+- scrollUntilVisible:
+    element:
+      text: "Regenerate recovery codes"
+    direction: DOWN
+    timeout: 20000
+- tapOn: "Regenerate recovery codes"
+- tapOn:
+    text: "Regenerate recovery codes"
+    index: 1
+- runFlow:
+    when:
+      visible: "Your password"
+    commands:
+      - tapOn: "Your password"
+      - inputText: ${PASSWORD}
+      - tapOn: "Confirm"
+- runFlow:
+    when:
+      visible: "Authenticator code"
+    commands:
+      - tapOn: "Authenticator code"
+      - inputText: ${TOTP_CODE}
+      - tapOn: "Confirm"
+- extendedWaitUntil:
+    visible: "Save your recovery codes"
+    timeout: 20000
+- assertVisible: "Recovery codes — shown once"
+- tapOn: "I saved these recovery codes in a safe place."
+- tapOn: "Done"
+- assertNotVisible: "Save your recovery codes"

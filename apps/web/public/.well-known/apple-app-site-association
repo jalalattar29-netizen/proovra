@@ -57,6 +57,10 @@
           {
             "/": "/cases/*",
             "comment": "Case links (MOBILE-006), authorized on the server like evidence"
+          },
+          {
+            "/": "/organizations/????????????????????????????????????",
+            "comment": "Organization page (NEW-RG-26-4 ownership-offer handoff): /organizations/<uuid> exactly, so the admin console under it stays in the browser"
           }
         ]
       }

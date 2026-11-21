@@ -1,0 +1,24 @@
+# Sign in with the email/password form. EMAIL / PASSWORD are LOCAL test-account
+# values passed with `maestro test -e EMAIL=... -e PASSWORD=...` (never real accounts).
+appId: com.jalalattar29.proovra
+---
+- openLink: proovra://auth
+- extendedWaitUntil:
+    visible:
+      id: "auth-email"
+    timeout: 30000
+- tapOn:
+    id: "auth-email"
+- inputText: ${EMAIL}
+- tapOn:
+    id: "auth-password"
+- inputText: ${PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "auth-signin"
+# The legal gate may appear for a fresh local account; accept it when it does.
+- runFlow:
+    when:
+      visible: "Accept and continue"
+    commands:
+      - tapOn: "Accept and continue"

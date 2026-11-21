@@ -1,0 +1,30 @@
+# JOURNEY 1 — process death during continuous capture, then recovery (AUD-004 / UC-AND-006).
+# Device-only: needs a real MediaProjection session, a foreground service and a killed process.
+# Expected: on relaunch the recording is offered for recovery as an INTERRUPTED recording, never as
+# complete, and Discard is available to the owner (account A).
+appId: com.jalalattar29.proovra
+env:
+  EMAIL: ${EMAIL_A}
+  PASSWORD: ${PASSWORD_A}
+---
+- launchApp:
+    clearState: true
+- runFlow: subflows/sign-in.yaml
+- runFlow: subflows/start-continuous-recording.yaml
+- waitForAnimationToEnd:
+    timeout: 20000
+# Process death: Maestro kills the app process (the equivalent of `adb shell am kill` after backgrounding).
+- killApp
+- launchApp
+- openLink: proovra://continuous-capture
+- extendedWaitUntil:
+    visible: "A recording ended while PROOVRA was closed."
+    timeout: 30000
+- assertVisible: "Recover recording"
+- assertVisible: "Discard recording"
+- assertNotVisible: "Continuous capture active"
+- tapOn: "Recover recording"
+- extendedWaitUntil:
+    visible:
+      id: "continuous-staged"
+    timeout: 120000

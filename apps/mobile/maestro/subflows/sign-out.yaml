@@ -1,0 +1,14 @@
+# Settings › Sign out (server-confirmed sign-out; B8-F-001).
+appId: com.jalalattar29.proovra
+---
+- openLink: proovra://settings
+- scrollUntilVisible:
+    element:
+      text: "Sign out"
+    direction: DOWN
+    timeout: 20000
+- tapOn: "Sign out"
+- extendedWaitUntil:
+    visible:
+      id: "auth-email"
+    timeout: 20000
