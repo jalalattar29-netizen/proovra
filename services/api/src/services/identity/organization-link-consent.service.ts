@@ -333,6 +333,19 @@ export async function approveOrganizationLink(
         // member: approval never revives a suspended, removed or expired
         // membership, and a consent written beside one would come alive on its
         // reactivation without a fresh approval.
+        //
+        // The person's memberships in the Organization are LOCKED first, in
+        // this transaction (governance row, then workspace rows: the order the
+        // suspension and removal routes take). A suspension or removal that
+        // races this approval either commits before the lock is granted — and
+        // the check below (a new READ COMMITTED snapshot) sees it and refuses —
+        // or waits for this transaction to commit, so the membership trigger
+        // it fires sees the committed consent row and ends it. Without the
+        // lock the trigger could run while the consent row was still
+        // uncommitted (invisible to it), and the consent would come alive on
+        // the next reactivation.
+        await tx.$queryRaw`SELECT "id" FROM "organization_memberships" WHERE "organization_id" = ${pending.organizationId}::uuid AND "user_id" = ${userId}::uuid FOR UPDATE`;
+        await tx.$queryRaw`SELECT tm."id" FROM "team_members" tm JOIN "teams" t ON t."id" = tm."team_id" WHERE t."organization_id" = ${pending.organizationId}::uuid AND tm."user_id" = ${userId}::uuid ORDER BY tm."id" FOR UPDATE OF tm`;
         if (!(await holdsActiveOrganizationMembership({ userId, organizationId: pending.organizationId }, tx as never))) {
           throw new MembershipInactiveError();
         }

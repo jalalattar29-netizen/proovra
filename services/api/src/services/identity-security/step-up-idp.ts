@@ -78,18 +78,37 @@ const CONNECTION_SELECT = {
 /** Does this person hold an active (not unlinked) link under this connection? */
 export async function userLinkedToConnection(
   client: PrismaClient,
-  input: { userId: string; organizationId: string; provider: string },
+  input: { userId: string; organizationId: string; provider: string; connectionId?: string | null },
 ): Promise<boolean> {
   if (input.provider === SCIM_PROVIDER) return false;
-  const count = await client.externalIdentityMapping.count({
+  const links = await client.externalIdentityMapping.findMany({
     where: {
       userId: input.userId,
       organizationId: input.organizationId,
       provider: input.provider as never,
       unlinkedAtUtc: null,
     },
+    select: { externalSubjectId: true, linkSource: true },
   });
-  return count > 0;
+  // PRO-A2-02 (owner decision A) — a live row is not enough: the link must be
+  // one the canonical predicate HONOURS (an organization-originated identity,
+  // or a self-serve one on the owner's current consent for this connection).
+  // A withdrawn, suspended, departed or legacy self-serve link never elevates.
+  for (const link of links) {
+    const authority = await evaluateExternalLinkAuthority(
+      {
+        userId: input.userId,
+        organizationId: input.organizationId,
+        provider: input.provider,
+        externalSubjectId: link.externalSubjectId,
+        linkSource: link.linkSource,
+        connectionId: input.connectionId ?? null,
+      },
+      client,
+    );
+    if (authority.honoured) return true;
+  }
+  return false;
 }
 
 /**
@@ -172,6 +191,7 @@ export async function resolveIdpStepUpConnection(
         userId: input.userId,
         organizationId,
         provider: conn.provider,
+        connectionId: conn.id,
       }))
     ) {
       continue;
@@ -242,6 +262,7 @@ export async function idpStepUpBindingStillValid(
     userId: input.userId,
     organizationId: conn.organizationId,
     provider: conn.provider,
+    connectionId: conn.id,
   });
 }
 

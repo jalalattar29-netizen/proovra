@@ -128,6 +128,7 @@ describe("PRO-A2-02 decision A — a self-serve IdP link is honoured only on the
   let consentFlow: typeof import("../src/services/identity/organization-link-consent.service.js");
   let legacy: typeof import("../src/commands/remediate-admin-manual-identity-links.js");
   let external: typeof import("../src/services/identity/external-identity.service.js");
+  let stepUp: typeof import("../src/services/identity-security/step-up.service.js");
   let hashPassword: (typeof import("../src/services/email-password-auth.service.js"))["hashPassword"];
   const idp = new LocalIdp();
   const originalLoopback = process.env.AUTOMATION_WEBHOOK_ALLOW_LOOPBACK;
@@ -374,6 +375,7 @@ describe("PRO-A2-02 decision A — a self-serve IdP link is honoured only on the
     consentFlow = await import("../src/services/identity/organization-link-consent.service.js");
     legacy = await import("../src/commands/remediate-admin-manual-identity-links.js");
     external = await import("../src/services/identity/external-identity.service.js");
+    stepUp = await import("../src/services/identity-security/step-up.service.js");
     ({ hashPassword } = await import("../src/services/email-password-auth.service.js"));
     deps = {
       prisma: prisma as never,
@@ -792,5 +794,203 @@ describe("PRO-A2-02 decision A — a self-serve IdP link is honoured only on the
     });
     expect(res.statusCode, res.body).toBe(200);
     expect(await consents(seeded.userId)).toHaveLength(0);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Review follow-up 1 — the approval race. A suspension that commits while the
+  // approval transaction is open must not leave a live consent beside a
+  // SUSPENDED membership (a raw SUSPENDED→ACTIVE reactivation fires nothing and
+  // writes no timestamp, so only the approval's row locks protect here).
+  // ---------------------------------------------------------------------------
+
+  it("a suspension committed while the approval transaction is open leaves no live consent: after reactivation the link is refused", async () => {
+    const p = await selfServeMember("race");
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    let suspendedUncommitted!: () => void;
+    const suspendedSignal = new Promise<void>((r) => (suspendedUncommitted = r));
+    // Connection B: suspend (uncommitted), hold the transaction open. Its
+    // suspension instant precedes the approval (the transaction began first),
+    // so the timestamp defence cannot rescue a missing lock.
+    const suspension = prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRawUnsafe(
+          `UPDATE "organization_memberships" SET "status" = 'SUSPENDED', "suspended_at_utc" = now() - interval '1 minute' WHERE "id" = $1::uuid`,
+          p.orgMembershipId,
+        );
+        suspendedUncommitted();
+        await gate;
+      },
+      { timeout: 30_000, maxWait: 10_000 },
+    );
+    await suspendedSignal;
+    // Connection A: the owner approves while B is open.
+    const approval = approve(p, "OIDC");
+    await new Promise((r) => setTimeout(r, 1500));
+    release();
+    await suspension;
+    const outcome = await approval;
+    // Reactivation that records nothing (no timestamp, no trigger).
+    await prisma.$executeRawUnsafe(
+      `UPDATE "organization_memberships" SET "status" = 'ACTIVE', "suspended_at_utc" = NULL WHERE "id" = $1::uuid`,
+      p.orgMembershipId,
+    );
+    expect(outcome.kind).toBe("membership_inactive");
+    expect(await liveConsents(p.id)).toHaveLength(0);
+    const res = await oidcSignIn(p.oidcSubject, p.email);
+    expect(res.location).toContain("sso_error=sso_account_link_requires_consent");
+    expect(await stepUpResolves(p.oidcSubject)).toBeNull();
+  });
+
+  it("defence in depth: a consent approved before the membership's last recorded status change is not current", async () => {
+    const p = await selfServeMember("moved");
+    await approveBoth(p);
+    await expectAllowed(p);
+    // A recorded governance transition after the approval (statusChangedAtUtc
+    // alone fires no trigger): the consent predates the membership as it is.
+    await prisma.organizationMembership.update({
+      where: { id: p.orgMembershipId },
+      data: { statusChangedAtUtc: new Date(Date.now() + 1000) },
+    });
+    await expectRefused(p, "fresh_approval");
+    await prisma.organizationMembership.update({
+      where: { id: p.orgMembershipId },
+      data: { statusChangedAtUtc: new Date(Date.now() - 60_000) },
+    });
+    // A workspace suspension timestamp after the approval, likewise.
+    await prisma.teamMember.update({
+      where: { id: p.teamMemberId },
+      data: { suspendedAtUtc: new Date(Date.now() + 1000) },
+    });
+    await expectRefused(p, "fresh_approval");
+  });
+
+  // ---------------------------------------------------------------------------
+  // Review follow-up 2 — IdP step-up elevation after consent ends.
+  // ---------------------------------------------------------------------------
+
+  const CTX = "urn:proovra:test:ctx:strong";
+  const PURPOSE = "COLLABORATION_TEAM_ARCHIVE";
+  const RESOURCE = { resourceKind: "collaboration_team", resourceId: "a202-target" };
+
+  async function acceptIdpContext() {
+    const data = {
+      stepUpAssurance: "STANDARD",
+      stepUpSmsAllowed: true,
+      idpStepUpAcceptedContexts: [CTX],
+      idpStepUpMaxAgeSeconds: 300,
+    };
+    await prisma.organizationSecurityPolicy.upsert({
+      where: { organizationId: org.organizationId },
+      create: { organizationId: org.organizationId, policyVersion: 1, ...data } as never,
+      update: data as never,
+    });
+  }
+  /** An IdP-authenticated session on the OIDC connection carrying the accepted context. */
+  async function idpSession(userId: string) {
+    const sessionIdHash = createHash("sha256").update(randomUUID()).digest("hex");
+    await prisma.authenticatedSession.create({
+      data: {
+        userId,
+        sessionIdHash,
+        expiresAtUtc: new Date(Date.now() + 3600_000),
+        authMethod: "OIDC",
+        ssoConnectionId: oidcConnectionId,
+        authnContext: CTX,
+        idpAuthAtUtc: new Date(),
+      } as never,
+    });
+    return sessionIdHash;
+  }
+  const historySatisfies = (userId: string, sessionIdHash: string) =>
+    stepUpIdp.sessionSatisfiesIdpStepUp(prisma as never, {
+      sessionIdHash,
+      userId,
+      connectionId: oidcConnectionId,
+      policy: { acceptedContexts: [CTX], maxAgeSeconds: 300, assurance: "STANDARD" } as never,
+    });
+  /** An IDP_REAUTH challenge the IdP already approved (not yet spent). */
+  const approvedChallenge = (userId: string) =>
+    prisma.stepUpChallenge.create({
+      data: {
+        teamId: org.workspaceId,
+        initiatedByUserId: userId,
+        organizationId: org.organizationId,
+        purpose: PURPOSE,
+        ...RESOURCE,
+        status: "APPROVED",
+        approvedAtUtc: new Date(),
+        expiresAtUtc: new Date(Date.now() + 10 * 60_000),
+        method: "IDP_REAUTH",
+        ssoConnectionId: oidcConnectionId,
+        authnContext: CTX,
+      } as never,
+      select: { id: true },
+    });
+  const spend = (userId: string, challengeId: string) =>
+    stepUp.consumeApprovedChallenge(
+      { teamId: org.workspaceId, userId, challengeId, purpose: PURPOSE as never, ...RESOURCE },
+      prisma as never,
+    );
+
+  it("IdP step-up: after withdrawal neither a session's IdP history nor an already-approved challenge elevates", async () => {
+    await acceptIdpContext();
+    const p = await selfServeMember("stepup-withdraw");
+    await approveBoth(p);
+    const sid = await idpSession(p.id);
+    expect(await historySatisfies(p.id, sid)).toEqual({ authnContext: CTX });
+    const spentBefore = await approvedChallenge(p.id);
+    expect((await spend(p.id, spentBefore.id)).id).toBe(spentBefore.id);
+    const pending = await approvedChallenge(p.id);
+
+    expect((await consentFlow.withdrawOrganizationLinkConsent({ userId: p.id, organizationId: org.organizationId })).withdrawn).toBe(2);
+    expect(await historySatisfies(p.id, sid)).toBeNull();
+    await expect(spend(p.id, pending.id)).rejects.toMatchObject({ code: "challenge_not_found" });
+  });
+
+  it("IdP step-up: a challenge approved before a suspension is refused at spend, and stays refused after reactivation", async () => {
+    await acceptIdpContext();
+    const p = await selfServeMember("stepup-suspend");
+    await approveBoth(p);
+    const before = await approvedChallenge(p.id);
+    const suspended = await orgRoute("POST", `/v1/orgs/${org.organizationId}/members/${p.orgMembershipId}/suspend`, org.owner.token);
+    expect(suspended.statusCode, suspended.body).toBe(200);
+    await expect(spend(p.id, before.id)).rejects.toMatchObject({ code: "challenge_not_found" });
+    const restored = await orgRoute("POST", `/v1/orgs/${org.organizationId}/members/${p.orgMembershipId}/restore`, org.owner.token);
+    expect(restored.statusCode, restored.body).toBe(200);
+    const after = await approvedChallenge(p.id);
+    await expect(spend(p.id, after.id)).rejects.toMatchObject({ code: "challenge_not_found" });
+    const sid = await idpSession(p.id);
+    expect(await historySatisfies(p.id, sid)).toBeNull();
+  });
+
+  it("IdP step-up: an organization-created identity still elevates (session history and spend)", async () => {
+    await acceptIdpContext();
+    const seeded = await fx.seedUser(deps, "stepup-managed");
+    const subject = `stepup-managed-${randomUUID()}`;
+    await prisma.user.update({
+      where: { id: seeded.userId },
+      data: { email: `stepup-managed-${randomUUID().slice(0, 6)}@${domain}`, providerUserId: `sso-${org.organizationId}:${subject}` },
+    });
+    await prisma.organizationMembership.create({
+      data: { organizationId: org.organizationId, userId: seeded.userId, role: "ORG_MEMBER" },
+    });
+    await prisma.teamMember.create({
+      data: { teamId: org.workspaceId, userId: seeded.userId, role: "MEMBER", status: "ACTIVE" },
+    });
+    await prisma.externalIdentityMapping.create({
+      data: {
+        teamId: org.workspaceId,
+        organizationId: org.organizationId,
+        userId: seeded.userId,
+        provider: "GENERIC_OIDC",
+        externalSubjectId: subject,
+        linkSource: "OIDC_JIT",
+      } as never,
+    });
+    const sid = await idpSession(seeded.userId);
+    expect(await historySatisfies(seeded.userId, sid)).toEqual({ authnContext: CTX });
+    const c = await approvedChallenge(seeded.userId);
+    expect((await spend(seeded.userId, c.id)).id).toBe(c.id);
   });
 });
