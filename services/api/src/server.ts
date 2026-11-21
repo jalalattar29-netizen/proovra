@@ -701,6 +701,12 @@ allowedHeaders: [
   // (reporting only; http/client-contract-report.ts).
   CLIENT_REPORTED_CONTRACT_HEADER,
   CLIENT_CAPABILITIES_HEADER,
+  // PRO-X1-11 — the installed extension names its build on every request
+  // (`extension/<version>`, apps/extension/src/lib/api-client.ts). Its fetches
+  // are CORS-preflighted (no host permissions), so a header missing here made
+  // the browser refuse EVERY extension call after the preflight. Identification
+  // only: no policy reads it.
+  "x-proovra-client",
 ],
     origin: (origin, cb) => cb(null, isCorsOriginAllowed(origin)),
     // AUD-32 (2026-10-20) — the browser may READ the contract version (a
