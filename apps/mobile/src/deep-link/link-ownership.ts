@@ -26,6 +26,7 @@ import {
   parseCanonicalMobileDeepLink,
   parseCredentialDeepLink,
   parseExternalFlowDeepLink,
+  parseOrganizationDeepLink,
   parsePublicDocumentDeepLink,
   workspacePageDeepLink,
 } from "../deep-link";
@@ -41,6 +42,8 @@ export function deepLinkGateOwns(url: string): boolean {
       parsePublicDocumentDeepLink(url) ||
       parseExternalFlowDeepLink(url) ||
       workspacePageDeepLink(url) ||
+      // NEW-RG-26-4 — the ownership-offer link: the gate defers it behind sign-in.
+      parseOrganizationDeepLink(url) ||
       parseCanonicalMobileDeepLink(url),
   );
 }

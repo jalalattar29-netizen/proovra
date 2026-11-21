@@ -111,3 +111,21 @@ test("routes and the web handoff keep the organization; a malformed id goes nowh
   assert.equal(O.orgOwnershipOfferWebUrl("javascript:alert(1)", ORG), null);
   assert.equal(O.orgOwnershipOfferWebUrl("https://www.proovra.com", "x"), null);
 });
+
+const L = await loadModule("src/deep-link/link-ownership.ts", ["test/support/expo-stub.mjs"]);
+const Intent = await loadModule("app/+native-intent.ts");
+
+test("one owner: the gate owns the organization link, so the router cannot open the screen before the sign-in deferral", () => {
+  for (const url of [
+    `https://www.proovra.com/organizations/${ORG}?ownershipOffer=${OFFER}`,
+    `proovra://organizations/${ORG}`,
+  ]) {
+    assert.equal(L.deepLinkGateOwns(url), true, url);
+    assert.equal(Intent.redirectSystemPath({ path: url, initial: false }), "", url);
+    assert.equal(Intent.redirectSystemPath({ path: url, initial: true }), "/", url);
+  }
+  // The admin console is not the gate's: it is not claimed and stays with the router/browser.
+  const admin = `https://www.proovra.com/organizations/${ORG}/admin/members`;
+  assert.equal(L.deepLinkGateOwns(admin), false);
+  assert.equal(Intent.redirectSystemPath({ path: admin, initial: false }), admin);
+});
