@@ -761,11 +761,15 @@ describe("Phase 3A — UI surfaces", () => {
     expect(UI_PDF_VIEWER).toMatch(/REMOVE_CONTENT/);
   });
 
-  it("video viewer wires frame-range region authoring", () => {
+  // Closure 2026-11-21 (PRO-R3-04 / WEB-OLD-API-COMPAT-1): video-region
+  // authoring is not a product capability (FUTURE_NOT_SHIPPING; the API refuses
+  // VIDEO_FRAME_BBOX with REGION_KIND_UNSUPPORTED). The panel is a notice only;
+  // its behaviour is pinned in apps/web redaction-region-authoring.render.test.tsx.
+  it("video viewer is a notice: it posts no region and offers no frame-range authoring", () => {
     expect(UI_VIDEO_VIEWER).toMatch(/data-redaction-video-viewer/);
-    expect(UI_VIDEO_VIEWER).toMatch(/data-redaction-video-start-frame/);
-    expect(UI_VIDEO_VIEWER).toMatch(/data-redaction-video-end-frame/);
-    expect(UI_VIDEO_VIEWER).toMatch(/VIDEO_FRAME_BBOX/);
+    expect(UI_VIDEO_VIEWER).toMatch(/data-redaction-authoring="disabled"/);
+    expect(UI_VIDEO_VIEWER).not.toMatch(/apiFetch|\/regions/);
+    expect(UI_VIDEO_VIEWER).not.toMatch(/data-redaction-video-(canvas|start-frame|end-frame|method)/);
   });
 
   it("detection review panel exposes provider toggles + accept/reject actions", () => {
