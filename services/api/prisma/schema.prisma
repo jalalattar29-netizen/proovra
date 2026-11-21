@@ -15187,6 +15187,11 @@ model EvidencePartDerivedAsset {
   // lease; cleared by the settling write. NULL: nothing reserved.
   storageReservedBytes     BigInt?   @map("storage_reserved_bytes")
   storageReservedAtUtc     DateTime? @map("storage_reserved_at_utc") @db.Timestamptz(6)
+  // FINAL-VERIFY-2 closure (migration 20281123060000) — the durable intent
+  // (DerivedAssetStorageIntent.id) this reservation belongs to. A reservation
+  // WITH a token is counted through its intent, never by the row; one without
+  // (an older image, or no declared write target) is counted by the row.
+  storageReservationToken  String?   @map("storage_reservation_token") @db.Uuid
   generatedAtUtc           DateTime? @map("generated_at_utc") @db.Timestamptz(6)
   createdAtUtc             DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
   updatedAtUtc             DateTime  @default(now()) @map("updated_at_utc") @db.Timestamptz(6)
@@ -15200,6 +15205,42 @@ model EvidencePartDerivedAsset {
   @@index([evidenceId], map: "evidence_part_derived_assets_evidence_idx")
   @@index([status, updatedAtUtc(sort: Desc)], map: "evidence_part_derived_assets_status_updated_idx")
   @@map("evidence_part_derived_assets")
+}
+
+/// FINAL-VERIFY-2 closure (migration 20281123060000) — the DURABLE INTENT of
+/// one derived-write attempt that declared a target object. Written with the
+/// reservation, before any byte is sent; counted by both usage meters while
+/// OPEN whatever the reservation's age; leaves OPEN only by proof (SETTLED,
+/// RELEASED, DELETED, ADOPTED, ABSENT). CHECKs (raw): reserved_bytes >= 0,
+/// the state set, and resolved_at_utc set exactly when not OPEN.
+model DerivedAssetStorageIntent {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId              String    @map("team_id") @db.Uuid
+  evidenceId          String    @map("evidence_id") @db.Uuid
+  evidencePartId      String    @map("evidence_part_id") @db.Uuid
+  assetKind           String    @map("asset_kind") @db.VarChar(48)
+  variantKey          String    @map("variant_key") @db.VarChar(64)
+  reservedBytes       BigInt    @map("reserved_bytes")
+  storageBucket       String    @map("storage_bucket") @db.VarChar(255)
+  storageKey          String    @map("storage_key") @db.VarChar(512)
+  derivedSha256       String?   @map("derived_sha256") @db.VarChar(64)
+  contentType         String?   @map("content_type") @db.VarChar(80)
+  holderStampUtc      DateTime  @map("holder_stamp_utc") @db.Timestamptz(6)
+  state               String    @default("OPEN") @db.VarChar(16)
+  resolution          String?   @db.VarChar(200)
+  resolvedBytes       BigInt?   @map("resolved_bytes")
+  resolvedAssetId     String?   @map("resolved_asset_id") @db.Uuid
+  resolvedAtUtc       DateTime? @map("resolved_at_utc") @db.Timestamptz(6)
+  reconcileToken      String?   @map("reconcile_token") @db.Uuid
+  reconcileLeaseUntil DateTime? @map("reconcile_lease_until") @db.Timestamptz(6)
+  reconcileAttempts   Int       @default(0) @map("reconcile_attempts")
+  lastReconcileError  String?   @map("last_reconcile_error") @db.VarChar(200)
+  createdAtUtc        DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
+
+  @@index([teamId, state], map: "derived_asset_storage_intents_team_state_idx")
+  @@index([state, holderStampUtc], map: "derived_asset_storage_intents_state_stamp_idx")
+  @@index([storageBucket, storageKey], map: "derived_asset_storage_intents_object_idx")
+  @@map("derived_asset_storage_intents")
 }
 
 model EvidencePartExifSummary {

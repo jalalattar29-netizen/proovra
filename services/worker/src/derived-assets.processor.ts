@@ -47,11 +47,12 @@ import { artifactLockFor } from "./object-retention.js";
 import { logger } from "./logger.js";
 import { getObjectStream, putObjectBuffer } from "./storage.js";
 import {
-  releaseDerivedArtifactReservation,
+  releaseUnwrittenDerivedArtifactHold,
   renewDerivedArtifactReservation,
   reserveDerivedArtifactStorage,
   type DerivedArtifactReservationHold,
 } from "./workspace-billing.js";
+import { settleDerivedAssetUnderIntent } from "./derived-storage-intent.js";
 import { disposeUnsettledDerivedObject, type UnsettledDerivedObjectOutcome } from "./derived-unsettled-object.js";
 import { detectDerivedAssetCapability } from "./derived-assets-capability.js";
 // Phase 31.20 — ffmpeg-derived asset producers.
@@ -467,7 +468,12 @@ export async function processDerivedAssetJob(
   if (!(await stillEligible({ teamId, evidenceId, evidencePartId, assetKind }))) {
     return { ok: true, status: "FAILED" };
   }
-  let hold = await storageAllows({ teamId, evidenceId, evidencePartId, assetKind }, derivedBuffer.byteLength);
+  let hold = await storageAllows({ teamId, evidenceId, evidencePartId, assetKind }, derivedBuffer.byteLength, {
+    bucket: part.storage_bucket,
+    key: derivedKey,
+    derivedSha256,
+    contentType: derivedContentType,
+  });
   if (!hold) {
     return { ok: true, status: "FAILED" };
   }
@@ -496,7 +502,7 @@ export async function processDerivedAssetJob(
   hold = settleHold;
 
   // Persist row (idempotent upsert).
-  const persistence = await persistCompleted({
+  const persistence = await persistCompleted(hold, {
     teamId,
     evidenceId,
     evidencePartId,
@@ -679,7 +685,12 @@ async function handleFfmpegAssetKind(params: {
     if (!(await stillEligible({ teamId, evidenceId, evidencePartId, assetKind }))) {
       return { ok: true, status: "FAILED" };
     }
-    let hold = await storageAllows({ teamId, evidenceId, evidencePartId, assetKind }, result.bytes.byteLength);
+    let hold = await storageAllows({ teamId, evidenceId, evidencePartId, assetKind }, result.bytes.byteLength, {
+      bucket: part.storage_bucket,
+      key: derivedKey,
+      derivedSha256: result.derivedSha256,
+      contentType: result.contentType,
+    });
     if (!hold) {
       return { ok: true, status: "FAILED" };
     }
@@ -703,7 +714,7 @@ async function handleFfmpegAssetKind(params: {
       return { ok: true, status: "FAILED" };
     }
     hold = settleHold;
-    const persistence = await persistCompleted({
+    const persistence = await persistCompleted(hold, {
       teamId,
       evidenceId,
       evidencePartId,
@@ -813,6 +824,8 @@ type PersistBaseInput = {
 };
 
 async function persistCompleted(
+  /** FINAL-VERIFY-2 closure — the hold whose intent the settle resolves. */
+  hold: DerivedArtifactReservationHold,
   input: PersistBaseInput & {
     derivedSha256: string;
     sizeBytes: number;
@@ -843,16 +856,22 @@ async function persistCompleted(
       "@proovra/shared-runtime/media-intelligence"
     );
     const { toolVersion, ...row } = input;
+    const record = {
+      ...row,
+      status: "COMPLETED" as const,
+      engineVersion: (toolVersion ?? input.engineVersion ?? DERIVED_ASSET_ENGINE_VERSION).slice(0, 48),
+    };
+    // FINAL-VERIFY-2 closure — a hold with an intent settles in one
+    // transaction with the intent's resolution, fenced on the live
+    // reservation and bounded by the database to what is left of its window
+    // (a stall is cancelled and rolled back by the server, never abandoned).
+    if (hold.intentId) {
+      const settled = await settleDerivedAssetUnderIntent({ hold, record });
+      return settled.ok ? { ok: true } : { ok: false, reason: settled.reason };
+    }
     // UC-DER-006 — a regeneration never deletes the object it replaces: the
     // canonical writer keeps it as a SUPERSEDED row (see recordDerivedAsset).
-    const r = await recordDerivedAsset(
-      {
-        ...row,
-        status: "COMPLETED",
-        engineVersion: (toolVersion ?? input.engineVersion ?? DERIVED_ASSET_ENGINE_VERSION).slice(0, 48),
-      },
-      prisma,
-    );
+    const r = await recordDerivedAsset(record, prisma);
     if (!r.ok) return { ok: false, reason: r.reason };
     return { ok: true };
   } catch (err) {
@@ -876,7 +895,12 @@ async function persistCompleted(
  * under the record's lock. Refused growth settles the row FAILED storage_limit
  * (nothing written); a later request after storage is freed regenerates it.
  */
-async function storageAllows(input: PersistBaseInput, incomingBytes: number): Promise<DerivedArtifactReservationHold | null> {
+async function storageAllows(
+  input: PersistBaseInput,
+  incomingBytes: number,
+  /** FINAL-VERIFY-2 closure — the object this job will write (its durable intent's target). */
+  target: { bucket: string; key: string; derivedSha256: string; contentType: string },
+): Promise<DerivedArtifactReservationHold | null> {
   // M676 — admitted bytes are RESERVED on this row under the workspace
   // capacity lock; the settling recordDerivedAsset (COMPLETED or FAILED)
   // clears the reservation in the same statement.
@@ -886,6 +910,7 @@ async function storageAllows(input: PersistBaseInput, incomingBytes: number): Pr
     evidenceId: input.evidenceId,
     incomingBytes,
     reservation: reservationKeyOf(input),
+    target,
   });
   if (verdict.allowed) return verdict.hold;
   await persistFailed({ ...input, reason: verdict.reason });
@@ -920,11 +945,14 @@ async function putUnderReservation(
   try {
     renewed = await renewDerivedArtifactReservation(hold);
   } catch (err) {
-    await releaseDerivedArtifactReservation(hold.key, hold.reservedAtUtc);
+    // Nothing was written: the reservation and the intent are given back.
+    await releaseUnwrittenDerivedArtifactHold(hold);
     throw err;
   }
   if (!renewed) {
     // Nothing was written: the row says why, and the retry re-reserves.
+    // FINAL-VERIFY-2 closure — the intent is resolved RELEASED (no write).
+    await releaseUnwrittenDerivedArtifactHold(hold);
     await persistFailed({ ...input, reason: "storage_reservation_lost_before_put" });
     await tryBump("derived_assets_processor_failed_total");
     throw new Error("derived_storage_reservation_lost_before_put");
@@ -947,6 +975,7 @@ async function putUnderReservation(
     const outcome = await disposeUnsettledDerivedObject({
       key: renewed.key,
       heldSince: renewed.reservedAtUtc,
+      intentId: renewed.intentId ?? null,
       object: { bucket: put.bucket, key: put.key, versionId: null },
       written: { derivedSha256: createHash("sha256").update(put.body).digest("hex"), sizeBytes: put.body.byteLength, contentType: put.contentType },
       reason,
@@ -989,6 +1018,7 @@ async function disposeWritten(
   return disposeUnsettledDerivedObject({
     key: reservationKeyOf(input),
     heldSince: hold.reservedAtUtc,
+    intentId: hold.intentId ?? null,
     object: written.object,
     written: { derivedSha256: written.derivedSha256, sizeBytes: written.sizeBytes, contentType: written.contentType },
     reason,

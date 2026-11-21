@@ -20,16 +20,36 @@
  *      it (`sumDerivedAssetStorageBytes` counts every row with a pointer) and
  *      destruction sweeps it with the record. The reservation is then released.
  *   3. KEPT — if neither is possible (the database refused the retained row,
- *      or the written version is unknown), the reservation is NOT released: it
- *      keeps counting the bytes until it expires, and the incident is logged at
- *      error level (a residual bounded by the reservation's TTL).
+ *      or the written version is unknown), the reservation is NOT released.
  * An object already referenced by a row (same pointer and version) is counted
  * by that row: the reservation is simply released.
+ *
+ * FINAL-VERIFY-2 closure — with the holder's durable INTENT (every worker
+ * producer declares one when it reserves), "kept" no longer ends when the
+ * reservation lapses: the OPEN intent keeps the bytes counted until the
+ * reconciler (derived-storage-intent) proves them deleted, adopts them, or
+ * proves the key holds nothing unreferenced after every write window closed.
+ *   - DELETED of a KNOWN version resolves the intent DELETED;
+ *   - RETAINED is one transaction: the retained row and the intent's
+ *     resolution (ADOPTED), so a database that refuses one refuses both and
+ *     the intent still counts (failure case (a));
+ *   - a key-wide delete for an UNKNOWN version (a lost upload answer) never
+ *     resolves the intent: the lost request may still land after it; and a
+ *     held unknown version (failure case (b)) is left to the reconciler,
+ *     which finds and adopts it by listing;
+ *   - a database that cannot be read fails CLOSED (nothing deleted).
  */
 import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
+import { resolveDerivedAssetStorageIntentsTx } from "@proovra/shared-runtime";
 import type { DerivedAssetKind } from "@proovra/shared-runtime/media-intelligence";
+import type { PrismaClient } from "@prisma/client";
 
 import { prisma } from "./db.js";
+import {
+  DERIVED_DISPOSAL_TRANSACTION_MS,
+  adoptDerivedObjectVersionsTx,
+  boundedTransaction,
+} from "./derived-storage-intent.js";
 import { logger } from "./logger.js";
 import { deleteObjectVersions } from "./storage.js";
 import { releaseDerivedArtifactReservation } from "./workspace-billing.js";
@@ -47,24 +67,42 @@ export async function disposeUnsettledDerivedObject(input: {
   key: ReservationKey;
   /** The holder's reservation stamp (its fence token), when it holds one. */
   heldSince: Date | null;
+  /** FINAL-VERIFY-2 closure — the holder's durable intent, when it declared one. */
+  intentId?: string | null;
   object: { bucket: string; key: string; versionId: string | null };
   /** What was written: enough to keep it counted on its own row. */
   written: { derivedSha256: string; sizeBytes: number; contentType: string | null; engineVersion?: string };
   reason: string;
+  /** Test seam: the database client (defaults to the worker's). */
+  client?: PrismaClient;
 }): Promise<UnsettledDerivedObjectOutcome> {
   const { key, heldSince, object, written } = input;
+  const db = (input.client ?? prisma) as PrismaClient;
+  const intentId = input.intentId ?? null;
   const release = () => releaseDerivedArtifactReservation(key, heldSince);
   const log = { evidenceId: key.evidenceId, assetKind: key.assetKind, variantKey: key.variantKey, reason: input.reason };
+  const resolveIntent = async (state: "DELETED" | "ADOPTED", resolution: string) => {
+    if (!intentId) return;
+    await resolveDerivedAssetStorageIntentsTx(db, { intentIds: [intentId], state, resolution, resolvedBytes: 0 }).catch(
+      () => undefined, // still OPEN: over-counted until the reconciler proves it
+    );
+  };
 
-  // An object a row already references is counted by that row.
+  // An object a row already references is counted by that row. A database
+  // that cannot answer decides nothing (fail closed: no delete, no release).
   if (object.versionId) {
-    const referenced = await prisma.evidencePartDerivedAsset
-      .findFirst({
+    let referenced: { id: string } | null;
+    try {
+      referenced = await db.evidencePartDerivedAsset.findFirst({
         where: { storageBucket: object.bucket, storageKey: object.key, storageVersionId: object.versionId },
         select: { id: true },
-      })
-      .catch(() => null);
+      });
+    } catch {
+      logger.error(log, "derived.unsettled_object_reservation_kept");
+      return "reservation_kept";
+    }
     if (referenced) {
+      await resolveIntent("ADOPTED", "already_counted");
       await release();
       return "already_counted";
     }
@@ -72,19 +110,29 @@ export async function disposeUnsettledDerivedObject(input: {
 
   // 1. Delete what this attempt wrote, unless a hold is in force (fail closed).
   //    A key-wide delete (version unknown) is attempted only when no row
-  //    references the key: it must never remove a counted version.
+  //    references the key and no OTHER attempt's intent targets it: it must
+  //    never remove a counted version or a version another holder may settle.
   let held = true;
   try {
-    held = (await evaluateEffectiveLegalHold(prisma, { teamId: key.teamId, evidenceId: key.evidenceId })).held;
+    held = (await evaluateEffectiveLegalHold(db as never, { teamId: key.teamId, evidenceId: key.evidenceId })).held;
   } catch {
     held = true;
   }
   let keyReferenced = false;
   if (!object.versionId) {
-    keyReferenced = await prisma.evidencePartDerivedAsset
+    keyReferenced = await db.evidencePartDerivedAsset
       .findFirst({ where: { storageBucket: object.bucket, storageKey: object.key }, select: { id: true } })
       .then((r) => Boolean(r))
       .catch(() => true);
+    if (!keyReferenced && intentId && typeof db.derivedAssetStorageIntent?.findFirst === "function") {
+      keyReferenced = await db.derivedAssetStorageIntent
+        .findFirst({
+          where: { storageBucket: object.bucket, storageKey: object.key, state: "OPEN", id: { not: intentId } },
+          select: { id: true },
+        })
+        .then((r) => Boolean(r))
+        .catch(() => true);
+    }
   }
   if (!held && !keyReferenced) {
     const removal = await deleteObjectVersions(object).catch(() => null);
@@ -92,8 +140,12 @@ export async function disposeUnsettledDerivedObject(input: {
       removal != null &&
       (removal.deleted || (Number(removal.failed || 0) === 0 && Number(removal.retainedVersions || 0) === 0 && Number(removal.deletedVersions || 0) === 0));
     if (gone) {
+      // A known version is proven gone: its intent is resolved. An UNKNOWN
+      // version (a lost answer) may still land after this delete: the intent
+      // stays OPEN, counted, for the reconciler to judge after the grace.
+      if (object.versionId) await resolveIntent("DELETED", "holder_deleted_own_version");
       await release();
-      logger.warn(log, "derived.unsettled_object_deleted");
+      logger.warn({ ...log, intentKept: !object.versionId && Boolean(intentId) }, "derived.unsettled_object_deleted");
       return "deleted";
     }
   }
@@ -101,38 +153,68 @@ export async function disposeUnsettledDerivedObject(input: {
   // 2. Keep it counted on its own row (only for a known version: an unknown
   //    one may not exist, and must not be billed as if it did).
   if (object.versionId) {
+    const versionId = object.versionId;
     try {
-      const { recordDerivedAsset } = await import("@proovra/shared-runtime/media-intelligence");
-      const retained = await recordDerivedAsset(
-        {
-          teamId: key.teamId,
-          evidenceId: key.evidenceId,
-          evidencePartId: key.evidencePartId,
-          assetKind: key.assetKind as DerivedAssetKind,
-          status: "FAILED",
-          variantKey: unsettledDerivedVariantKey(key.variantKey, written.derivedSha256),
-          derivedSha256: written.derivedSha256,
-          sizeBytes: written.sizeBytes,
-          contentType: written.contentType,
-          storageBucket: object.bucket,
-          storageKey: object.key,
-          storageVersionId: object.versionId,
-          lastError: `unsettled_object_retained:${input.reason}`.slice(0, 200),
-          ...(written.engineVersion ? { engineVersion: written.engineVersion } : {}),
-        },
-        prisma,
-      );
-      if (retained.ok) {
+      let retainedId: string | null = null;
+      if (intentId) {
+        // One transaction: the retained row AND the intent's resolution.
+        const ids = await boundedTransaction(db, Date.now() + DERIVED_DISPOSAL_TRANSACTION_MS, (tx, bound) =>
+          adoptDerivedObjectVersionsTx(tx, {
+            owner: key,
+            versions: [
+              {
+                bucket: object.bucket,
+                key: object.key,
+                versionId,
+                sizeBytes: written.sizeBytes,
+                variantKey: unsettledDerivedVariantKey(key.variantKey, written.derivedSha256),
+              },
+            ],
+            derivedSha256: written.derivedSha256,
+            contentType: written.contentType,
+            engineVersion: written.engineVersion,
+            reason: input.reason,
+            intentIds: [intentId],
+            state: "ADOPTED",
+            bound,
+          }),
+        );
+        retainedId = ids[0] ?? null;
+      } else {
+        const { recordDerivedAsset } = await import("@proovra/shared-runtime/media-intelligence");
+        const retained = await recordDerivedAsset(
+          {
+            teamId: key.teamId,
+            evidenceId: key.evidenceId,
+            evidencePartId: key.evidencePartId,
+            assetKind: key.assetKind as DerivedAssetKind,
+            status: "FAILED",
+            variantKey: unsettledDerivedVariantKey(key.variantKey, written.derivedSha256),
+            derivedSha256: written.derivedSha256,
+            sizeBytes: written.sizeBytes,
+            contentType: written.contentType,
+            storageBucket: object.bucket,
+            storageKey: object.key,
+            storageVersionId: versionId,
+            lastError: `unsettled_object_retained:${input.reason}`.slice(0, 200),
+            ...(written.engineVersion ? { engineVersion: written.engineVersion } : {}),
+          },
+          db,
+        );
+        retainedId = retained.ok ? retained.id : null;
+      }
+      if (retainedId) {
         await release();
-        logger.warn({ ...log, retainedAssetId: retained.id }, "derived.unsettled_object_retained");
+        logger.warn({ ...log, retainedAssetId: retainedId }, "derived.unsettled_object_retained");
         return "retained";
       }
     } catch {
-      /* fall through: the reservation keeps counting */
+      /* fall through: the intent (or the reservation) keeps counting */
     }
   }
 
-  // 3. Neither: the reservation is not released (it keeps counting until it expires).
-  logger.error(log, "derived.unsettled_object_reservation_kept");
+  // 3. Neither: nothing is released. With an intent, it keeps counting past
+  //    the reservation's TTL until the reconciler resolves it.
+  logger.error({ ...log, intentKept: Boolean(intentId) }, "derived.unsettled_object_reservation_kept");
   return "reservation_kept";
 }

@@ -61,11 +61,13 @@ import {
 } from "./multipart-upload.js";
 import {
   releaseDerivedArtifactReservation,
+  releaseUnwrittenDerivedArtifactHold,
   renewDerivedArtifactReservation,
   reserveDerivedArtifactStorage,
   type DerivedArtifactReservationHold,
 } from "../workspace-billing.js";
 import { disposeUnsettledDerivedObject } from "../derived-unsettled-object.js";
+import { settleDerivedAssetUnderIntent } from "../derived-storage-intent.js";
 
 type JobInput = { jobId: string | undefined; teamId: string; evidenceId: string; runId: string };
 type MediaIntelligenceModule = typeof import("@proovra/shared-runtime/media-intelligence");
@@ -120,6 +122,10 @@ export async function processCombineScreenRecordingJob(
   // M676 follow-up — what the upload wrote (or may have written), for the
   // disposal of an object that is never settled.
   let written: { derivedSha256: string; sizeBytes: number } | null = null;
+  // FINAL-VERIFY-2 closure — once the upload started, the intent leaves OPEN
+  // only by settle or proof (parts of an interrupted multipart upload may
+  // remain: the reconciler aborts them and lists the key).
+  let writeStarted = false;
   let unsettledReason = "not_recorded";
   try {
     // ---- the record ------------------------------------------------------
@@ -244,6 +250,9 @@ export async function processCombineScreenRecordingJob(
       evidenceId,
       incomingBytes: combined.sizeBytes,
       reservation: reservationKey,
+      // FINAL-VERIFY-2 closure — the declared target: a durable intent is
+      // written with the reservation, before any byte is sent.
+      target: { bucket: anchor.storageBucket, key, derivedSha256: outputSha256, contentType: "video/mp4" },
     });
     if (!storageGate.allowed) return fail(`combine:${storageGate.reason}`);
     hold = storageGate.hold;
@@ -278,6 +287,7 @@ export async function processCombineScreenRecordingJob(
     written = { derivedSha256: outputSha256, sizeBytes: combined.sizeBytes };
     let put: Awaited<ReturnType<typeof uploadFileMultipart>>;
     try {
+      writeStarted = true;
       put = await uploadFileMultipart({
         client: s3,
         bucket: anchor.storageBucket,
@@ -330,30 +340,33 @@ export async function processCombineScreenRecordingJob(
       throw new Error("combine:storage_reservation_lost_before_record");
     }
     hold = recordHold;
-    const recorded = await mi.recordDerivedAsset(
-      {
-        teamId,
-        evidenceId,
-        evidencePartId: anchor.id,
-        assetKind: SCREEN_RECORDING_COMBINED_ASSET_KIND,
-        status: "COMPLETED",
-        derivedSha256: put.sha256,
-        sizeBytes: put.sizeBytes,
-        contentType: "video/mp4",
-        widthPx: combined.widthPx,
-        heightPx: combined.heightPx,
-        sourceSha256AtGeneration: anchor.sha256,
-        storageBucket: anchor.storageBucket,
-        storageKey: key,
-        storageVersionId: put.versionId,
-        engineVersion: SCREEN_RECORDING_COMBINE_ENGINE_VERSION,
-        variantKey,
-        transformation: SCREEN_RECORDING_COMBINE_TRANSFORMATION,
-        generationParameters: combined.lineage as unknown as Record<string, unknown>,
-        sourceOffsetMs: null,
-      },
-      prisma,
-    );
+    const record = {
+      teamId,
+      evidenceId,
+      evidencePartId: anchor.id,
+      assetKind: SCREEN_RECORDING_COMBINED_ASSET_KIND,
+      status: "COMPLETED",
+      derivedSha256: put.sha256,
+      sizeBytes: put.sizeBytes,
+      contentType: "video/mp4",
+      widthPx: combined.widthPx,
+      heightPx: combined.heightPx,
+      sourceSha256AtGeneration: anchor.sha256,
+      storageBucket: anchor.storageBucket,
+      storageKey: key,
+      storageVersionId: put.versionId,
+      engineVersion: SCREEN_RECORDING_COMBINE_ENGINE_VERSION,
+      variantKey,
+      transformation: SCREEN_RECORDING_COMBINE_TRANSFORMATION,
+      generationParameters: combined.lineage as unknown as Record<string, unknown>,
+      sourceOffsetMs: null,
+    } satisfies Parameters<MediaIntelligenceModule["recordDerivedAsset"]>[0];
+    // FINAL-VERIFY-2 closure — with an intent, the record and the intent's
+    // resolution are one transaction, fenced on the live reservation and
+    // bounded by the database to the reservation's window.
+    const recorded = hold.intentId
+      ? await settleDerivedAssetUnderIntent({ hold, record })
+      : await mi.recordDerivedAsset(record, prisma);
     if (!recorded.ok) {
       unsettledReason = `persist_failed:${recorded.reason}`;
       throw new Error(`combined_persist_failed:${recorded.reason}`);
@@ -423,15 +436,22 @@ export async function processCombineScreenRecordingJob(
       await disposeUnsettledDerivedObject({
         key: hold.key,
         heldSince: hold.reservedAtUtc,
+        intentId: hold.intentId ?? null,
         object: uploaded,
         written: { ...written, contentType: "video/mp4", engineVersion: SCREEN_RECORDING_COMBINE_ENGINE_VERSION },
         reason: unsettledReason,
       }).catch(() => undefined);
+    } else if (hold && writeStarted) {
+      // FINAL-VERIFY-2 closure — an upload that started and failed before its
+      // completion stored no object, but its parts may remain if the abort
+      // failed: the reservation is given back, the intent stays OPEN (counted)
+      // until the reconciler aborts the parts and lists the key.
+      await releaseDerivedArtifactReservation(hold.key, hold.reservedAtUtc);
     } else if (hold) {
       // M676 — an attempt that ends without writing gives its reservation back
       // (and its placeholder row, which never received an object), fenced on
-      // its own stamp.
-      await releaseDerivedArtifactReservation(hold.key, hold.reservedAtUtc);
+      // its own stamp. FINAL-VERIFY-2 closure — and its intent (RELEASED).
+      await releaseUnwrittenDerivedArtifactHold(hold);
     }
     if (workDir) await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
   }
