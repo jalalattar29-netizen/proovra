@@ -1,7 +1,11 @@
 /**
  * AUTHZ-008, PROV-011, PROV-012 — the owners of an organization, on real routes
  * and a real PostgreSQL: never zero live owners, under concurrency, and the
- * workspace, billing and contract owners stay coherent through a transfer.
+ * workspace owners stay coherent through a transfer.
+ *
+ * NEW-RG-26-4 / owner decision E: a transfer is now an OFFER the recipient
+ * accepts with their own step-up, and the payer (billing owner, contract owner)
+ * no longer moves with ownership; `handOver` below runs both legs.
  */
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -15,6 +19,7 @@ describe("organization ownership continuity (live PostgreSQL)", () => {
   let prisma: Prisma;
   let fixtures: typeof import("./point7/product-fixtures.js");
   let signJwt: typeof import("../src/services/jwt.js").signJwt;
+  let hashPasswordFn: typeof import("../src/services/email-password-auth.service.js").hashPassword;
   const tag = () => randomUUID().slice(0, 8);
   const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
   const STEP_UP_PASSWORD = "Owner-Password-1234";
@@ -25,6 +30,7 @@ describe("organization ownership continuity (live PostgreSQL)", () => {
     prisma = (await import("../src/db.js")).prisma as unknown as Prisma;
     fixtures = await import("./point7/product-fixtures.js");
     ({ signJwt } = await import("../src/services/jwt.js"));
+    ({ hashPassword: hashPasswordFn } = await import("../src/services/email-password-auth.service.js"));
   }, 900_000);
 
   afterAll(async () => {
@@ -45,8 +51,7 @@ describe("organization ownership continuity (live PostgreSQL)", () => {
   async function organization() {
     const d = deps();
     const t = await fixtures.seedOrganizationTenant(d);
-    const { hashPassword } = await import("../src/services/email-password-auth.service.js");
-    await prisma.user.update({ where: { id: t.owner.userId }, data: { passwordHash: await hashPassword(STEP_UP_PASSWORD) } });
+    await prisma.user.update({ where: { id: t.owner.userId }, data: { passwordHash: await hashPasswordFn(STEP_UP_PASSWORD) } });
     await prisma.enterpriseContract.update({
       where: { organizationId: t.organizationId },
       data: { contractOwnerUserId: t.owner.userId },
@@ -64,6 +69,7 @@ describe("organization ownership continuity (live PostgreSQL)", () => {
       data: { organizationId: o.orgId, userId: user.userId, role },
       select: { id: true },
     });
+    await prisma.user.update({ where: { id: user.userId }, data: { passwordHash: await hashPasswordFn(STEP_UP_PASSWORD) } });
     if (opts.workspace !== false) {
       await prisma.teamMember.create({
         data: { teamId: o.workspaceId, userId: user.userId, role: "MEMBER", status: "ACTIVE" },
@@ -82,6 +88,21 @@ describe("organization ownership continuity (live PostgreSQL)", () => {
       headers: bearer(o.owner.token),
       payload: { targetUserId, stepUp: { method: "password", currentPassword: STEP_UP_PASSWORD } },
     });
+
+  /** NEW-RG-26-4 — the offer, then the named recipient's stepped-up acceptance. */
+  async function handOver(o: { orgId: string; owner: { token: string } }, target: { userId: string; token: string }) {
+    const offered = await transfer(o, target.userId);
+    expect(offered.statusCode, offered.body).toBe(202);
+    const offerId = (offered.json() as { offer: { id: string } }).offer.id;
+    const accept = () =>
+      h.app.inject({
+        method: "POST",
+        url: `/v1/orgs/${o.orgId}/ownership-offer/${offerId}/accept`,
+        headers: bearer(target.token),
+        payload: { stepUp: { method: "password", currentPassword: STEP_UP_PASSWORD } },
+      });
+    return { offerId, accept };
+  }
 
   it("AUTHZ-008 — two owners demoting each other: exactly one demotion lands, one live owner remains", async () => {
     const o = await organization();
@@ -170,23 +191,23 @@ describe("organization ownership continuity (live PostgreSQL)", () => {
     ).toBe(1);
   });
 
-  it("PROV-011 — a transfer moves the workspace owner, billing owner and contract owner together, and the new owner can act as one", async () => {
+  it("PROV-011 — an accepted transfer moves the workspace owner with the organization owner, the payer stays (decision E), and the new owner can act as one", async () => {
     const o = await organization();
     const next = await member(o, "ORG_ADMIN");
 
-    const res = await transfer(o, next.userId);
+    const res = await (await handOver(o, next)).accept();
     expect(res.statusCode, res.body).toBe(200);
-    expect(res.json()).toMatchObject({ contractOwnerTransferred: true, workspacesTransferred: 1 });
+    expect(res.json()).toMatchObject({ contractOwnerTransferred: false, billingOwnerTransferred: false, workspacesTransferred: 1 });
 
     expect(await prisma.team.findUniqueOrThrow({ where: { id: o.workspaceId } })).toMatchObject({
       ownerUserId: next.userId,
-      billingOwnerUserId: next.userId,
+      billingOwnerUserId: o.owner.userId,
     });
     expect(await prisma.enterpriseContract.findUniqueOrThrow({ where: { organizationId: o.orgId } })).toMatchObject({
-      contractOwnerUserId: next.userId,
+      contractOwnerUserId: o.owner.userId,
     });
     expect(await prisma.organization.findUniqueOrThrow({ where: { id: o.orgId } })).toMatchObject({
-      billingOwnerUserId: next.userId,
+      billingOwnerUserId: o.owner.userId,
     });
     expect(
       await prisma.teamMember.findUniqueOrThrow({ where: { teamId_userId: { teamId: o.workspaceId, userId: next.userId } } }),
@@ -209,7 +230,8 @@ describe("organization ownership continuity (live PostgreSQL)", () => {
     await member(o, "ORG_MEMBER");
     const outsider = await member(o, "ORG_ADMIN", { workspace: false });
 
-    const refused = await transfer(o, outsider.userId);
+    const handover = await handOver(o, outsider);
+    const refused = await handover.accept();
     expect(refused.statusCode, refused.body).toBe(409);
     expect(refused.json()).toMatchObject({ error: { code: "WORKSPACE_SEAT_LIMIT_REACHED" } });
     expect(await liveOwners(o.orgId)).toBe(1);
@@ -221,7 +243,8 @@ describe("organization ownership continuity (live PostgreSQL)", () => {
     ).toMatchObject({ role: "ORG_OWNER" });
 
     await prisma.enterpriseContract.update({ where: { organizationId: o.orgId }, data: { seatCount: 5 } });
-    const moved = await transfer(o, outsider.userId);
+    // The refused acceptance left the offer open; it is accepted once a seat exists.
+    const moved = await handover.accept();
     expect(moved.statusCode, moved.body).toBe(200);
     expect(
       await prisma.teamMember.findUniqueOrThrow({ where: { teamId_userId: { teamId: o.workspaceId, userId: outsider.userId } } }),

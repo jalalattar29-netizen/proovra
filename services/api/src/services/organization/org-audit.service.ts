@@ -56,6 +56,11 @@ export const ORG_AUDIT_EVENT_TYPES = [
   // ORG_OWNER, billing ownership follows); closure is the request-row
   // state machine (requested/blocked/cancelled/completed).
   "ORG_OWNERSHIP_TRANSFERRED",
+  // NEW-RG-26-4 / decision E — ownership moves by offer and recipient
+  // acceptance; the offer and its withdrawal or refusal are on the timeline.
+  "ORG_OWNERSHIP_OFFERED",
+  "ORG_OWNERSHIP_OFFER_DECLINED",
+  "ORG_OWNERSHIP_OFFER_CANCELLED",
   "ORG_CLOSURE_REQUESTED",
   "ORG_CLOSURE_BLOCKED",
   "ORG_CLOSURE_CANCELLED",

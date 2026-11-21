@@ -18,6 +18,7 @@ const PREFLIGHT = read(
 const CLOSURE = read("../src/services/organization/org-closure.service.ts");
 const ORG_ACCESS = read("../src/services/organization/org-access.ts");
 const ORG_AUDIT = read("../src/services/organization/org-audit.service.ts");
+const OFFER = read("../src/services/organization/org-ownership-offer.service.ts");
 const SCHEDULER = read("../src/services/notifications/digest-scheduler.ts");
 // Members audit LIFE-11 — closures run through THE lifecycle tick, which the
 // digest run and the worker's lifecycle sweep both invoke.
@@ -35,31 +36,38 @@ describe("ownership transfer", () => {
   });
 
   it("target must be an existing member; self-transfer is rejected", () => {
-    expect(ROUTES).toMatch(/target_not_member/);
+    expect(ROUTES + OFFER).toMatch(/target_not_member/);
     expect(ROUTES).toMatch(/transfer_to_self/);
   });
 
-  it("swaps roles atomically in ONE transaction (never zero or two owners)", () => {
+  // NEW-RG-26-4 / owner decision E — the route records an OFFER; the transfer
+  // legs run at the recipient's stepped-up acceptance, in the offer service
+  // (behaviour: rg26-org-ownership-offer.integration.test.ts).
+  it("the route only offers; the swap runs atomically at acceptance (never zero or two owners)", () => {
     const block = routeSource(ROUTES, "POST", "/v1/orgs/:id/transfer-ownership");
-    expect(block).toMatch(/\$transaction/);
+    expect(block).toMatch(/offerOrganizationOwnership/);
+    expect(block).not.toMatch(/updateOrganizationMembershipRole/);
     // PHASE 3: atomic swap via the canonical orchestrator (both legs in
     // the same tx, provenance-recorded).
-    expect(block).toMatch(/role:\s*"ORG_OWNER"/);
-    expect(block).toMatch(/role:\s*"ORG_ADMIN"/);
-    expect(block).toMatch(/updateOrganizationMembershipRole/);
+    expect(OFFER).toMatch(/\$transaction/);
+    expect(OFFER).toMatch(/role:\s*"ORG_OWNER"/);
+    expect(OFFER).toMatch(/role:\s*"ORG_ADMIN"/);
+    expect(OFFER).toMatch(/updateOrganizationMembershipRole/);
   });
 
-  it("billing ownership follows the owner when it pointed at the caller", () => {
-    expect(ROUTES).toMatch(/billingOwnerUserId === userId/);
-    expect(ROUTES).toMatch(/billingOwnerUserId:\s*body\.targetUserId/);
+  it("billing ownership does not follow the owner (decision E)", () => {
+    expect(ROUTES).not.toMatch(/billingOwnerUserId:\s*body\.targetUserId/);
+    expect(OFFER).not.toMatch(/billingOwnerUserId:\s*actorUserId/);
+    expect(OFFER).not.toMatch(/contractOwnerUserId:/);
   });
 
   it("audited in the org stream and on BOTH parties' personal timelines", () => {
     expect(ORG_AUDIT).toMatch(/"ORG_OWNERSHIP_TRANSFERRED"/);
-    expect(ROUTES).toMatch(/ORG_OWNERSHIP_TRANSFERRED/);
-    expect(ROUTES).toMatch(/\["previous_owner"|"previous_owner"\]/);
-    expect(ROUTES).toMatch(/"new_owner"/);
-    expect(ROUTES).toMatch(/identity\.organization_ownership_transferred/);
+    expect(ORG_AUDIT).toMatch(/"ORG_OWNERSHIP_OFFERED"/);
+    expect(OFFER).toMatch(/ORG_OWNERSHIP_TRANSFERRED/);
+    expect(OFFER).toMatch(/\["previous_owner"|"previous_owner"\]/);
+    expect(OFFER).toMatch(/"new_owner"/);
+    expect(OFFER).toMatch(/identity\.organization_ownership_transferred/);
   });
 });
 

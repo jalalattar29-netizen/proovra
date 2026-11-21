@@ -81,7 +81,8 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("ownership transfer in an organization of more than 200 members", () => {
-  it("finds member 250 by search and transfers ownership to them", async () => {
+  // NEW-RG-26-4 — the control now OFFERS ownership (the member accepts later).
+  it("finds member 250 by search and offers ownership to them", async () => {
     render(<OrganizationPage />);
     const search = await screen.findByLabelText("Search members for the new owner");
     fireEvent.change(search, { target: { value: "Member 250" } });
@@ -90,7 +91,7 @@ describe("ownership transfer in an organization of more than 200 members", () =>
     );
     fireEvent.click(screen.getByRole("combobox", { name: "New owner" }));
     fireEvent.click(await screen.findByRole("option", { name: "Member 250" }));
-    fireEvent.click(screen.getByRole("button", { name: "Transfer ownership" }));
+    fireEvent.click(screen.getByRole("button", { name: "Offer ownership" }));
     await vi.waitFor(() => {
       const post = mocks.fetch.mock.calls.find(
         ([p, init]) => p === `/v1/orgs/${ORG}/transfer-ownership` && (init as RequestInit | undefined)?.method === "POST",

@@ -107,9 +107,15 @@ import {
   OrganizationOwnershipTransferError,
   resumeOrganizationWorkspace,
   suspendOrganizationWorkspace,
-  transferOrganizationWorkspaceOwnersTx,
 } from "../services/workspace/workspace-lifecycle.service.js";
-import { transferEnterpriseContractOwnerTx } from "../services/organization/enterprise-contract.service.js";
+// NEW-RG-26-4 / decision E — organization ownership by offer + acceptance.
+import {
+  OrganizationOwnershipOfferError,
+  acceptOrganizationOwnershipOffer,
+  offerOrganizationOwnership,
+  readPendingOrganizationOwnershipOffer,
+  settleOrganizationOwnershipOffer,
+} from "../services/organization/org-ownership-offer.service.js";
 import {
   CONTRACT_TERMINATION_REASON_PREFIX,
   isContractTerminationClosure,
@@ -2775,17 +2781,39 @@ export async function organizationsRoutes(app: FastifyInstance) {
   // -------------------------------------------------------------------------
   // POST /v1/orgs/:id/transfer-ownership   (lifecycle Phase 6, 2026-07-17)
   //
-  // ORG_OWNER-only, step-up-gated, ATOMIC ownership transfer:
-  //   - target must be an EXISTING member of this org (never an outsider);
-  //   - one transaction: target → ORG_OWNER, caller → ORG_ADMIN — the org
-  //     is never observable with zero or two owners;
-  //   - org-level billing ownership follows the owner when it pointed at
-  //     the caller;
-  //   - audited in the org stream (ORG_OWNERSHIP_TRANSFERRED) and on BOTH
-  //     parties' personal activity timelines.
-  // This completes the owner path out of an organization: transfer, then
-  // the (now non-owner) caller may use POST /v1/orgs/:id/leave.
+  // NEW-RG-26-4 / owner decision E (DEC-18) — this is now the OFFER. The
+  // ORG_OWNER (status-aware, step-up-gated) offers ownership to an existing,
+  // ACTIVE member; nothing moves until that member accepts with their own
+  // step-up (POST /v1/orgs/:id/ownership-offer/:offerId/accept). It answers
+  // 202 with `offer` and `pendingAcceptance: true`; `transferred` is false, so
+  // a client that reads it no longer reports a transfer that did not happen.
+  // The payer (organization / workspace billing owner, contract owner) never
+  // moves with ownership. See org-ownership-offer.service.ts.
   // -------------------------------------------------------------------------
+  const ownershipStepUpBody = z
+    .object({
+      method: z.enum(["password", "mfa"]).optional(),
+      currentPassword: z.string().optional(),
+      code: z.string().optional(),
+    })
+    .optional();
+  const sendOwnershipOfferError = (reply: FastifyReply, err: unknown) => {
+    if (err instanceof OrganizationOwnershipOfferError) {
+      return reply.code(err.statusCode).send({ error: { code: err.code, message: err.message } });
+    }
+    if (err instanceof OrganizationOwnershipTransferError) {
+      return reply.code(409).send({
+        error: {
+          code: "WORKSPACE_SEAT_LIMIT_REACHED",
+          message:
+            "A workspace has no seat for this change, or the new owner is suspended there. Nothing was transferred.",
+          details: { workspaceId: err.workspaceId },
+        },
+      });
+    }
+    throw err;
+  };
+
   app.post(
     "/v1/orgs/:id/transfer-ownership",
     { preHandler: requireAuthAndLegal },
@@ -2793,16 +2821,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
       const orgId = UuidParam.parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
       const body = z
-        .object({
-          targetUserId: z.string().uuid(),
-          stepUp: z
-            .object({
-              method: z.enum(["password", "mfa"]).optional(),
-              currentPassword: z.string().optional(),
-              code: z.string().optional(),
-            })
-            .optional(),
-        })
+        .object({ targetUserId: z.string().uuid(), stepUp: ownershipStepUpBody })
         .parse(req.body ?? {});
 
       const access = await checkOrgAccess(prisma, {
@@ -2836,173 +2855,141 @@ export async function organizationsRoutes(app: FastifyInstance) {
         return reply.code(stepUp.denial.status).send(stepUp.denial.body);
       }
 
-      const result = await withSeatClaimRetry(() => prisma.$transaction(async (tx) => {
-        await lockOrganizationOwnersTx(tx, orgId);
-        // PHASE 13 §1.4 (NEW-024) — the caller lookup was STATUS-BLIND.
-        //
-        // It matched on `organizationId + userId + role: "ORG_OWNER"` only, so
-        // a SUSPENDED or REVOKED organization owner kept the ability to
-        // transfer ORGANIZATION OWNERSHIP — the single most consequential
-        // membership mutation there is, and the one action that would let a
-        // revoked owner re-establish control through another account.
-        //
-        // Every sibling org-admin lookup in this file already carries
-        // `status: "ACTIVE"` (the ORG_OWNER checks guarding member removal and
-        // role changes), so this was an inconsistency rather than a deliberate
-        // exemption. The step-up proof above is a SECOND FACTOR, not a
-        // lifecycle check: a suspended owner still holds their own credentials
-        // and passes it.
-        const caller = await tx.organizationMembership.findFirst({
-          where: { organizationId: orgId, userId, role: "ORG_OWNER", status: "ACTIVE" },
-          select: { id: true },
-        });
-        if (!caller) return { kind: "owner_required" as const };
-        const target = await tx.organizationMembership.findFirst({
-          where: { organizationId: orgId, userId: body.targetUserId },
-          select: { id: true, role: true, status: true },
-        });
-        if (!target) return { kind: "target_not_member" as const };
-        // PROV-012 — removal keeps a REVOKED row, and neither a removed nor a
-        // suspended person passes any organization check, so handing them
-        // ownership would leave the Organization with no usable owner.
-        if (target.status !== "ACTIVE") return { kind: "target_not_active" as const };
-
-        // PROV-011 — the workspace owners and the contract owner move with the
-        // organization owner, in this transaction. A workspace with no seat for
-        // the outgoing owner throws, which rolls every leg back.
-        const workspaces = await transferOrganizationWorkspaceOwnersTx(tx, {
-          organizationId: orgId,
-          fromUserId: userId,
-          toUserId: body.targetUserId,
-          actorUserId: userId,
-        });
-        const contractOwnerTransferred = await transferEnterpriseContractOwnerTx(tx as never, {
-          organizationId: orgId,
-          fromUserId: userId,
-          toUserId: body.targetUserId,
-        });
-
-        // Atomic swap — never zero owners, never two.
-        // PHASE 3 — canonical orchestrator: atomic ownership swap (both
-        // legs provenance-recorded; the enclosing tx keeps it atomic).
-        await updateOrganizationMembershipRole(tx, {
-          organizationMembershipId: target.id,
-          role: "ORG_OWNER",
-          actorUserId: userId,
-        });
-        await updateOrganizationMembershipRole(tx, {
-          organizationMembershipId: caller.id,
-          role: "ORG_ADMIN",
-          actorUserId: userId,
-        });
-
-        // Billing ownership follows the owner when it pointed at the
-        // outgoing owner.
-        const org = await tx.organization.findUnique({
-          where: { id: orgId },
-          select: { billingOwnerUserId: true },
-        });
-        let billingOwnerTransferred = false;
-        if (org?.billingOwnerUserId === userId) {
-          await tx.organization.update({
-            where: { id: orgId },
-            data: { billingOwnerUserId: body.targetUserId },
-          });
-          billingOwnerTransferred = true;
-        }
-
-        await emitOrgAuditEvent(tx, {
+      try {
+        const offer = await offerOrganizationOwnership({
           organizationId: orgId,
           actorUserId: userId,
-          eventType: "ORG_OWNERSHIP_TRANSFERRED",
-          targetType: "organization_membership",
-          targetId: target.id,
-          metadata: {
-            fromUserId: userId,
-            toUserId: body.targetUserId,
-            previousTargetRole: target.role,
-            billingOwnerTransferred,
-            contractOwnerTransferred,
-            workspacesTransferred: workspaces.workspaceIds,
-          },
+          newOwnerUserId: body.targetUserId,
+          correlationId: req.id,
         });
-        // Both parties see the transfer on their own activity timelines; the
-        // rows commit with the transfer (members audit AUD-01 / AUD-03).
-        for (const [party, role] of [
-          [userId, "previous_owner"],
-          [body.targetUserId, "new_owner"],
-        ] as const) {
-          await emitTenantAudit(
-            {
-              action: "identity.organization_ownership_transferred",
-              outcome: "success",
-              sourceApp: "API",
-              actorUserId: party,
-              organizationId: orgId,
-              resourceType: "organization",
-              resourceId: orgId,
-              correlationId: req.id,
-              metadata: { role, billingOwnerTransferred },
-            },
-            tx as never,
-          );
-        }
-        return {
-          kind: "ok" as const,
-          billingOwnerTransferred,
-          contractOwnerTransferred,
-          workspaceIds: workspaces.workspaceIds,
-        };
-      })).catch((err: unknown) => {
-        if (err instanceof OrganizationOwnershipTransferError) {
-          return { kind: "workspace_cannot_take_owner" as const, workspaceId: err.workspaceId };
-        }
-        throw err;
+        return reply.code(202).send({
+          transferred: false,
+          pendingAcceptance: true,
+          offer,
+          newOwnerUserId: null,
+          billingOwnerTransferred: false,
+          contractOwnerTransferred: false,
+        });
+      } catch (err) {
+        return sendOwnershipOfferError(reply, err);
+      }
+    },
+  );
+
+  // Both parties of an offer are ACTIVE members of the organization; every
+  // offer route is reached only through the canonical organization access
+  // decision (a non-member is concealed like a missing organization), and the
+  // offer service then answers only the offer's own parties.
+  const requireOrgMember = async (reply: FastifyReply, orgId: string, userId: string) => {
+    const access = await checkOrgAccess(prisma, { orgId, userId });
+    if (access.kind === "ok") return true;
+    const denial = orgAccessDenial(access);
+    await reply.code(denial.status).send(denial.body);
+    return false;
+  };
+
+  // GET — the pending offer, for its offerer or its named recipient (else null).
+  app.get(
+    "/v1/orgs/:id/ownership-offer",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const orgId = UuidParam.parse((req.params as { id: string }).id);
+      const userId = getAuthUserId(req);
+      if (!(await requireOrgMember(reply, orgId, userId))) return reply;
+      const offer = await readPendingOrganizationOwnershipOffer({ organizationId: orgId, userId });
+      if (!offer) return reply.code(200).send({ offer: null });
+      const billing = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { billingOwnerUserId: true },
       });
-
-      if (result.kind === "workspace_cannot_take_owner") {
-        return reply.code(409).send({
-          error: {
-            code: "WORKSPACE_SEAT_LIMIT_REACHED",
-            message:
-              "A workspace has no seat for this change, or the new owner is suspended there. Nothing was transferred.",
-            details: { workspaceId: result.workspaceId },
-          },
-        });
-      }
-      if (result.kind === "target_not_active") {
-        return reply.code(409).send({
-          error: {
-            code: "OWNER_TARGET_NOT_ACTIVE",
-            message: "Only an active member can become the owner.",
-          },
-        });
-      }
-      if (result.kind === "owner_required") {
-        return reply.code(403).send({ error: { code: "owner_required" } });
-      }
-      if (result.kind === "target_not_member") {
-        return reply
-          .code(404)
-          .send({ error: { code: "target_not_member" } });
-      }
-
-
-      // After commit, like the plan grant: the canonical resolver reads what the
-      // transfer just wrote.
-      for (const workspaceId of result.workspaceIds) {
-        await refreshTeamSeatState(workspaceId, prisma as never);
-      }
-
+      // What stays as it is when the offer is accepted, said before acceptance.
       return reply.code(200).send({
-        transferred: true,
-        newOwnerUserId: body.targetUserId,
-        billingOwnerTransferred: result.billingOwnerTransferred,
-        contractOwnerTransferred: result.contractOwnerTransferred,
-        workspacesTransferred: result.workspaceIds.length,
+        offer,
+        billingOwnerStays: true,
+        billingOwnerUserId: billing?.billingOwnerUserId ?? null,
       });
     },
   );
+
+  // POST accept — the named recipient, with their own step-up.
+  app.post(
+    "/v1/orgs/:id/ownership-offer/:offerId/accept",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const params = z.object({ id: z.string().uuid(), offerId: z.string().uuid() }).parse(req.params);
+      const userId = getAuthUserId(req);
+      const body = z.object({ stepUp: ownershipStepUpBody }).passthrough().parse(req.body ?? {});
+      if (!(await requireOrgMember(reply, params.id, userId))) return reply;
+      // The recipient is asked for proof only for an offer addressed to them:
+      // anyone else gets the uniform not-found first.
+      const pending = await readPendingOrganizationOwnershipOffer({ organizationId: params.id, userId });
+      if (!pending || pending.id !== params.offerId || pending.toUserId !== userId) {
+        return reply.code(404).send({ error: { code: "ownership_offer_not_found" } });
+      }
+      const stepUp = await verifyAccountStepUp({
+        req,
+        reply,
+        userId,
+        action: "org_ownership_transfer",
+        proof: body.stepUp,
+      });
+      if (!stepUp.ok) return reply.code(stepUp.denial.status).send(stepUp.denial.body);
+      let accepted: Awaited<ReturnType<typeof acceptOrganizationOwnershipOffer>>;
+      try {
+        accepted = await withSeatClaimRetry(() =>
+          acceptOrganizationOwnershipOffer({
+            organizationId: params.id,
+            offerId: params.offerId,
+            actorUserId: userId,
+            correlationId: req.id,
+          }),
+        );
+      } catch (err) {
+        return sendOwnershipOfferError(reply, err);
+      }
+      // After commit, like the plan grant: the canonical resolver reads what the
+      // transfer just wrote.
+      for (const workspaceId of accepted.workspaceIds) {
+        await refreshTeamSeatState(workspaceId, prisma as never);
+      }
+      return reply.code(200).send({
+        transferred: true,
+        newOwnerUserId: userId,
+        previousOwnerUserId: accepted.fromUserId,
+        billingOwnerTransferred: false,
+        contractOwnerTransferred: false,
+        billingOwnerUserId: accepted.billingOwnerUserId,
+        workspacesTransferred: accepted.workspaceIds.length,
+      });
+    },
+  );
+
+  // POST decline (recipient) / cancel (offerer).
+  for (const [suffix, outcome] of [
+    ["decline", "DECLINED"],
+    ["cancel", "CANCELLED"],
+  ] as const) {
+    app.post(
+      `/v1/orgs/:id/ownership-offer/:offerId/${suffix}`,
+      { preHandler: requireAuthAndLegal },
+      async (req, reply) => {
+        const params = z.object({ id: z.string().uuid(), offerId: z.string().uuid() }).parse(req.params);
+        const userId = getAuthUserId(req);
+        if (!(await requireOrgMember(reply, params.id, userId))) return reply;
+        try {
+          const offer = await settleOrganizationOwnershipOffer({
+            organizationId: params.id,
+            offerId: params.offerId,
+            actorUserId: userId,
+            outcome,
+          });
+          return reply.code(200).send({ offer });
+        } catch (err) {
+          return sendOwnershipOfferError(reply, err);
+        }
+      },
+    );
+  }
 
   // -------------------------------------------------------------------------
   // PHASE 4 §7.5 (2026-07-22) — organization-workspace suspend/resume.

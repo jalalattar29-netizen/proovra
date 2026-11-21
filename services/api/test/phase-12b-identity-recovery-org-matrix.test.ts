@@ -853,6 +853,8 @@ const MODELS = [
   "organizationPolicy",
   "organizationAuditEvent",
   "organizationClosureRequest",
+  // NEW-RG-26-4 — organization ownership offers.
+  "organizationOwnershipOffer",
   "mfaRecoveryRequest",
   "mfaRecoveryRequestApproval",
   "mfaFactor",
@@ -3708,7 +3710,7 @@ describe("SYSTEM 8 — organization identity", () => {
     expect(JSON.parse(again.body).error.code).toBe("membership_not_found");
   });
 
-  it("ownership transfer is step-up gated, atomic, and never leaves zero or two owners", async () => {
+  it("ownership transfer is step-up gated, offered then accepted atomically, and never leaves zero or two owners", async () => {
     H.stepUpDenies = true;
     const denied = await app.inject({
       method: "POST",
@@ -3745,17 +3747,35 @@ describe("SYSTEM 8 — organization identity", () => {
     expect(JSON.parse(outsiderTarget.body).error.code).toBe("target_not_member");
     expect(membershipRow(MEMBERSHIP_ADMIN)!.role).toBe("ORG_OWNER");
 
-    const ok = await app.inject({
+    // NEW-RG-26-4 / decision E — the owner OFFERS; nothing moves.
+    const offered = await app.inject({
       method: "POST",
       url: ORGS(ORG) + "/transfer-ownership",
       headers: JSON_HEADERS,
       payload: { targetUserId: SUBJECT },
     });
+    expect(offered.statusCode, offered.body).toBe(202);
+    const offerBody = JSON.parse(offered.body) as { transferred: boolean; offer: { id: string } };
+    expect(offerBody.transferred).toBe(false);
+    expect(membershipRow(MEMBERSHIP_ADMIN)!.role).toBe("ORG_OWNER");
+    expect(membershipRow(MEMBERSHIP_TARGET)!.role).toBe("ORG_MEMBER");
+    // The only write is the offer itself.
+    expect(H.writes).toEqual(["organizationOwnershipOffer.create"]);
+
+    // The named recipient accepts (with their own step-up).
+    H.actorUserId = SUBJECT;
+    const ok = await app.inject({
+      method: "POST",
+      url: ORGS(ORG) + "/ownership-offer/" + offerBody.offer.id + "/accept",
+      headers: JSON_HEADERS,
+      payload: {},
+    });
+    H.actorUserId = ACTOR;
     expect(ok.statusCode, ok.body).toBe(200);
     expect(JSON.parse(ok.body)).toMatchObject({
       transferred: true,
       newOwnerUserId: SUBJECT,
-      billingOwnerTransferred: true,
+      billingOwnerTransferred: false,
     });
     // Atomic swap through the canonical orchestrator — both legs, one tx.
     expect(
@@ -3763,8 +3783,9 @@ describe("SYSTEM 8 — organization identity", () => {
     ).toHaveLength(2);
     expect(membershipRow(MEMBERSHIP_TARGET)!.role).toBe("ORG_OWNER");
     expect(membershipRow(MEMBERSHIP_ADMIN)!.role).toBe("ORG_ADMIN");
+    // Decision E — the billing owner does not move with ownership.
     expect(rows("organization").find((o) => o.id === ORG)!.billingOwnerUserId).toBe(
-      SUBJECT,
+      ACTOR,
     );
     // Both parties see it on their own activity timelines.
     const timeline = H.audits.filter(

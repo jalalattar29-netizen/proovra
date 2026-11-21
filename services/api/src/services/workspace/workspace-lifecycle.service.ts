@@ -802,8 +802,10 @@ export class OrganizationOwnershipTransferError extends Error {
  * that goes with it, and the former owner could leave a workspace with no owner.
  *
  * Runs in the caller's transaction, so ownership moves as one: the new owner
- * joins each workspace they are not yet in, and the OWNER role, `Team.ownerUserId`
- * and `Team.billingOwnerUserId` follow. The outgoing owner stays as an ADMIN, so
+ * joins each workspace they are not yet in, and the OWNER role and
+ * `Team.ownerUserId` follow. `Team.billingOwnerUserId` does NOT (NEW-RG-26-4,
+ * owner decision E: a change of organizational ownership never silently moves
+ * the payer). The outgoing owner stays as an ADMIN, so
  * they now occupy a seat; a successor who was already a member gives theirs up,
  * and one who was not takes a claim, and a full workspace refuses the transfer.
  */
@@ -818,7 +820,7 @@ export async function transferOrganizationWorkspaceOwnersTx(
       closedAtUtc: null,
       ownerUserId: input.fromUserId,
     },
-    select: { id: true, billingOwnerUserId: true },
+    select: { id: true },
     orderBy: { id: "asc" },
   });
   for (const team of owned) {
@@ -850,14 +852,11 @@ export async function transferOrganizationWorkspaceOwnersTx(
       actorUserId: input.actorUserId,
     });
     if (!roles.ok) throw new OrganizationOwnershipTransferError(team.id);
+    // NEW-RG-26-4 / decision E — the workspace owner of record moves; the
+    // billing owner (the payer named for the workspace) does not.
     await tx.team.update({
       where: { id: team.id },
-      data: {
-        ownerUserId: input.toUserId,
-        ...(team.billingOwnerUserId === input.fromUserId
-          ? { billingOwnerUserId: input.toUserId }
-          : {}),
-      },
+      data: { ownerUserId: input.toUserId },
     });
   }
   return { workspaceIds: owned.map((team) => team.id) };
