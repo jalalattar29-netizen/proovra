@@ -22,7 +22,8 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
-import { refuseUnlessEnterpriseOrganization } from "./_enterprise-surface-gate.js";
+import { ENTERPRISE_ORGANIZATION_REFUSAL, refuseUnlessEnterpriseOrganization } from "./_enterprise-surface-gate.js";
+import { workspaceIsEnterpriseOrganization } from "../services/platform-context/enterprise-authority.js";
 import {
   evaluateAccess,
   evaluateMemberAccess,
@@ -42,7 +43,7 @@ import {
   type CaseAccessRole,
   type CaseMutation,
 } from "../services/cases/case-permission.service.js";
-import { refuseCasePlanWrite } from "../services/cases/case-plan-gate.js";
+import { CASE_PLAN_WRITE_REASON, casePlanWriteRefusal } from "../services/cases/case-plan-gate.js";
 import {
   SIU_INTAKE_TEMPLATES,
   SIU_REVIEW_INDICATOR_CODES,
@@ -187,6 +188,117 @@ const SHARED_VIEW_REQUIRES_WRITER = {
   },
 } as const;
 
+type SiuGateRefusal = {
+  status: number;
+  body: unknown;
+  /** Bounded reason code for the read projection (`viewer.disabledCode`). */
+  code: "enterprise_required" | "case_role" | "plan";
+  /** The sentence the web shows beside a withheld control. */
+  message: string;
+};
+
+/**
+ * PRO-K1-03 / PRO-K1-04 — the Enterprise-organization, case-mutation and plan
+ * questions an SIU write asks after membership and the workspace permission
+ * were proven. ONE function, so the write routes (through requireCaseActor)
+ * and the profile read's `viewer` projection (PRO-CENZ-01, EP-1082..EP-1086)
+ * cannot disagree about who may write.
+ */
+async function siuCaseGateRefusal(input: {
+  caseId: string;
+  teamId: string;
+  userId: string;
+  memberRole: string | null;
+  caseOwnerUserId: string | null;
+  requireEnterprise: boolean;
+  mutation?: CaseMutation;
+  planGated?: boolean;
+}): Promise<SiuGateRefusal | null> {
+  if (input.requireEnterprise) {
+    let enterprise = false;
+    try {
+      enterprise = await workspaceIsEnterpriseOrganization(input.teamId);
+    } catch {
+      enterprise = false;
+    }
+    if (!enterprise) {
+      return {
+        status: 403,
+        body: ENTERPRISE_ORGANIZATION_REFUSAL,
+        code: "enterprise_required",
+        message: ENTERPRISE_ORGANIZATION_REFUSAL.message,
+      };
+    }
+  }
+  if (input.mutation) {
+    const accessRole: CaseAccessRole =
+      input.caseOwnerUserId === input.userId
+        ? caseOwnerAccessRole(input.memberRole)
+        : (String(input.memberRole) as CaseAccessRole);
+    const mutation = evaluateCaseMutationPermission({
+      mutation: input.mutation,
+      accessRole,
+      assignmentRoles: await getCaseAssignmentRoles(input.caseId, input.userId),
+    });
+    if (!mutation.allowed) {
+      return {
+        status: 403,
+        body: { error: { code: "permission_denied", reason: "case_mutation_denied", detail: mutation.reason } },
+        code: "case_role",
+        message: SIU_READ_ONLY_ROLE_REASON,
+      };
+    }
+    if (input.planGated) {
+      const plan = await casePlanWriteRefusal(input.caseId);
+      if (plan) {
+        return {
+          status: plan.statusCode,
+          body: { code: plan.code, message: plan.message, error: { code: plan.code, message: plan.message } },
+          code: "plan",
+          message: CASE_PLAN_WRITE_REASON,
+        };
+      }
+    }
+  }
+  return null;
+}
+
+const SIU_READ_ONLY_ROLE_REASON =
+  "Your role can read this investigation profile but not change it. A workspace member, admin or owner who can edit this case can.";
+
+/**
+ * PRO-CENZ-01 (EP-1082..EP-1086) — what the profile read tells the web about
+ * the SIU writes: the same permission and gate the write routes ask, for the
+ * reader. Never authority: every write still asks requireCaseActor.
+ */
+async function projectSiuViewer(
+  caseId: string,
+  ctx: { userId: string; teamId: string; role: string | null; caseOwnerUserId: string | null },
+): Promise<{ canWrite: boolean; disabledCode: SiuGateRefusal["code"] | "permission" | null; disabledReason: string | null }> {
+  const permission = await evaluateMemberAccess({
+    teamId: ctx.teamId,
+    userId: ctx.userId,
+    permission: "evidence.update_metadata",
+  });
+  // The Enterprise question comes first on the write routes for a member who
+  // holds the permission; a member without it is refused on role before it.
+  if (!permission.allowed) {
+    return { canWrite: false, disabledCode: "permission", disabledReason: SIU_READ_ONLY_ROLE_REASON };
+  }
+  const refusal = await siuCaseGateRefusal({
+    caseId,
+    teamId: ctx.teamId,
+    userId: ctx.userId,
+    memberRole: ctx.role,
+    caseOwnerUserId: ctx.caseOwnerUserId,
+    requireEnterprise: true,
+    mutation: SIU_CASE_WRITE.mutation,
+    planGated: SIU_CASE_WRITE.planGated,
+  });
+  if (refusal) return { canWrite: false, disabledCode: refusal.code, disabledReason: refusal.message };
+  return { canWrite: true, disabledCode: null, disabledReason: null };
+}
+
 async function requireCaseActor(
   req: FastifyRequest,
   reply: FastifyReply,
@@ -271,22 +383,19 @@ async function requireCaseActor(
     });
     return null;
   }
-  if (!options.retainedRead && (await refuseUnlessEnterpriseOrganization(reply, c.teamId))) return null;
-  if (options.mutation) {
-    const accessRole: CaseAccessRole =
-      c.ownerUserId === userId ? caseOwnerAccessRole(String(member.role)) : (String(member.role) as CaseAccessRole);
-    const mutation = evaluateCaseMutationPermission({
-      mutation: options.mutation,
-      accessRole,
-      assignmentRoles: await getCaseAssignmentRoles(caseId, userId),
-    });
-    if (!mutation.allowed) {
-      reply.code(403).send({
-        error: { code: "permission_denied", reason: "case_mutation_denied", detail: mutation.reason },
-      });
-      return null;
-    }
-    if (options.planGated && (await refuseCasePlanWrite(reply, caseId))) return null;
+  const gate = await siuCaseGateRefusal({
+    caseId,
+    teamId: c.teamId,
+    userId,
+    memberRole: member.role ? String(member.role) : null,
+    caseOwnerUserId: c.ownerUserId,
+    requireEnterprise: !options.retainedRead,
+    mutation: options.mutation,
+    planGated: options.planGated,
+  });
+  if (gate) {
+    reply.code(gate.status).send(gate.body);
+    return null;
   }
   // PRO-K1-04 — claimant PII is exposed by the siu.pii.export capability,
   // decided on the CURRENT role (a creator demoted to Viewer no longer holds it).
@@ -490,6 +599,9 @@ export async function siuRoutes(app: FastifyInstance) {
         durable: true as const,
         storage: "prisma" as const,
         piiRedacted: true as const,
+        // PRO-CENZ-01 — whether the checklist, indicator and follow-up
+        // controls are offered to this reader, and why not.
+        viewer: await projectSiuViewer(params.id, ctx),
       });
     },
   );
