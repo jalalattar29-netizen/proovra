@@ -33,13 +33,22 @@
  *   RECONCILIATION_RUNS_MISSING  the newest worker-scheduled
  *                                governance_reconciliation_runs row is too old;
  *   DATABASE_BACKUP_MISSING      platform_backup_records: no successful backup
- *                                within the window, or the newest one FAILED.
+ *                                within the window, or the newest one FAILED;
+ *   BACKUP_OFFHOST_COPY_MISSING  the same, for OFFHOST_COPY rows;
+ *   RESTORE_DRILL_MISSING        the same, for RESTORE_DRILL rows;
+ *   HOST_DISK_LOW                statfs of the filesystem(s) the API sees (its
+ *                                container root is on the Docker data disk);
+ *   MONITORING_SOURCE_UNREADABLE one of the sources above could not be read for
+ *                                longer than a hold: unreadable is not healthy.
  *
  * Signals go through the existing alert path (`dispatchOpsAlert`, provider
  * resolution webhook > noop). A signal alerts when it starts, reminds while it
  * lasts (default hourly, not every tick), and sends one "resolved" notice when
  * it clears. That state is kept in Redis so a replica taking over the lease
- * does not re-announce an ongoing outage.
+ * does not re-announce an ongoing outage. A start, reminder or resolved notice
+ * the receiver did not accept is retried on the next tick (a resolved notice up
+ * to RESOLVE_RETRY_LIMIT times), so a transient receiver failure loses nothing
+ * and a recovery is announced exactly once.
  *
  * TRANSPORT DEPENDENCY: the only provider is a webhook (OPS_ALERT_WEBHOOK_URL,
  * read by the API from the server's env file). Unset, every dispatch is a
@@ -85,6 +94,22 @@ export type OutageWatchdogConfig = {
   backupExpected: boolean;
   /** No successful backup within this many hours alerts. */
   backupStaleHours: number;
+  /** Whether off-host copies are expected (pg-backup-offhost); only with backupExpected. */
+  offhostExpected: boolean;
+  /** No successful OFFHOST_COPY record within this many hours alerts. */
+  offhostStaleHours: number;
+  /** Whether scheduled restore drills are expected; only with backupExpected. */
+  drillExpected: boolean;
+  /** No successful RESTORE_DRILL record within this many hours alerts. */
+  drillStaleHours: number;
+  /** Filesystems to measure (statfs); empty switches the disk detector off. */
+  diskPaths: string[];
+  /** A filesystem more used than this (percent, as df computes it) alerts. */
+  diskMaxUsedPercent: number;
+  /** A filesystem with less free space than this (MiB) alerts. */
+  diskMinFreeMb: number;
+  /** A monitoring source unreadable for this long alerts (0: on the first tick). */
+  unreadableHoldMinutes: number;
   /** An ongoing signal is re-sent this often. */
   reminderMinutes: number;
 };
@@ -104,6 +129,19 @@ export const OUTAGE_WATCHDOG_DEFAULTS: Readonly<OutageWatchdogConfig> = Object.f
   backupExpected: true,
   // Two missed 6-hourly cycles plus an hour.
   backupStaleHours: 13,
+  // The off-host copy runs hourly; the cycle (every 6 h) records each new
+  // result once, so a healthy record is at most ~7 h old. A day plus two hours.
+  offhostExpected: true,
+  offhostStaleHours: 26,
+  // The drill runs weekly (BACKUP_DRILL_EVERY_SECONDS); a week plus a day.
+  drillExpected: true,
+  drillStaleHours: 8 * 24,
+  diskPaths: ["/"],
+  diskMaxUsedPercent: 85,
+  // A dump is ~1.07 GB and the drill needs ~3.5 GB of scratch on the same disk.
+  diskMinFreeMb: 4096,
+  // Two sweep ticks: one failed read is a blip, two are blindness.
+  unreadableHoldMinutes: 10,
   reminderMinutes: 60,
 });
 
@@ -113,6 +151,15 @@ function intEnv(env: NodeJS.ProcessEnv, name: string, fallback: number, min: num
   const n = Number(raw);
   if (!Number.isInteger(n) || n < min || n > max) return fallback;
   return n;
+}
+
+/** Comma-separated absolute paths; "off" switches the disk detector off. */
+function readDiskPaths(raw: string | undefined, fallback: string[]): string[] {
+  const v = (raw ?? "").trim();
+  if (v === "") return [...fallback];
+  if (v.toLowerCase() === "off") return [];
+  const paths = v.split(",").map((p) => p.trim()).filter((p) => p.startsWith("/") && p.length <= 200);
+  return paths.length > 0 ? paths.slice(0, 8) : [...fallback];
 }
 
 /** Bounded: an unusable value falls back to the default, never to "off". */
@@ -143,6 +190,14 @@ export function readOutageWatchdogConfig(env: NodeJS.ProcessEnv = process.env): 
     ),
     backupExpected: (env.OPS_WATCHDOG_BACKUP_EXPECTED ?? "").trim().toLowerCase() !== "false",
     backupStaleHours: intEnv(env, "OPS_WATCHDOG_BACKUP_STALE_HOURS", d.backupStaleHours, 1, 24 * 14),
+    offhostExpected: (env.OPS_WATCHDOG_OFFHOST_EXPECTED ?? "").trim().toLowerCase() !== "false",
+    offhostStaleHours: intEnv(env, "OPS_WATCHDOG_OFFHOST_STALE_HOURS", d.offhostStaleHours, 1, 24 * 14),
+    drillExpected: (env.OPS_WATCHDOG_DRILL_EXPECTED ?? "").trim().toLowerCase() !== "false",
+    drillStaleHours: intEnv(env, "OPS_WATCHDOG_DRILL_STALE_HOURS", d.drillStaleHours, 1, 24 * 60),
+    diskPaths: readDiskPaths(env.OPS_WATCHDOG_DISK_PATHS, d.diskPaths),
+    diskMaxUsedPercent: intEnv(env, "OPS_WATCHDOG_DISK_MAX_USED_PERCENT", d.diskMaxUsedPercent, 50, 99),
+    diskMinFreeMb: intEnv(env, "OPS_WATCHDOG_DISK_MIN_FREE_MB", d.diskMinFreeMb, 0, 10_000_000),
+    unreadableHoldMinutes: intEnv(env, "OPS_WATCHDOG_UNREADABLE_HOLD_MINUTES", d.unreadableHoldMinutes, 0, 1440),
     reminderMinutes: intEnv(env, "OPS_WATCHDOG_REMINDER_MINUTES", d.reminderMinutes, 5, 7 * 1440),
   };
 }
@@ -177,10 +232,24 @@ export type QueueFact = {
 /** One process start the worker recorded about itself. */
 export type BootFact = { workerId: string; atMs: number };
 
-export type BackupFact = {
+/** The newest success and the newest record of ONE platform_backup_records kind. */
+export type BackupKindFact = {
   newestSucceededAtMs: number | null;
   newestRecord: { outcome: string; atMs: number } | null;
 };
+
+/**
+ * DATABASE_BACKUP at the top level; `offhost` (OFFHOST_COPY) and `drill`
+ * (RESTORE_DRILL) beside it. A kind left undefined was not read: its detector
+ * is silent and an ongoing alert from it is carried, never resolved.
+ */
+export type BackupFact = BackupKindFact & {
+  offhost?: BackupKindFact;
+  drill?: BackupKindFact;
+};
+
+/** One measured filesystem. */
+export type DiskFact = { path: string; totalBytes: number; freeBytes: number; usedPercent: number };
 
 export type OutageFacts = {
   nowMs: number;
@@ -194,6 +263,8 @@ export type OutageFacts = {
   /** undefined: unreadable; null: no run of these kinds was ever recorded. */
   newestReconciliationRunAtMs: number | null | undefined;
   backups: BackupFact | null;
+  /** undefined: not measured (no disk detector wired); null: statfs failed (unreadable). */
+  disk?: DiskFact[] | null;
 };
 
 export type OutageSignal = {
@@ -341,6 +412,123 @@ export function detectOutageSignals(facts: OutageFacts, config: OutageWatchdogCo
     }
   }
 
+  // The off-host copy and the restore drill: the same two questions (newest
+  // run FAILED? newest success too old or absent?) of their own rows.
+  const kindSignal = (
+    fact: BackupKindFact | undefined,
+    staleHours: number,
+    what: { category: AlertCategory; fingerprint: string; noun: string; failedTitle: string; staleTitle: string; hint: string },
+  ) => {
+    if (!fact) return;
+    const limit = staleHours * 60 * MIN;
+    const newestOk = fact.newestSucceededAtMs;
+    const lastFailed = fact.newestRecord?.outcome === "FAILED";
+    if (newestOk !== null && now - newestOk <= limit && !lastFailed) return;
+    const parts = [
+      newestOk === null
+        ? `No successful ${what.noun} is recorded`
+        : `The newest successful ${what.noun} is ${Math.round((now - newestOk) / (60 * MIN))} h old (limit ${staleHours} h)`,
+    ];
+    if (lastFailed) parts.push(`the latest ${what.noun} FAILED ${minutesAgo(now, fact.newestRecord!.atMs)} min ago`);
+    out.push({
+      category: what.category,
+      severity: "HIGH",
+      title: lastFailed ? what.failedTitle : what.staleTitle,
+      summary: `${parts.join("; ")}. ${what.hint}`,
+      fingerprint: what.fingerprint,
+    });
+  };
+  if (config.backupExpected && backups) {
+    if (config.offhostExpected) {
+      kindSignal(backups.offhost, config.offhostStaleHours, {
+        category: "BACKUP_OFFHOST_COPY_MISSING",
+        fingerprint: "backup-offhost-copy-missing",
+        noun: "off-host backup copy",
+        failedTitle: "Off-host backup copy failed",
+        staleTitle: "No recent off-host backup copy",
+        hint:
+          "Backups exist only on the production host. Check the pg-backup-offhost service log and BACKUP_S3_URI / " +
+          "BACKUP_AWS_* in the env file; set OPS_WATCHDOG_OFFHOST_EXPECTED=false only where copies are deliberately elsewhere.",
+      });
+    }
+    if (config.drillExpected) {
+      kindSignal(backups.drill, config.drillStaleHours, {
+        category: "RESTORE_DRILL_MISSING",
+        fingerprint: "restore-drill-missing",
+        noun: "restore drill",
+        failedTitle: "Backup restore drill failed",
+        staleTitle: "No recent backup restore drill",
+        hint:
+          "No recent backup is proven to restore. Read the pg-backup service log for the drill's FAILED line " +
+          "(disk space, checksum, counts or schema).",
+      });
+    }
+  }
+
+  for (const d of facts.disk ?? []) {
+    const freeMb = Math.floor(d.freeBytes / (1024 * 1024));
+    const overPercent = d.usedPercent > config.diskMaxUsedPercent;
+    const underFree = freeMb < config.diskMinFreeMb;
+    if (!overPercent && !underFree) continue;
+    out.push({
+      category: "HOST_DISK_LOW",
+      severity: d.usedPercent >= 95 || freeMb < 1024 ? "CRITICAL" : "HIGH",
+      title: `Disk almost full: ${d.path}`,
+      summary:
+        `${d.path} is ${d.usedPercent}% used with ${(freeMb / 1024).toFixed(1)} GB free ` +
+        `(limits: ${config.diskMaxUsedPercent}% used, ${config.diskMinFreeMb} MB free). ` +
+        `Backups refuse to run, and the database dump and drill need several GB, when the disk is short.`,
+      fingerprint: `disk-low:${d.path}`.slice(0, 200),
+    });
+  }
+
+  // Unreadable is not healthy: a source the watchdog could not read for longer
+  // than the hold is itself an alert (the detectors that need it are blind).
+  for (const source of unreadableSources(facts, config)) {
+    out.push({
+      category: "MONITORING_SOURCE_UNREADABLE",
+      severity: "HIGH",
+      title: `Outage watchdog cannot read ${source.label}`,
+      summary:
+        `The watchdog could not read ${source.label} (${source.detail}). The detectors that depend on it are blind: ` +
+        `an unreadable source is not reported healthy, and alerts already open from it stay open until it is read again.`,
+      fingerprint: `source-unreadable:${source.name}`,
+      holdMinutes: config.unreadableHoldMinutes,
+    });
+  }
+
+  return out;
+}
+
+/** The sources this tick could not read, among those a detector is configured to use. */
+export function unreadableSources(
+  facts: OutageFacts,
+  config: OutageWatchdogConfig,
+): Array<{ name: string; label: string; detail: string }> {
+  const out: Array<{ name: string; label: string; detail: string }> = [];
+  if (facts.boots === null || facts.schemaRefusalReadable === false) {
+    out.push({ name: "redis", label: "the worker's boot and schema-refusal records", detail: "Redis read failed" });
+  }
+  if (config.expectedWorkers > 0 && (facts.fleet === null || facts.fleet.state === "UNAVAILABLE")) {
+    out.push({ name: "worker-leases", label: "the worker leases", detail: facts.fleet?.reason ?? "database read failed" });
+  }
+  if (facts.queues === null || facts.queues.some((q) => q.isWorkQueue && q.readable === false)) {
+    const names = (facts.queues ?? []).filter((q) => q.isWorkQueue && q.readable === false).map((q) => q.queueName);
+    out.push({
+      name: "queues",
+      label: "the job queues",
+      detail: names.length > 0 ? `not probed: ${names.slice(0, 5).join(", ")}` : "queue inventory failed",
+    });
+  }
+  if (facts.newestReconciliationRunAtMs === undefined) {
+    out.push({ name: "reconciliation-runs", label: "the reconciliation run records", detail: "database read failed" });
+  }
+  if (config.backupExpected && facts.backups === null) {
+    out.push({ name: "backup-records", label: "the backup records", detail: "database read failed" });
+  }
+  if (config.diskPaths.length > 0 && facts.disk === null) {
+    out.push({ name: "disk", label: "the disk usage", detail: "statfs failed" });
+  }
   return out;
 }
 
@@ -368,6 +556,19 @@ export function signalSourceReadable(facts: OutageFacts, category: AlertCategory
       return facts.newestReconciliationRunAtMs !== undefined;
     case "DATABASE_BACKUP_MISSING":
       return facts.backups !== null;
+    case "BACKUP_OFFHOST_COPY_MISSING":
+      return facts.backups !== null && facts.backups.offhost !== undefined;
+    case "RESTORE_DRILL_MISSING":
+      return facts.backups !== null && facts.backups.drill !== undefined;
+    case "HOST_DISK_LOW": {
+      if (facts.disk === undefined || facts.disk === null) return false;
+      const path = fingerprint.startsWith("disk-low:") ? fingerprint.slice("disk-low:".length) : "";
+      // A path no longer measured is not "cleared": nothing was read for it.
+      return facts.disk.some((d) => d.path === path);
+    }
+    // Computed from this tick's own facts: always a measurement.
+    case "MONITORING_SOURCE_UNREADABLE":
+      return true;
     default:
       return true;
   }
@@ -377,8 +578,22 @@ export function signalSourceReadable(facts: OutageFacts, category: AlertCategory
 // Dispatch with start / reminder / resolved
 // -----------------------------------------------------------------------------
 
-/** lastAlertMs null: seen, still inside its hold, not announced yet. */
-export type WatchdogStateEntry = { category: AlertCategory; title: string; firstSeenMs: number; lastAlertMs: number | null };
+/**
+ * lastAlertMs null: seen, not announced yet (inside its hold, or the start
+ * notice was not accepted and is retried next tick). resolveAttempts: the
+ * signal cleared after it was announced, and that many resolved notices were
+ * not accepted; the next tick retries.
+ */
+export type WatchdogStateEntry = {
+  category: AlertCategory;
+  title: string;
+  firstSeenMs: number;
+  lastAlertMs: number | null;
+  resolveAttempts?: number;
+};
+
+/** A resolved notice the receiver keeps refusing is given up after this many ticks (logged). */
+export const RESOLVE_RETRY_LIMIT = 12;
 export type WatchdogState = Record<string, WatchdogStateEntry>;
 
 export type OutageWatchdogDeps = {
@@ -409,7 +624,8 @@ export async function runOutageWatchdog(deps: OutageWatchdogDeps): Promise<Outag
   const now = facts.nowMs;
   const summary: OutageWatchdogSummary = { active: [], alerted: [], reminded: [], resolved: [], carried: [], undelivered: 0 };
 
-  const send = async (input: AlertInput, signalKey: string) => {
+  /** true when the receiver accepted it. */
+  const send = async (input: AlertInput, signalKey: string): Promise<boolean> => {
     let result: AlertDispatchResult;
     try {
       result = await deps.dispatch(input);
@@ -423,6 +639,7 @@ export async function runOutageWatchdog(deps: OutageWatchdogDeps): Promise<Outag
         "ops_watchdog.alert_undelivered",
       );
     }
+    return result.ok;
   };
 
   const seen = new Set<string>();
@@ -438,15 +655,18 @@ export async function runOutageWatchdog(deps: OutageWatchdogDeps): Promise<Outag
       fingerprint: s.fingerprint,
       runbookSlug: "disaster-recovery",
     };
-    const entry = prior ?? { category: s.category, title: s.title, firstSeenMs: now, lastAlertMs: null };
+    const entry: WatchdogStateEntry = prior ?? { category: s.category, title: s.title, firstSeenMs: now, lastAlertMs: null };
     state[s.fingerprint] = entry;
+    // Back before its resolved notice was accepted: the receiver never heard it
+    // clear, so it is simply still ongoing (no second start notice).
+    delete entry.resolveAttempts;
     if (entry.lastAlertMs === null) {
       if (now - entry.firstSeenMs < (s.holdMinutes ?? 0) * MIN) continue;
-      await send(input, s.fingerprint);
-      entry.lastAlertMs = now;
+      // Not accepted: stays unannounced and is retried on the next tick.
+      if (await send(input, s.fingerprint)) entry.lastAlertMs = now;
       summary.alerted.push(s.fingerprint);
     } else if (now - entry.lastAlertMs >= config.reminderMinutes * MIN) {
-      await send(
+      const delivered = await send(
         {
           ...input,
           title: `Still ongoing: ${s.title}`.slice(0, 180),
@@ -455,7 +675,7 @@ export async function runOutageWatchdog(deps: OutageWatchdogDeps): Promise<Outag
         },
         s.fingerprint,
       );
-      entry.lastAlertMs = now;
+      if (delivered) entry.lastAlertMs = now;
       summary.reminded.push(s.fingerprint);
     }
   }
@@ -467,10 +687,13 @@ export async function runOutageWatchdog(deps: OutageWatchdogDeps): Promise<Outag
       summary.carried.push(fingerprint);
       continue;
     }
-    delete state[fingerprint];
-    // Never announced (it cleared inside its hold): nothing to resolve.
-    if (entry.lastAlertMs === null) continue;
-    await send(
+    // Never announced (it cleared inside its hold, or its start notice was
+    // never accepted): nothing to resolve.
+    if (entry.lastAlertMs === null) {
+      delete state[fingerprint];
+      continue;
+    }
+    const delivered = await send(
       {
         category: entry.category,
         severity: "INFO",
@@ -481,7 +704,18 @@ export async function runOutageWatchdog(deps: OutageWatchdogDeps): Promise<Outag
       },
       fingerprint,
     );
-    summary.resolved.push(fingerprint);
+    if (delivered) {
+      delete state[fingerprint];
+      summary.resolved.push(fingerprint);
+      continue;
+    }
+    // Not accepted: kept, and retried next tick, so the recovery is announced
+    // once it can be; given up (logged) after RESOLVE_RETRY_LIMIT ticks.
+    entry.resolveAttempts = (entry.resolveAttempts ?? 0) + 1;
+    if (entry.resolveAttempts >= RESOLVE_RETRY_LIMIT) {
+      delete state[fingerprint];
+      deps.logger?.warn({ signal: fingerprint, attempts: entry.resolveAttempts }, "ops_watchdog.resolve_abandoned");
+    }
   }
 
   await deps.saveState(state).catch(() => undefined);
@@ -550,6 +784,8 @@ export async function readOutageFacts(input: {
   redis: WatchdogRedis | null;
   readFleet: () => Promise<FleetFact>;
   readQueues: () => Promise<QueueFact[]>;
+  /** Absent: the disk is not measured (facts.disk undefined). */
+  readDisk?: () => Promise<DiskFact[]>;
   config: OutageWatchdogConfig;
   nowMs?: number;
 }): Promise<OutageFacts> {
@@ -596,24 +832,37 @@ export async function readOutageFacts(input: {
       }
     })(),
     settle(async (): Promise<BackupFact> => {
-      const [ok, newest] = await Promise.all([
-        input.prisma.platformBackupRecord.findFirst({
-          where: { kind: "DATABASE_BACKUP", outcome: "SUCCEEDED" },
-          orderBy: { recordedAtUtc: "desc" },
-          select: { outcome: true, recordedAtUtc: true },
-        }),
-        input.prisma.platformBackupRecord.findFirst({
-          where: { kind: "DATABASE_BACKUP" },
-          orderBy: { recordedAtUtc: "desc" },
-          select: { outcome: true, recordedAtUtc: true },
-        }),
-      ]);
-      return {
-        newestSucceededAtMs: ok ? ok.recordedAtUtc.getTime() : null,
-        newestRecord: newest ? { outcome: newest.outcome, atMs: newest.recordedAtUtc.getTime() } : null,
+      const readKind = async (kind: "DATABASE_BACKUP" | "OFFHOST_COPY" | "RESTORE_DRILL"): Promise<BackupKindFact> => {
+        const [ok, newest] = await Promise.all([
+          input.prisma.platformBackupRecord.findFirst({
+            where: { kind, outcome: "SUCCEEDED" },
+            orderBy: { recordedAtUtc: "desc" },
+            select: { outcome: true, recordedAtUtc: true },
+          }),
+          input.prisma.platformBackupRecord.findFirst({
+            where: { kind },
+            orderBy: { recordedAtUtc: "desc" },
+            select: { outcome: true, recordedAtUtc: true },
+          }),
+        ]);
+        return {
+          newestSucceededAtMs: ok ? ok.recordedAtUtc.getTime() : null,
+          newestRecord: newest ? { outcome: newest.outcome, atMs: newest.recordedAtUtc.getTime() } : null,
+        };
       };
+      // One read: all three kinds, or none (null, unreadable).
+      const [database, offhost, drill] = await Promise.all([
+        readKind("DATABASE_BACKUP"),
+        readKind("OFFHOST_COPY"),
+        readKind("RESTORE_DRILL"),
+      ]);
+      return { ...database, offhost, drill };
     }),
   ]);
+  let disk: DiskFact[] | null | undefined;
+  if (input.readDisk && input.config.diskPaths.length > 0) {
+    disk = await settle(input.readDisk);
+  }
   return {
     nowMs,
     boots,
@@ -623,7 +872,33 @@ export async function readOutageFacts(input: {
     queues,
     newestReconciliationRunAtMs: run,
     backups,
+    ...(disk !== undefined ? { disk } : {}),
   };
+}
+
+/**
+ * statfs of each path, as `df` computes it: used = blocks - bfree, and the
+ * percentage is used / (used + bavail). Any failure fails the whole read
+ * (readOutageFacts then reports the disk unreadable, never healthy).
+ */
+export async function readDiskUsage(
+  paths: string[],
+  statfs: (path: string) => Promise<{ bsize: number; blocks: number; bfree: number; bavail: number }>,
+): Promise<DiskFact[]> {
+  const out: DiskFact[] = [];
+  for (const path of paths) {
+    const s = await statfs(path);
+    const used = (s.blocks - s.bfree) * s.bsize;
+    const avail = s.bavail * s.bsize;
+    if (!(s.blocks > 0) || used + avail <= 0) throw new Error("statfs returned no blocks");
+    out.push({
+      path,
+      totalBytes: s.blocks * s.bsize,
+      freeBytes: avail,
+      usedPercent: Math.ceil((used * 100) / (used + avail)),
+    });
+  }
+  return out;
 }
 
 /** Redis-backed watchdog state with an in-process fallback. */

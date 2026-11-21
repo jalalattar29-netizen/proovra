@@ -79,9 +79,9 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/alerts/webhook-provider.ts:85",
+      "site": "services/api/src/services/alerts/webhook-provider.ts:160",
       "class": "EXTERNAL_DESTINATION",
-      "evidence": "fetch(this.url) — the operational alert webhook provider posting to the configured alert sink.",
+      "evidence": "fetch(this.url) — the operational alert webhook provider posting to the configured alert sink. | Re-anchored :85 -> :160 on 2026-11-21 (OPS closure 2): the POST moved into postWebhookAlert (receiver-shaped body; the provider and the delivery proof share it). Verified BY READING: the same POST to OPS_ALERT_WEBHOOK_URL (with ?wait=true only for the operator's delivery proof).",
       "reviewedAtUtc": "2026-08-15"
     },
     {

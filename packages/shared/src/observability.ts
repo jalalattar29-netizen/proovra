@@ -169,6 +169,16 @@ export const ALERT_CATEGORIES = [
   "QUEUE_BACKLOG_STALLED",
   "RECONCILIATION_RUNS_MISSING",
   "DATABASE_BACKUP_MISSING",
+  // OPS closure 2 (2026-11-21). Production recorded OFFHOST_COPY FAILED and
+  // RESTORE_DRILL FAILED and the watchdog said nothing: it read DATABASE_BACKUP
+  // rows only. The disk and an unreadable monitoring source had no detector.
+  "BACKUP_OFFHOST_COPY_MISSING",
+  "RESTORE_DRILL_MISSING",
+  "HOST_DISK_LOW",
+  "MONITORING_SOURCE_UNREADABLE",
+  // The operator's delivery proof (services/api/src/scripts/ops-alert-delivery-test.ts):
+  // a labelled synthetic message, never raised by a detector.
+  "OPS_ALERT_DELIVERY_TEST",
 ] as const;
 export const AlertCategorySchema = z.enum(ALERT_CATEGORIES);
 export type AlertCategory = z.infer<typeof AlertCategorySchema>;

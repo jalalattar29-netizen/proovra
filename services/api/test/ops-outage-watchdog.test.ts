@@ -35,6 +35,7 @@ import {
 
 const MIN = 60_000;
 const H = 60 * MIN;
+const GB = 1024 * 1024 * 1024;
 const NOW = Date.parse("2026-11-21T12:00:00Z");
 const HEAD = "20281122000000_derived_asset_storage_reservation";
 
@@ -66,7 +67,13 @@ function healthyFacts(nowMs = NOW): OutageFacts {
     fleet: { state: "HEALTHY", liveInstances: 1, lastHeartbeatAgeSeconds: 20, reason: "1 live" },
     queues: [{ queueName: "report-generation", waiting: 2, oldestWaitingAgeMs: 40_000, isWorkQueue: true }],
     newestReconciliationRunAtMs: nowMs - 4 * MIN,
-    backups: { newestSucceededAtMs: nowMs - 2 * H, newestRecord: { outcome: "SUCCEEDED", atMs: nowMs - 2 * H } },
+    backups: {
+      newestSucceededAtMs: nowMs - 2 * H,
+      newestRecord: { outcome: "SUCCEEDED", atMs: nowMs - 2 * H },
+      offhost: { newestSucceededAtMs: nowMs - 3 * H, newestRecord: { outcome: "SUCCEEDED", atMs: nowMs - 3 * H } },
+      drill: { newestSucceededAtMs: nowMs - 50 * H, newestRecord: { outcome: "SUCCEEDED", atMs: nowMs - 50 * H } },
+    },
+    disk: [{ path: "/", totalBytes: 75 * GB, freeBytes: 35 * GB, usedPercent: 53 }],
   };
 }
 
@@ -175,7 +182,7 @@ describe("detectors", () => {
     expect(detectOutageSignals(f, c).map((s) => [s.category, s.severity])).toEqual([["WORKER_NOT_LIVE", "HIGH"]]);
   });
 
-  it("unreadable sources raise nothing rather than a guess", () => {
+  it("unreadable sources raise no detector signal (never a guess), only a held MONITORING_SOURCE_UNREADABLE per source", () => {
     const f: OutageFacts = {
       nowMs: NOW,
       boots: null,
@@ -184,8 +191,21 @@ describe("detectors", () => {
       queues: null,
       newestReconciliationRunAtMs: undefined,
       backups: null,
+      disk: null,
     };
-    expect(detectOutageSignals(f, cfg)).toEqual([]);
+    const signals = detectOutageSignals(f, cfg);
+    expect(signals.every((s) => s.category === "MONITORING_SOURCE_UNREADABLE")).toBe(true);
+    expect(signals.map((s) => s.fingerprint).sort()).toEqual(
+      [
+        "source-unreadable:backup-records",
+        "source-unreadable:disk",
+        "source-unreadable:queues",
+        "source-unreadable:reconciliation-runs",
+        "source-unreadable:redis",
+        "source-unreadable:worker-leases",
+      ].sort(),
+    );
+    expect(signals.every((s) => s.holdMinutes === cfg.unreadableHoldMinutes)).toBe(true);
   });
 
   it("switches: expectedWorkers 0 and OPS_WATCHDOG_BACKUP_EXPECTED=false turn those detectors off; bad values fall back", () => {
@@ -435,7 +455,8 @@ describe("readOutageFacts — the authorities the detectors read", () => {
     expect(facts.newestReconciliationRunAtMs).toBe(NOW - 26 * H);
     expect(JSON.stringify(runWhere[0])).toContain('"RETENTION"');
     expect(JSON.stringify(runWhere[0])).not.toContain("WORKSPACE");
-    expect(facts.backups).toEqual({ newestSucceededAtMs: null, newestRecord: { outcome: "FAILED", atMs: NOW - 30 * MIN } });
+    // This fake answers every kind alike; each kind is read (DATABASE_BACKUP, OFFHOST_COPY, RESTORE_DRILL).
+    expect(facts.backups).toEqual({ ...{ newestSucceededAtMs: null, newestRecord: { outcome: "FAILED", atMs: NOW - 30 * MIN } }, offhost: { newestSucceededAtMs: null, newestRecord: { outcome: "FAILED", atMs: NOW - 30 * MIN } }, drill: { newestSucceededAtMs: null, newestRecord: { outcome: "FAILED", atMs: NOW - 30 * MIN } } });
   });
 
   it("a source that throws is reported unreadable, not healthy", async () => {
