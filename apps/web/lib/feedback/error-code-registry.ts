@@ -133,9 +133,11 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     why: "MATRIX-M626 review — as a response code it is sent only by the owner destruction-approval withdrawal (DELETE), which has no web or native caller yet. The lifecycle service's same-named value reaches the web as a lifecycle blockReason in the record projection, not as an error code.",
   },
   // NEW-RG-19-1 (decision G) — POST /v1/evidence-requests/:id/recipient-contact.
+  // Closure phase 2: the request page's reveal control says it (and offers no
+  // reveal on a link-backed request, so this is the stale-page answer).
   REVEAL_VIA_INTAKE_LINK: {
-    disposition: "internal",
-    why: "NEW-RG-19-1 — sent only by the evidence-request contact reveal route, which has no web or native caller yet; the web reveals an intake-link request's contact on the intake link's own route.",
+    disposition: "customer",
+    where: "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestRecipientContact.tsx",
   },
   SUPPRESSION_REASON_REQUIRED: {
     disposition: "internal",

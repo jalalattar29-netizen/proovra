@@ -35,6 +35,7 @@ import {
   useWorkspaceContextSafety,
 } from "../../../../../lib/platform-context";
 import { formatUserDateTime } from "../../../../../lib/date";
+import { EditDraftRequestDialog } from "../../../../../components/evidence-requests/EditDraftRequestDialog";
 import {
   LEGACY_NEEDS_MORE_INFO_COPY,
   reviewerNoteStaysInternal,
@@ -161,6 +162,8 @@ export default function EvidenceRequestPanel({
     noteStaysInternal?: boolean;
   } | null>(null);
   const [timelineFor, setTimelineFor] = useState<string | null>(null);
+  // EP-0343 — the DRAFT being edited (PATCH /v1/evidence-requests/:id).
+  const [editingDraft, setEditingDraft] = useState<string | null>(null);
 
   useEffect(() => {
     if (!teamId) return;
@@ -471,6 +474,18 @@ export default function EvidenceRequestPanel({
             >
               Activity
             </button>
+            {/* EP-0343 — a DRAFT can be corrected before it is sent; the API
+                refuses any other status (409 request_not_editable). */}
+            {req.status === "DRAFT" ? (
+              <button
+                type="button"
+                className="app-secondary-action"
+                onClick={() => setEditingDraft(req.id)}
+                data-request-action="edit-draft"
+              >
+                Edit draft
+              </button>
+            ) : null}
             {canMove(req.status, "OPEN") || canMove(req.status, "SENT") ? (
               <button
                 type="button"
@@ -553,6 +568,21 @@ export default function EvidenceRequestPanel({
           noteIsEmailed={
             noteDialog.action === "needs-more-info" && noteDialog.noteStaysInternal !== true
           }
+        />
+      ) : null}
+
+      {editingDraft ? (
+        <EditDraftRequestDialog
+          requestId={editingDraft}
+          onClose={() => setEditingDraft(null)}
+          onSaved={async () => {
+            setEditingDraft(null);
+            try {
+              await reload();
+            } catch {
+              setError("The draft was saved, but the list could not be refreshed. Reload the page to see it.");
+            }
+          }}
         />
       ) : null}
 
