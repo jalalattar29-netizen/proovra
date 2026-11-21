@@ -159,7 +159,8 @@ describe("FINAL-VERIFY-2 — derived write intents keep possibly-stored bytes co
     // A database that is DOWN (nothing listens on port 1): the outage client.
     deadPool = new Pool({ connectionString: "postgresql://x:x@127.0.0.1:1/x", connectionTimeoutMillis: 1_000 });
     deadClient = new PrismaClient({ adapter: new PrismaPg(deadPool) });
-    blockerPool = new Pool({ connectionString: process.env.TEST_DATABASE_URL, max: 2 });
+    // The harness pointed DATABASE_URL at the acquired test database.
+    blockerPool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
   }, 600_000);
 
   afterAll(async () => {
