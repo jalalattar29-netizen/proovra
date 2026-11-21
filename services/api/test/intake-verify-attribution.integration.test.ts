@@ -134,6 +134,41 @@ describe("ET-INT-12 — intake attribution on public Verify (live PostgreSQL 16)
     expect(res.body).not.toContain(INTAKE_SUBMITTED_BY_LABEL);
   });
 
+  // PRO-O1C-01 (RG-18) — the custody timeline's identity-snapshot line obeys the
+  // same exposure rule as the page's identity rows: bare label while withheld,
+  // identity level and sign-in provider only on the operator opt-in.
+  it("PRO-O1C-01: the custody timeline's identity snapshot names no identity level or provider while identity is withheld; the opt-in brings them back", async () => {
+    const snapshotLines = (body: string) => {
+      const out: string[] = [];
+      JSON.parse(body, (k, v) => {
+        if (k === "payloadSummary" && typeof v === "string" && v.startsWith("Identity snapshot")) out.push(v);
+        return v;
+      });
+      return out;
+    };
+    const withheld = await verify(await signedRecord("PROOVRA_WEB_UPLOAD"));
+    expect(withheld.statusCode, withheld.body).toBe(200);
+    expect(withheld.json().recordFacts?.identity?.disclosure).toBe("WITHHELD");
+    const bare = snapshotLines(withheld.body);
+    expect(bare.length).toBeGreaterThan(0);
+    for (const s of bare) expect(s).toBe("Identity snapshot recorded");
+    expect(withheld.body).not.toContain("OAUTH_BACKED_IDENTITY");
+    expect(withheld.body).not.toContain("Provider: GOOGLE");
+
+    const previous = process.env.PUBLIC_VERIFY_EXPOSE_ATTRIBUTION;
+    process.env.PUBLIC_VERIFY_EXPOSE_ATTRIBUTION = "true";
+    try {
+      const exposed = await verify(await signedRecord("PROOVRA_WEB_UPLOAD"));
+      expect(exposed.statusCode, exposed.body).toBe(200);
+      const lines = snapshotLines(exposed.body);
+      expect(lines.length).toBeGreaterThan(0);
+      for (const s of lines) expect(s).toContain("Provider: GOOGLE");
+    } finally {
+      if (previous === undefined) delete process.env.PUBLIC_VERIFY_EXPOSE_ATTRIBUTION;
+      else process.env.PUBLIC_VERIFY_EXPOSE_ATTRIBUTION = previous;
+    }
+  });
+
   it("an ordinary upload keeps its account attribution when the operator exposes attribution", async () => {
     const previous = process.env.PUBLIC_VERIFY_EXPOSE_ATTRIBUTION;
     process.env.PUBLIC_VERIFY_EXPOSE_ATTRIBUTION = "true";
