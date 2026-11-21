@@ -99,6 +99,28 @@ security-event drift allowlist. Apply both before deploying the API and worker.
 5. Set `OUTPUT_PACKAGE_RECOVERY_ENABLED=true`. This repairs the missing
    package at the latest report version, including the v7/v2 incident record.
    Watch `pipeline.package_generation_failed`.
+
+   **Effective behaviour of `OUTPUT_PACKAGE_RECOVERY_ENABLED` (closure 2, PRO-W1-04, 2026-11-21).**
+   Default OFF in code; not set in `infra/docker/docker-compose.prod.yml`, so the
+   production value is whatever the worker's env file holds (unknown to the audit;
+   GAP-W1-01). What it gates, and what it does not:
+
+   | Missing package at the latest report version | Flag OFF | Flag ON |
+   |---|---|---|
+   | Owed by a request that COMMITTED the report (stage `REPORT_COMMITTED`) and then went `FAILED_TERMINAL` for a TECHNICAL reason | re-asked after 30 minutes' rest (package-only, that version, owed) | same |
+   | The same, but the terminal reason is INTEGRITY / POLICY / COMMERCIAL | operator (`packageOwedNotTechnical`) | re-asked by the backfill (the writer and the run still refuse what they refuse) |
+   | Denied by the governance gate (`verificationPackageMetadata.blocked`) | re-asked (RG-03 / PRO-W1-01) | same |
+   | Any other missing package (historical gap, no committed run) | not touched | re-asked (backfill) |
+
+   Every re-ask still passes the issuance decision (ENTITLED with packages
+   included), the lifecycle filter, the output-policy hold, the storage gate and
+   the request writer's key `VERIFICATION_PACKAGE:<id>:v<N>` (one request per
+   version however many ticks or replicas ask). A package-only request that
+   itself goes terminal is superseded only through the owed path, bounded by
+   `MAX_TERMINAL_SUPERSESSIONS`. Before 2026-11-21 the first row of this table
+   needed the flag, so a package whose run died after its report committed
+   waited for a person. The dry run reports it as `PACKAGE_OWED_COMMITTED`.
+   Proof: `services/api/test/sem-w1-04-owed-package-recovery.integration.test.ts`.
 6. Set `OUTPUT_HISTORICAL_FIRST_ISSUANCE_ENABLED=true` only for confirmed-paid
    subjects (the decision already enforces this).
 

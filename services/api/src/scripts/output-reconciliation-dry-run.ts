@@ -15,6 +15,9 @@
  * Groups (mutually exclusive, first match wins):
  *
  *   BUSY                         a request is QUEUED / PROCESSING / FAILED_RETRYABLE — left alone
+ *   PACKAGE_OWED_COMMITTED       closure 2 (PRO-W1-04): the latest request committed report vN (stage
+ *                                REPORT_COMMITTED) and then went FAILED_TERMINAL for a TECHNICAL reason; the
+ *                                worker re-asks package vN WITHOUT a flag once it has rested 30 minutes
  *   OPERATOR_TERMINAL            the latest request is FAILED_TERMINAL / BLOCKED_* — never auto-retried
  *   UNRESOLVED                   the entitlement could not be read — nothing is issued
  *   NOT_ISSUED_PLAN              no report; the plan does not include reports (Free) — correct, no action
@@ -31,6 +34,8 @@
  *
  * Records are identified by the first 8 characters of their id only.
  */
+import { classifyTerminalReason } from "@proovra/shared";
+
 import { prisma } from "../db.js";
 import { resolveEvidenceOutputEligibilityByRecord } from "../services/billing/evidence-output-eligibility.service.js";
 
@@ -41,6 +46,7 @@ const OPERATOR = new Set(["FAILED_TERMINAL", "BLOCKED_POLICY", "BLOCKED_STALE"])
 type Group =
   | "BUSY"
   | "OPERATOR_TERMINAL"
+  | "PACKAGE_OWED_COMMITTED"
   | "UNRESOLVED"
   | "NOT_ISSUED_PLAN"
   | "FIRST_ISSUE_NOT_CONFIRMED"
@@ -61,6 +67,10 @@ type Row = {
   latest_package: number | null;
   package_at_latest: boolean;
   latest_request_state: string | null;
+  latest_request_artifact: string | null;
+  latest_request_stage: string | null;
+  latest_request_version: number | null;
+  latest_request_reason: string | null;
   any_live_request: boolean;
 };
 
@@ -85,14 +95,23 @@ async function page(cursor: string | null, take: number): Promise<Row[]> {
                 AND (vp.disclosure_profile IS NULL OR vp.disclosure_profile = 'FULL_FORENSIC')
                 AND vp.version = (SELECT max(r.version) FROM reports r WHERE r.evidence_id = e.id)
            ) AS package_at_latest,
-           (SELECT q.state FROM report_generation_requests q
-             WHERE q.evidence_id = e.id ORDER BY q.created_at_utc DESC LIMIT 1) AS latest_request_state,
+           lq.state AS latest_request_state,
+           lq.artifact_type AS latest_request_artifact,
+           lq.stage AS latest_request_stage,
+           lq.report_version AS latest_request_version,
+           lq.terminal_reason_code AS latest_request_reason,
            EXISTS (
              SELECT 1 FROM report_generation_requests q
               WHERE q.evidence_id = e.id
                 AND q.state IN ('QUEUED','PROCESSING','FAILED_RETRYABLE')
            ) AS any_live_request
       FROM evidence e
+      LEFT JOIN LATERAL (
+            SELECT q.state, q.artifact_type, q.stage, q.report_version, q.terminal_reason_code
+              FROM report_generation_requests q
+             WHERE q.evidence_id = e.id
+             ORDER BY q.created_at_utc DESC
+             LIMIT 1) lq ON TRUE
      WHERE e.status IN ('SIGNED','REPORTED')
        AND e.deleted_at IS NULL
        AND e.lifecycle_state IN ('ACTIVE','UNDER_REVIEW','ON_HOLD','RETENTION_LOCKED')
@@ -142,7 +161,16 @@ async function main(): Promise<void> {
         bump("COMPLETE", r.id);
         continue;
       }
-      if (r.latest_request_state && OPERATOR.has(r.latest_request_state)) {
+      // Closure 2 (PRO-W1-04) — the worker's MISSING PACKAGE pass re-asks this
+      // one without a flag (when entitled, decided below by the same rule).
+      const owedByCommittedReport =
+        r.latest_request_state === "FAILED_TERMINAL" &&
+        r.latest_request_artifact === "REPORT" &&
+        r.latest_request_stage === "REPORT_COMMITTED" &&
+        r.latest_request_version != null &&
+        r.latest_request_version === r.latest_report &&
+        classifyTerminalReason(r.latest_request_reason) === "TECHNICAL";
+      if (!owedByCommittedReport && r.latest_request_state && OPERATOR.has(r.latest_request_state)) {
         bump("OPERATOR_TERMINAL", r.id);
         continue;
       }
@@ -170,7 +198,7 @@ async function main(): Promise<void> {
         bump("PACKAGE_NOT_INCLUDED", r.id);
         continue;
       }
-      bump("PACKAGE_RECOVERY", r.id);
+      bump(owedByCommittedReport ? "PACKAGE_OWED_COMMITTED" : "PACKAGE_RECOVERY", r.id);
       if (r.latest_package != null && r.latest_package < r.latest_report) olderPackageExists++;
     }
   }
@@ -196,6 +224,7 @@ async function main(): Promise<void> {
     samples: Object.fromEntries([...samples.entries()].sort()),
     repairPlan: [
       plan("FIRST_ISSUE_RECENT", null),
+      plan("PACKAGE_OWED_COMMITTED", null),
       plan("PACKAGE_RECOVERY", "OUTPUT_PACKAGE_RECOVERY_ENABLED"),
       plan("FIRST_ISSUE_HISTORICAL", "OUTPUT_HISTORICAL_FIRST_ISSUANCE_ENABLED"),
     ],
