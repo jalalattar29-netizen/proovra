@@ -426,6 +426,21 @@ export type GenerateSignedUrlResult =
   | { ok: false; denial: "EXPORT_BLOCKED"; outcome: string }
   | { ok: false; denial: "POLICY_BLOCKED"; code: string; reason: string };
 
+/** PRO-O1Z-03 — the operator download base as a directory URL (http/https only), or null. */
+export function exchangeDownloadBase(configured: string): URL | null {
+  let url: URL;
+  try {
+    url = new URL(configured.trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+  if (!url.pathname.endsWith("/")) url.pathname = `${url.pathname}/`;
+  url.search = "";
+  url.hash = "";
+  return url;
+}
+
 export async function generateSignedUrl(
   input: GenerateSignedUrlInput,
 ): Promise<GenerateSignedUrlResult> {
@@ -467,13 +482,20 @@ export async function generateSignedUrl(
   let expiresAt: Date;
   let expiresAtUtc: string;
   if (configuredBase) {
+    // PRO-O1Z-03 (closure) — a proper URL join: the configured base is a
+    // directory whether or not it ends in "/" (the old replace(/\/$/, "/") was
+    // a no-op, so a base without one produced https://host<id>). An
+    // unparseable base mints nothing.
+    const base = exchangeDownloadBase(configuredBase);
+    if (!base) return { ok: false, denial: "DOWNLOAD_UNAVAILABLE" };
     const signed = await signPackageManifest({
       packageId: row.id,
       payloadHash: row.packageSha256 ?? "",
       ttlSeconds,
     });
-    const base = configuredBase.replace(/\/$/, "/");
-    signedUrl = `${base}${row.id}?token=${signed.token}`.slice(0, 1024);
+    const target = new URL(encodeURIComponent(row.id), base);
+    target.searchParams.set("token", signed.token);
+    signedUrl = target.toString().slice(0, 1024);
     expiresAtUtc = signed.expiresAtUtc;
     expiresAt = new Date(signed.expiresAtUtc);
   } else {

@@ -309,6 +309,46 @@ describe("closure evidence — WS-OUT rows (live PostgreSQL)", () => {
       }
     });
 
+    // PRO-O1Z-03 (closure) — the base is joined as a URL: with or without a
+    // trailing slash (and a bare host) the link is <base>/<packageId>?token=…
+    for (const [label, base, path] of [
+      ["with a trailing slash", "https://downloads.operator.example/exchange/", "/exchange/"],
+      ["without a trailing slash", "https://downloads.operator.example/exchange", "/exchange/"],
+      ["a bare host", "https://downloads.operator.example", "/"],
+    ] as const) {
+      it(`allowed: an operator base ${label} yields <base>/<packageId>?token=`, async () => {
+        const previous = process.env.EXCHANGE_DOWNLOAD_BASE_URL;
+        process.env.EXCHANGE_DOWNLOAD_BASE_URL = base;
+        try {
+          const id = await signedRecord();
+          const p = await pkg("READY", [id], { packageSha256: "a".repeat(64) });
+          const r = await exchange.generateSignedUrl({ teamId: A().teamId, packageId: p.id, ttlSeconds: 3600, actorUserId: A().ownerUserId });
+          expect(r.ok, JSON.stringify(r)).toBe(true);
+          const url = new URL((r as { signedUrl: string }).signedUrl);
+          expect(url.hostname).toBe("downloads.operator.example");
+          expect(url.pathname).toBe(`${path}${p.id}`);
+          expect(url.searchParams.get("token")).toBeTruthy();
+        } finally {
+          if (previous === undefined) delete process.env.EXCHANGE_DOWNLOAD_BASE_URL;
+          else process.env.EXCHANGE_DOWNLOAD_BASE_URL = previous;
+        }
+      });
+    }
+
+    it("refused: an operator base that is not an http(s) URL mints nothing", async () => {
+      const previous = process.env.EXCHANGE_DOWNLOAD_BASE_URL;
+      process.env.EXCHANGE_DOWNLOAD_BASE_URL = "downloads.operator.example/exchange";
+      try {
+        const id = await signedRecord();
+        const p = await pkg("READY", [id], { packageSha256: "b".repeat(64) });
+        const r = await exchange.generateSignedUrl({ teamId: A().teamId, packageId: p.id, ttlSeconds: 3600, actorUserId: A().ownerUserId });
+        expect(r).toEqual({ ok: false, denial: "DOWNLOAD_UNAVAILABLE" });
+      } finally {
+        if (previous === undefined) delete process.env.EXCHANGE_DOWNLOAD_BASE_URL;
+        else process.env.EXCHANGE_DOWNLOAD_BASE_URL = previous;
+      }
+    });
+
     it("control: an operator-configured host keeps the signed-token contract", async () => {
       const previous = process.env.EXCHANGE_DOWNLOAD_BASE_URL;
       process.env.EXCHANGE_DOWNLOAD_BASE_URL = "https://downloads.operator.example/exchange/";

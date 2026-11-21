@@ -23,7 +23,7 @@
 import { identifierLabel } from "@proovra/shared";
 import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
 import { useTeamId } from "../../../../../lib/platform-context";
@@ -134,6 +134,10 @@ function SamlMappingContent() {
   const [mapping, setMapping] = useState<MappingPayload>({});
   const [preview, setPreview] = useState<SamlMappingPreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  // PRO-A2U-06 (closure) — the preview answer that may land: the newest request
+  // for the CURRENT mapping. An edit, a connection change or a newer preview
+  // bumps it, so an older answer resolving later is ignored.
+  const previewSeq = useRef(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -226,6 +230,7 @@ function SamlMappingContent() {
 
   const runPreview = useCallback(async () => {
     if (!teamId || !connectionId) return;
+    const seq = ++previewSeq.current;
     setPreviewing(true);
     setError(null);
     setSuccess(null);
@@ -240,13 +245,15 @@ function SamlMappingContent() {
           sampleAttributes: sampleAttrs,
         }),
       })) as { preview: SamlMappingPreview };
+      if (seq !== previewSeq.current) return;
       setPreview(r.preview);
     } catch (err) {
+      if (seq !== previewSeq.current) return;
       setError(
         toSafeUserError(err, { message: "Preview failed." }).message,
       );
     } finally {
-      setPreviewing(false);
+      if (seq === previewSeq.current) setPreviewing(false);
     }
   }, [teamId, connectionId, mapping, sampleAttrs]);
 
@@ -295,8 +302,10 @@ function SamlMappingContent() {
   // PRO-A2U-06 — the preview describes ONE mapping: any edit invalidates it,
   // so Save is not offered until the edited mapping is previewed again.
   useEffect(() => {
+    previewSeq.current += 1;
     setPreview(null);
-  }, [mapping]);
+    setPreviewing(false);
+  }, [mapping, connectionId, teamId]);
 
   const updateField = (key: keyof MappingPayload, value: unknown) =>
     setMapping((prev) => ({ ...prev, [key]: value }));
