@@ -39,7 +39,8 @@ const liveOk = { ok: true, status: 200, contract: 1, routeEpoch: 2, revision: RE
 
 test("vercel.json runs the ignore script and has no blanket deployment hold", () => {
   const cfg = JSON.parse(readFileSync(resolve(REPO, "vercel.json"), "utf8"));
-  assert.equal(cfg.ignoreCommand, "node scripts/vercel-ignore-build.mjs");
+  // Vercel runs it from the project Root Directory (apps/web): it changes to the repo root first.
+  assert.equal(cfg.ignoreCommand, 'cd "$(test -f scripts/vercel-ignore-build.mjs && echo . || echo ../..)" && node scripts/vercel-ignore-build.mjs');
   // The gate is the control: main deploys automatically whenever the live API
   // serves the build. A blanket `deploymentEnabled` block would leave every
   // compatible release unpublished.
@@ -239,7 +240,43 @@ test("API-facing diff on this repository: the remediation is ahead of cdcb8aef8 
 
 test("the build command enforces the gate before next build", () => {
   const cfg = JSON.parse(readFileSync(resolve(REPO, "vercel.json"), "utf8"));
-  assert.match(cfg.buildCommand, /^node scripts\/vercel-ignore-build\.mjs --enforce && pnpm --filter proovra-web build$/);
+  assert.match(cfg.buildCommand, /&& node scripts\/vercel-ignore-build\.mjs --enforce && pnpm --filter proovra-web build$/);
+});
+
+test("both commands work from the Vercel Root Directory apps/web (the 11-19 / 5b9fa29e4 MODULE_NOT_FOUND)", (t) => {
+  const cfg = JSON.parse(readFileSync(resolve(REPO, "vercel.json"), "utf8"));
+  const sh = spawnSync("sh", ["-c", "exit 0"]);
+  if (sh.error) {
+    t.skip("no sh on this machine");
+    return;
+  }
+  for (const cwd of [resolve(REPO, "apps", "web"), REPO]) {
+    const p = spawnSync("sh", ["-c", cfg.ignoreCommand], {
+      cwd,
+      encoding: "utf8",
+      env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, VERCEL_ENV: "production", VERCEL_GIT_COMMIT_REF: "main", NEXT_PUBLIC_API_BASE: "https://127.0.0.1:1" },
+      timeout: 60_000,
+    });
+    // The script ran (no MODULE_NOT_FOUND) and skipped: an unreadable API never builds.
+    assert.doesNotMatch(p.stderr, /Cannot find module/, cwd);
+    assert.equal(p.status, 0, `${cwd}: ${p.stdout}${p.stderr}`);
+    assert.match(p.stdout, /SKIP — the live API could not be read/, cwd);
+    const gate = cfg.buildCommand.replace(/ && pnpm --filter proovra-web build$/, "");
+    const b = spawnSync("sh", ["-c", gate], { cwd, encoding: "utf8", env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, VERCEL_ENV: "production", VERCEL_GIT_COMMIT_REF: "main", NEXT_PUBLIC_API_BASE: "https://127.0.0.1:1" }, timeout: 60_000 });
+    assert.equal(b.status, 1, `${cwd}: ${b.stdout}${b.stderr}`);
+    assert.match(b.stdout, /--enforce: REFUSED/, cwd);
+  }
+});
+
+test("the API-facing diff runs at the repo root whatever the working directory", (t) => {
+  const has = spawnSync("git", ["cat-file", "-e", "cdcb8aef8^{commit}"], { cwd: REPO });
+  if (has.status !== 0) {
+    t.skip("cdcb8aef8 is not in this clone (shallow CI checkout)");
+    return;
+  }
+  // Default runner (no injected cwd): the test process runs from apps/web.
+  const diff = readApiFacingDiff("cdcb8aef8");
+  assert.ok(Array.isArray(diff) && diff.length > 0, "repo-relative pathspecs matched");
 });
 
 test("an environment with neither VERCEL_ENV nor VERCEL_GIT_COMMIT_REF is production (5b9fa29e4 build)", () => {

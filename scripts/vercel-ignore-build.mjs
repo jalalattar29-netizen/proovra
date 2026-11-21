@@ -64,6 +64,16 @@
  * promoted, and the live web keeps serving. The ignore step saves the build
  * minutes; the build step is the guarantee.
  *
+ * ROOT CAUSE, CONFIRMED FROM THE VERCEL BUILD LOG (d7907b1c2, 2026-11-21). The
+ * project's Root Directory is apps/web, so Vercel ran `node
+ * scripts/vercel-ignore-build.mjs` there: "Cannot find module
+ * '/vercel/path0/apps/web/scripts/vercel-ignore-build.mjs'". The ignore step
+ * then exited 1, which Vercel reads as BUILD. The gate never ran, and that is
+ * how 0376721d9 went live on 2026-11-19 and 5b9fa29e4 built unchecked. Both
+ * vercel.json commands now `cd` to the repo root first, and every git call here
+ * runs at REPO_ROOT, because the API-facing pathspecs are repo-relative (from
+ * apps/web they would match nothing and report "no difference").
+ *
  * PROOVRA_WEB_IGNORE_API_EPOCH=1 (a Vercel environment variable, set by the
  * owner for one deliberate release) forces the build: break-glass.
  *
@@ -80,6 +90,10 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+// git pathspecs (API_FACING_PATHS) are repo-relative; Vercel runs commands from the
+// project Root Directory (apps/web), so every git call runs at the repo root.
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 export const NON_PRODUCT_PATHS = [
   /^docs\//,
@@ -278,7 +292,7 @@ export async function readLiveApiRouteEpoch(env, fetchImpl = globalThis.fetch, f
  */
 export function readApiFacingDiff(
   revision,
-  run = (args) => execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 60_000 }),
+  run = (args) => execFileSync("git", args, { cwd: REPO_ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 60_000 }),
 ) {
   if (!/^[0-9a-f]{7,40}$/.test(String(revision ?? ""))) return null;
   try {
@@ -333,7 +347,7 @@ export async function readLiveWebRevision(env, fetchImpl = globalThis.fetch) {
  */
 export function readStaleness(
   liveWeb,
-  run = (args) => execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 60_000 }),
+  run = (args) => execFileSync("git", args, { cwd: REPO_ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 60_000 }),
 ) {
   if (!liveWeb || liveWeb.error || !liveWeb.revision) {
     return { state: "unknown", why: `live web revision unreadable: ${liveWeb?.error ?? "not asked"}` };
@@ -369,7 +383,7 @@ function readChangedFiles(env) {
   // VERCEL_GIT_PREVIOUS_SHA is the last successful deployment of this branch.
   const base = env.VERCEL_GIT_PREVIOUS_SHA || "HEAD^";
   try {
-    return execFileSync("git", ["diff", "--name-only", base, "HEAD"], { encoding: "utf8" })
+    return execFileSync("git", ["diff", "--name-only", base, "HEAD"], { cwd: REPO_ROOT, encoding: "utf8" })
       .split("\n")
       .map((l) => l.trim())
       .filter(Boolean);

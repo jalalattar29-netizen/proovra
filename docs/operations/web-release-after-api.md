@@ -31,10 +31,17 @@ The same check runs a second time at the start of the build command
 (`node scripts/vercel-ignore-build.mjs --enforce && pnpm --filter proovra-web build`).
 There, a production build the gate refuses **fails** (`--enforce: REFUSED`): the
 deployment errors, nothing is promoted, and the current web keeps serving. This
-holds even if Vercel does not run the ignore step, which is what the 5b9fa29e4
-production build showed: the API logged no `/health` request from it. A
-build whose environment shows neither `VERCEL_ENV` nor `VERCEL_GIT_COMMIT_REF` is
-treated as production.
+holds even if the ignore step fails. A build whose environment shows neither
+`VERCEL_ENV` nor `VERCEL_GIT_COMMIT_REF` is treated as production.
+
+**Why the gate never ran before 2026-11-21.** The Vercel project's Root
+Directory is `apps/web`, and Vercel runs both commands from there. Until then
+the ignore command was `node scripts/vercel-ignore-build.mjs`, which failed
+with `Cannot find module '/vercel/path0/apps/web/scripts/vercel-ignore-build.mjs'`.
+The step exited 1, and Vercel reads that as BUILD. This is how 0376721d9 went
+live against an older API on 2026-11-19, and how 5b9fa29e4 built without a
+check. Both commands now `cd` to the repository root first. Keep that prefix if
+you edit them.
 
 **Evidence without Vercel access:** each gate run requests
 `https://api.proovra.com/health`, which the production API logs as a
