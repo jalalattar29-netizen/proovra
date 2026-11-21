@@ -4110,6 +4110,46 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='evidence_exchange_packages' AND column_name='quota_reserved_period_start_utc';\"",
       "evidence": "PRO-BL2-02 (WS-SCHED, 2026-11-18). One nullable column, evidence_exchange_packages.quota_reserved_period_start_utc: the month whose export-package unit was reserved at admission, so the worker does not meter the package again at READY and a failed build can give the unit back. No row is rewritten; an older image never reads it (an older worker meters at READY as before). Rollback: leave the column."
+    },
+    "20281123010000_identity_link_consents": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.identity_link_consents') IS NOT NULL AND (SELECT count(*) FROM pg_trigger WHERE tgname IN ('identity_link_consents_guard','identity_link_consents_end_on_team_member','identity_link_consents_end_on_org_membership') AND NOT tgisinternal) = 3;\"",
+      "evidence": "PRO-A2-02 / owner decision A (closure, 2026-11-21). One new, empty append-only table identity_link_consents (owner consent to a self-serve Organization IdP link, two indexes, no foreign keys), two plpgsql functions and three triggers: a history guard on the table, and AFTER UPDATE OF status/expiry OR DELETE triggers on team_members and organization_memberships that end the person's live consents in that Organization. The triggers write only the new table; no existing row is read for rewrite. An older API image never reads the table. Order: migration, then API. Rollback: drop the triggers, then leave or drop the table."
+    },
+    "20281123020000_step_up_challenge_factor_pinned": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='step_up_challenges' AND column_name='factor_pinned';\"",
+      "evidence": "MATRIX-M054 / owner decision B (closure, 2026-11-21). One nullable BOOLEAN step_up_challenges.factor_pinned, no default, no backfill, no index: TRUE only when a step-up start named an explicit factor, so the TOTP check accepts that factor alone; NULL keeps the approved multi-factor behaviour. The API of this release writes it on every challenge start, so the migration precedes the API. An older image never reads it. Rollback: leave the column."
+    },
+    "20281123030000_organization_ownership_offers": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.organization_ownership_offers') IS NOT NULL;\"",
+      "evidence": "NEW-RG-26-4 / owner decision E, DEC-18 (closure, 2026-11-21). One new, empty table recording an organization owner's ownership offer (no foreign keys, two indexes), the shape of workspace_ownership_offers. Nothing moves until the named recipient accepts with their own step-up. No existing object is touched; an older image never reads it. Order: migration, then API. Rollback: leave the table."
+    },
+    "20281123050000_evidence_owner_destruction_approval": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.evidence_owner_destruction_approvals') IS NOT NULL AND to_regclass('public.evidence_owner_destruction_approvals_cycle_key') IS NOT NULL;\"",
+      "evidence": "MATRIX-M626 / owner decision I (closure, 2026-11-21). One new, empty table evidence_owner_destruction_approvals: a sealed team-less record's own owner approving its destruction, one row per trash cycle (unique evidence_id, evidence_deleted_at_utc), index on owner_user_id, foreign keys to evidence and users ON DELETE CASCADE. Written only by the owner's call for one record; never bulk-written, nothing backfilled. An older image never reads it (it keeps the old team-less exemption until the new image runs). Order: migration, then API and worker. Rollback: leave the table."
+    },
+    "20281123060000_derived_asset_storage_intent": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.derived_asset_storage_intents') IS NOT NULL AND (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='evidence_part_derived_assets' AND column_name='storage_reservation_token') = 1;\"",
+      "evidence": "FINAL-VERIFY-2 closure (M676 follow-up, 2026-11-21). One new, empty table derived_asset_storage_intents (the durable intent of one derived write that declared its target object; three CHECKs, three b-tree indexes) and one nullable UUID column evidence_part_derived_assets.storage_reservation_token (no default, no backfill). Both usage meters count OPEN intents whatever the reservation's age; an intent leaves OPEN only by proof. Order: migration, then worker, then API (the worker's schema head names this migration). Older images neither read nor write either object. Rollback: leave both."
     }
   }
 }

@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 395,
-    "classifiedMigrations": 395,
+    "filesystemMigrations": 400,
+    "classifiedMigrations": 400,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 395,
+    "productionSnapshotUnknown": 400,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 395,
-    "classifiedMigrations": 395,
+    "filesystemMigrations": 400,
+    "classifiedMigrations": 400,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 395,
+    "productionSnapshotUnknown": 400,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 156,
+      "EXPAND": 161,
       "BACKFILL": 36,
       "CONTRACT_DROP": 12,
       "REPAIR": 6
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 177,
+      "SAFE_TO_APPLY_NOW": 182,
       "WAIT_FOR_BACKFILL_READINESS": 14,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 7
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 395
+    "ProductionMigrationStateUnknown": 400
   },
   "gateFailures": [],
   "migrations": [
@@ -29405,8 +29405,347 @@
       "evidence": "M676 (WS-SCHED, 2026-11-20, DEC-04). Two nullable columns on evidence_part_derived_assets (storage_reserved_bytes BIGINT, storage_reserved_at_utc TIMESTAMPTZ): the bytes a derived-artifact job reserved under the workspace capacity lock before writing its object, counted by both usage meters only while younger than the 20-minute run lease and cleared by the settling write, so concurrent derived jobs cannot jointly exceed the allowance. No row is rewritten, no default, no index; an older image never reads or writes them. Order: migration, then worker, then API. Rollback: leave the columns (NULL is the old behaviour)."
     },
     {
-      "name": "email_password_auth",
+      "name": "20281123010000_identity_link_consents",
       "order": 394,
+      "sqlPresent": true,
+      "byteLength": 6531,
+      "checksumSha256": "1b7d8cffdffc65dad17f7106b8bfb0ef978529fa81607ac01fb7734ad818694f",
+      "checksumSha256Raw": "1b7d8cffdffc65dad17f7106b8bfb0ef978529fa81607ac01fb7734ad818694f",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "BACKFILL",
+      "sqlShapeEvidence": "mutates rows in pre-existing table(s): of, or",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [
+          "identity_link_consents"
+        ],
+        "droppedTables": [],
+        "alteredTables": [],
+        "addedColumns": [],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "identity_link_consents_org_user_idx",
+          "identity_link_consents_user_idx"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [
+        "identity_link_consents",
+        "of",
+        "or"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "of",
+        "or"
+      ],
+      "dependencies": [
+        "20260204190000_add_auth_billing"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 2,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.identity_link_consents') IS NOT NULL AND (SELECT count(*) FROM pg_trigger WHERE tgname IN ('identity_link_consents_guard','identity_link_consents_end_on_team_member','identity_link_consents_end_on_org_membership') AND NOT tgisinternal) = 3;\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "PRO-A2-02 / owner decision A (closure, 2026-11-21). One new, empty append-only table identity_link_consents (owner consent to a self-serve Organization IdP link, two indexes, no foreign keys), two plpgsql functions and three triggers: a history guard on the table, and AFTER UPDATE OF status/expiry OR DELETE triggers on team_members and organization_memberships that end the person's live consents in that Organization. The triggers write only the new table; no existing row is read for rewrite. An older API image never reads the table. Order: migration, then API. Rollback: drop the triggers, then leave or drop the table."
+    },
+    {
+      "name": "20281123020000_step_up_challenge_factor_pinned",
+      "order": 395,
+      "sqlPresent": true,
+      "byteLength": 1469,
+      "checksumSha256": "f67f9419742b62448d87945b34735457a0f91d7ac2332a7266d604170ac6aa9b",
+      "checksumSha256Raw": "f67f9419742b62448d87945b34735457a0f91d7ac2332a7266d604170ac6aa9b",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:1 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "step_up_challenges"
+        ],
+        "addedColumns": [
+          "factor_pinned"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260528100000_add_identity_security_phase19"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='step_up_challenges' AND column_name='factor_pinned';\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "MATRIX-M054 / owner decision B (closure, 2026-11-21). One nullable BOOLEAN step_up_challenges.factor_pinned, no default, no backfill, no index: TRUE only when a step-up start named an explicit factor, so the TOTP check accepts that factor alone; NULL keeps the approved multi-factor behaviour. The API of this release writes it on every challenge start, so the migration precedes the API. An older image never reads it. Rollback: leave the column."
+    },
+    {
+      "name": "20281123030000_organization_ownership_offers",
+      "order": 396,
+      "sqlPresent": true,
+      "byteLength": 1970,
+      "checksumSha256": "de4ca3033a368d426a7eae6a2467ff341935ef6ad4d80ec9da1ac9a9097844ac",
+      "checksumSha256Raw": "de4ca3033a368d426a7eae6a2467ff341935ef6ad4d80ec9da1ac9a9097844ac",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:1 columns:0 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [
+          "organization_ownership_offers"
+        ],
+        "droppedTables": [],
+        "alteredTables": [],
+        "addedColumns": [],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "organization_ownership_offers_organization_id_status_idx",
+          "organization_ownership_offers_to_user_id_status_idx"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.organization_ownership_offers') IS NOT NULL;\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "NEW-RG-26-4 / owner decision E, DEC-18 (closure, 2026-11-21). One new, empty table recording an organization owner's ownership offer (no foreign keys, two indexes), the shape of workspace_ownership_offers. Nothing moves until the named recipient accepts with their own step-up. No existing object is touched; an older image never reads it. Order: migration, then API. Rollback: leave the table."
+    },
+    {
+      "name": "20281123050000_evidence_owner_destruction_approval",
+      "order": 397,
+      "sqlPresent": true,
+      "byteLength": 3044,
+      "checksumSha256": "e3ed0b11001d280390708119a44a4c9604f7a9e608b4a0a23f5e6aeb90bb7821",
+      "checksumSha256Raw": "e3ed0b11001d280390708119a44a4c9604f7a9e608b4a0a23f5e6aeb90bb7821",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "BACKFILL",
+      "sqlShapeEvidence": "mutates rows in pre-existing table(s): cascade",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [
+          "evidence_owner_destruction_approvals"
+        ],
+        "droppedTables": [],
+        "alteredTables": [
+          "evidence_owner_destruction_approvals"
+        ],
+        "addedColumns": [],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "evidence_owner_destruction_approvals_cycle_key",
+          "evidence_owner_destruction_approvals_owner_user_id_idx"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [
+          "evidence_owner_destruction_approvals_evidence_id_fkey",
+          "evidence_owner_destruction_approvals_owner_user_id_fkey"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [
+        "cascade"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "cascade"
+      ],
+      "dependencies": [
+        "20260131235343_init",
+        "20260204190000_add_auth_billing"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 1,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.evidence_owner_destruction_approvals') IS NOT NULL AND to_regclass('public.evidence_owner_destruction_approvals_cycle_key') IS NOT NULL;\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "MATRIX-M626 / owner decision I (closure, 2026-11-21). One new, empty table evidence_owner_destruction_approvals: a sealed team-less record's own owner approving its destruction, one row per trash cycle (unique evidence_id, evidence_deleted_at_utc), index on owner_user_id, foreign keys to evidence and users ON DELETE CASCADE. Written only by the owner's call for one record; never bulk-written, nothing backfilled. An older image never reads it (it keeps the old team-less exemption until the new image runs). Order: migration, then API and worker. Rollback: leave the table."
+    },
+    {
+      "name": "20281123060000_derived_asset_storage_intent",
+      "order": 398,
+      "sqlPresent": true,
+      "byteLength": 4623,
+      "checksumSha256": "56c7a7f4b346ac6d37db69f58dc798c5cd4ba0bca0e7eba7747834ca17f84d55",
+      "checksumSha256Raw": "56c7a7f4b346ac6d37db69f58dc798c5cd4ba0bca0e7eba7747834ca17f84d55",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:1 columns:1 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [
+          "derived_asset_storage_intents"
+        ],
+        "droppedTables": [],
+        "alteredTables": [
+          "evidence_part_derived_assets"
+        ],
+        "addedColumns": [
+          "storage_reservation_token"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "derived_asset_storage_intents_object_idx",
+          "derived_asset_storage_intents_state_stamp_idx",
+          "derived_asset_storage_intents_team_state_idx"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260620100000_phase24_31_consolidated_drift_patches"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.derived_asset_storage_intents') IS NOT NULL AND (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='evidence_part_derived_assets' AND column_name='storage_reservation_token') = 1;\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "FINAL-VERIFY-2 closure (M676 follow-up, 2026-11-21). One new, empty table derived_asset_storage_intents (the durable intent of one derived write that declared its target object; three CHECKs, three b-tree indexes) and one nullable UUID column evidence_part_derived_assets.storage_reservation_token (no default, no backfill). Both usage meters count OPEN intents whatever the reservation's age; an intent leaves OPEN only by proof. Order: migration, then worker, then API (the worker's schema head names this migration). Older images neither read nor write either object. Rollback: leave both."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 399,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

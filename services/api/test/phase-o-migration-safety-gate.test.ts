@@ -352,6 +352,12 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     // SOCIAL SIGN-IN NONCES (2026-11-04, PRO-034) - a brand new table with no
     // prior state to mask, the same shape as platform_backup_records.
     "20281114100000_social_sign_in_nonces": new Set(["CREATE_TABLE_IF_NOT_EXISTS"]),
+    // EVIDENCE OWNER DESTRUCTION APPROVAL (2026-11-21, MATRIX-M626) - a brand
+    // new table with no prior state to mask, the same shape as the two above.
+    // Committed on its branch before integration, and a committed migration is
+    // not edited. Only CREATE_TABLE_IF_NOT_EXISTS is approved: its indexes and
+    // foreign keys are guarded, and no other finding kind is admitted.
+    "20281123050000_evidence_owner_destruction_approval": new Set(["CREATE_TABLE_IF_NOT_EXISTS"]),
     // VERIFICATION PACKAGE PROFILE ROWS (2026-10-07) — ONE guarded DROP INDEX
     // retires the (evidence_id, version) unique key so a version can hold its
     // FULL_FORENSIC and EXTERNAL_DISCLOSURE rows. The two partial keys that

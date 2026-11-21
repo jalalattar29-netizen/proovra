@@ -233,6 +233,16 @@ describe("internal-grant rollout — migration state", () => {
       "20281121140000_ops_idempotency_reservation",
       // M676 (DEC-04): derived-artifact storage reservation. EXPAND.
       "20281122000000_derived_asset_storage_reservation",
+      // PRO-A2-02 (owner decision A): owner consent to a self-serve Organization IdP link. EXPAND.
+      "20281123010000_identity_link_consents",
+      // MATRIX-M054 (owner decision B): an explicitly selected step-up factor is pinned. EXPAND.
+      "20281123020000_step_up_challenge_factor_pinned",
+      // NEW-RG-26-4 (owner decision E): organization ownership moves by offer and acceptance. EXPAND.
+      "20281123030000_organization_ownership_offers",
+      // MATRIX-M626 (owner decision I): a team-less sealed record's owner destruction approval. EXPAND.
+      "20281123050000_evidence_owner_destruction_approval",
+      // FINAL-VERIFY-2: the durable intent of a derived write. EXPAND.
+      "20281123060000_derived_asset_storage_intent",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

@@ -273,8 +273,10 @@ function analyzeSql(rawSql) {
       // list (`BEFORE UPDATE ON "evidence"`, `INSERT OR UPDATE OF col`), which
       // names an event, not a relation called "on" or "of". DO keeps
       // `ON CONFLICT … DO UPDATE SET` out: the conflict action updates the
-      // INSERT target, not a relation called "set".
-      String.raw`(?:ALTER\s+TABLE(?:\s+ONLY)?(?:\s+IF\s+EXISTS)?|REFERENCES|(?<!(?:ON|BEFORE|AFTER|OR|DO)\s{1,8})UPDATE|INSERT\s+INTO|DELETE\s+FROM|JOIN|FROM)\s+(?:ONLY\s+)?(?:"?public"?\.)?${ident}`,
+      // INSERT target, not a relation called "set". DISTINCT keeps the
+      // comparison `a IS [NOT] DISTINCT FROM OLD."x"` out: its right-hand side
+      // is an expression (here a trigger's OLD record), not a relation.
+      String.raw`(?:ALTER\s+TABLE(?:\s+ONLY)?(?:\s+IF\s+EXISTS)?|REFERENCES|(?<!(?:ON|BEFORE|AFTER|OR|DO)\s{1,8})UPDATE|INSERT\s+INTO|DELETE\s+FROM|JOIN|(?<!DISTINCT\s{1,8})FROM)\s+(?:ONLY\s+)?(?:"?public"?\.)?${ident}`,
       "gi",
     ),
   )) {

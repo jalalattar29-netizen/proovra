@@ -16,7 +16,7 @@
  */
 
 /** The newest migration this worker build was written against. */
-export const EXPECTED_MIGRATION_HEAD = "20281122000000_derived_asset_storage_reservation";
+export const EXPECTED_MIGRATION_HEAD = "20281123060000_derived_asset_storage_intent";
 
 export type MigrationRow = {
   migration_name: string;

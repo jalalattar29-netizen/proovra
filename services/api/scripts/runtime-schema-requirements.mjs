@@ -823,6 +823,50 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
     "every self-serve Organization IdP link is honoured only on a live owner consent row here",
     "20281123010000_identity_link_consents",
   ),
+  // MATRIX-M054 (owner decision B) — every step-up challenge write records
+  // whether the caller pinned the factor, and the TOTP check reads it.
+  newColumn(
+    "step_up_challenges",
+    "factor_pinned",
+    "every workspace step-up challenge start writes it; an explicitly pinned TOTP challenge is answered by that factor only",
+    "20281123020000_step_up_challenge_factor_pinned",
+  ),
+  // NEW-RG-26-4 (owner decision E) — organization ownership moves only by an
+  // offer the recipient accepts; every offer/accept/decline/cancel reads it.
+  newTable(
+    "organization_ownership_offers",
+    "organization ownership transfer writes an offer here and moves nothing until the recipient accepts",
+    "20281123030000_organization_ownership_offers",
+  ),
+  // MATRIX-M626 (owner decision I) — the destruction approval resolver reads a
+  // sealed team-less record's owner approval; the owner's call writes it.
+  newTable(
+    "evidence_owner_destruction_approvals",
+    "every destruction of a sealed team-less record is approved only by its owner's row here",
+    "20281123050000_evidence_owner_destruction_approval",
+  ),
+  {
+    id: "evidence_owner_destruction_approvals_cycle_key",
+    kind: "index",
+    detail:
+      'UNIQUE index "evidence_owner_destruction_approvals_cycle_key" must exist on public."evidence_owner_destruction_approvals"',
+    requiredBy: "one owner approval per record per trash cycle; the approval call looks it up by this key",
+    suppliedBy: "20281123050000_evidence_owner_destruction_approval",
+  },
+  // FINAL-VERIFY-2 closure — the durable intent of a derived write. Both
+  // usage meters sum OPEN intents; the worker's reservation writes one and
+  // names it on the derived row.
+  newTable(
+    "derived_asset_storage_intents",
+    "both usage meters sum OPEN derived write intents; the worker's derived reservation writes one",
+    "20281123060000_derived_asset_storage_intent",
+  ),
+  newColumn(
+    "evidence_part_derived_assets",
+    "storage_reservation_token",
+    "a derived reservation names its durable intent; a reservation with a token is counted through the intent",
+    "20281123060000_derived_asset_storage_intent",
+  ),
 ]);
 
 /**
@@ -1368,6 +1412,10 @@ const PROBES = Object.freeze({
   operational_workflow_events_team_id_idempotency_token_key: uniqueIndexProbe(
     "operational_workflow_events",
     "operational_workflow_events_team_id_idempotency_token_key",
+  ),
+  evidence_owner_destruction_approvals_cycle_key: uniqueIndexProbe(
+    "evidence_owner_destruction_approvals",
+    "evidence_owner_destruction_approvals_cycle_key",
   ),
   bulk_operational_action_runs_team_id_idempotency_token_key: uniqueIndexProbe(
     "bulk_operational_action_runs",

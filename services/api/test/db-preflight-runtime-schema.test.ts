@@ -99,6 +99,21 @@ const DERIVED_STORAGE_RESERVATION_COLUMNS =
 const IDENTITY_LINK_CONSENTS_TABLE = /information_schema\.tables[\s\S]*table_name = 'identity_link_consents'/;
 
 /**
+ * 20281123020000..060000 — the other closure migrations, object by object:
+ * requirement id, supplying migration, probe SQL shape. Matched FIRST: the
+ * 20281028000000 matcher below claims every `step_up_challenges` column probe.
+ */
+const CLOSURE_OBJECTS: ReadonlyArray<readonly [string, string, RegExp]> = [
+  ["step_up_challenges.factor_pinned", "20281123020000_step_up_challenge_factor_pinned", /table_name = 'step_up_challenges'\s+AND column_name = 'factor_pinned'/],
+  ["organization_ownership_offers.table", "20281123030000_organization_ownership_offers", /information_schema\.tables[\s\S]*table_name = 'organization_ownership_offers'/],
+  ["evidence_owner_destruction_approvals.table", "20281123050000_evidence_owner_destruction_approval", /information_schema\.tables[\s\S]*table_name = 'evidence_owner_destruction_approvals'/],
+  ["evidence_owner_destruction_approvals_cycle_key", "20281123050000_evidence_owner_destruction_approval", /i\.indisunique[\s\S]*x\.relname = 'evidence_owner_destruction_approvals_cycle_key'|x\.relname = 'evidence_owner_destruction_approvals_cycle_key'[\s\S]*i\.indisunique/],
+  ["derived_asset_storage_intents.table", "20281123060000_derived_asset_storage_intent", /information_schema\.tables[\s\S]*table_name = 'derived_asset_storage_intents'/],
+  ["evidence_part_derived_assets.storage_reservation_token", "20281123060000_derived_asset_storage_intent", /table_name = 'evidence_part_derived_assets'\s+AND column_name = 'storage_reservation_token'/],
+];
+const CLOSURE_IDS = CLOSURE_OBJECTS.map(([id]) => id);
+
+/**
  * A database in a given state, expressed as the objects it HAS.
  *
  * Matching on the probe SQL rather than on a requirement id is deliberate: it
@@ -160,8 +175,12 @@ function databaseWith(present: {
   derivedStorageReservation?: boolean;
   // 20281123010000 — PRO-A2-02, the owner-consent table.
   identityLinkConsents?: boolean;
+  // 20281123020000..060000 — the ids (CLOSURE_OBJECTS) of the objects present.
+  closure?: ReadonlyArray<string>;
 }) {
   return async (sql: string): Promise<boolean> => {
+    const closure = CLOSURE_OBJECTS.find(([, , shape]) => shape.test(sql));
+    if (closure) return (present.closure ?? []).includes(closure[0]);
     const release = RELEASE_0376721_OBJECTS.find(([, shape]) => shape.test(sql));
     if (release) return (present.release0376721 ?? []).includes(release[0]);
     if (DERIVED_STORAGE_RESERVATION_COLUMNS.test(sql)) return present.derivedStorageReservation === true;
@@ -392,6 +411,7 @@ const FULLY_MIGRATED = {
   release0376721: RELEASE_0376721_IDS,
   derivedStorageReservation: true,
   identityLinkConsents: true,
+  closure: CLOSURE_IDS,
 };
 
 describe("runtime schema requirements", () => {
@@ -763,6 +783,32 @@ describe("runtime schema requirements — identity link consents (20281123010000
     expect(result.missing.map((m) => m.id)).toEqual(["identity_link_consents.table"]);
     expect(describeRuntimeSchemaFailure(result)).toContain("20281123010000_identity_link_consents");
   });
+});
+
+describe("runtime schema requirements — closure migrations 20281123020000..060000", () => {
+  it("a database without any of them is refused, naming every object and its migration", async () => {
+    const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } = await load();
+    const result = await checkRuntimeSchemaRequirements(databaseWith({ ...FULLY_MIGRATED, closure: [] }));
+    expect(result.ok).toBe(false);
+    expect(result.indeterminate).toEqual([]);
+    expect(result.missing.map((m) => m.id).sort()).toEqual([...CLOSURE_IDS].sort());
+    const reason = describeRuntimeSchemaFailure(result);
+    for (const [, migration] of CLOSURE_OBJECTS) expect(reason).toContain(migration);
+  });
+
+  it.each(CLOSURE_OBJECTS.map(([id, migration]) => [id, migration] as const))(
+    "a database missing only %s is refused, naming %s",
+    async (id, migration) => {
+      const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } = await load();
+      const result = await checkRuntimeSchemaRequirements(
+        databaseWith({ ...FULLY_MIGRATED, closure: CLOSURE_IDS.filter((x) => x !== id) }),
+      );
+      expect(result.ok).toBe(false);
+      expect(result.indeterminate).toEqual([]);
+      expect(result.missing.map((m) => m.id)).toEqual([id]);
+      expect(describeRuntimeSchemaFailure(result)).toContain(migration);
+    },
+  );
 });
 
 describe("runtime schema requirements — sealed OIDC client secret (20281106000000)", () => {
