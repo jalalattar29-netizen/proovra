@@ -76,6 +76,26 @@ describe("Annotations — the author edits their own annotation", () => {
     expect(theirsCard.querySelector("button")?.textContent).toBe("Delete");
   });
 
+  it("a row without the server's viewerCanEdit projection is not offered Edit (fail closed)", async () => {
+    const unprojected = { ...base, id: "a-old", body: "An unprojected annotation" };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(JSON.stringify({ canWrite: true, items: [unprojected] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+    render(<AnnotationPanel evidenceId="ev-1" />);
+    const details = screen.getByText("Annotations").closest("details") as HTMLDetailsElement;
+    details.open = true;
+    fireEvent(details, new Event("toggle"));
+    await waitFor(() => expect(screen.getByText("An unprojected annotation")).toBeTruthy());
+    expect(screen.getByRole("button", { name: "Delete" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+  });
+
   it("saves the edit through PATCH and shows the server's version", async () => {
     const calls = serve(
       (body) =>
