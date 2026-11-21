@@ -158,7 +158,7 @@ export function ReviewerCommentsPanel({ evidenceId }: { evidenceId: string }) {
                   {/* PRO-E2-09 — per item: the author or a manager (server-projected). */}
                   {canWrite && item.canManage !== false ? (
                     <div className="evidence-library-panel__actions evd-block--tight">
-                      {item.viewerCanEdit !== false ? (
+                      {item.viewerCanEdit === true ? (
                       <button type="button" className="app-secondary-action"
                         onClick={() => {
                           setEditingId(item.id);
