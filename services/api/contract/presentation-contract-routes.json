@@ -1,6 +1,6 @@
 {
   "contractVersion": 1,
-  "routeEpoch": 3,
+  "routeEpoch": 4,
   "routes": [
     "DELETE /v1/admin/identity/scim/groups/projections/:id",
     "DELETE /v1/auth/saml/:connectionId/certificate-next",
@@ -208,6 +208,7 @@
     "GET /v1/evidence/:id/legal-notes",
     "GET /v1/evidence/:id/operational-timeline",
     "GET /v1/evidence/:id/original",
+    "GET /v1/evidence/:id/owner-destruction-approval",
     "GET /v1/evidence/:id/parts",
     "GET /v1/evidence/:id/relationships",
     "GET /v1/evidence/:id/report/latest",
@@ -421,6 +422,7 @@
     "GET /v1/orgs/:id/operations/incidents",
     "GET /v1/orgs/:id/operations/rollup",
     "GET /v1/orgs/:id/ownership-offer",
+    "GET /v1/orgs/:id/payer",
     "GET /v1/orgs/:id/policies/retention",
     "GET /v1/orgs/:id/reports/audit.csv",
     "GET /v1/orgs/:id/reports/download-audit-summary.csv",

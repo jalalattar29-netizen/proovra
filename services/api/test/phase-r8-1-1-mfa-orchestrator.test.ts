@@ -461,7 +461,13 @@ describe("R8.1.1 Part 8 — step-up uses the same factor model", () => {
     // at the top of the band (61753); WS-AUTH's scoped-authority fixes and
     // another workstream's fix each stayed inside it alone, the merge did not.
     // No step-up authority was added (the invariant test above still holds).
-    const expected = 62092;
+    // Rebaselined 2026-11-21 (closure 2, review of trusted devices) to 67896:
+    // revoking ANOTHER person's trusted device now checks
+    // identity.access_review.action, the members rank rule and a step-up bound
+    // to that device (spent through step-up.service.ts, purpose
+    // MFA_TRUSTED_DEVICE_RESET); self-revoke stays plain. Enforcement, not a new
+    // authority: the invariant test above still holds.
+    const expected = 67896;
     const low = Math.floor(expected * 0.95);
     const high = Math.ceil(expected * 1.05);
     expect(st.size).toBeGreaterThanOrEqual(low);

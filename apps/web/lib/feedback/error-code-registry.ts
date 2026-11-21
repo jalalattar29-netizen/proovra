@@ -194,6 +194,10 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
       "would confirm the review exists. It must read as an ordinary 404.",
   },
   MFA_ENROLLMENT_REQUIRED: { disposition: "customer", where: "apps/web/app/login/page.tsx" },
+  // Closure 2 (sem item 2) — a member who still pays is asked to acknowledge
+  // that leaving moves no billing; the organization page shows the payer
+  // confirm step for exactly this code.
+  PAYER_OBLIGATION_ACKNOWLEDGEMENT_REQUIRED: { disposition: "customer", where: "apps/web/app/(app)/organizations/[id]/page.tsx" },
   METRICS_SCRAPE_TOKEN_NOT_CONFIGURED: {
     disposition: "internal",
     why: "Answers the metrics scraper on an operator endpoint; no product surface calls it.",
