@@ -169,6 +169,23 @@ const ENTRYPOINTS = Object.freeze({
     // labelled synthetic alert and recovery through the watchdog's own webhook
     // transport, read back from Discord (node dist/scripts/ops-alert-delivery-test.js).
     "services/api/src/scripts/ops-alert-delivery-test.ts",
+    // PRO-G2-01 (2026-11-21, closure2/hist) — the RESTRICTED holder / source /
+    // access inventory over the same replay (read-only, no write mode) and the
+    // ground-truth sample inspection of stored package manifests (range reads,
+    // saves nothing): ops:trust-exposure-holder-inventory,
+    // ops:trust-manifest-sample-inspection.
+    "services/api/src/scripts/trust-exposure-holder-inventory.ts",
+    "services/api/src/scripts/trust-manifest-sample-inspection.ts",
+    // PRO-N1-06 / PRO-I1Z-01 (2026-11-21, closure2/hist) — the one-off redaction
+    // of intake bearer links stored in communication_messages.body_preview.
+    // Dry run by default; apply needs the owner-approval variable, a backup id
+    // and the validated set hash (ops:redact-stored-bearer-previews).
+    "services/api/src/scripts/redact-stored-bearer-previews.ts",
+    // FINAL-VERIFY-7 (2026-11-21, closure2/hist) — READ-ONLY inventory of rows
+    // pointing at the legacy R2 bucket and the read-only R2 object locator
+    // (HEAD/GET only): ops:legacy-bucket-inventory, ops:legacy-bucket-object-locator.
+    "services/api/src/scripts/legacy-bucket-inventory.ts",
+    "services/api/src/scripts/legacy-bucket-object-locator.ts",
     "services/api/src/seed-signing-key.ts",
     "services/api/prisma/scripts/org-security-policy-readiness.ts",
     // OTS INTEGRITY DECOUPLING (2026-09-09) — the bounded reconciliation for
