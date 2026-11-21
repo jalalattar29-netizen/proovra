@@ -192,7 +192,8 @@ export async function isSelfServeAccountForOrganization(
 }
 
 // -----------------------------------------------------------------------------
-// PRO-A2-02 (WS-ORG RG-06) — A STORED LINK IS RE-CHECKED WHERE IT IS USED.
+// PRO-A2-02 (WS-ORG RG-06; owner decision A, 2026-11-21) — A STORED LINK IS
+// RE-CHECKED WHERE IT IS USED.
 //
 // An Organization identity link (ExternalIdentityMapping) lets the
 // Organization's IdP sign in AS the linked account, approve that account's IdP
@@ -200,47 +201,63 @@ export async function isSelfServeAccountForOrganization(
 // Organization's own directory or IdP created that is the point of the link.
 // For a PRE-EXISTING SELF-SERVE account only the owner's own signed-in consent
 // (organization-link-consent.service.ts) may establish it: an administrator's
-// manual link is not consent. Every reader of a mapping asks this ONE
-// predicate before trusting it.
+// manual link is not consent. Every reader of a mapping (OIDC and SAML sign-in,
+// IdP step-up, the directory's reach) asks this ONE predicate before trusting
+// it.
 //
-//   - Organization-originated account                 → honoured
-//   - self-serve account, linkSource OWNER_CONSENT    → honoured WHILE the
-//     person holds an active membership in the Organization. The row is keyed
-//     by (Organization, provider, subject) and nothing rewrites those, so the
-//     recorded source is the owner's consent to THIS subject.
-//   - self-serve account, linkSource NULL (written before the column):
-//     honoured only with consent evidence bound to THIS link's provider AND
-//     subject (a live membership grant whose externalRef is
-//     `org-link:<provider>:<connection>:sub-<digest of the subject>`), and
-//     only while the person is an active member. The grants written before
-//     this rule (`org-link:<provider>:<connection>`) name no subject: they
-//     cannot tell the subject the owner approved from one an administrator
-//     linked later, so they prove nothing here. Such a link is not honoured;
-//     the sign-in answers the owner-consent path and the owner can approve it
-//     again.
-//   - anything else (ADMIN_MANUAL, SCIM/JIT on a self-serve account) → refused
+//   - Organization-originated account → honoured (directory / managed
+//     identities are the Organization's own; no consent is involved)
+//   - self-serve account → honoured only when ALL hold:
+//       * the link carries linkSource OWNER_CONSENT (an administrator-made,
+//         JIT/SCIM-made or pre-column link never does);
+//       * the person is an ACTIVE member of the Organization now (no
+//         suspended, removed, left or expired membership);
+//       * a LIVE consent row (identity_link_consents) exists for exactly this
+//         Organization, provider and subject (and connection, when the reader
+//         knows it), approved after every membership deadline that has passed.
 //
-// CONSENT LIFETIME. The owner consented to the Organization's IdP signing them
-// in as a member of that Organization. When the person leaves or is removed,
-// the link is not destroyed (nothing is unlinked, no session is ended); it is
-// simply not honoured at use time until the person is an active member again.
+// CONSENT LIFETIME. Consent is ended — never deleted, never revived — when the
+// owner withdraws it, when any of the person's memberships in the Organization
+// is suspended, revoked (left / removed), deleted, or has a lapsed access window
+// reopened (database triggers, migration 20281123010000), and it is read as
+// ended once a membership deadline passed after the approval. A reactivation or
+// a rejoin therefore needs a fresh owner approval. Consent rows are written by
+// the owner-approval flow only: grants and link sources written before this
+// rule prove nothing (the owner approves once more). Nothing is unlinked and no
+// session is ended by a refusal (DEC-08: refusal at use time only).
 //
 // Fails closed: unreadable provenance is a refusal.
 // -----------------------------------------------------------------------------
+// (The OWNER sees and withdraws their consents on the stepped-up account
+// routes GET/POST /v1/identity/links/organization-consents[/:id/withdraw].)
 
 export const OWNER_CONSENT_LINK_SOURCE = "OWNER_CONSENT";
 export const ADMIN_MANUAL_LINK_SOURCE = "ADMIN_MANUAL";
 export const ORGANIZATION_LINK_GRANT_PREFIX = "org-link:";
 const ORGANIZATION_LINK_SUBJECT_MARK = ":sub-";
 
+export type IdentityLinkConsentEndReason =
+  | "WITHDRAWN"
+  | "SUPERSEDED"
+  | "MEMBERSHIP_SUSPENDED"
+  | "MEMBERSHIP_ENDED"
+  | "MEMBERSHIP_EXPIRED";
+
 /** The subject tag a consent grant carries (a digest: a subject can be an address). */
 export function organizationLinkSubjectTag(externalSubjectId: string): string {
   return createHash("sha256").update(externalSubjectId, "utf8").digest("hex").slice(0, 32);
 }
 
+/** The full subject digest a consent row is bound to. */
+export function organizationLinkSubjectDigest(externalSubjectId: string): string {
+  return createHash("sha256").update(externalSubjectId, "utf8").digest("hex");
+}
+
 /**
  * The membership-grant reference the owner-consent flow writes: bound to the
- * provider, the connection AND the subject the owner approved.
+ * provider, the connection AND the subject the owner approved. Provenance on
+ * the membership only; since decision A it is NOT consent evidence (the
+ * consent row is).
  */
 export function organizationLinkConsentRef(input: {
   provider: string;
@@ -251,10 +268,9 @@ export function organizationLinkConsentRef(input: {
 }
 
 /**
- * Does the person hold consent evidence for THIS provider and THIS subject in
- * the Organization? `bound` is the only answer that proves anything; `unbound`
- * (a pre-rule grant naming the provider only) is reported so an operator can
- * see who has to approve again, and is never treated as consent.
+ * REPORTING ONLY (the legacy-link remediation command). Does the person hold a
+ * pre-decision consent GRANT for this provider and subject? Neither answer is
+ * consent: since decision A only a live identity_link_consents row is.
  */
 export async function findOwnerConsentEvidence(
   input: { userId: string; organizationId: string; provider: string; externalSubjectId: string },
@@ -288,7 +304,8 @@ export async function findOwnerConsentEvidence(
  * Is the person an ACTIVE member of the Organization right now? The governance
  * membership decides when one exists (a suspended, removed or expired one is
  * not active whatever a workspace row still says); a person the consent flow
- * joined to a workspace only is active while a workspace membership is.
+ * joined to a workspace only is active while a live, unexpired workspace
+ * membership is.
  */
 export async function holdsActiveOrganizationMembership(
   input: { userId: string; organizationId: string },
@@ -307,6 +324,7 @@ export async function holdsActiveOrganizationMembership(
       userId: input.userId,
       status: "ACTIVE",
       team: { organizationId: input.organizationId, closedAtUtc: null },
+      OR: [{ accessExpiresAtUtc: null }, { accessExpiresAtUtc: { gt: new Date() } }],
     },
     select: { id: true },
   });
@@ -315,10 +333,67 @@ export async function holdsActiveOrganizationMembership(
   return governance !== null;
 }
 
+/**
+ * The owner's CURRENT consent for exactly this link, or null. Live (never
+ * ended), bound to the Organization, provider and subject (and the connection
+ * when the reader names it), and approved after every membership deadline that
+ * has since passed: a window that lapsed after the approval ended the consent
+ * even if nobody wrote anything when it lapsed.
+ */
+export async function findCurrentOwnerConsent(
+  input: {
+    userId: string;
+    organizationId: string;
+    provider: string;
+    externalSubjectId: string;
+    connectionId?: string | null;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<{ id: string; approvedAtUtc: Date; connectionId: string } | null> {
+  const consent = await client.identityLinkConsent.findFirst({
+    where: {
+      organizationId: input.organizationId,
+      userId: input.userId,
+      provider: input.provider,
+      subjectDigest: organizationLinkSubjectDigest(input.externalSubjectId),
+      endedAtUtc: null,
+      ...(input.connectionId ? { connectionId: input.connectionId } : {}),
+    },
+    orderBy: { approvedAtUtc: "desc" },
+    select: { id: true, approvedAtUtc: true, connectionId: true },
+  });
+  if (!consent) return null;
+  const lapsedWindow = { gt: consent.approvedAtUtc, lte: new Date() };
+  const [lapsedGovernance, lapsedWorkspace] = await Promise.all([
+    client.organizationMembership.findFirst({
+      where: { organizationId: input.organizationId, userId: input.userId, validUntilUtc: lapsedWindow },
+      select: { id: true },
+    }),
+    client.teamMember.findFirst({
+      where: {
+        userId: input.userId,
+        team: { organizationId: input.organizationId },
+        accessExpiresAtUtc: lapsedWindow,
+      },
+      select: { id: true },
+    }),
+  ]);
+  if (lapsedGovernance || lapsedWorkspace) return null;
+  return consent;
+}
+
 export type ExternalLinkAuthority =
-  | { honoured: true; basis: "ORGANIZATION_ORIGINATED" | "OWNER_CONSENT" | "LEGACY_OWNER_CONSENT_EVIDENCE" }
+  | { honoured: true; basis: "ORGANIZATION_ORIGINATED" | "OWNER_CONSENT" }
   | {
       honoured: false;
+      /**
+       * self_serve_link_without_owner_consent — no current owner consent
+       *   (never given, legacy, withdrawn, or ended by a suspension, departure
+       *   or lapse the person has since returned from): the owner may approve
+       *   afresh.
+       * owner_consent_membership_ended — the person is not an active member:
+       *   approving again cannot help until they are a member again.
+       */
       reason: "self_serve_link_without_owner_consent" | "owner_consent_membership_ended";
     };
 
@@ -327,27 +402,27 @@ export async function evaluateExternalLinkAuthority(
     userId: string;
     organizationId: string;
     provider: string;
-    /** The link's own subject: consent evidence must name it. */
+    /** The link's own subject: the consent must name it. */
     externalSubjectId: string;
     linkSource: string | null | undefined;
+    /** The connection the IdP answered through, when the reader knows it. */
+    connectionId?: string | null;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<ExternalLinkAuthority> {
   if (!(await isSelfServeAccountForOrganization(input, client))) {
     return { honoured: true, basis: "ORGANIZATION_ORIGINATED" };
   }
-  let basis: "OWNER_CONSENT" | "LEGACY_OWNER_CONSENT_EVIDENCE" | null = null;
-  if (input.linkSource === OWNER_CONSENT_LINK_SOURCE) {
-    basis = "OWNER_CONSENT";
-  } else if (input.linkSource === null || input.linkSource === undefined) {
-    const evidence = await findOwnerConsentEvidence(input, client);
-    if (evidence.bound) basis = "LEGACY_OWNER_CONSENT_EVIDENCE";
+  if (input.linkSource !== OWNER_CONSENT_LINK_SOURCE) {
+    return { honoured: false, reason: "self_serve_link_without_owner_consent" };
   }
-  if (!basis) return { honoured: false, reason: "self_serve_link_without_owner_consent" };
   if (!(await holdsActiveOrganizationMembership(input, client))) {
     return { honoured: false, reason: "owner_consent_membership_ended" };
   }
-  return { honoured: true, basis };
+  if (!(await findCurrentOwnerConsent(input, client))) {
+    return { honoured: false, reason: "self_serve_link_without_owner_consent" };
+  }
+  return { honoured: true, basis: "OWNER_CONSENT" };
 }
 
 /**
@@ -359,7 +434,7 @@ export async function evaluateExternalLinkAuthority(
  *     in the Organization (`includeEnded`: a link the directory already ended
  *     still counts, so a repeated deactivation or a reactivation works);
  *   - a self-serve account with at least one LIVE link the canonical predicate
- *     above honours (the owner's subject-bound consent, active member).
+ *     above honours (the owner's current, subject-bound consent; active member).
  *
  * Anyone else — a pre-column or administrator-made link on a self-serve
  * account included — is outside the directory's reach.

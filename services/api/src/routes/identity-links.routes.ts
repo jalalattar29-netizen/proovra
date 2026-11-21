@@ -13,6 +13,13 @@
  *   POST   /v1/identity/links/organization  — B5B-F-302: the owner approves
  *                                             it (step-up; membership + link,
  *                                             never a managed conversion)
+ *   GET    /v1/identity/links/organization-consents
+ *                                           — PRO-A2-02: the owner's own
+ *                                             Organization IdP-link consents
+ *   POST   /v1/identity/links/organization-consents/:organizationId/withdraw
+ *                                           — PRO-A2-02: the owner withdraws
+ *                                             that Organization's consent
+ *                                             (step-up; history kept)
  *   POST   /v1/auth/oauth/nonce             — PRO-034: the nonce a Google or
  *                                             Apple ceremony signs into its
  *                                             id_token, for ONE sign-in or link
@@ -84,7 +91,9 @@ import { cancelOutstandingStepUpChallenges } from "../services/identity-security
 import {
   approveOrganizationLink,
   clearOrganizationLinkCookie,
+  listOrganizationLinkConsents,
   readOrganizationLinkCookie,
+  withdrawOrganizationLinkConsent,
 } from "../services/identity/organization-link-consent.service.js";
 
 const LinkBody = z.object({
@@ -112,7 +121,7 @@ async function requireStepUp(
   req: FastifyRequest,
   reply: FastifyReply,
   userId: string,
-  action: "login_method_link" | "login_method_unlink" | "password_add",
+  action: "login_method_link" | "login_method_unlink" | "organization_link_withdraw" | "password_add",
   proof: AccountStepUpProof | undefined,
 ): Promise<boolean> {
   const verdict = await verifyAccountStepUp({
@@ -484,7 +493,9 @@ export async function identityLinksRoutes(app: FastifyInstance) {
       const outcome = await approveOrganizationLink({ userId, pending });
       if (outcome.kind !== "ok") {
         const status =
-          outcome.kind === "identity_linked_elsewhere" || outcome.kind === "seat_limit_reached"
+          outcome.kind === "identity_linked_elsewhere" ||
+          outcome.kind === "seat_limit_reached" ||
+          outcome.kind === "membership_inactive"
             ? 409
             : outcome.kind === "seat_contention"
               ? 503
@@ -507,6 +518,58 @@ export async function identityLinksRoutes(app: FastifyInstance) {
         workspaceId: outcome.teamId,
         managedIdentity: false,
       });
+    },
+  );
+
+  // ---------------------------------------------------------------------
+  // PRO-A2-02 (owner decision A) — the self-serve owner's consents.
+  //
+  // Bound to the signed-in caller only: no parameter names another person, so
+  // an Organization administrator can neither list nor withdraw a member's
+  // consent here (they are refused with 404 — they hold no consent of their
+  // own to that Organization). Withdrawal requires the canonical account
+  // step-up, ends the live consent rows (history kept), and from then on the
+  // Organization's IdP cannot sign in as, step up for, or reach this account
+  // through that link until the owner approves again. Nothing is unlinked,
+  // the membership is untouched and no session is ended (DEC-08).
+  // ---------------------------------------------------------------------
+  app.get(
+    "/v1/identity/links/organization-consents",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const userId = getAuthUserId(req);
+      if (!userId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
+      return reply.code(200).send({ consents: await listOrganizationLinkConsents(userId) });
+    },
+  );
+
+  app.post(
+    "/v1/identity/links/organization-consents/:organizationId/withdraw",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const userId = getAuthUserId(req);
+      if (!userId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
+      const { organizationId } = z
+        .object({ organizationId: z.string().uuid() })
+        .parse(req.params ?? {});
+      const body = z.object({ stepUp: LinkBody.shape.stepUp }).parse(req.body ?? {});
+      if (!(await requireStepUp(req, reply, userId, "organization_link_withdraw", body.stepUp))) {
+        return reply;
+      }
+      const { withdrawn } = await withdrawOrganizationLinkConsent({ userId, organizationId });
+      if (withdrawn === 0) {
+        return reply.code(404).send({
+          error: {
+            code: "organization_link_consent_not_found",
+            message: "You have no active organization sign-in link to withdraw for this organization.",
+          },
+        });
+      }
+      auditIdentityEvent(req, userId, "identity.organization_link_consent_withdrawn", {
+        organizationId,
+        withdrawn,
+      });
+      return reply.code(200).send({ withdrawn: true, organizationId, count: withdrawn });
     },
   );
 

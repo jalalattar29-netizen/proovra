@@ -48,7 +48,7 @@ export function presentationContractSkew(
  * Both headers are ADDITIVE: an older client ignores them, and a newer client
  * reading an older API (which sends neither) gets UNKNOWN and changes nothing.
  */
-export const PRESENTATION_CONTRACT_ROUTE_EPOCH = 2;
+export const PRESENTATION_CONTRACT_ROUTE_EPOCH = 3;
 export const PRESENTATION_CONTRACT_ROUTE_EPOCH_HEADER = "x-proovra-route-epoch";
 export const PRESENTATION_CONTRACT_MIN_CLIENT = 1;
 export const PRESENTATION_CONTRACT_MIN_CLIENT_HEADER = "x-proovra-min-client-contract";

@@ -95,6 +95,9 @@ const RELEASE_0376721_IDS = RELEASE_0376721_OBJECTS.map(([id]) => id);
 const DERIVED_STORAGE_RESERVATION_COLUMNS =
   /table_name = 'evidence_part_derived_assets'\s+AND column_name = 'storage_reserved_(bytes|at_utc)'/;
 
+/** 20281123010000 (PRO-A2-02, owner decision A) — the owner-consent table. */
+const IDENTITY_LINK_CONSENTS_TABLE = /information_schema\.tables[\s\S]*table_name = 'identity_link_consents'/;
+
 /**
  * A database in a given state, expressed as the objects it HAS.
  *
@@ -155,11 +158,14 @@ function databaseWith(present: {
   release0376721?: ReadonlyArray<string>;
   // 20281122000000 — M676, the derived-asset storage reservation columns.
   derivedStorageReservation?: boolean;
+  // 20281123010000 — PRO-A2-02, the owner-consent table.
+  identityLinkConsents?: boolean;
 }) {
   return async (sql: string): Promise<boolean> => {
     const release = RELEASE_0376721_OBJECTS.find(([, shape]) => shape.test(sql));
     if (release) return (present.release0376721 ?? []).includes(release[0]);
     if (DERIVED_STORAGE_RESERVATION_COLUMNS.test(sql)) return present.derivedStorageReservation === true;
+    if (IDENTITY_LINK_CONSENTS_TABLE.test(sql)) return present.identityLinkConsents === true;
     if (/'client_secret_sealed'/.test(sql)) return present.sealedClientSecret === true;
     if (COMMERCIAL_REMEDIATION_COLUMNS.test(sql)) {
       return present.commercialRemediation === true;
@@ -385,6 +391,7 @@ const FULLY_MIGRATED = {
   combinedRecording: { runKind: true, assetKind: true, sizeCeiling: true },
   release0376721: RELEASE_0376721_IDS,
   derivedStorageReservation: true,
+  identityLinkConsents: true,
 };
 
 describe("runtime schema requirements", () => {
@@ -742,6 +749,19 @@ describe("runtime schema requirements — derived-asset storage reservation (202
       "evidence_part_derived_assets.storage_reserved_bytes",
     ]);
     expect(describeRuntimeSchemaFailure(result)).toContain("20281122000000_derived_asset_storage_reservation");
+  });
+});
+
+describe("runtime schema requirements — identity link consents (20281123010000, PRO-A2-02)", () => {
+  it("an image that reads owner consent is refused on a database without the table", async () => {
+    const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } = await load();
+    const result = await checkRuntimeSchemaRequirements(
+      databaseWith({ ...FULLY_MIGRATED, identityLinkConsents: false }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.indeterminate).toEqual([]);
+    expect(result.missing.map((m) => m.id)).toEqual(["identity_link_consents.table"]);
+    expect(describeRuntimeSchemaFailure(result)).toContain("20281123010000_identity_link_consents");
   });
 });
 

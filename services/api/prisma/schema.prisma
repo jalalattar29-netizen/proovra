@@ -6954,6 +6954,34 @@ model ExternalIdentityMapping {
   @@map("external_identity_mappings")
 }
 
+/// PRO-A2-02 (owner decision A, 2026-11-21) — the owner's consent to an
+/// Organization IdP link on a SELF-SERVE account, bound to the exact
+/// Organization, connection, provider and subject (SHA-256 digest). Written
+/// only by the owner-approval flow; ended (never deleted) on withdrawal, on a
+/// re-approval, and by database triggers when any of the person's memberships
+/// in the Organization is suspended, ends or has a lapsed window reopened
+/// (migration 20281123010000_identity_link_consents). Append-only history.
+model IdentityLinkConsent {
+  id                        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId            String    @map("organization_id") @db.Uuid
+  userId                    String    @map("user_id") @db.Uuid
+  provider                  String    @db.VarChar(32)
+  subjectDigest             String    @map("subject_digest") @db.VarChar(64)
+  connectionId              String    @map("connection_id") @db.Uuid
+  externalIdentityMappingId String?   @map("external_identity_mapping_id") @db.Uuid
+  /// The Organization's name when the owner approved (shown on the owner's list).
+  organizationName          String?   @map("organization_name") @db.VarChar(200)
+  approvedAtUtc             DateTime  @default(now()) @map("approved_at_utc") @db.Timestamptz(6)
+  endedAtUtc                DateTime? @map("ended_at_utc") @db.Timestamptz(6)
+  /// WITHDRAWN | SUPERSEDED | MEMBERSHIP_SUSPENDED | MEMBERSHIP_ENDED | MEMBERSHIP_EXPIRED
+  endReason                 String?   @map("end_reason") @db.VarChar(32)
+  endedByUserId             String?   @map("ended_by_user_id") @db.Uuid
+
+  @@index([organizationId, userId, endedAtUtc], map: "identity_link_consents_org_user_idx")
+  @@index([userId, endedAtUtc], map: "identity_link_consents_user_idx")
+  @@map("identity_link_consents")
+}
+
 // =============================================================================
 // Phase 18 — Enterprise Communications & External Outreach Platform
 //

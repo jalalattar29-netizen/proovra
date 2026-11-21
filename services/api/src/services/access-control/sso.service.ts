@@ -1299,6 +1299,8 @@ export async function handleOidcCallback(
         provider: String(conn.provider),
         externalSubjectId: externalMapping.externalSubjectId,
         linkSource: (externalMapping as { linkSource?: string | null }).linkSource,
+        // Owner consent is bound to the connection the owner approved.
+        connectionId: conn.id,
       },
       client,
     );
