@@ -310,6 +310,10 @@ describe("billing remediation convergence (live PostgreSQL, real HTTP)", () => {
     await syncPlanForSubscription({ userId, plan: (await subRow(loser)).plan, provider: "STRIPE", providerSubId: loser, status: "ACTIVE", cancelSupersededAtProvider: failing });
     expect(await entitlementPlan(userId)).toBe(winnerPlan);
 
+    // NEW-RG-02-1 — the retry first reads both subscriptions at the provider
+    // (the retained one must be ACTIVE there); Stripe is this file's fake.
+    S.subscriptions.set(winner, stripeSub({ id: winner, userId, status: "active", plan: winnerPlan }));
+    S.subscriptions.set(loser, stripeSub({ id: loser, userId, status: "active", plan: (await subRow(loser)).plan }));
     const retried = await retrySupersededCancellations({
       now: new Date(Date.now() + 60 * 60 * 1000),
       cancel: async () => ({ canceled: true, observedAtUtc: new Date() }),

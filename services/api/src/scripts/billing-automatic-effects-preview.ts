@@ -354,6 +354,37 @@ async function main(): Promise<number> {
     });
   }
 
+  // ---- 4d. Superseded duplicate base subscriptions (NEW-RG-02-1) -----------
+  // The sweep step's own enumeration (`retrySupersededCancellations` acts on
+  // exactly these rows). The documented duplicate-charge prevention exception:
+  // not held by either switch, but a provider cancel only for a conclusive
+  // duplicate whose retained subscription the provider confirms ACTIVE; every
+  // other row is a review item with no provider call. Without
+  // --with-provider-reads only the local half is decided.
+  const { supersededDuplicateCandidates } = await import("../services/billing/subscription-lifecycle.handlers.js");
+  const { defaultSupersessionProviderReader } = await import("../services/billing/superseded-duplicate.service.js");
+  for (const c of await supersededDuplicateCandidates(
+    now,
+    withProviderReads ? defaultSupersessionProviderReader() : undefined,
+  )) {
+    emit({
+      action: "RETRY_SUPERSEDED_DUPLICATE_CANCEL",
+      provider: c.provider,
+      effectiveMonth: month(now),
+      subscriptionId: c.subscriptionId,
+      retainedSubscriptionId: c.retainedSubscriptionId,
+      state: c.state,
+      attempts: c.attempts,
+      outcome: c.outcome,
+      reviewReason: c.reviewReason,
+      providerConfirmationRequired: c.outcome === "CANCEL_AT_PROVIDER" && !c.providerConfirmed,
+      exception: "DUPLICATE_CHARGE_PREVENTION",
+      entitlementLowered: false,
+      refunded: false,
+      held: false,
+    });
+  }
+
   // ---- 5. Lowerings the sweep held earlier (PRO-W2C-01) --------------------
   // Their subscription is already CANCELED, so section 4 never reaches them;
   // these are the accounts `applyHeldPlanLowerings` lowers once the switch is on.

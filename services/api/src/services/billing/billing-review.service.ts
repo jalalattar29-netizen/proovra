@@ -25,6 +25,12 @@ import { prisma } from "../../db.js";
 export type BillingReviewReason =
   /** A base subscription became ACTIVE while another base subscription was live. */
   | "DUPLICATE_BASE_SUBSCRIPTION"
+  /**
+   * NEW-RG-02-1 — a superseded duplicate the sweep could NOT conclusively
+   * classify (ambiguous owner, no valid retained subscription, missing provider
+   * facts): nothing was asked of the provider; an operator decides.
+   */
+  | "DUPLICATE_BASE_SUBSCRIPTION_UNCONFIRMED"
   /** A stored provider reference the provider keeps answering 404 for. */
   | "PROVIDER_REFERENCE_UNRESOLVED"
   /** The provider activated a storage subscription that cannot be granted. */

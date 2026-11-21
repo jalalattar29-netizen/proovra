@@ -52,6 +52,11 @@ import { resolveShareWorkspaceId } from "../services/governance/verification-sha
 import { sendDisclosureRefusal } from "./verification-share.routes.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import {
+  approveOwnRecordDestruction,
+  withdrawOwnRecordDestructionApproval,
+  type OwnerDestructionApprovalRefusal,
+} from "../services/evidence/owner-destruction-approval.service.js";
+import {
   DisclosurePolicyInvalid,
   changeVerificationDisclosure,
   disclosureWidens,
@@ -76,6 +81,33 @@ const ArchiveListQuery = z.object({
 });
 
 const NOT_FOUND = { message: "Evidence not found" } as const;
+
+/** MATRIX-M626 — the owner states the irreversible intent explicitly. */
+const OwnerDestructionApprovalBody = z.object({ confirm: z.literal(true) });
+
+function sendOwnerApprovalRefusal(reply: FastifyReply, refusal: OwnerDestructionApprovalRefusal) {
+  switch (refusal) {
+    case "NOT_FOUND":
+      return reply.code(404).send(NOT_FOUND);
+    case "WORKSPACE_RECORD_USES_REVIEW":
+      return reply.code(409).send({
+        code: "DESTRUCTION_REVIEW_REQUIRED",
+        message: "This record belongs to a workspace; its permanent deletion is decided through the workspace's destruction review.",
+      });
+    case "UNSEALED_RECORD":
+      return reply.code(409).send({
+        code: "EVIDENCE_NOT_SEALED",
+        message: "This upload was never completed. It is removed on its own schedule and needs no approval.",
+      });
+    case "NOT_IN_TRASH":
+      return reply.code(409).send({
+        code: "EVIDENCE_NOT_IN_TRASH",
+        message: "Move this record to the trash first. Permanent deletion can only be approved for a record in the trash.",
+      });
+    case "ALREADY_DESTROYED":
+      return reply.code(409).send({ code: "EVIDENCE_ALREADY_DESTROYED", message: "This record has already been permanently deleted." });
+  }
+}
 
 function audit(
   req: FastifyRequest,
@@ -284,6 +316,63 @@ export async function evidenceRetentionVerificationRoutes(app: FastifyInstance) 
       request: { id: outcome.request.id, status: outcome.request.status },
       deduplicated: outcome.kind === "EXISTING",
     });
+  });
+
+  // -------------------------------------------------------------------------
+  // MATRIX-M626 — the owner's destruction approval of a legacy team-less record
+  // -------------------------------------------------------------------------
+  // One record, by its owner, for its current trash cycle. A workspace record
+  // is refused here (its workspace's destruction review decides). Approval is
+  // not destruction: grace, retention, Object Lock, legal hold and the
+  // destruction switches still decide in the executor.
+  app.post("/v1/evidence/:id/owner-destruction-approval", { preHandler: requireAuth }, async (req, reply) => {
+    const { id } = ParamsId.parse(req.params);
+    OwnerDestructionApprovalBody.parse(req.body ?? {});
+    const actorUserId = getAuthUserId(req);
+    const row = await prisma.evidence.findUnique({ where: { id }, select: { teamId: true, ownerUserId: true } });
+    if (!row || row.ownerUserId !== actorUserId) return reply.code(404).send(NOT_FOUND);
+    if (row.teamId) return sendOwnerApprovalRefusal(reply, "WORKSPACE_RECORD_USES_REVIEW");
+    // The same rule the reviewer-share route uses for a NULL-team record: the
+    // step-up is answered in the owner's personal workspace when one exists.
+    const challengeWorkspaceId = await resolveShareWorkspaceId(row);
+    if (challengeWorkspaceId) {
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: challengeWorkspaceId,
+        userId: actorUserId,
+        purpose: "EVIDENCE_DESTRUCTION_APPROVE",
+        resourceKind: "evidence",
+        resourceId: id,
+      });
+      if (gate.sent) return reply;
+    }
+    const result = await approveOwnRecordDestruction({ evidenceId: id, actorUserId, requestId: req.id ?? null });
+    if (!result.ok) return sendOwnerApprovalRefusal(reply, result.refusal);
+    if (result.changed) {
+      audit(req, {
+        actorUserId,
+        teamId: null,
+        evidenceId: id,
+        action: "evidence.owner_destruction_approved",
+        metadata: { approvalId: result.approvalId, trashedAtUtc: result.evidenceDeletedAtUtc.toISOString() },
+      });
+    }
+    return reply.code(result.changed ? 201 : 200).send({
+      approval: { id: result.approvalId, trashedAtUtc: result.evidenceDeletedAtUtc.toISOString() },
+      deduplicated: !result.changed,
+    });
+  });
+
+  app.delete("/v1/evidence/:id/owner-destruction-approval", { preHandler: requireAuth }, async (req, reply) => {
+    const { id } = ParamsId.parse(req.params);
+    const actorUserId = getAuthUserId(req);
+    const result = await withdrawOwnRecordDestructionApproval({ evidenceId: id, actorUserId });
+    if (!result.ok) return sendOwnerApprovalRefusal(reply, result.refusal);
+    if (result.withdrawn > 0) {
+      audit(req, { actorUserId, teamId: null, evidenceId: id, action: "evidence.owner_destruction_approval_withdrawn" });
+    }
+    return reply.code(200).send({ withdrawn: result.withdrawn > 0 });
   });
 
   app.get("/v1/evidence/:id/archive-restore", { preHandler: requireAuth }, async (req, reply) => {

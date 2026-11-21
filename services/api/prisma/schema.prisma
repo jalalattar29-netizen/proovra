@@ -460,6 +460,8 @@ model Evidence {
 
   // Phase 27 — Enterprise lifecycle back-relations.
   destructionReviews DestructionReview[]      @relation("DestructionReviewEvidence")
+  /// MATRIX-M626 — a legacy team-less record's own owner approving its destruction.
+  ownerDestructionApprovals EvidenceOwnerDestructionApproval[] @relation("EvidenceOwnerDestructionApprovals")
   lifecycleEvents    EvidenceLifecycleEvent[] @relation("EvidenceLifecycleEvents")
 
   // Phase 27.5 — Governance operationalization back-relations.
@@ -1385,6 +1387,7 @@ model User {
   authoredRetentionPolicyVersions  EvidenceRetentionPolicyVersion[] @relation("EvidenceRetentionPolicyVersionAuthor")
   initiatedDestructionReviews      DestructionReview[]              @relation("DestructionReviewInitiatedBy")
   decidedDestructionReviews        DestructionReview[]              @relation("DestructionReviewDecidedBy")
+  ownerDestructionApprovals        EvidenceOwnerDestructionApproval[] @relation("EvidenceOwnerDestructionApprovalOwner")
 
   // Phase 27.5 — Governance operationalization back-relations.
   triggeredGovernanceReconciliationRuns GovernanceReconciliationRun[] @relation("GovernanceReconciliationRunTriggeredBy")
@@ -10168,6 +10171,36 @@ model EvidenceRetentionPolicyVersion {
   @@unique([retentionPolicyId, version])
   @@index([retentionPolicyId, authoredAtUtc(sort: Desc)])
   @@map("evidence_retention_policy_versions")
+}
+
+/// MATRIX-M626 (owner decision I, 2026-11-21) — the explicit destruction
+/// approval of a SEALED legacy record stored with team_id NULL, given by the
+/// record's own owner for that one record. A team-less record has no workspace
+/// a DestructionReview could live in (destruction_reviews.team_id is NOT NULL)
+/// and none is fabricated for it. One row per trash cycle: it counts only while
+/// `evidence_deleted_at_utc` equals the record's current `deleted_at` (a restore
+/// and a later trash need a new approval) and it is not withdrawn. It satisfies
+/// the approval requirement only; trash grace, retention, Object Lock, legal
+/// hold and the executor's switches still apply in full. Never bulk-written.
+model EvidenceOwnerDestructionApproval {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId           String    @map("evidence_id") @db.Uuid
+  ownerUserId          String    @map("owner_user_id") @db.Uuid
+  /// The record's `deleted_at` when the owner approved: binds the approval to this trash cycle.
+  evidenceDeletedAtUtc DateTime  @map("evidence_deleted_at_utc") @db.Timestamptz(6)
+  approvedAtUtc        DateTime  @map("approved_at_utc") @db.Timestamptz(6)
+  withdrawnAtUtc       DateTime? @map("withdrawn_at_utc") @db.Timestamptz(6)
+  /// Request correlation id of the approving call (no secrets).
+  requestId            String?   @map("request_id") @db.VarChar(128)
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  evidence Evidence @relation("EvidenceOwnerDestructionApprovals", fields: [evidenceId], references: [id], onDelete: Cascade)
+  owner    User     @relation("EvidenceOwnerDestructionApprovalOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  @@unique([evidenceId, evidenceDeletedAtUtc], map: "evidence_owner_destruction_approvals_cycle_key")
+  @@index([ownerUserId])
+  @@map("evidence_owner_destruction_approvals")
 }
 
 model DestructionReview {
