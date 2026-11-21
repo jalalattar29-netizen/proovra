@@ -221,6 +221,13 @@ test("a named refusal says what happened, not that something failed", () => {
   assert.match(named("confirmation_mismatch"), /does not match/i);
   assert.match(named("closure_request_active"), /already open/i);
   assert.equal(named("something_else"), "fallback");
+  // Closure 2 (sem item 2) — a payer is told they keep paying, in the server's words, and where to confirm.
+  const payer = O.orgLifecycleFailureMessage(
+    { body: { error: { code: "PAYER_OBLIGATION_ACKNOWLEDGEMENT_REQUIRED", message: "You still pay for this organization." } } },
+    "fallback",
+  );
+  assert.match(payer, /^You still pay for this organization./);
+  assert.match(payer, /use the web app/);
 });
 
 

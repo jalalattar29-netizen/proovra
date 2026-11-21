@@ -51,6 +51,7 @@ import { usePlatformContext } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OrgWorkspaceLifecycleControls } from "../../../../components/organizations/OrgWorkspaceLifecycleControls";
 import { OrgOwnershipOffer } from "./_components/OrgOwnershipOffer";
+import { OrgPayerPanel } from "./_components/OrgPayerPanel";
 import {
   formatUserDate,
   formatUserTime,
@@ -463,7 +464,28 @@ function OrganizationDetailInner() {
     setLeaveBusy(true);
     setLeaveError(null);
     try {
-      await apiFetch(`/v1/orgs/${orgId}/leave`, { method: "POST" });
+      try {
+        await apiFetch(`/v1/orgs/${orgId}/leave`, { method: "POST" });
+      } catch (first) {
+        // Closure 2 ("sem" item 2) — a payer is told they keep paying and must
+        // confirm that before they go; nothing has changed yet.
+        const f = first as { code?: string; body?: { error?: { code?: string } } };
+        if ((f.body?.error?.code ?? f.code) !== "PAYER_OBLIGATION_ACKNOWLEDGEMENT_REQUIRED") throw first;
+        const stillLeave = await confirm({
+          title: "You still pay for this organization",
+          description:
+            "Leaving ends your access, not your payments. You will keep being billed until you cancel the subscription in your own Billing page, or until a handover is arranged with your account manager. Leave anyway?",
+          confirmLabel: "Leave and keep paying",
+          tone: "danger",
+          testId: "org-leave-payer-confirm",
+        });
+        if (!stillLeave) return;
+        await apiFetch(`/v1/orgs/${orgId}/leave`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ acknowledgePayerObligation: true }),
+        });
+      }
       try {
         await platformCtx.refresh();
       } catch {
@@ -1235,6 +1257,14 @@ function OrganizationDetailInner() {
             people={members.kind === "ready" ? members.data.members : []}
             refreshKey={offerRefresh}
             onAccepted={() => void fetchAll()}
+          />
+        </div>
+        {/* Closure 2 ("sem" item 2) — who pays, explicitly (billing roles and the payer only). */}
+        <div style={{ marginBottom: 12 }}>
+          <OrgPayerPanel
+            orgId={orgId}
+            viewerUserId={platformCtx.envelope?.user?.id ?? null}
+            refreshKey={offerRefresh}
           />
         </div>
         {callerRole === "ORG_OWNER" ? (

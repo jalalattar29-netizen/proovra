@@ -55,6 +55,12 @@ export type OpenProviderRelationship = {
    * person (matched through a workspace being closed). Only they can cancel it.
    */
   billedToOtherPayer: boolean;
+  /**
+   * Closure 2 ("sem" item 2) — the person this relationship bills (the
+   * purchaser): `Subscription.userId`, `WorkspaceStorageAddon.ownerUserId`, or
+   * the checkout attempt's user. The only person who can stop it.
+   */
+  payerUserId: string | null;
 };
 
 export type OpenRelationshipClient = Pick<
@@ -111,9 +117,9 @@ export async function listOpenProviderRelationships(
     input.userId
       ? client.billingCheckoutAttempt.findMany({
           where: { userId: input.userId, status: "PENDING" },
-          select: { id: true },
+          select: { id: true, userId: true },
         })
-      : Promise.resolve([] as Array<{ id: string }>),
+      : Promise.resolve([] as Array<{ id: string; userId: string }>),
   ]);
   const otherPayer = (payerUserId: string | null) =>
     Boolean(input.userId) && payerUserId !== input.userId;
@@ -128,6 +134,7 @@ export async function listOpenProviderRelationships(
           : "RENEWING",
       endsAtUtc: s.currentPeriodEnd,
       billedToOtherPayer: otherPayer(s.userId),
+      payerUserId: s.userId,
     })),
     ...addons.map<OpenProviderRelationship>((a) => ({
       kind: "STORAGE_ADDON",
@@ -135,6 +142,7 @@ export async function listOpenProviderRelationships(
       state: a.canceledAtUtc !== null || a.dependentCancellationState === "CONFIRMED" ? "STOPPING" : "RENEWING",
       endsAtUtc: a.currentPeriodEnd,
       billedToOtherPayer: otherPayer(a.ownerUserId),
+      payerUserId: a.ownerUserId,
     })),
     ...attempts.map<OpenProviderRelationship>((c) => ({
       kind: "CHECKOUT_ATTEMPT",
@@ -142,6 +150,7 @@ export async function listOpenProviderRelationships(
       state: "RENEWING",
       endsAtUtc: null,
       billedToOtherPayer: false,
+      payerUserId: c.userId,
     })),
   ];
 }

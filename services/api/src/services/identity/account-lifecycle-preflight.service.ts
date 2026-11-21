@@ -414,6 +414,13 @@ export type OrganizationClosureBlocker = {
   code: OrganizationClosureBlockerCode;
   message: string;
   count: number;
+  /**
+   * Closure 2 ("sem" item 2) — BILLING_SUBSCRIPTION_ACTIVE only: how many of
+   * those agreements bill somebody other than the owner asking (typically the
+   * former owner after an ownership transfer — decision E keeps them the
+   * payer). Only that person can cancel them.
+   */
+  billedToOtherPayer?: number;
 };
 
 /**
@@ -512,11 +519,17 @@ export async function evaluateOrganizationClosurePreflight(
   }
 
   if (openRelationships.length > 0) {
+    const billedToOtherPayer = openRelationships.filter(
+      (r) => r.payerUserId !== null && r.payerUserId !== ownerUserId,
+    ).length;
     blockers.push({
       code: "BILLING_SUBSCRIPTION_ACTIVE",
       message:
-        "A workspace in this organization is still billed by a payment provider (a subscription or a storage add-on). The person who pays for it must cancel it in Billing, and it must have ended, before closure.",
+        billedToOtherPayer > 0
+          ? "A workspace in this organization is still billed by a payment provider to another person (an ownership transfer does not move who pays). Only that person can cancel it, from their own Billing, and it must have ended before closure. The organization's Payment agreement panel names them."
+          : "A workspace in this organization is still billed by a payment provider (a subscription or a storage add-on). The person who pays for it must cancel it in Billing, and it must have ended, before closure.",
       count: openRelationships.length,
+      billedToOtherPayer,
     });
   }
 
