@@ -188,6 +188,11 @@ export const STEP_UP_PURPOSES = [
   // conflate two distinct sensitive actions, so PROOVRA tracks them
   // separately.
   "SIU_PII_REVEAL",
+  // NEW-RG-19-1 (owner decision G, 2026-11-21) — revealing the raw recipient
+  // contact of an evidence request sent WITHOUT an intake link (the link has
+  // its own reveal route). A third party's address leaves the API only after a
+  // fresh step-up, and the disclosure is audited.
+  "EVIDENCE_REQUEST_CONTACT_REVEAL",
   // Phase 4 closure — dedicated integration step-up purposes. Prior to
   // this closure pass several integration routes shared coarse
   // `SERVICE_ACCOUNT_*` purposes (e.g. test-send + secret rotation both
