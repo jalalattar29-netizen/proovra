@@ -1199,7 +1199,17 @@ async function runIntelligenceRunReconcilerTick() {
   if (intelligenceRunReconcilerRunning) return;
   intelligenceRunReconcilerRunning = true;
   try {
-    await runIntelligenceRunReconciler({ trigger: "scheduler" });
+    await runIntelligenceRunReconciler({
+      trigger: "scheduler",
+      // FINAL-VERIFY-2 closure — step 6 judges derived write intents against S3.
+      derivedObjectStore: async () => {
+        const [{ s3 }, { s3DerivedObjectStore }] = await Promise.all([
+          import("./storage.js"),
+          import("./derived-storage-intent.js"),
+        ]);
+        return s3DerivedObjectStore(s3 as never);
+      },
+    });
   } catch (err) {
     logger.error({ err }, "intelligence_run.reconciler.failed");
     captureException(err, { kind: "worker.intelligence_run_reconciler" });
