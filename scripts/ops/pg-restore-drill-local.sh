@@ -31,22 +31,22 @@ for tool in initdb pg_ctl; do
   command -v "$tool" >/dev/null 2>&1 || { echo "pg-restore-drill-local: FAILED — '$tool' is not installed" >&2; exit 1; }
 done
 
-DATA="$(mktemp -d /tmp/proovra-drill-XXXXXX)"
-# Free-space precheck: 4 x the dump + the margin, in the scratch directory.
-DUMP_BYTES="$(wc -c <"$BACKUP_FILE" 2>/dev/null | tr -d " " || true)"
-FREE_KB="$(df -Pk "$DATA" | awk 'NR == 2 {print $4}')"
-if [[ "$DUMP_BYTES" =~ ^[0-9]+$ ]] && [[ "$FREE_KB" =~ ^[0-9]+$ ]]; then
-  NEED_KB=$(((4 * DUMP_BYTES) / 1024 + DRILL_FREE_MARGIN_MB * 1024))
-  if [ "$FREE_KB" -lt "$NEED_KB" ]; then
-    rm -rf "$DATA"
-    echo "pg-restore-drill-local: FAILED — insufficient disk space — the drill scratch has $((FREE_KB / 1024)) MB free and needs $((NEED_KB / 1024)) MB (4 x the $((DUMP_BYTES / 1048576)) MB dump + ${DRILL_FREE_MARGIN_MB} MB margin)" >&2
-    exit 1
-  fi
-else
-  rm -rf "$DATA"
-  echo "pg-restore-drill-local: FAILED — could not size the dump or the free space of the drill scratch" >&2
+drill_fail() {
+  echo "pg-restore-drill-local: FAILED — $*" >&2
   exit 1
-fi
+}
+DATA="$(mktemp -d /tmp/proovra-drill-XXXXXX)" || drill_fail "could not create the drill scratch directory"
+# The scratch is removed on every exit from here on; stop_server replaces this
+# trap once a server exists.
+trap 'rm -rf "$DATA"' EXIT
+# Free-space precheck: 4 x the dump + the margin, in the scratch directory.
+DUMP_BYTES="$(wc -c <"$BACKUP_FILE" 2>/dev/null | tr -d " ")" || drill_fail "could not size the dump $BACKUP_FILE"
+FREE_KB="$(df -Pk "$DATA" 2>/dev/null | awk 'NR == 2 {print $4}')" || drill_fail "could not read the free space of the drill scratch"
+[[ "$DUMP_BYTES" =~ ^[0-9]+$ ]] && [[ "$FREE_KB" =~ ^[0-9]+$ ]] ||
+  drill_fail "could not size the dump or the free space of the drill scratch"
+NEED_KB=$(((4 * DUMP_BYTES) / 1024 + DRILL_FREE_MARGIN_MB * 1024))
+[ "$FREE_KB" -ge "$NEED_KB" ] ||
+  drill_fail "insufficient disk space — the drill scratch has $((FREE_KB / 1024)) MB free and needs $((NEED_KB / 1024)) MB (4 x the $((DUMP_BYTES / 1048576)) MB dump + ${DRILL_FREE_MARGIN_MB} MB margin)"
 # initdb refuses a user it cannot name, and a container started with --user for
 # a host UID has no passwd entry. The image's own entrypoint answers this with
 # libnss_wrapper, so do the same: give the current UID a name for this drill.

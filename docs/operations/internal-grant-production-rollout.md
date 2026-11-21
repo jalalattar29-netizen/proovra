@@ -137,7 +137,7 @@ back, readiness returned READY and the remaining six applied.)
 $ROLLOUT dist/scripts/internal-grant-rollout.js verify-schema | tee .deploy-state/verify-schema.json; echo "exit ${PIPESTATUS[0]}"
 $ROLLOUT scripts/runtime-schema-gate.mjs; echo "exit $?"
 curl -fsS http://127.0.0.1:8080/health; echo; curl -fsS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/readyz
-curl -fsS http://127.0.0.1:8090/health | head -c 300; echo
+for c in $($COMPOSE ps -q proovra-worker); do docker exec "$c" sh -c 'wget -qO- "http://localhost:${WORKER_PORT:-8090}/health"' | head -c 400; echo; done   # each worker container (no host port, B8-F-305)
 curl -fsS https://api.proovra.com/health; echo
 ```
 
@@ -175,7 +175,7 @@ for s in proovra-api proovra-worker; do
   docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' \
     "$(docker inspect --format '{{.Config.Image}}' "$($COMPOSE ps -q $s)")"; done   # both = $RELEASE_SHA
 curl -fsS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/readyz        # 200
-curl -fsS http://127.0.0.1:8090/health | head -c 400; echo                      # ok, redis up
+for c in $($COMPOSE ps -q proovra-worker); do docker exec "$c" sh -c 'wget -qO- "http://localhost:${WORKER_PORT:-8090}/health"' | head -c 400; echo; done   # ok, redis up, per worker container
 $COMPOSE logs --since 15m proovra-api proovra-worker 2>&1 | grep -Ei 'P2022|P2021|does not exist|plan_grants' | head
 ```
 

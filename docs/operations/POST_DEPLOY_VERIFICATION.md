@@ -267,12 +267,14 @@ docker exec docker-proovra-api-1 sh -lc '
 ```
 **Expected:** `{"ok":true,"db":"up"}`
 
-For the worker (same pattern, different container name):
+For the worker: it publishes no host port (B8-F-305) and may run as several
+containers (`WORKER_REPLICAS`), so ask each container, as the deploy gate does:
 ```bash
-docker exec docker-proovra-worker-1 sh -lc '
-  curl -fsS http://localhost:8090/health
-'
+for c in $(docker compose --env-file /opt/proovra/app/.env -f infra/docker/docker-compose.prod.yml ps -q proovra-worker); do
+  docker exec "$c" sh -c 'wget -qO- "http://localhost:${WORKER_PORT:-8090}/health"'; echo
+done
 ```
+Use `/readyz` instead of `/health` for readiness (database, Redis, storage).
 **Expected:** `{"ok":true,"queue":"up"}` (or equivalent worker
 health envelope).
 
