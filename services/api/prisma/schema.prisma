@@ -4094,6 +4094,26 @@ model WorkspaceOwnershipOffer {
   @@map("workspace_ownership_offers")
 }
 
+/// NEW-RG-26-4 / DEC-18 (owner decision E) — an organization owner's offer of
+/// the organization's ownership; nothing moves until the named recipient
+/// accepts with their own step-up. The payer (Organization / Team
+/// billingOwnerUserId, the contract owner) never moves with it.
+/// PENDING / ACCEPTED / DECLINED / CANCELLED / SUPERSEDED / EXPIRED.
+model OrganizationOwnershipOffer {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  fromUserId     String    @map("from_user_id") @db.Uuid
+  toUserId       String    @map("to_user_id") @db.Uuid
+  status         String    @default("PENDING") @db.VarChar(20)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAtUtc   DateTime  @map("expires_at_utc") @db.Timestamptz(6)
+  decidedAtUtc   DateTime? @map("decided_at_utc") @db.Timestamptz(6)
+
+  @@index([organizationId, status])
+  @@index([toUserId, status])
+  @@map("organization_ownership_offers")
+}
+
 
 enum TeamRole {
   OWNER

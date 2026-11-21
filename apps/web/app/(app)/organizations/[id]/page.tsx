@@ -50,6 +50,7 @@ import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { usePlatformContext } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OrgWorkspaceLifecycleControls } from "../../../../components/organizations/OrgWorkspaceLifecycleControls";
+import { OrgOwnershipOffer } from "./_components/OrgOwnershipOffer";
 import {
   formatUserDate,
   formatUserTime,
@@ -444,6 +445,7 @@ function OrganizationDetailInner() {
   const router = useRouter();
   const { confirm } = useConfirmAction();
   const platformCtx = usePlatformContext();
+  const [offerRefresh, setOfferRefresh] = useState(0);
   const [leaveBusy, setLeaveBusy] = useState(false);
   const [leaveError, setLeaveError] = useState<string | null>(null);
 
@@ -1224,12 +1226,24 @@ function OrganizationDetailInner() {
         title="Organization lifecycle"
         subtitle="Owner-only, verified lifecycle actions. Non-owner members leave from the page header; owners must transfer ownership (or close the organization) first."
       >
+        {/* NEW-RG-26-4 — a pending ownership offer, for its two parties only. */}
+        <div style={{ marginBottom: 12 }}>
+          <OrgOwnershipOffer
+            orgId={orgId}
+            orgName={org.kind === "ready" ? org.data.name : ""}
+            viewerUserId={platformCtx.envelope?.user?.id ?? null}
+            people={members.kind === "ready" ? members.data.members : []}
+            refreshKey={offerRefresh}
+            onAccepted={() => void fetchAll()}
+          />
+        </div>
         {callerRole === "ORG_OWNER" ? (
           <OrgLifecycleControls
             orgId={orgId}
             orgName={org.kind === "ready" ? org.data.name : ""}
             members={members.kind === "ready" ? members.data.members : []}
             onChanged={() => void fetchAll()}
+            onOffered={() => setOfferRefresh((n) => n + 1)}
           />
         ) : (
           <div
@@ -1291,11 +1305,14 @@ function OrgLifecycleControls({
   orgName,
   members,
   onChanged,
+  onOffered,
 }: {
   orgId: string;
   orgName: string;
   members: MembersResponse["members"];
   onChanged: () => void;
+  /** NEW-RG-26-4 — an offer was made; the offer panel re-reads. */
+  onOffered?: () => void;
 }) {
   const { confirm } = useConfirmAction();
   const [busy, setBusy] = useState(false);
@@ -1373,11 +1390,11 @@ function OrgLifecycleControls({
       if (!proof) {
         const target = eligibleTargets.find((m) => m.userId === targetUserId);
         const ok = await confirm({
-          title: `Transfer ownership of ${orgName}?`,
+          title: `Offer ownership of ${orgName}?`,
           description: `${
             target?.displayName ?? target?.email ?? "The selected member"
-          } becomes the organization owner and you become an admin. Billing ownership follows the owner. This is atomic and audited.`,
-          confirmLabel: "Transfer ownership",
+          } is offered ownership. Nothing changes until they accept with their own verification; then they become the organization owner and you become an admin. Billing ownership does not move: the organization keeps its current billing owner. The offer is open for 7 days and you can withdraw it.`,
+          confirmLabel: "Send offer",
           tone: "danger",
           testId: "org-transfer-confirm",
         });
@@ -1396,7 +1413,8 @@ function OrgLifecycleControls({
           }),
         });
         setStepUpFor(null);
-        setNotice("Ownership transferred. You are now an organization admin.");
+        setNotice("Offer sent. Ownership changes only when the member accepts.");
+        onOffered?.();
         onChanged();
       } catch (err) {
         const su = extractStepUp(err);
@@ -1410,6 +1428,10 @@ function OrgLifecycleControls({
         const code = e.body?.error?.code;
         if (code === "target_not_member") {
           setError("The selected user is no longer a member of this organization.");
+        } else if (code === "OWNER_TARGET_NOT_ACTIVE") {
+          setError("Only an active member can be offered ownership.");
+        } else if (code === "closure_in_progress") {
+          setError("A closure request for this organization is open. Cancel it before transferring ownership.");
         } else if (code === "owner_required") {
           setError("Only the organization owner can transfer ownership.");
         } else {
@@ -1421,7 +1443,7 @@ function OrgLifecycleControls({
         setBusy(false);
       }
     },
-    [targetUserId, eligibleTargets, confirm, orgName, orgId, onChanged],
+    [targetUserId, eligibleTargets, confirm, orgName, orgId, onChanged, onOffered],
   );
 
   const requestClosure = useCallback(
@@ -1508,8 +1530,10 @@ function OrgLifecycleControls({
       <div data-control="transfer-ownership">
         <strong>Transfer ownership.</strong>{" "}
         <span style={{ color: "var(--ink-secondary, #475569)" }}>
-          The new owner must already be a member. You become an admin; the
-          organization is never left without an owner.
+          The new owner must already be a member and must accept the offer
+          with their own verification. When they accept you become an admin;
+          the organization is never left without an owner. Billing ownership
+          does not move with it.
         </span>
         {!hasOtherMembers ? (
           <p style={{ margin: "6px 0 0", color: "var(--ink-secondary, #475569)" }}>
@@ -1556,7 +1580,7 @@ function OrgLifecycleControls({
               disabled={busy || !targetUserId}
               data-action="transfer-ownership"
             >
-              Transfer ownership
+              Offer ownership
             </Button>
           </div>
         )}
@@ -1690,7 +1714,7 @@ function OrgLifecycleControls({
         <StepUpVerify
           title={
             stepUpFor === "transfer"
-              ? "Confirm transferring ownership of this organization."
+              ? "Confirm offering ownership of this organization."
               : "Confirm closing this organization."
           }
           methods={stepUpMethods}

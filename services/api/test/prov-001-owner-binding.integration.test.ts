@@ -100,8 +100,16 @@ describe("PROV-001 — first owner binding (live PostgreSQL)", () => {
   }
 
   async function provision(ownerEmail: string) {
+    // Owner decision F — acceptance asks whether the provisioning operator
+    // still holds platform administration, so the operator is one (a plain
+    // user never was; rg26-invite-families proves the refusal).
     const operator = await prisma.user.create({
-      data: { email: `operator-${tag()}@test.proovra.local`, provider: "EMAIL", providerUserId: `operator-${tag()}` },
+      data: {
+        email: `operator-${tag()}@test.proovra.local`,
+        provider: "EMAIL",
+        providerUserId: `operator-${tag()}`,
+        platformRole: "admin",
+      } as never,
       select: { id: true },
     });
     return provisioning.provisionEnterpriseCustomerIdempotent(

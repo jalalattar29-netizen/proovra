@@ -355,6 +355,12 @@ const E = {
       "This invite has been revoked.",
       410,
     ),
+  inviterAuthorityLost: () =>
+    new CollaborationTeamError(
+      "INVITE_INVITER_AUTHORITY_LOST",
+      "The person who sent this invitation can no longer add people to this team. Ask a team lead or administrator to add you.",
+      409,
+    ),
   inviteAlreadyUsed: () =>
     new CollaborationTeamError(
       "INVITE_ALREADY_USED",
@@ -2598,6 +2604,21 @@ export async function acceptInvite(
   // PRO-K2-14 / DEC-28 — a pending invitation cannot exercise authority its
   // inviter no longer holds: the inviter must still be an effective member
   // allowed to invite into this group.
+  //
+  // NEW-RG-07-4 / NEW-RG-26-3 (owner decision F) — THE AUTHORITY MODEL OF THIS
+  // FAMILY. A group invitation was issued by the (retired) group writer, which
+  // required an ACTIVE group membership whose role carries
+  // `team.member.invite`; workspace governance alone never issued one. So the
+  // inviter is judged by exactly that: an effective group member (membership
+  // and workspace access both live) holding `team.member.invite` now. The role
+  // ceiling is the group one (`assertGroupRoleWithinActorAuthority`: only a
+  // LEAD grants LEAD), and acceptance already clamps a stored LEAD to MEMBER
+  // below, so no stored role can exceed it. A lost authority is answered with
+  // the shared refusal (409 INVITE_INVITER_AUTHORITY_LOST) and the invitation
+  // is left PENDING, untouched. No writer can re-issue a group invitation, so
+  // the AUTHORIZED RE-APPROVAL PATH is the group's own: a LEAD or ADMIN adds
+  // the person (already a workspace member, which this path also requires)
+  // through POST /v1/collaboration-teams/:teamId/members.
   if (invite.createdByUserId) {
     const inviter = await client.collaborationTeamMember.findFirst({
       where: { teamId: invite.teamId, userId: invite.createdByUserId, ...effectiveGroupMemberWhere(invite.workspaceId) },
@@ -2607,7 +2628,7 @@ export async function acceptInvite(
       !inviter ||
       !collaborationTeamRoleHasPermission(inviter.role as CollaborationTeamRole, "team.member.invite")
     ) {
-      throw E.inviteRevoked();
+      throw E.inviterAuthorityLost();
     }
   }
 

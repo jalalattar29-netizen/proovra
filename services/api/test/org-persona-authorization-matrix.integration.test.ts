@@ -710,7 +710,23 @@ describe("organization personas against the real API", () => {
       { token: contracted.owner.token },
       { targetUserId: successor.id, ...proof },
     );
-    expect(transferred.statusCode, transferred.body).toBe(200);
+    // NEW-RG-26-4 / decision E — the owner offers; the successor accepts with
+    // their own step-up, and only then does ownership move.
+    expect(transferred.statusCode, transferred.body).toBe(202);
+    expect(
+      await prisma.organizationMembership.count({
+        where: { organizationId: contracted.organizationId, userId: successor.id, role: "ORG_OWNER" },
+      }),
+    ).toBe(0);
+    await prisma.user.update({ where: { id: successor.id }, data: { passwordHash: await hashPassword(password) } });
+    const offerId = (transferred.json() as { offer: { id: string } }).offer.id;
+    const accepted = await kit.call(
+      "POST",
+      `/v1/orgs/${contracted.organizationId}/ownership-offer/${offerId}/accept`,
+      successor,
+      proof,
+    );
+    expect(accepted.statusCode, accepted.body).toBe(200);
     const owners = await prisma.organizationMembership.findMany({
       where: { organizationId: contracted.organizationId, role: "ORG_OWNER", status: "ACTIVE" },
       select: { userId: true },

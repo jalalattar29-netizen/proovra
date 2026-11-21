@@ -301,11 +301,18 @@ export default function OrganizationDetailScreen() {
     setNotice(null);
     await stepUp.start(
       async (proof) => {
-        await apiFetch(buildOrgTransferPath(id), {
+        const res = (await apiFetch(buildOrgTransferPath(id), {
           method: "POST",
           body: JSON.stringify(withStepUp({ targetUserId: target.userId }, proof)),
-        });
-        addToast("Ownership transferred. You are now an organization admin.", "success");
+        })) as { pendingAcceptance?: boolean } | null;
+        // NEW-RG-26-4 — the API now records an OFFER (202 pendingAcceptance);
+        // ownership moves only when the member accepts on the web.
+        addToast(
+          res?.pendingAcceptance
+            ? "Offer sent. Ownership changes only when the member accepts."
+            : "Ownership transferred. You are now an organization admin.",
+          "success",
+        );
         await load();
       },
       (err) => fail(err, "Could not transfer ownership."),

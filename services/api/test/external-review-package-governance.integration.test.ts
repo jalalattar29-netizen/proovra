@@ -149,10 +149,15 @@ describe("external review package governance (live PostgreSQL 16, MinIO)", () =>
 
   it("an inviter who no longer holds the capability cannot keep releasing through a grant", async () => {
     const id = await recordWithPackage();
-    const g = await grantFor(id, { invitedByUserId: A().memberUserId });
-    await accept(g.rawToken);
+    // Owner decision F — a grant is ACCEPTED only while its inviter holds an
+    // authority that issues one, so the inviter is a workspace ADMIN (a plain
+    // MEMBER never could issue it, and its acceptance is now refused). The
+    // acceptance is asserted so the release check below is what refuses.
+    const g = await grantFor(id, { invitedByUserId: A().adminUserId });
+    const accepted = await accept(g.rawToken);
+    expect(accepted.statusCode, accepted.body).toBe(200);
     await prisma.teamMember.update({
-      where: { teamId_userId: { teamId: A().teamId, userId: A().memberUserId } },
+      where: { teamId_userId: { teamId: A().teamId, userId: A().adminUserId } },
       data: { accessExpiresAtUtc: new Date(Date.now() - 60_000) } as never,
     });
     try {
@@ -160,7 +165,7 @@ describe("external review package governance (live PostgreSQL 16, MinIO)", () =>
       expect(res.statusCode, res.body).toBe(403);
     } finally {
       await prisma.teamMember.update({
-        where: { teamId_userId: { teamId: A().teamId, userId: A().memberUserId } },
+        where: { teamId_userId: { teamId: A().teamId, userId: A().adminUserId } },
         data: { accessExpiresAtUtc: null } as never,
       });
     }

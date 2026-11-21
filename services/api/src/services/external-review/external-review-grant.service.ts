@@ -45,6 +45,7 @@ import { bump } from "../ops/metrics.service.js";
 import { isLiveOperatingWorkspace } from "../workspace/operating-workspace.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { evaluateMemberAccessWithSnapshot } from "../identity/access-policy.service.js";
 import {
   caseVisibleToWhere,
   evidenceVisibleThroughCasesWhere,
@@ -81,6 +82,9 @@ export const EXTERNAL_REVIEW_GRANT_DENIAL_CODES = [
   "invalid_scope",
   "invalid_expiry",
   "service_unavailable",
+  // Owner decision F — the issuer of a still-INVITED grant no longer holds an
+  // authority that issues one (see externalReviewInviterAuthorized).
+  "grant_inviter_authority_lost",
 ] as const;
 
 export type ExternalReviewGrantDenialCode =
@@ -821,23 +825,112 @@ export async function renewExternalReviewGrant(
   });
 }
 
+/**
+ * NEW-RG-07-4 / NEW-RG-26-3 (owner decision F) — THE PORTAL / EXTERNAL-REVIEW
+ * INVITATION'S INVITER, JUDGED AT ACCEPTANCE.
+ *
+ * An unaccepted (INVITED) portal invitation delegates the issuer's authority
+ * to an outsider. It is accepted only while the issuer still holds an
+ * authority that issues one in the grant's workspace, by THE canonical member
+ * decision (`evaluateMemberAccessWithSnapshot`: membership status, access
+ * window, workspace and organization lifecycle, role and capability grants):
+ *
+ *   - `review.assign` at the administrative tier (OWNER / ADMIN), which is
+ *     what POST /v1/external-review/invitations and its resend require; or
+ *   - `governance.exchange.decide`, which is what accepting a cross-org
+ *     review requires — that acceptance issues the portal invitation of the
+ *     review (`acceptCrossOrgReview`); or
+ *   - `governance.legal_hold.manage`, which is what the plain grant route
+ *     (POST /v1/external-review/grants) requires.
+ *
+ * Enforced in THE state machine (`transitionExternalReviewGrant`, INVITED ->
+ * ACTIVE), so every acceptance path answers it: the portal token exchange,
+ * the legacy access route, the lookup's own acceptance and SSO binding.
+ *
+ * Case reach is not re-judged here: the issue path asked it, and every path
+ * that puts a fresh token in someone's hands (resend, reveal, send-email)
+ * asks it again. An ACTIVE (already accepted) grant is outside this rule: it
+ * is a standing grant, ended on the issuer's demotion, suspension or removal
+ * by the creator-grant leg (`endCreatorAuthorityOnRoleChangeTx`,
+ * `revokeCreatorShareGrantsTx`). A refused acceptance writes nothing; an
+ * authorized operator's resend records them as the issuer and re-authorizes.
+ * A failure to read the facts refuses (fail closed).
+ */
+export async function externalReviewInviterAuthorized(
+  prisma: PrismaClient,
+  grant: { id: string; teamId: string; invitedByUserId: string },
+): Promise<boolean> {
+  try {
+    const assign = await evaluateMemberAccessWithSnapshot(
+      {
+        teamId: grant.teamId,
+        userId: grant.invitedByUserId,
+        permission: "review.assign",
+        resourceKind: "external_review_grant",
+        resourceId: grant.id,
+      },
+      prisma,
+    );
+    if (assign.decision.allowed && (assign.snapshot?.role === "OWNER" || assign.snapshot?.role === "ADMIN")) {
+      return true;
+    }
+    const exchange = await evaluateMemberAccessWithSnapshot(
+      {
+        teamId: grant.teamId,
+        userId: grant.invitedByUserId,
+        permission: "governance.exchange.decide",
+        resourceKind: "external_review_grant",
+        resourceId: grant.id,
+      },
+      prisma,
+    );
+    if (exchange.decision.allowed) return true;
+    const plain = await evaluateMemberAccessWithSnapshot(
+      {
+        teamId: grant.teamId,
+        userId: grant.invitedByUserId,
+        permission: "governance.legal_hold.manage",
+        resourceKind: "external_review_grant",
+        resourceId: grant.id,
+      },
+      prisma,
+    );
+    return plain.decision.allowed;
+  } catch {
+    return false;
+  }
+}
+
 export async function transitionExternalReviewGrant(
   input: TransitionInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<TransitionResult> {
   try {
     const current = (await client.$queryRawUnsafe(
-      `SELECT "state" FROM "external_review_grants"
+      `SELECT "state", "invited_by_user_id" FROM "external_review_grants"
          WHERE "id" = $1 AND "team_id" = $2 LIMIT 1`,
       input.grantId,
       input.teamId,
-    )) as Array<{ state: string }>;
+    )) as Array<{ state: string; invited_by_user_id: string }>;
     if (current.length === 0) {
       return { ok: false, reason: "token_unknown" };
     }
     const fromState = current[0]!.state as ExternalReviewAccessState;
     if (!isAllowedExternalReviewTransition(fromState, input.toState)) {
       return { ok: false, reason: "invalid_transition" };
+    }
+    // Owner decision F — ACCEPTANCE of an invitation asks whether its issuer
+    // still holds the authority to issue it. Nothing is written on a refusal.
+    if (
+      fromState === "INVITED" &&
+      input.toState === "ACTIVE" &&
+      !(await externalReviewInviterAuthorized(client, {
+        id: input.grantId,
+        teamId: input.teamId,
+        invitedByUserId: current[0]!.invited_by_user_id,
+      }))
+    ) {
+      return { ok: false, reason: "grant_inviter_authority_lost" };
     }
     const revokedAt = input.toState === "REVOKED" ? new Date() : null;
     const acceptedAt = input.toState === "ACTIVE" ? new Date() : null;
@@ -1117,10 +1210,19 @@ export async function rotateExternalReviewGrantToken(
     // a dead link with no successor to replace it. Incrementing here — rather
     // than in the mail path — means no caller can rotate without the delivery
     // layer noticing.
+    //
+    // NEW-RG-07-4 / NEW-RG-26-3 (owner decision F, DEC-28) — every caller of
+    // this rotation is an operator route that re-proved the issuing authority
+    // (review.assign at the administrative tier, Case reach, plan): resend,
+    // send-email and the break-glass reveal. For a still-INVITED grant that
+    // operator becomes its issuer of record, which is what re-authorizes an
+    // invitation whose original issuer lost the authority. Expiry is not
+    // extended. An ACTIVE grant keeps its issuer.
     const rows = (await client.$queryRawUnsafe(
       `UPDATE "external_review_grants"
           SET "token_hash" = $1,
               "token_version" = "token_version" + 1,
+              "invited_by_user_id" = CASE WHEN "state" = 'INVITED' THEN $4::uuid ELSE "invited_by_user_id" END,
               "updated_at_utc" = now()
         WHERE "id" = $2::uuid
           AND "team_id" = $3::uuid
@@ -1131,6 +1233,7 @@ export async function rotateExternalReviewGrantToken(
       tokenHash,
       input.grantId,
       input.teamId,
+      input.actorUserId,
     )) as Array<{ id: string; state: string }>;
     const updated = rows[0];
     if (!updated) {

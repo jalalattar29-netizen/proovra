@@ -464,6 +464,8 @@ function mapGrantDenial(reason: string): ExternalPortalDenialReason {
       return "INVITE_ALREADY_ACCEPTED";
     case "ALREADY_REVOKED":
       return "INVITE_ALREADY_REVOKED";
+    case "grant_inviter_authority_lost":
+      return "INVITER_AUTHORITY_LOST";
     case "POLICY_VIOLATION":
     case "BLOCKED_BY_POLICY":
       return "POLICY_REJECTED";

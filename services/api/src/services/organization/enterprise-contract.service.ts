@@ -463,17 +463,10 @@ export async function reinstateEnterpriseContractTx(
   return { reinstatedTo: to };
 }
 
-/** PROV-011 — the contract owner follows an organization ownership transfer. */
-export async function transferEnterpriseContractOwnerTx(
-  tx: TxClient,
-  input: { organizationId: string; fromUserId: string; toUserId: string },
-): Promise<boolean> {
-  const moved = await tx.enterpriseContract.updateMany({
-    where: { organizationId: input.organizationId, contractOwnerUserId: input.fromUserId },
-    data: { contractOwnerUserId: input.toUserId },
-  });
-  return moved.count > 0;
-}
+// NEW-RG-26-4 / owner decision E — `transferEnterpriseContractOwnerTx` (PROV-011:
+// "the contract owner follows an organization ownership transfer") is removed.
+// A change of organizational ownership no longer moves the contract owner: the
+// payer relationship stays as the contract named it.
 
 /**
  * Idempotent contract activation — called by enterprise provisioning

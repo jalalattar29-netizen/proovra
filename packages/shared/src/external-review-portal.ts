@@ -295,6 +295,10 @@ export const EXTERNAL_PORTAL_DENIAL_REASONS = [
   "INVITE_NOT_FOUND",
   "INVITE_ALREADY_ACCEPTED",
   "INVITE_ALREADY_REVOKED",
+  // NEW-RG-07-4 / NEW-RG-26-3 (owner decision F) — the person who issued a
+  // still-unaccepted invitation no longer holds an authority that issues one;
+  // an authorized operator re-sends it (the resend records them as the issuer).
+  "INVITER_AUTHORITY_LOST",
 ] as const;
 export type ExternalPortalDenialReason =
   (typeof EXTERNAL_PORTAL_DENIAL_REASONS)[number];

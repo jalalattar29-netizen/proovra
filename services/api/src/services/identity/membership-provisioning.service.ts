@@ -114,6 +114,7 @@ export { workspaceInviterStillAuthorizes } from "./rbac.service.js";
 // PRO-T1-15 / NEW-RG-26-3 — the directory transitions below end the
 // invitations an inviter can no longer issue, as the rbac transitions do.
 import { revokeInvitesBeyondInviterAuthority } from "./rbac.service.js";
+import { resolvePlatformAdmin } from "../platform-admin.service.js";
 // PRO-TZ-03 — a workspace resume is a reinstatement: each member claims a seat
 // and group place through the same capacity authority as a member restore.
 import { assertReinstatementFitsCapacityTx } from "./rbac.service.js";
@@ -422,9 +423,17 @@ export async function storedInvitationCeilingRefusal(
  *
  * An ORG_OWNER invitation whose inviter never held a membership in this
  * organization was issued by platform Enterprise provisioning (the operator
- * route, platform-admin + step-up); that authority is not an organization
- * role and is not re-judged here. Any other invitation from a non-member is
- * refused. A malformed stored payload is left to the caller's own refusal.
+ * routes POST /v1/admin/enterprise/provision and
+ * POST /v1/admin/orgs/:id/owner-invite/reissue: platform-admin + step-up).
+ * That authority is not an organization role, so it is judged by ITS OWN
+ * model (owner decision F): the issuing operator must STILL hold platform
+ * administration, by the one resolver every /v1/admin route uses
+ * (`resolvePlatformAdmin`: the deployment allow-list or the database role,
+ * never a token claim). An operator who has since lost it leaves the
+ * invitation unacceptable; an operator who holds it re-authorizes the
+ * invitation by reissuing it (the reissue records them as the inviter).
+ * Any other invitation from a non-member is refused. A malformed stored
+ * payload is left to the caller's own refusal.
  */
 export async function organizationInviterAuthorityRefusal(
   tx: TxClient,
@@ -440,7 +449,17 @@ export async function organizationInviterAuthorityRefusal(
     select: { role: true, status: true, validUntilUtc: true },
   });
   if (!membership) {
-    return input.inviteRole === "ORG_OWNER" ? null : "inviter_authority_lost";
+    if (input.inviteRole !== "ORG_OWNER") return "inviter_authority_lost";
+    // Owner decision F — platform provisioning authority, asked now. The
+    // database role is read in this transaction and handed to the resolver,
+    // which also honours the deployment allow-list and fails closed.
+    const operator = await tx.user.findUnique({
+      where: { id: input.inviterUserId },
+      select: { platformRole: true },
+    });
+    if (!operator) return "inviter_authority_lost";
+    const platform = await resolvePlatformAdmin(input.inviterUserId, null, operator.platformRole ?? null);
+    return platform.allowed ? null : "inviter_authority_lost";
   }
   if (!organizationMembershipGrantsAccess({ status: membership.status, validUntilUtc: membership.validUntilUtc })) {
     return "inviter_authority_lost";
