@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "b5ce24784f6b6f0f682626bce7a399383d76c0f76601609ca55f11f14030e5e7",
+  "capabilityRouteInventoryHash": "a149f8b3c8d9d3a289437bf673cdd426d4459821e6332cbbda6a24f30a877472",
   "totals": {
-    "routes": 1271,
+    "routes": 1272,
     "routesWithAnyTestCaller": 59,
     "testOnlyRoutes": 8,
     "testCallSites": 156,
@@ -2697,6 +2697,12 @@
     },
     {
       "routeId": "GET /v1/orgs/:id/ownership-offer",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/orgs/:id/payer",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -7773,5 +7779,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "da1c772cfcfb99578e99aaafcbe189e8237e5b416ef1385dac1feee3f864ecac"
+  "contentHash": "9b8bdebe2b1bb9320e29acbdd75e75185cdeeaf0a46f07002dff1531779b9404"
 }
