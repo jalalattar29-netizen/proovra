@@ -293,8 +293,15 @@ services:
       # Bitcoin Core RPC password (one file named `password`, mode 0400) and
       # the worker-only verifier.env above. Worker only; read-only.
       - /opt/proovra/app/secrets/bitcoin-rpc:/run/proovra/bitcoin-rpc:ro
-    ports:
-      - "127.0.0.1:8090:8090"
+    # B8-F-305 (decision L, 2026-11-21) — NO host port. The worker used to publish
+    # a fixed loopback port (8090), so a second container could not bind and `--scale
+    # proovra-worker=2` failed; nothing on the host reads it any more (the deploy
+    # gate asks each container's own healthcheck, below). The replica count is
+    # WORKER_REPLICAS from the server's env file, default 1: unchanged until a
+    # measured result and the host budget justify more (docs/operations/
+    # deployed-topology.md).
+    deploy:
+      replicas: ${WORKER_REPLICAS:-1}
     # AUD-023 — the healthcheck is READINESS (`/readyz`: database, Redis and
     # evidence storage), because what reads it is
     # `depends_on: service_healthy` and the deploy gate: neither should proceed
@@ -305,9 +312,8 @@ services:
     # `/health` remains the liveness endpoint. start_period covers boot (schema
     # validation, Object Lock bootstrap); retries x interval tolerates a blip.
     # PRO-W2-11 — the in-container probe follows the configured WORKER_PORT.
-    # (The host publish above stays: the deploy gate reads 127.0.0.1:8090.
-    # Running more than one worker container needs that publish removed and
-    # the gate moved to per-container health — an owner deploy-path decision.)
+    # B8-F-305 — it runs in EACH container, so it is the per-container health
+    # the deploy gate waits on for every replica.
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:$${WORKER_PORT:-8090}/readyz || exit 1"]
       interval: 10s

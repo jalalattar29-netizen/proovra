@@ -34,8 +34,20 @@ case "$args" in
   "compose --env-file "*" -f "*" pull "*) exit "\${STUB_PULL_RC:-0}" ;;
   "compose --env-file "*" -f "*" run "*) exit "\${STUB_GATE_RC:-0}" ;;
   "compose --env-file "*" -f "*" up -d --no-deps "*)
-     echo "new-$last" > "$st/cid-$last"
-     echo "ghcr.io/$GHCR_OWNER/$last:$IMAGE_TAG" > "$st/img-new-$last"; exit 0 ;;
+     n="\${STUB_REPLICAS:-1}"; [ "$last" = proovra-worker ] || n=1
+     if [ "$n" = 1 ]; then
+       echo "new-$last" > "$st/cid-$last"
+       echo "ghcr.io/$GHCR_OWNER/$last:$IMAGE_TAG" > "$st/img-new-$last"
+     else
+       : > "$st/cid-$last"
+       for i in $(seq 1 "$n"); do
+         echo "new-$last-$i" >> "$st/cid-$last"
+         echo "ghcr.io/$GHCR_OWNER/$last:$IMAGE_TAG" > "$st/img-new-$last-$i"
+       done
+     fi; exit 0 ;;
+  "exec "*" sh -c "*readyz*)
+     case " \${STUB_EXEC_FAIL:-} " in *" $2 "*) exit 1 ;; esac; exit 0 ;;
+  "inspect --format {{.State.Status}} {{.RestartCount}} "*) echo "\${STUB_BACKUP_STATE:-running 0}"; exit 0 ;;
   "inspect --format {{.Config.Image}} "*) cat "$st/img-$last"; exit 0 ;;
   "inspect --format {{if .State.Health}}"*) echo "\${STUB_HEALTH:-healthy}"; exit 0 ;;
   "image inspect --format {{ index .Config.Labels "*)
@@ -180,7 +192,16 @@ describe("deploy-prod-pull.sh — the release record (OPS-015)", () => {
       writeFileSync(join(root, "infra", "caddy", "Caddyfile"), "x\n");
     });
     expect(present.out).not.toMatch(/pg-backup service is not running/);
+    expect(present.out).not.toMatch(/pg-backup service is not healthy/);
     expect(present.out).not.toMatch(/Caddyfile is not a file/);
+  });
+
+  it("a pg-backup container that keeps restarting is reported, with its state and restart count", () => {
+    const r = run([], { ...deployEnv, STUB_BACKUP_STATE: "restarting 306" }, (state) =>
+      writeFileSync(join(state, "cid-pg-backup"), "backup-cid"),
+    );
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toMatch(/WARNING: the pg-backup service is not healthy \(state\/restarts: restarting 306\)/);
   });
 });
 
@@ -310,8 +331,9 @@ describe("deploy-prod-pull.sh — a release deploy", () => {
       at(new RegExp(`image inspect .*proovra-worker:${TAG}$`)),
       at(/compose --env-file \S+ -f \S+ run --rm --no-deps -T --entrypoint node proovra-api scripts\/runtime-schema-gate\.mjs$/),
       at(/compose --env-file \S+ -f \S+ up -d --no-deps proovra-worker$/),
-      // AUD-023 — the worker is gated on readiness, like the API.
-      at(/^curl .*8090\/readyz$/),
+      // AUD-023 — the worker is gated on readiness, like the API. B8-F-305 — it
+      // publishes no host port, so readiness is asked inside its container.
+      at(/^docker exec new-proovra-worker sh -c .*readyz/),
       at(/compose --env-file \S+ -f \S+ up -d --no-deps proovra-api$/),
       at(/^curl .*8080\/readyz$/),
     ];
@@ -357,6 +379,45 @@ describe("deploy-prod-pull.sh — a release deploy", () => {
     // The host copy is mode 644, so the hint runs it through bash (D8).
     expect(r.out).toContain(`GHCR_OWNER=${OWNER} bash scripts/deploy-prod-pull.sh --rollback`);
     expect(r.log.some((l) => /up -d --no-deps proovra-api/.test(l))).toBe(false);
+  });
+
+  // B8-F-305 (decision L) — N worker containers, no host port.
+  it("a scaled worker is gated on EVERY container: readiness is asked inside each, and no host worker URL is read", () => {
+    const r = run([], { ...deployEnv, STUB_REPLICAS: "2" });
+    expect(r.status, r.out).toBe(0);
+    expect(r.log.filter((l) => /^docker exec new-proovra-worker-[12] sh -c .*readyz/.test(l)).length).toBeGreaterThanOrEqual(2);
+    expect(r.log.some((l) => /^docker exec new-proovra-worker-1 /.test(l))).toBe(true);
+    expect(r.log.some((l) => /^docker exec new-proovra-worker-2 /.test(l))).toBe(true);
+    expect(r.log.some((l) => /^curl .*8090/.test(l))).toBe(false);
+    expect(r.out).toMatch(/proovra-worker healthy after \d+s \(2 container\(s\), \/readyz OK in each\)/);
+    // each container's image is verified
+    expect(r.log.some((l) => /inspect --format \{\{\.Config\.Image\}\} new-proovra-worker-2$/.test(l))).toBe(true);
+  });
+
+  it("one scaled container that is not ready fails the gate before the API is touched", () => {
+    const r = run([], { ...deployEnv, STUB_REPLICAS: "2", STUB_EXEC_FAIL: "new-proovra-worker-2", HEALTH_TIMEOUT_S: "3" });
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/proovra-worker did not become healthy within 3s/);
+    expect(r.log.some((l) => /up -d --no-deps proovra-api/.test(l))).toBe(false);
+  });
+
+  it("an explicit WORKER_READY_URL is still honoured as an extra host-side check", () => {
+    const r = run([], { ...deployEnv, WORKER_READY_URL: "http://127.0.0.1:18090/readyz" });
+    expect(r.status, r.out).toBe(0);
+    expect(r.log.some((l) => /^curl .*18090\/readyz$/.test(l))).toBe(true);
+  });
+
+  it("WORKER_REPLICAS > 1 with a shared WORKER_ID is refused before touching docker or git; one replica with it is not", () => {
+    const shared = run([], deployEnv, (_s, root) =>
+      writeFileSync(join(root, ".env"), `DATABASE_URL=${SECRET}\nWORKER_REPLICAS=2\nWORKER_ID=worker-a\n`),
+    );
+    expect(shared.status).toBe(1);
+    expect(shared.out).toMatch(/WORKER_REPLICAS=2 with WORKER_ID set/);
+    expect(shared.log).toEqual([]);
+    const single = run([], deployEnv, (_s, root) =>
+      writeFileSync(join(root, ".env"), `DATABASE_URL=${SECRET}\nWORKER_REPLICAS=1\nWORKER_ID=worker-a\n`),
+    );
+    expect(single.status, single.out).toBe(0);
   });
 
   it("DEPLOY_ORDER=api-first restores API before worker, and an unhealthy API then never touches the worker", () => {
