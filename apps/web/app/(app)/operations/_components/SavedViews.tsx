@@ -24,8 +24,10 @@
  * A shared view is visible to the workspace and carries no authority: opening
  * one issues the ordinary queue read under the reader's own permissions, so a
  * view shared by an administrator shows a viewer exactly what that viewer
- * could have filtered to by hand. Only its author may delete it — sharing
- * results must not also hand over the ability to remove them.
+ * could have filtered to by hand. A shared view is renamed or deleted only by
+ * a holder of operations.saved_views.manage (the server rule in
+ * saved-views.service.ts) — its author included only while they hold it —
+ * so sharing results never hands every reader the ability to remove them.
  */
 
 import * as React from "react";

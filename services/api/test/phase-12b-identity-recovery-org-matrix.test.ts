@@ -862,6 +862,11 @@ const MODELS = [
   "ssoConnection",
   "securityEvent",
   "authenticatedSession",
+  // Closure 2 (sem item 2) — self-leave asks what the leaver still pays for
+  // (provider agreements on the organization's workspaces). None here.
+  "subscription",
+  "workspaceStorageAddon",
+  "billingCheckoutAttempt",
 ] as const;
 
 function tval(v: unknown): number | string {

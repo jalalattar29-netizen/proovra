@@ -57,6 +57,7 @@ import {
 } from "../identity/org-security-policy.service.js";
 // ARCH-004 — governance-membership transitions have ONE orchestrator.
 import {
+  liveOrganizationOwnerCountTx,
   lockOrganizationOwnersTx,
   restoreOrganizationMembership,
   suspendOrganizationMembership,
@@ -89,6 +90,8 @@ import {
  * in, through the organization-link consent flow.
  */
 export const EXISTING_ACCOUNT_CONSENT_DETAIL = "existing_account_requires_user_consent";
+/** Closure 2 ("sem" item 1) — the SCIM error detail for a refused deactivation of the last live owner. */
+export const SCIM_LAST_OWNER_DETAIL = "last_active_organization_owner";
 import { withSeatClaimRetry } from "../billing/workspace-seats.service.js";
 import { isAccountClosed } from "../identity/account-closed.js";
 import { ipInRanges } from "./ip-ranges.js";
@@ -1339,11 +1342,39 @@ export async function scimListUsers(
   };
 }
 
+/**
+ * Closure 2 ("sem" item 1) — a READ-ONLY early answer for a combined SCIM
+ * PATCH (attributes + `active:false`): would the deactivation be refused
+ * because this person is the Organization's last live owner? It lets the route
+ * refuse BEFORE the attribute write, so the IdP gets a refusal with zero
+ * mutation. It is advisory only — `scimDeactivateUser` decides again under the
+ * owners' lock, which is what makes the rule race-safe.
+ */
+export async function scimDeactivationHitsLastOwner(
+  ctx: ScimCreateUserContext,
+  userId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<boolean> {
+  const team = await client.team.findUnique({ where: { id: ctx.teamId }, select: { organizationId: true } });
+  if (!team) return false;
+  const own = await client.organizationMembership.findFirst({
+    where: { organizationId: team.organizationId, userId, status: "ACTIVE", role: "ORG_OWNER" },
+    select: { id: true },
+  });
+  if (!own) return false;
+  // Outside the directory's reach the route answers 404 as it always has;
+  // never reveal that an unmanaged person is an owner.
+  if (!(await isWithinDirectoryReach({ organizationId: ctx.organizationId, userId, includeEnded: true }, client))) {
+    return false;
+  }
+  return (await liveOrganizationOwnerCountTx(client, team.organizationId)) <= 1;
+}
+
 export async function scimDeactivateUser(
   ctx: ScimCreateUserContext,
   userId: string,
   client: PrismaClient = defaultPrisma,
-): Promise<{ ok: boolean }> {
+): Promise<{ ok: boolean; lastOwnerProtected?: true }> {
   /*
    * Members audit DOM-13 — a directory identity is the ORGANIZATION's, so a
    * directory deactivation ends its access in EVERY workspace of the
@@ -1406,7 +1437,7 @@ export async function scimDeactivateUser(
   // give no access to them), and the Personal Space and personal data were
   // never the Organization's. A later directory reactivation re-binds an
   // account the Organization created through the normal provisioning intent.
-  const changed = await client.$transaction(async (tx) => {
+  const outcome = await client.$transaction(async (tx) => {
     const txc = tx as unknown as PrismaClient;
     let changedAnything = members.length > 0;
     // Re-audit 3, B-N1 — ORDER MATTERS. The governance-membership transition
@@ -1446,16 +1477,30 @@ export async function scimDeactivateUser(
             organizationId: team.organizationId,
             userId,
             status: "ACTIVE",
-            // The ORGANIZATION OWNER's governance membership is not suspended by
-            // a directory push, exactly as a workspace OWNER is not (above):
-            // ownership is a human decision, and a suspended owner would leave
-            // the Organization with no live owner (PROV-012). Their workspace
-            // memberships below the owner role are still suspended.
-            role: { not: "ORG_OWNER" },
           },
-          select: { id: true },
+          select: { id: true, role: true },
         })
       : null;
+    /*
+     * Closure 2 ("sem" item 1) — OWNER CONTINUITY, not owner immunity.
+     *
+     * Phase 1 exempted every ORG_OWNER from a directory suspension. The rule
+     * is now the one the manual suspension, demotion and removal routes apply
+     * (LAST_OWNER_PROTECTED): an owner may be suspended by the directory while
+     * ANOTHER live owner remains; the LAST live owner is never suspended or
+     * deprovisioned by a directory push. Decided under the owners' lock taken
+     * above, so two concurrent directory suspensions of the only two owners
+     * serialize and the second is refused, and an ownership-offer acceptance
+     * (same lock) is ordered against it. A refusal writes NOTHING: no
+     * workspace suspension, no mapping unlink, no binding release, no session
+     * revocation — a half-deprovisioned owner is a state nobody asked for. The
+     * IdP is told (409) so its operator sees it; containing a compromised last
+     * owner is an operator act (docs/runbooks/organization-owner-containment.md).
+     */
+    if (team && orgMembership?.role === "ORG_OWNER") {
+      const liveOwners = await liveOrganizationOwnerCountTx(txc, team.organizationId);
+      if (liveOwners <= 1) return { kind: "last_owner" as const };
+    }
     if (team && orgMembership) {
       await suspendOrganizationMembership({
         prisma: txc as never,
@@ -1497,8 +1542,27 @@ export async function scimDeactivateUser(
         txc,
       );
     }
-    return changedAnything;
+    return { kind: "done" as const, changedAnything };
   });
+
+  if (outcome.kind === "last_owner") {
+    // The refusal is on the tenant audit trail (outcome "denied", reason
+    // LAST_ACTIVE_ORGANIZATION_OWNER) — the record an operator reads.
+    await emitTenantAudit({
+      action: "scim.user.deactivate",
+      outcome: "denied",
+      denialReason: "LAST_ACTIVE_ORGANIZATION_OWNER",
+      sourceApp: "SCIM",
+      actorUserId: null,
+      serviceActor: "scim_service",
+      workspaceId: ctx.teamId,
+      resourceType: "user",
+      resourceId: userId,
+      metadata: {},
+    }, client);
+    return { ok: false, lastOwnerProtected: true };
+  }
+  const changed = outcome.changedAnything;
 
   // -------------------------------------------------------------------------
   // P0 remediation (2026-07-21) — IdP-driven deprovisioning must stop access

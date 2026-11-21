@@ -217,7 +217,17 @@ describe("organization ownership continuity (live PostgreSQL)", () => {
     ).toMatchObject({ role: "ADMIN", status: "ACTIVE" });
 
     // The former owner may now leave, and the workspace still has its owner.
-    const left = await h.app.inject({ method: "POST", url: `/v1/orgs/${o.orgId}/leave`, headers: bearer(o.owner.token) });
+    // Closure 2 (sem item 2): they are still the payer (decision E), so the
+    // leave first asks them to acknowledge that they keep paying.
+    const unacknowledged = await h.app.inject({ method: "POST", url: `/v1/orgs/${o.orgId}/leave`, headers: bearer(o.owner.token) });
+    expect(unacknowledged.statusCode, unacknowledged.body).toBe(409);
+    expect(unacknowledged.json()).toMatchObject({ error: { code: "PAYER_OBLIGATION_ACKNOWLEDGEMENT_REQUIRED" } });
+    const left = await h.app.inject({
+      method: "POST",
+      url: `/v1/orgs/${o.orgId}/leave`,
+      headers: bearer(o.owner.token),
+      payload: { acknowledgePayerObligation: true },
+    });
     expect(left.statusCode, left.body).toBe(200);
     expect(
       await prisma.teamMember.count({ where: { teamId: o.workspaceId, role: "OWNER", status: "ACTIVE" } }),

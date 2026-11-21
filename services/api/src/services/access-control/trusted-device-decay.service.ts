@@ -2,8 +2,9 @@
  * Phase 26.75 — Trusted device decay sweep.
  *
  * Periodic sweep that walks the team's ACTIVE TrustedDevice rows and:
- *   1. Raises `trustScoreDecay` based on the shared `computeTrustDecay`
- *      heuristic (stale + recent risky signals).
+ *   1. Sets `trustScoreDecay` to the shared `computeTrustDecay` value — an
+ *      ABSOLUTE function of last-seen and the clock (closure 2, "sem" 3c),
+ *      never the stored value plus a per-run increment.
  *   2. Auto-invalidates devices whose decay >= 100 by flipping status
  *      to REVOKED with `revokedReason = 'TRUST_DECAY_AUTO_INVALIDATED'`.
  *   3. Bumps metrics + emits SecurityEvents per transition.
@@ -21,11 +22,58 @@ import {
   TRUST_DECAY_DEFAULT_MAX,
   TRUST_DECAY_STALE_DAYS,
   computeTrustDecay,
+  trustDecayReachesAtUtc,
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
+
+// -----------------------------------------------------------------------------
+// The ONE decision (closure 2, "sem" item 3c)
+// -----------------------------------------------------------------------------
+
+/** Devices one decay run reads per workspace (ordered by id). */
+export const TRUST_DECAY_SWEEP_BATCH_DEFAULT = 200;
+
+/** The decay level at which a device is quarantined on the way up. */
+export const TRUST_DECAY_QUARANTINE_AT = 70;
+
+export type TrustDecayAction = "NONE" | "REVOKE" | "QUARANTINE" | "DECAY";
+
+export type TrustDecayDecision = {
+  action: TrustDecayAction;
+  fromDecay: number;
+  toDecay: number;
+  /** When the absolute rule reaches the revoke level for this device. */
+  revokesAtUtc: Date;
+};
+
+/**
+ * What a decay run at `now` does to one ACTIVE trusted device. Used by the sweep
+ * (which then writes it) AND by the read-only activation preview (which only
+ * reports it), so the preview can never describe a different computation from
+ * the one that executes. The value is `computeTrustDecay` of the device's
+ * `lastSeenAtUtc` and `now` — absolute, so it does not depend on how often or
+ * how many times the sweep has already run.
+ */
+export function decideTrustDecay(
+  device: { lastSeenAtUtc: Date; trustScoreDecay: number },
+  now: Date,
+  staleDays: number = TRUST_DECAY_STALE_DAYS,
+): TrustDecayDecision {
+  const toDecay = computeTrustDecay({ lastSeenAtUtc: device.lastSeenAtUtc, nowUtc: now, staleDays });
+  const fromDecay = device.trustScoreDecay;
+  const revokesAtUtc = trustDecayReachesAtUtc({ lastSeenAtUtc: device.lastSeenAtUtc, staleDays });
+  let action: TrustDecayAction;
+  // At the revoke level the device is revoked even if a stored value already
+  // says 100 (an ACTIVE row never should; a stale row must not escape).
+  if (toDecay >= TRUST_DECAY_DEFAULT_MAX) action = "REVOKE";
+  else if (toDecay === fromDecay) action = "NONE";
+  else if (toDecay >= TRUST_DECAY_QUARANTINE_AT && fromDecay < TRUST_DECAY_QUARANTINE_AT) action = "QUARANTINE";
+  else action = "DECAY";
+  return { action, fromDecay, toDecay, revokesAtUtc };
+}
 
 // -----------------------------------------------------------------------------
 // Sweep
@@ -43,18 +91,21 @@ export async function sweepTrustedDeviceDecay(
     teamId: string;
     staleDays?: number;
     batchSize?: number;
+    /** The run's clock (tests and the scheduled sweep pass theirs). */
+    now?: Date;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<TrustDecaySweepResult> {
   const stale = input.staleDays ?? TRUST_DECAY_STALE_DAYS;
-  const batchSize = Math.min(Math.max(input.batchSize ?? 200, 1), 1000);
-  const now = new Date();
+  const batchSize = Math.min(Math.max(input.batchSize ?? TRUST_DECAY_SWEEP_BATCH_DEFAULT, 1), 1000);
+  const now = input.now ?? new Date();
   const devices = await client.trustedDevice.findMany({
     where: {
       teamId: input.teamId,
       status: "ACTIVE",
     },
     take: batchSize,
+    orderBy: { id: "asc" },
     select: {
       id: true,
       userId: true,
@@ -66,14 +117,10 @@ export async function sweepTrustedDeviceDecay(
   let autoInvalidated = 0;
   let quarantined = 0;
   for (const d of devices) {
-    const next = computeTrustDecay({
-      lastSeenAtUtc: d.lastSeenAtUtc,
-      currentDecay: d.trustScoreDecay,
-      nowUtc: now,
-      staleDays: stale,
-    });
-    if (next === d.trustScoreDecay) continue;
-    if (next >= TRUST_DECAY_DEFAULT_MAX) {
+    const decision = decideTrustDecay(d, now, stale);
+    const next = decision.toDecay;
+    if (decision.action === "NONE") continue;
+    if (decision.action === "REVOKE") {
       // Auto-invalidate.
       await client.trustedDevice.update({
         where: { id: d.id },
@@ -95,7 +142,7 @@ export async function sweepTrustedDeviceDecay(
       });
       continue;
     }
-    if (next >= 70 && d.trustScoreDecay < 70) {
+    if (decision.action === "QUARANTINE") {
       // Quarantine the device on the way up — it stays ACTIVE for read
       // purposes but the adaptive auth engine treats it as untrusted.
       await client.trustedDevice.update({
@@ -113,7 +160,10 @@ export async function sweepTrustedDeviceDecay(
         where: { id: d.id },
         data: {
           trustScoreDecay: next,
-          decayReason: "Trust decayed by stale-device sweep.",
+          decayReason:
+            next < d.trustScoreDecay
+              ? "Trust decay lowered: the device was seen again."
+              : "Trust decayed by stale-device sweep.",
         },
       });
       bump("trusted_device_decay_total");

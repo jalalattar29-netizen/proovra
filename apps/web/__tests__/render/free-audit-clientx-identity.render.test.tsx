@@ -3,7 +3,9 @@
  * the API-lane cross-lane requests, over the REAL apiFetch (fetch mocked)
  * wherever a server answer is read.
  *
- *   B1-F-003          security center: `scope: "self"` lists offer no Revoke; a 403 policy-impact card is hidden
+ *   B1-F-003          security center: `scope: "self"` lists offer no session Revoke; a 403 policy-impact card is hidden
+ *   closure2 sem 3    a "self" device list offers removing trust from one's OWN device (no step-up); another
+ *                     member's device answers the server's 401 STEP_UP_REQUIRED with the step-up modal
  *   R1-F-05           thread assignment offers only members who can review; 422 assignee_not_eligible is named
  *   B3A-F-008         reopen answers a step-up challenge with the closure sheet; 404 team_not_found copy
  *   B1-F-020          MFA self-check no longer warns that checking spends a backup code (consumed:false)
@@ -147,14 +149,19 @@ function securityRoutes(scope: "self" | "team" | undefined) {
 }
 
 describe("B1-F-003: security telemetry honours scope", () => {
-  it("a read-only role (scope self) sees its own devices and revocations with no Revoke buttons", async () => {
+  it("a read-only role (scope self) sees its own devices and revocations; no session Revoke, but its OWN device can be revoked (closure 2, sem 3b)", async () => {
     securityRoutes("self");
+    routes["POST /v1/identity-security/devices/dev-1/revoke"] = () => ({ body: { device: { ...DEVICE, status: "REVOKED" } } });
     render(<SecurityCenterPage />);
     await screen.findByText("Your trusted devices");
     expect(screen.getByText("Your recent session revocations")).toBeTruthy();
-    expect(q("[data-cc-devices-self-note]")).not.toBeNull();
-    expect(screen.queryByRole("button", { name: "Revoke" })).toBeNull();
+    expect(q("[data-cc-devices-self-note]")?.textContent).toMatch(/You can revoke any of\s+them/);
     expect(screen.queryByRole("button", { name: "Revoke all for user" })).toBeNull();
+    // The one Revoke offered is the device's: the self revocation list offers none.
+    expect(screen.getAllByRole("button", { name: "Revoke" })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+    await waitFor(() => expect(posts("/devices/dev-1/revoke")).toHaveLength(1));
+    expect(posts("/devices/dev-1/revoke")[0]!.body).toMatchObject({ teamId: "team-1" });
   });
 
   it("an administrator (scope team) keeps the member-wide lists and their Revoke buttons", async () => {
@@ -172,13 +179,42 @@ describe("B1-F-003: security telemetry honours scope", () => {
     expect(screen.getByText("Trusted devices")).toBeTruthy();
   });
 
-  it("the sessions console's trusted-devices card offers neither trust nor remove-trust on a self list", async () => {
-    routes = { "GET /v1/identity-security/devices": () => ({ body: { devices: [DEVICE], scope: "self" } }) };
+  it("the sessions console's trusted-devices card on a self list: no trust control, but Remove trust on one's OWN device, sent once with no step-up (closure 2, sem 3b)", async () => {
+    routes = {
+      "GET /v1/identity-security/devices": () => ({ body: { devices: [DEVICE], scope: "self" } }),
+      "POST /v1/identity-security/devices/dev-1/revoke": () => ({ body: { device: { ...DEVICE, status: "REVOKED" } } }),
+    };
     render(<TrustedDevicesSection />);
     await waitFor(() => expect(q('[data-trusted-devices-scope="self"]')).not.toBeNull());
     expect(screen.getByText("Your trusted devices")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Remove trust" })).toBeNull();
     expect(q("[data-trusted-device-trust-self]")).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "Remove trust" }));
+    await waitFor(() => expect(posts("/devices/dev-1/revoke")).toHaveLength(1));
+    const sent = posts("/devices/dev-1/revoke")[0]!;
+    expect(sent.body).toMatchObject({ teamId: "team-1", reason: "Member removed trust from their own device" });
+    await flush();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("an administrator removing trust from ANOTHER member's device: the server's 401 STEP_UP_REQUIRED opens the step-up modal and nothing is reported removed (closure 2, sem 3a)", async () => {
+    routes = {
+      "GET /v1/identity-security/devices": () => ({ body: { devices: [DEVICE], scope: "team" } }),
+      "POST /v1/identity-security/devices/dev-1/revoke": () => ({
+        status: 401,
+        body: {
+          error: {
+            code: "STEP_UP_REQUIRED",
+            details: { purpose: "MFA_TRUSTED_DEVICE_RESET", resourceKind: "trusted_device", resourceId: "dev-1" },
+          },
+        },
+      }),
+    };
+    render(<TrustedDevicesSection />);
+    fireEvent.click(await screen.findByRole("button", { name: "Remove trust" }));
+    await waitFor(() => expect(posts("/devices/dev-1/revoke")).toHaveLength(1));
+    await waitFor(() => expect(document.querySelector('[role="dialog"]')).not.toBeNull());
+    // Only the one refused attempt: no retry without a verified challenge.
+    expect(posts("/devices/dev-1/revoke")).toHaveLength(1);
   });
 
   it("a 403 on session-policy impact hides the administrator card instead of showing a refusal", async () => {

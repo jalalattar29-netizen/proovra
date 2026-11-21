@@ -48,6 +48,7 @@ import { getAuthUserId } from "../auth.js";
 import {
   checkOrgAccess,
   listOrgAdminSurfaces,
+  ORG_BILLING_ROLES,
   ORG_OVERSIGHT_ROLES,
   orgAccessDenial,
 } from "../services/organization/org-access.js";
@@ -116,6 +117,11 @@ import {
   readPendingOrganizationOwnershipOffer,
   settleOrganizationOwnershipOffer,
 } from "../services/organization/org-ownership-offer.service.js";
+// Closure 2 ("sem" item 2) — the organization's payer, explicitly.
+import {
+  payerObligationsOnLeave,
+  resolveOrganizationPayerProjection,
+} from "../services/organization/org-payer.service.js";
 import {
   CONTRACT_TERMINATION_REASON_PREFIX,
   isContractTerminationClosure,
@@ -2639,6 +2645,11 @@ export async function organizationsRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const orgId = UuidParam.parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
+      // Closure 2 ("sem" item 2) — leaving ends ACCESS, not payment liability.
+      const leaveBody = z
+        .object({ acknowledgePayerObligation: z.boolean().optional() })
+        .passthrough()
+        .parse(req.body ?? {});
 
       const result = await prisma.$transaction(async (tx) => {
         const membership = await tx.organizationMembership.findFirst({
@@ -2659,6 +2670,23 @@ export async function organizationsRoutes(app: FastifyInstance) {
           (await ownsLiveOrganizationWorkspaceTx(tx, orgId, userId))
         ) {
           return { kind: "ownership_transfer_required" as const };
+        }
+
+        /*
+         * Closure 2 ("sem" item 2) — A PAYER WHO LEAVES KEEPS PAYING, SO THEY
+         * ARE TOLD BEFORE THEY GO. Decision E keeps the payer through an
+         * ownership transfer, and leaving removes nobody's liability either:
+         * a renewing provider agreement on this organization's workspaces keeps
+         * billing them, and the billing-owner / contract-owner record keeps
+         * naming them. Leaving is not refused — it needs their explicit
+         * acknowledgement (acknowledgePayerObligation: true). Without it: 409
+         * with what they still pay for and how to end it (cancel in their own
+         * Billing, which stays reachable after they leave; a handover is
+         * arranged with the account manager). Nothing is written.
+         */
+        if (leaveBody.acknowledgePayerObligation !== true) {
+          const obligations = await payerObligationsOnLeave({ organizationId: orgId, userId }, tx as never);
+          if (obligations.any) return { kind: "payer_acknowledgement_required" as const, obligations };
         }
 
         // (a) governance membership — delete (canonical removal semantics).
@@ -2748,6 +2776,20 @@ export async function organizationsRoutes(app: FastifyInstance) {
               code: "OWNERSHIP_TRANSFER_REQUIRED",
               message:
                 "You are the organization owner. Transfer ownership or close the organization before leaving.",
+            },
+          });
+        case "payer_acknowledgement_required":
+          return reply.code(409).send({
+            error: {
+              code: "PAYER_OBLIGATION_ACKNOWLEDGEMENT_REQUIRED",
+              message:
+                "You still pay for this organization. Leaving ends your access, not your payments: cancel the subscription in your own Billing first, or arrange a handover with your account manager. To leave anyway, confirm that you understand you will keep being billed until it is cancelled.",
+              details: {
+                renewingAgreements: result.obligations.renewingAgreements,
+                isBillingOwner: result.obligations.isBillingOwner,
+                isContractOwner: result.obligations.isContractOwner,
+                guidance: ["PAYER_CANCELS_IN_OWN_BILLING", "HANDOVER_VIA_ACCOUNT_MANAGER"],
+              },
             },
           });
         case "ok": {
@@ -2908,6 +2950,40 @@ export async function organizationsRoutes(app: FastifyInstance) {
         billingOwnerStays: true,
         billingOwnerUserId: billing?.billingOwnerUserId ?? null,
       });
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // GET /v1/orgs/:id/payer — closure 2 ("sem" item 2)
+  //
+  // Who pays for this organization, explicitly: the billing owner and where
+  // they stand now (owner / member / left), the provider agreements billing its
+  // workspaces with the person each bills, what closure waits on, and bounded
+  // guidance codes. Decision E keeps the payer through an ownership transfer,
+  // so after one the new owner sees that somebody else pays (and that they
+  // cannot cancel it), and the former owner sees that they still do.
+  //
+  // Read by the organization's billing roles (owner, administrator, billing
+  // administrator — the roles that see the organization billing account), and
+  // by a member who IS a payer here. Any other member: 403; a non-member: the
+  // uniform 404.
+  // -------------------------------------------------------------------------
+  app.get(
+    "/v1/orgs/:id/payer",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const orgId = UuidParam.parse((req.params as { id: string }).id);
+      const userId = getAuthUserId(req);
+      const access = await checkOrgAccess(prisma, { orgId, userId, requireKind: "CUSTOMER" });
+      if (access.kind !== "ok") {
+        const denial = orgAccessDenial(access);
+        return reply.code(denial.status).send(denial.body);
+      }
+      const projection = await resolveOrganizationPayerProjection({ organizationId: orgId, viewerUserId: userId });
+      if (!ORG_BILLING_ROLES.includes(access.role) && !projection.viewerIsPayer) {
+        return reply.code(403).send({ error: { code: "forbidden" } });
+      }
+      return reply.code(200).send({ payer: projection });
     },
   );
 

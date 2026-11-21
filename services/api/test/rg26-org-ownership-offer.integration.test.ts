@@ -483,10 +483,10 @@ describe("NEW-RG-26-4 — organization ownership by offer, acceptance and step-u
     ).toEqual({ status: "SUSPENDED" });
   });
 
-  it("a directory push never suspends the organization owner's governance membership", async () => {
+  it("a directory push never suspends the organization's LAST live owner (closure 2: continuity, not immunity)", async () => {
     const o = await organization();
     await directoryManaged(o, o.owner.userId);
-    await deactivate(o, o.owner.userId);
+    expect(await deactivate(o, o.owner.userId)).toEqual({ ok: false, lastOwnerProtected: true });
     expect(await owners(o.orgId)).toEqual([o.owner.userId]);
   });
 

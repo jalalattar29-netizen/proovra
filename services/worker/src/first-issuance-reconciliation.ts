@@ -37,13 +37,22 @@
  * `OUTPUT_PACKAGE_RECOVERY_ENABLED=true`. Both default OFF so deploying this
  * code starts no backfill; the rollout enables them after a dry run
  * (`services/api/src/scripts/output-reconciliation-dry-run.ts`).
+ *
+ * NOT GATED (owed work, not backfill): the package a governance gate denied
+ * (RG-03 / PRO-W1-01), and — closure 2, PRO-W1-04 — the package of a report a
+ * request COMMITTED before it went FAILED_TERMINAL for a technical reason
+ * (rested 30 minutes). See the MISSING PACKAGE pass.
  */
 import * as prismaPkg from "@prisma/client";
+import { classifyTerminalReason } from "@proovra/shared";
 
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
 import { enqueueReportGenerationRequest } from "./queue.js";
-import { requestReportGenerationFromWorker } from "./report-generation-authority.js";
+import {
+  OWED_TECHNICAL_RETRY_BACKOFF_MS,
+  requestReportGenerationFromWorker,
+} from "./report-generation-authority.js";
 import { resolveEvidenceOutputIssuance } from "./output-issuance.js";
 import { packageRebuildFitsStorage } from "./workspace-billing.js";
 
@@ -91,6 +100,16 @@ export type FirstIssuanceSummary = {
   packageSkippedNotEntitled: number;
   /** B5B-F-402 — latest package request was storage-refused and it still would not fit. */
   packageSkippedStorageRefused: number;
+  /**
+   * Closure 2 (PRO-W1-04) — packages OWED by a run that committed their report
+   * and then went FAILED_TERMINAL for a technical reason, re-asked with the
+   * backfill flag off.
+   */
+  packageOwedRecovered: number;
+  /** Owed, but its technical terminal has not yet rested OWED_TECHNICAL_RETRY_BACKOFF_MS. */
+  packageOwedResting: number;
+  /** Owed by a committed report whose run ended on an integrity / policy / commercial reason: an operator's. */
+  packageOwedNotTechnical: number;
   unresolved: number;
   failed: number;
 };
@@ -117,6 +136,9 @@ export async function runFirstIssuanceReconciliation(options: {
     packageScheduled: 0,
     packageSkippedNotEntitled: 0,
     packageSkippedStorageRefused: 0,
+    packageOwedRecovered: 0,
+    packageOwedResting: 0,
+    packageOwedNotTechnical: 0,
     unresolved: 0,
     failed: 0,
   };
@@ -265,12 +287,37 @@ export async function runFirstIssuanceReconciliation(options: {
   // verificationPackageMetadata.blocked) is re-asked regardless: it is owed by
   // a request that did not complete, not historical backfill. While the
   // blocker stands the writer collapses onto the blocked head (no new row).
+  //
+  // Closure 2 (PRO-W1-04) — THE SAME FOR A RUN THAT COMMITTED ITS REPORT AND
+  // THEN DIED. A report request that reached stage REPORT_COMMITTED for the
+  // latest version and then went FAILED_TERMINAL (an outage longer than its
+  // retry budget) still owes that version's package. Nothing re-asked it while
+  // OUTPUT_PACKAGE_RECOVERY_ENABLED was off (the default, and an unknown value
+  // in production), so the record stayed REPORTED without its package until a
+  // person acted. It is re-asked now regardless of the flag — package-only, for
+  // exactly that version, never a new report — but only when that run's terminal
+  // reason is TECHNICAL (integrity, policy and commercial terminals stay an
+  // operator's) and it has rested OWED_TECHNICAL_RETRY_BACKOFF_MS. Eligibility,
+  // holds, the output-policy hold, storage and entitlement are decided exactly as
+  // for every other package request below and by the writer; the writer's key
+  // VERIFICATION_PACKAGE:<id>:v<N> makes a repeat tick or a second replica
+  // collapse onto one request.
   {
     const rows = await prisma.$queryRaw<
-      Array<{ id: string; owner_user_id: string; team_id: string | null; version: number; gate_blocked: boolean }>
+      Array<{
+        id: string;
+        owner_user_id: string;
+        team_id: string | null;
+        version: number;
+        gate_blocked: boolean;
+        owed_reason: string | null;
+        owed_completed_at: Date | null;
+      }>
     >`
       SELECT e.id, e.owner_user_id, e.team_id, r.version,
-             COALESCE(e.verification_package_metadata->>'blocked', 'false') = 'true' AS gate_blocked
+             COALESCE(e.verification_package_metadata->>'blocked', 'false') = 'true' AS gate_blocked,
+             owed.terminal_reason_code AS owed_reason,
+             owed.completed_at_utc AS owed_completed_at
         FROM evidence e
         JOIN reports r
           ON r.evidence_id = e.id
@@ -279,12 +326,23 @@ export async function runFirstIssuanceReconciliation(options: {
           ON vp.evidence_id = e.id AND vp.version = r.version
          AND vp.state = 'PUBLISHED'
          AND (vp.disclosure_profile IS NULL OR vp.disclosure_profile = 'FULL_FORENSIC')
+        LEFT JOIN LATERAL (
+              SELECT q.terminal_reason_code, q.completed_at_utc
+                FROM report_generation_requests q
+               WHERE q.evidence_id = e.id
+                 AND q.artifact_type = 'REPORT'
+                 AND q.stage = 'REPORT_COMMITTED'
+                 AND q.report_version = r.version
+                 AND q.state = 'FAILED_TERMINAL'
+               ORDER BY q.created_at_utc DESC
+               LIMIT 1) owed ON TRUE
        WHERE e.status = 'REPORTED'
          AND e.deleted_at IS NULL
          AND e.lifecycle_state IN ('ACTIVE','UNDER_REVIEW','ON_HOLD','RETENTION_LOCKED')
          AND vp.id IS NULL
          AND (${packageRecoveryEnabled || options.dryRun === true}
-              OR COALESCE(e.verification_package_metadata->>'blocked', 'false') = 'true')
+              OR COALESCE(e.verification_package_metadata->>'blocked', 'false') = 'true'
+              OR owed.completed_at_utc IS NOT NULL)
          AND (${packageCursor}::uuid IS NULL OR e.id > ${packageCursor}::uuid)
          AND NOT EXISTS (
                SELECT 1 FROM report_generation_requests q
@@ -334,7 +392,24 @@ export async function runFirstIssuanceReconciliation(options: {
           summary.packageSkippedStorageRefused++;
           continue;
         }
-        if (options.dryRun || (!packageRecoveryEnabled && !row.gate_blocked)) {
+        // Closure 2 (PRO-W1-04) — owed by a committed report's dead run.
+        let owedByCommittedReport = false;
+        if (row.owed_completed_at) {
+          if (classifyTerminalReason(row.owed_reason) !== "TECHNICAL") {
+            if (!packageRecoveryEnabled && !row.gate_blocked && !options.dryRun) {
+              summary.packageOwedNotTechnical++;
+              continue;
+            }
+          } else if (now.getTime() - new Date(row.owed_completed_at).getTime() < OWED_TECHNICAL_RETRY_BACKOFF_MS) {
+            if (!packageRecoveryEnabled && !row.gate_blocked && !options.dryRun) {
+              summary.packageOwedResting++;
+              continue;
+            }
+          } else {
+            owedByCommittedReport = true;
+          }
+        }
+        if (options.dryRun || (!packageRecoveryEnabled && !row.gate_blocked && !owedByCommittedReport)) {
           summary.packageScheduled++;
           continue;
         }
@@ -346,7 +421,10 @@ export async function runFirstIssuanceReconciliation(options: {
           packageForReportVersion: row.version,
           enqueue: (requestId) => enqueueReportGenerationRequest(requestId),
         });
-        if (res.requestId && res.reason !== "already_terminal") summary.packageScheduled++;
+        if (res.requestId && res.reason !== "already_terminal") {
+          summary.packageScheduled++;
+          if (owedByCommittedReport && !packageRecoveryEnabled && !row.gate_blocked) summary.packageOwedRecovered++;
+        }
       } catch (err) {
         summary.failed++;
         logger.error({ err, evidenceId: row.id, trigger }, "first_issuance.package.failed");

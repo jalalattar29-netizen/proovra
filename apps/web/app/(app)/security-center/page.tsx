@@ -42,6 +42,7 @@ import { sessionRevocationScopeLabel } from "../../../lib/labels/identityOrgLabe
 import {
   readTelemetryScope,
   telemetryOffersRevoke,
+  trustedDeviceOffersRemoveTrust,
   type TelemetryScope,
 } from "../../../lib/identity/telemetry-scope";
 // Phase IA-collapse — `PersonalSecuritySections` (password, my sessions,
@@ -255,11 +256,16 @@ function SecurityCenterPageInner() {
     if (!reason) return;
     setBusy(true);
     try {
-      await apiFetch(`/v1/identity-security/devices/${deviceId}/revoke`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ teamId, reason }),
-      });
+      // Closure 2 ("sem" item 3) — another member's device needs the
+      // operator's step-up (401 STEP_UP_REQUIRED, answered by the modal);
+      // one's own device is removed without one.
+      await stepUp.runStepUpAction((stepUpHeaders) =>
+        apiFetch(`/v1/identity-security/devices/${deviceId}/revoke`, {
+          method: "POST",
+          headers: { "content-type": "application/json", ...(stepUpHeaders ?? {}) },
+          body: JSON.stringify({ teamId, reason }),
+        }),
+      );
       const fresh: { devices: TrustedDevice[]; scope?: unknown } = await apiFetch(
         `/v1/identity-security/devices?teamId=${encodeURIComponent(teamId)}`,
         { method: "GET" },
@@ -267,6 +273,7 @@ function SecurityCenterPageInner() {
       setDevices(fresh.devices ?? []);
       setDevicesScope(readTelemetryScope(fresh));
     } catch (err) {
+      if (((err as { code?: string }).code ?? "").toUpperCase() === "STEP_UP_CANCEL") return;
       alert(toSafeUserError(err, { message: "Revoke failed." }).message);
     } finally {
       setBusy(false);
@@ -573,8 +580,9 @@ function SecurityCenterPageInner() {
           >
             {devicesScope === "self" ? (
               <p style={{ ...mutedStyle, marginTop: 0 }} data-cc-devices-self-note>
-                These are your own trusted devices. Workspace owners and
-                admins manage every member&apos;s devices.
+                These are your own trusted devices. You can revoke any of
+                them. Workspace owners and admins manage every member&apos;s
+                devices.
               </p>
             ) : null}
             <DataTable<TrustedDevice>
@@ -584,7 +592,7 @@ function SecurityCenterPageInner() {
               getRowId={(d) => d.id}
               loading={devices === null}
               rowActions={(d) =>
-                d.status === "ACTIVE" && telemetryOffersRevoke(devicesScope) ? (
+                d.status === "ACTIVE" && trustedDeviceOffersRemoveTrust(devicesScope) ? (
                   <Button
                     variant="destructive"
                     size="sm"

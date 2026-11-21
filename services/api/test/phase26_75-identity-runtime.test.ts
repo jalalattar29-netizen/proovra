@@ -374,7 +374,6 @@ describe("Phase 26.75 — pure helpers", () => {
     expect(
       computeTrustDecay({
         lastSeenAtUtc: new Date(now.getTime() - 365 * 86400_000),
-        currentDecay: 95,
         riskyIncrement: 50,
         nowUtc: now,
       }),

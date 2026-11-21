@@ -33,9 +33,11 @@ import {
 
 import {
   EXISTING_ACCOUNT_CONSENT_DETAIL,
+  SCIM_LAST_OWNER_DETAIL,
   authenticateScimRequest,
   scimCreateUser,
   scimDeactivateUser,
+  scimDeactivationHitsLastOwner,
   scimListUsers,
   scimReactivateUser,
   scimReadUser,
@@ -271,6 +273,16 @@ export async function scimRoutes(app: FastifyInstance) {
       // directory mapping, and the displayName write filters on
       // `unlinkedAtUtc: null` — so a combined "deactivate + rename" PATCH used
       // to silently drop the rename.
+      // Closure 2 ("sem" item 1) — a deactivation of the Organization's LAST
+      // live owner is refused; refuse it before the attribute write so a
+      // combined PATCH changes nothing (the service decides again under the
+      // owners' lock).
+      if (plan.active === false && (await scimDeactivationHitsLastOwner(ctx, id))) {
+        return reply
+          .type("application/scim+json")
+          .code(409)
+          .send(scimError(409, SCIM_LAST_OWNER_DETAIL));
+      }
       if (plan.displayName !== undefined || plan.role !== undefined) {
         const upd = await scimUpdateUserAttributes(ctx, id, {
           ...(plan.displayName !== undefined
@@ -298,6 +310,12 @@ export async function scimRoutes(app: FastifyInstance) {
       // Apply the `active` transition.
       if (plan.active === false) {
         const result = await scimDeactivateUser(ctx, id);
+        if (result.lastOwnerProtected) {
+          return reply
+            .type("application/scim+json")
+            .code(409)
+            .send(scimError(409, SCIM_LAST_OWNER_DETAIL));
+        }
         if (!result.ok) {
           return reply
             .type("application/scim+json")
@@ -352,6 +370,12 @@ export async function scimRoutes(app: FastifyInstance) {
       if (!ctx) return;
       const { id } = ParamsUserId.parse(req.params);
       const result = await scimDeactivateUser(ctx, id);
+      if (result.lastOwnerProtected) {
+        return reply
+          .type("application/scim+json")
+          .code(409)
+          .send(scimError(409, SCIM_LAST_OWNER_DETAIL));
+      }
       if (!result.ok) {
         return reply
           .type("application/scim+json")

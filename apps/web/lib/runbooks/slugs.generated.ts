@@ -21,6 +21,7 @@ export const RUNBOOK_SLUGS: ReadonlySet<string> = new Set([
   "immutable-drift",
   "lifecycle-bypass",
   "observability-degraded",
+  "organization-owner-containment",
   "ots-degradation",
   "pentest-readiness",
   "privacy-leak",

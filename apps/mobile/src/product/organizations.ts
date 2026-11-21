@@ -427,6 +427,13 @@ export function orgLifecycleFailureMessage(err: unknown, fallback: string): stri
         str(obj(obj(e.body).error).message) ??
         "You are the organization owner. Transfer ownership or close the organization before leaving."
       );
+    // Closure 2 ("sem" item 2) — a payer leaving keeps paying; the server says
+    // so and needs an explicit acknowledgement, which only the web asks for.
+    case "PAYER_OBLIGATION_ACKNOWLEDGEMENT_REQUIRED":
+      return `${
+        str(obj(obj(e.body).error).message) ??
+        "You still pay for this organization. Leaving ends your access, not your payments."
+      } To leave and keep paying, use the web app.`;
     case "owner_required":
       return "Only the organization owner can do this.";
     case "target_not_member":

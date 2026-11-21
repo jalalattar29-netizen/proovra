@@ -216,27 +216,57 @@ export const TRUST_DECAY_DEFAULT_MAX = 100;
 export const TRUST_DECAY_STALE_DAYS = 14;
 export const TRUST_DECAY_RISKY_INCREMENT = 25;
 
+/** Decay points per whole day a device is unseen beyond the stale threshold. */
+export const TRUST_DECAY_STALE_POINTS_PER_DAY = 2;
+
 export type TrustDecayInput = {
   lastSeenAtUtc: Date;
   nowUtc?: Date;
   staleDays?: number;
-  /** Incremental decay added by a risky signal observed since last sweep. */
+  /** A risky-signal increment the caller adds on top (no caller sends one today). */
   riskyIncrement?: number;
-  /** Existing decay value on the device row. */
-  currentDecay?: number;
 };
 
+/**
+ * Closure 2 ("sem" item 3c) — trust decay is a function of ABSOLUTE time.
+ *
+ * The decay of a trusted device is `2 × (whole days unseen − 14)`, clamped to
+ * 0..100, computed from the device's `lastSeenAtUtc` and the clock — never from
+ * the value an earlier run stored. It used to ADD that penalty to the stored
+ * decay on every run (`currentDecay + penalty`), so the result depended on how
+ * often the sweep ran: on the 5-minute schedule a device unseen 30 days went
+ * 32 → 64 → 96 → 100 and was revoked within 15 minutes, where the formula
+ * means "revoked after 64 days unseen". Now running the sweep once or a
+ * thousand times at the same instant gives the same value, and a device is
+ * quarantined at 49 days unseen (70) and revoked at 64 days (100) whatever the
+ * cadence. A device seen again decays back toward 0 by the same rule.
+ */
 export function computeTrustDecay(input: TrustDecayInput): number {
   const stale = input.staleDays ?? TRUST_DECAY_STALE_DAYS;
   const inc = input.riskyIncrement ?? 0;
-  const base = input.currentDecay ?? 0;
   const now = (input.nowUtc ?? new Date()).getTime();
   const ageDays = (now - input.lastSeenAtUtc.getTime()) / 86400_000;
-  const stalePenalty = Math.max(0, Math.floor(ageDays - stale)) * 2;
-  const next = base + inc + stalePenalty;
+  const stalePenalty = Math.max(0, Math.floor(ageDays - stale)) * TRUST_DECAY_STALE_POINTS_PER_DAY;
+  const next = inc + stalePenalty;
   if (next < 0) return 0;
   if (next > TRUST_DECAY_DEFAULT_MAX) return TRUST_DECAY_DEFAULT_MAX;
   return next;
+}
+
+/**
+ * The instant the stale penalty alone reaches `threshold` (default the revoke
+ * level, 100) for a device last seen at `lastSeenAtUtc` — the same arithmetic
+ * as `computeTrustDecay`, solved for time.
+ */
+export function trustDecayReachesAtUtc(input: {
+  lastSeenAtUtc: Date;
+  staleDays?: number;
+  threshold?: number;
+}): Date {
+  const stale = input.staleDays ?? TRUST_DECAY_STALE_DAYS;
+  const threshold = input.threshold ?? TRUST_DECAY_DEFAULT_MAX;
+  const days = stale + Math.ceil(threshold / TRUST_DECAY_STALE_POINTS_PER_DAY);
+  return new Date(input.lastSeenAtUtc.getTime() + days * 86400_000);
 }
 
 // -----------------------------------------------------------------------------
