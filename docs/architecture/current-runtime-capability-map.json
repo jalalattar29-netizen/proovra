@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "b5ce24784f6b6f0f682626bce7a399383d76c0f76601609ca55f11f14030e5e7",
-  "consumerInventoryHash": "de74358f2479233b49e0289c768a29abcea0bced970bf650c9c7c88b2b79cbb3",
+  "consumerInventoryHash": "4cb645ad6c4da3de842e6e84594dfd178e4d32ccaccf0691a888bbe59fe6f668",
   "dispositionsHash": "acd2f7538981c463d88697c6258219fe41e4ac7080ba2e0c8aeb9686a69b7cd6",
   "totals": {
     "RegisteredRoutes": 1271,
@@ -125,7 +125,7 @@
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
       "METHOD_ON_VALUE": 12501,
-      "UNRESOLVED_IDENTIFIER": 1825
+      "UNRESOLVED_IDENTIFIER": 1826
     },
     "MutationFixpointRounds": 11,
     "MutationClosurePass": false,
@@ -6484,7 +6484,7 @@
       "method": "GET",
       "route": "/v1/saml/mapping/current",
       "registeringFile": "services/api/src/routes/identity-operations-completion.routes.ts",
-      "productConsumer": "apps/web/app/(app)/security-center/sso/mapping/page.tsx:173",
+      "productConsumer": "apps/web/app/(app)/security-center/sso/mapping/page.tsx:177",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6496,7 +6496,7 @@
       "method": "GET",
       "route": "/v1/saml/mapping/schema",
       "registeringFile": "services/api/src/routes/identity-operations-completion.routes.ts",
-      "productConsumer": "apps/web/app/(app)/security-center/sso/mapping/page.tsx:145",
+      "productConsumer": "apps/web/app/(app)/security-center/sso/mapping/page.tsx:149",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14536,7 +14536,7 @@
       "method": "POST",
       "route": "/v1/saml/mapping/preview",
       "registeringFile": "services/api/src/routes/identity-operations-completion.routes.ts",
-      "productConsumer": "apps/web/app/(app)/security-center/sso/mapping/page.tsx:233",
+      "productConsumer": "apps/web/app/(app)/security-center/sso/mapping/page.tsx:238",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -15496,7 +15496,7 @@
       "method": "PUT",
       "route": "/v1/saml/mapping",
       "registeringFile": "services/api/src/routes/identity-operations-completion.routes.ts",
-      "productConsumer": "apps/web/app/(app)/security-center/sso/mapping/page.tsx:264",
+      "productConsumer": "apps/web/app/(app)/security-center/sso/mapping/page.tsx:271",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -58051,8 +58051,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackage.update@498",
-      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:498",
+      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackage.update@520",
+      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:520",
       "file": "services/api/src/services/exchange/evidence-exchange.service.ts",
       "enclosingDeclaration": "generateSignedUrl",
       "kind": "DATABASE",
@@ -58118,8 +58118,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackage.updateMany@564",
-      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:564",
+      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackage.updateMany@586",
+      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:586",
       "file": "services/api/src/services/exchange/evidence-exchange.service.ts",
       "enclosingDeclaration": "recordPackageDelivery",
       "kind": "DATABASE",
@@ -58151,8 +58151,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackage.updateMany@774",
-      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:774",
+      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackage.updateMany@796",
+      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:796",
       "file": "services/api/src/services/exchange/evidence-exchange.service.ts",
       "enclosingDeclaration": "revokePackage",
       "kind": "DATABASE",
@@ -58184,8 +58184,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackageDelivery.create@552",
-      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:552",
+      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackageDelivery.create@574",
+      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:574",
       "file": "services/api/src/services/exchange/evidence-exchange.service.ts",
       "enclosingDeclaration": "recordPackageDelivery",
       "kind": "DATABASE",
@@ -58217,8 +58217,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackageDelivery.update@720",
-      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:720",
+      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackageDelivery.update@742",
+      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:742",
       "file": "services/api/src/services/exchange/evidence-exchange.service.ts",
       "enclosingDeclaration": "recordPackageDownload",
       "kind": "DATABASE",
@@ -71388,8 +71388,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/legal-acceptance.service.ts#userLegalAcceptance.upsert@51",
-      "terminalLocation": "services/api/src/services/legal-acceptance.service.ts:51",
+      "writerId": "services/api/src/services/legal-acceptance.service.ts#userLegalAcceptance.upsert@59",
+      "terminalLocation": "services/api/src/services/legal-acceptance.service.ts:59",
       "file": "services/api/src/services/legal-acceptance.service.ts",
       "enclosingDeclaration": "recordLegalAcceptances",
       "kind": "DATABASE",
@@ -119653,7 +119653,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/sso/mapping/page.tsx",
-          "line": 155,
+          "line": 159,
           "caller": "SamlMappingContent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -119687,7 +119687,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/security-center/sso/_sections/IdentityProvidersSection.tsx:234 (IdentityProvidersSection, WEB); apps/web/app/(app)/security-center/sso/mapping/page.tsx:155 (SamlMappingContent, WEB); apps/web/app/(app)/security-center/sso/page.tsx:166 (SsoAdminContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/security-center/sso/_sections/IdentityProvidersSection.tsx:234 (IdentityProvidersSection, WEB); apps/web/app/(app)/security-center/sso/mapping/page.tsx:159 (SamlMappingContent, WEB); apps/web/app/(app)/security-center/sso/page.tsx:166 (SsoAdminContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -151676,7 +151676,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/security-center/sso/mapping/page.tsx",
-          "line": 173,
+          "line": 177,
           "caller": "SamlMappingContent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -151686,7 +151686,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/security-center/sso/mapping/page.tsx:173 (SamlMappingContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/security-center/sso/mapping/page.tsx:177 (SamlMappingContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -151739,7 +151739,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/security-center/sso/mapping/page.tsx",
-          "line": 145,
+          "line": 149,
           "caller": "SamlMappingContent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -151749,7 +151749,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/security-center/sso/mapping/page.tsx:145 (SamlMappingContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/security-center/sso/mapping/page.tsx:149 (SamlMappingContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -205123,7 +205123,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/security-center/sso/mapping/page.tsx",
-          "line": 233,
+          "line": 238,
           "caller": "SamlMappingContent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -205133,7 +205133,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/security-center/sso/mapping/page.tsx:233 (SamlMappingContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/security-center/sso/mapping/page.tsx:238 (SamlMappingContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -210930,7 +210930,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/security-center/sso/mapping/page.tsx",
-          "line": 264,
+          "line": 271,
           "caller": "SamlMappingContent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -210940,7 +210940,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/security-center/sso/mapping/page.tsx:264 (SamlMappingContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/security-center/sso/mapping/page.tsx:271 (SamlMappingContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
