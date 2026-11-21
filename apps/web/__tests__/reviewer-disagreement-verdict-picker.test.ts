@@ -392,7 +392,6 @@ test("schema does NOT declare the removed extra disagreement detail columns", ()
     "secondReviewerDecidedAt",
     "supervisorVerdict",
     "supervisorRationale",
-    "withdrawnAtUtc",
   ]) {
     assert.doesNotMatch(
       SCHEMA_SOURCE,
@@ -400,6 +399,16 @@ test("schema does NOT declare the removed extra disagreement detail columns", ()
       `schema.prisma must stay aligned with the canonical resolution contract and omit ${field}.`,
     );
   }
+  // `withdrawnAtUtc` is a generic name other models legitimately declare
+  // (e.g. EvidenceOwnerDestructionApproval, MATRIX-M626), so it is asserted
+  // absent from the disagreement model itself.
+  const disagreementModel = /^model ReviewerDisagreement \{[\s\S]*?^\}/m.exec(SCHEMA_SOURCE)?.[0] ?? "";
+  assert.ok(disagreementModel.length > 0, "schema.prisma must declare model ReviewerDisagreement.");
+  assert.doesNotMatch(
+    disagreementModel,
+    /\bwithdrawnAtUtc\b/,
+    "schema.prisma must stay aligned with the canonical resolution contract and omit withdrawnAtUtc on ReviewerDisagreement.",
+  );
 });
 
 test("page.tsx does NOT render secondReviewerVerdict in the compact table", () => {
