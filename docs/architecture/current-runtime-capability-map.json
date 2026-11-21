@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "a149f8b3c8d9d3a289437bf673cdd426d4459821e6332cbbda6a24f30a877472",
-  "consumerInventoryHash": "c23d040fcca5c31614fbdad03a8b109c08d4de931423c62ce2611b6d21db2e2d",
+  "consumerInventoryHash": "b15abac89124394df7fe2f63caeb9dc9852646695d95164c6c5a6f2983c2d40a",
   "dispositionsHash": "acd2f7538981c463d88697c6258219fe41e4ac7080ba2e0c8aeb9686a69b7cd6",
   "totals": {
     "RegisteredRoutes": 1272,
@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 25
     },
-    "TerminalWriters": 1712,
-    "ReachableSensitiveMutations": 1679,
-    "ClassifiedSensitiveMutations": 1679,
+    "TerminalWriters": 1713,
+    "ReachableSensitiveMutations": 1680,
+    "ClassifiedSensitiveMutations": 1680,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 33,
@@ -71,7 +71,7 @@
     "TenantUnboundMutations": 0,
     "UnsafeEffectsInsideTransactions": 0,
     "byFamily": {
-      "ACCOUNT_SESSION_SECURITY": 280,
+      "ACCOUNT_SESSION_SECURITY": 281,
       "ORGANIZATION": 44,
       "ORGANIZATION_MEMBERSHIP": 35,
       "WORKSPACE": 85,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1494,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1495,
       "JOB_ATTRIBUTED_REACHABLE": 173,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 10,
@@ -5548,7 +5548,7 @@
       "method": "GET",
       "route": "/v1/orgs/:id/payer",
       "registeringFile": "services/api/src/routes/organizations.routes.ts",
-      "productConsumer": "apps/web/app/(app)/organizations/[id]/_components/OrgPayerPanel.tsx:81",
+      "productConsumer": "apps/web/app/(app)/organizations/[id]/_components/OrgPayerPanel.tsx:82",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -33365,8 +33365,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organization.update@970",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:970",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organization.update@971",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:971",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -33398,8 +33398,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.create@3318",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3318",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.create@3324",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3324",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -33431,8 +33431,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.create@3364",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3364",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.create@3370",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3370",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -33464,8 +33464,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.updateMany@3449",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3449",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.updateMany@3455",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3455",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -33497,8 +33497,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationDataExportRequest.create@3731",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3731",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationDataExportRequest.create@3737",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3737",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationDataExportRoutes",
       "kind": "DATABASE",
@@ -33530,8 +33530,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationDataExportRequest.update@3766",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3766",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationDataExportRequest.update@3772",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3772",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationDataExportRoutes",
       "kind": "DATABASE",
@@ -33563,8 +33563,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.create@1199",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1199",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.create@1200",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1200",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -33596,8 +33596,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.update@1851",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1851",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.update@1852",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1852",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -33629,8 +33629,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.updateMany@1705",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1705",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.updateMany@1706",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1706",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -33662,8 +33662,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.updateMany@1841",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1841",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.updateMany@1842",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1842",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -33695,8 +33695,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#user.update@2739",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2739",
+      "writerId": "services/api/src/routes/organizations.routes.ts#user.update@2740",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2740",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -33728,8 +33728,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#user.updateMany@2252",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2252",
+      "writerId": "services/api/src/routes/organizations.routes.ts#user.updateMany@2253",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2253",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -36075,8 +36075,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.create@1046",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1046",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.create@1054",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1054",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimCreateUser",
       "kind": "DATABASE",
@@ -36108,8 +36108,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.update@1828",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1828",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.update@1853",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1853",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimReactivateUser",
       "kind": "DATABASE",
@@ -36141,8 +36141,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.update@1946",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1946",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.update@1971",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1971",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimUpdateUserAttributes",
       "kind": "DATABASE",
@@ -36174,8 +36174,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.updateMany@1526",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1526",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.updateMany@1549",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1549",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimDeactivateUser",
       "kind": "DATABASE",
@@ -36208,8 +36208,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.create@213",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:213",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.create@221",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:221",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "createScimToken",
       "kind": "DATABASE",
@@ -36241,8 +36241,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.create@446",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:446",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.create@454",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:454",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "rotateScimToken",
       "kind": "DATABASE",
@@ -36274,8 +36274,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.update@793",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:793",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.update@801",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:801",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "authenticateScimRequest",
       "kind": "DATABASE",
@@ -36316,8 +36316,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.updateMany@309",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:309",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.updateMany@317",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:317",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "revokeScimToken",
       "kind": "DATABASE",
@@ -36349,8 +36349,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.updateMany@421",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:421",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.updateMany@429",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:429",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "rotateScimToken",
       "kind": "DATABASE",
@@ -36382,8 +36382,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#user.create@1032",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1032",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#user.create@1040",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1040",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimCreateUser",
       "kind": "DATABASE",
@@ -36415,8 +36415,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#user.updateMany@1599",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1599",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#user.updateMany@1624",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1624",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimDeactivateUser",
       "kind": "DATABASE",
@@ -37582,8 +37582,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/trusted-device-decay.service.ts#trustedDevice.update@125",
-      "terminalLocation": "services/api/src/services/access-control/trusted-device-decay.service.ts:125",
+      "writerId": "services/api/src/services/access-control/trusted-device-decay.service.ts#trustedDevice.update@146",
+      "terminalLocation": "services/api/src/services/access-control/trusted-device-decay.service.ts:146",
       "file": "services/api/src/services/access-control/trusted-device-decay.service.ts",
       "enclosingDeclaration": "sweepTrustedDeviceDecay",
       "kind": "DATABASE",
@@ -37615,8 +37615,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/trusted-device-decay.service.ts#trustedDevice.update@148",
-      "terminalLocation": "services/api/src/services/access-control/trusted-device-decay.service.ts:148",
+      "writerId": "services/api/src/services/access-control/trusted-device-decay.service.ts#trustedDevice.update@169",
+      "terminalLocation": "services/api/src/services/access-control/trusted-device-decay.service.ts:169",
       "file": "services/api/src/services/access-control/trusted-device-decay.service.ts",
       "enclosingDeclaration": "sweepTrustedDeviceDecay",
       "kind": "DATABASE",
@@ -37648,8 +37648,41 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/trusted-device-decay.service.ts#trustedDevice.update@159",
-      "terminalLocation": "services/api/src/services/access-control/trusted-device-decay.service.ts:159",
+      "writerId": "services/api/src/services/access-control/trusted-device-decay.service.ts#trustedDevice.update@180",
+      "terminalLocation": "services/api/src/services/access-control/trusted-device-decay.service.ts:180",
+      "file": "services/api/src/services/access-control/trusted-device-decay.service.ts",
+      "enclosingDeclaration": "sweepTrustedDeviceDecay",
+      "kind": "DATABASE",
+      "target": "trustedDevice",
+      "mutationKind": "update",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/admin/identity/runtime/reconcile"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/admin-identity.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/access-control/trusted-device-decay.service.ts#trustedDevice.update@191",
+      "terminalLocation": "services/api/src/services/access-control/trusted-device-decay.service.ts:191",
       "file": "services/api/src/services/access-control/trusted-device-decay.service.ts",
       "enclosingDeclaration": "sweepTrustedDeviceDecay",
       "kind": "DATABASE",
@@ -65999,8 +66032,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/org-membership-lifecycle.service.ts#organization_memberships.$queryRawUnsafe@210",
-      "terminalLocation": "services/api/src/services/identity/org-membership-lifecycle.service.ts:210",
+      "writerId": "services/api/src/services/identity/org-membership-lifecycle.service.ts#organization_memberships.$queryRawUnsafe@229",
+      "terminalLocation": "services/api/src/services/identity/org-membership-lifecycle.service.ts:229",
       "file": "services/api/src/services/identity/org-membership-lifecycle.service.ts",
       "enclosingDeclaration": "transition",
       "kind": "RAW_SQL",
@@ -66056,8 +66089,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/org-membership-lifecycle.service.ts#organization_memberships.$queryRawUnsafe@403",
-      "terminalLocation": "services/api/src/services/identity/org-membership-lifecycle.service.ts:403",
+      "writerId": "services/api/src/services/identity/org-membership-lifecycle.service.ts#organization_memberships.$queryRawUnsafe@422",
+      "terminalLocation": "services/api/src/services/identity/org-membership-lifecycle.service.ts:422",
       "file": "services/api/src/services/identity/org-membership-lifecycle.service.ts",
       "enclosingDeclaration": "suspendAllOrganizationMemberships",
       "kind": "RAW_SQL",
@@ -66090,8 +66123,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/org-membership-lifecycle.service.ts#organization_memberships.$queryRawUnsafe@438",
-      "terminalLocation": "services/api/src/services/identity/org-membership-lifecycle.service.ts:438",
+      "writerId": "services/api/src/services/identity/org-membership-lifecycle.service.ts#organization_memberships.$queryRawUnsafe@457",
+      "terminalLocation": "services/api/src/services/identity/org-membership-lifecycle.service.ts:457",
       "file": "services/api/src/services/identity/org-membership-lifecycle.service.ts",
       "enclosingDeclaration": "resumeOrganizationSuspendedMemberships",
       "kind": "RAW_SQL",
@@ -116637,7 +116670,7 @@
       "method": "DELETE",
       "path": "/v1/orgs/:id/invites/:inviteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1659",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1660",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -116708,7 +116741,7 @@
       "method": "DELETE",
       "path": "/v1/orgs/:id/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2147",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2148",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -117867,7 +117900,7 @@
       "method": "DELETE",
       "path": "/v2/scim/Groups/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:497",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:499",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -117879,7 +117912,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:497 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:499 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -117944,7 +117977,7 @@
       "method": "DELETE",
       "path": "/v2/scim/Users/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:366",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:368",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -117956,7 +117989,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:366 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:368 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -142126,7 +142159,7 @@
       "method": "GET",
       "path": "/v1/me/orgs",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:362",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:363",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -144661,7 +144694,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:469",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:470",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -144793,7 +144826,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/audit-events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3526",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3532",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -144958,7 +144991,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/closure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3174",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3180",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -145041,7 +145074,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/data-export",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3678",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3684",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -145162,7 +145195,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/invites",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1590",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1591",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -145302,7 +145335,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/members",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:585",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:586",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -145563,7 +145596,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/ownership-offer",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2934",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2935",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrgMember -> services/api/src/routes/organizations-governance.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -145622,7 +145655,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/payer",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2971",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2973",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -145635,7 +145668,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/organizations/[id]/_components/OrgPayerPanel.tsx",
-          "line": 81,
+          "line": 82,
           "caller": "OrgPayerPanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -145645,7 +145678,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/_components/OrgPayerPanel.tsx:81 (OrgPayerPanel, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/_components/OrgPayerPanel.tsx:82 (OrgPayerPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -146299,7 +146332,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/workspaces",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:782",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:783",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -156903,7 +156936,7 @@
       "method": "GET",
       "path": "/v2/scim/Groups",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:447",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:449",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -156915,7 +156948,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:447 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:449 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -156970,7 +157003,7 @@
       "method": "GET",
       "path": "/v2/scim/Groups/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:429",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:431",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -156982,7 +157015,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:429 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:431 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -157035,7 +157068,7 @@
       "method": "GET",
       "path": "/v2/scim/Users",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:208",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:209",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -157047,7 +157080,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:208 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:209 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -157096,7 +157129,7 @@
       "method": "GET",
       "path": "/v2/scim/Users/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:190",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:191",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -157108,7 +157141,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:190 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:191 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -159614,7 +159647,7 @@
       "method": "PATCH",
       "path": "/v1/orgs/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:939",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:940",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -159702,7 +159735,7 @@
       "method": "PATCH",
       "path": "/v1/orgs/:id/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1982",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1983",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -160490,7 +160523,7 @@
       "method": "PATCH",
       "path": "/v2/scim/Groups/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:465",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:467",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -160502,7 +160535,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:465 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:467 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -160577,7 +160610,7 @@
       "method": "PATCH",
       "path": "/v2/scim/Users/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:233",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:234",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -160589,7 +160622,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:233 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:234 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -162004,7 +162037,7 @@
         "services/api/src/services/access-control/trusted-device-decay.service.ts: trustedDevice.update — no tenant or self predicate",
         "services/api/src/services/access-control/trusted-device-decay.service.ts: trustedDevice.update — no tenant or self predicate",
         "services/api/src/services/access-control/trusted-device-decay.service.ts: trustedDevice.update — no tenant or self predicate",
-        "services/api/src/services/access-control/session-inventory.service.ts: authenticatedSession.update — no tenant or self predicate"
+        "services/api/src/services/access-control/trusted-device-decay.service.ts: trustedDevice.update — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -196343,7 +196376,7 @@
       "method": "POST",
       "path": "/v1/org-invite-deliveries/process",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1962",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1963",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)"
@@ -196363,7 +196396,7 @@
       ],
       "primaryDisposition": "WORKER_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/organizations.routes.ts:1962 — worker caller(s): services/worker/src/org-invite-delivery.worker.ts:106 (runOrgInviteDeliverySweep)",
+      "dispositionEvidence": "services/api/src/routes/organizations.routes.ts:1963 — worker caller(s): services/worker/src/org-invite-delivery.worker.ts:106 (runOrgInviteDeliverySweep)",
       "dispositionReason": "called by the worker service",
       "replacement": null,
       "result": "DISPOSED_WORKER_CONSUMER",
@@ -196402,7 +196435,7 @@
       "method": "POST",
       "path": "/v1/org-invites/:token/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1568",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1569",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -196485,7 +196518,7 @@
       "method": "POST",
       "path": "/v1/org-invites/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1545",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1546",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -196576,7 +196609,7 @@
       "method": "POST",
       "path": "/v1/org-invites/lookup",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1317",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1318",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -196635,7 +196668,7 @@
       "method": "POST",
       "path": "/v1/orgs",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:919",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:920",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -196674,7 +196707,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/closure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3218",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3224",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -196763,7 +196796,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/closure/:requestId/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3405",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3411",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -196837,7 +196870,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/data-export",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3703",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3709",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -196898,7 +196931,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/data-export/:requestId/links",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3786",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3792",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -196968,7 +197001,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/data-export/:requestId/manifest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3748",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3754",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -197026,7 +197059,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/invites",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1048",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1049",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -197113,7 +197146,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/invites/:inviteId/resend",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1773",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1774",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -197511,7 +197544,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/leave",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2642",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2643",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -197647,7 +197680,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/members/:memberId/restore",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2605",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2606",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -197769,7 +197802,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/members/:memberId/suspend",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2600",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2601",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -197891,7 +197924,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/ownership-offer/:offerId/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2991",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2997",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrgMember -> services/api/src/routes/organizations-governance.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -197978,7 +198011,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/ownership-offer/:offerId/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3048",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3054",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrgMember -> services/api/src/routes/organizations-governance.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -198041,7 +198074,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/ownership-offer/:offerId/decline",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3048",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3054",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrgMember -> services/api/src/routes/organizations-governance.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -198161,7 +198194,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/transfer-ownership",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2859",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2860",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -198239,7 +198272,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/workspaces/:teamId/resume",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3081",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3087",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -198319,7 +198352,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/workspaces/:teamId/suspend",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3081",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3087",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -210122,7 +210155,7 @@
       "method": "POST",
       "path": "/v2/scim/Groups",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:402",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:404",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -210134,7 +210167,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:402 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:404 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -210209,7 +210242,7 @@
       "method": "POST",
       "path": "/v2/scim/Users",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:162",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:163",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -210221,7 +210254,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:162 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:163 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
