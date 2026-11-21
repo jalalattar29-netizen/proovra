@@ -393,6 +393,8 @@ export class StripeBillingReconciliationProvider
       provider: PROVIDER,
       providerRef,
       state: subscriptionState(sub),
+      // NEW-RG-02-1 — the raw status (active vs trialing share SUCCEEDED).
+      providerStatus: typeof sub["status"] === "string" ? sub["status"] : null,
       currentPeriodEndUtc: stripeSubscriptionPeriodEnd(shaped),
       cancelAtPeriodEnd: stripeSubscriptionEnding(shaped),
       planId: stripeSubscriptionPriceId(shaped),

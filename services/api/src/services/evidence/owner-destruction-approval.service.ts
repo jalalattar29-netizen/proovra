@@ -16,13 +16,16 @@
  *     a restore and a later trash need a new approval;
  *   - only for a SEALED record (an unsealed abandoned upload expires on its own
  *     lifecycle and needs no approval);
- *   - withdrawable until the record is destroyed.
+ *   - withdrawable until the executor claims it for destruction (a live claim
+ *     refuses the withdrawal: the claim already read the approval).
  *
  * The approval satisfies the approval requirement ONLY. Trash grace,
  * application retention (the eight-year platform period), Object Lock, legal
  * hold and the destruction switches still decide, in the executor, as before.
  */
 import type { PrismaClient } from "@prisma/client";
+
+import { DESTRUCTION_CLAIM_LEASE_MS } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
 
@@ -37,7 +40,13 @@ export type OwnerDestructionApprovalRefusal =
   | "UNSEALED_RECORD"
   /** Not in the Trash / archive (no deleted_at), or already destroyed. */
   | "NOT_IN_TRASH"
-  | "ALREADY_DESTROYED";
+  | "ALREADY_DESTROYED"
+  /**
+   * The executor holds a live destruction claim: it read the approval when it
+   * claimed and deletes storage after that commit, so a withdrawal now would
+   * report success for a record that is being destroyed anyway.
+   */
+  | "DESTRUCTION_IN_PROGRESS";
 
 export type OwnerDestructionApprovalResult =
   | { ok: true; approvalId: string; evidenceDeletedAtUtc: Date; changed: boolean }
@@ -118,12 +127,19 @@ export async function withdrawOwnRecordDestructionApproval(
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.evidenceId}))`;
     const record = await tx.evidence.findUnique({
       where: { id: input.evidenceId },
-      select: { ownerUserId: true, teamId: true, destroyedAtUtc: true, lifecycleState: true },
+      select: { ownerUserId: true, teamId: true, destroyedAtUtc: true, lifecycleState: true, destructionClaimedAtUtc: true },
     });
     if (!record || record.ownerUserId !== input.actorUserId) return { ok: false as const, refusal: "NOT_FOUND" as const };
     if (record.teamId) return { ok: false as const, refusal: "WORKSPACE_RECORD_USES_REVIEW" as const };
     if (record.destroyedAtUtc || record.lifecycleState === "DESTROYED") {
       return { ok: false as const, refusal: "ALREADY_DESTROYED" as const };
+    }
+    if (
+      record.lifecycleState === "PENDING_DESTRUCTION" &&
+      record.destructionClaimedAtUtc &&
+      record.destructionClaimedAtUtc.getTime() > now.getTime() - DESTRUCTION_CLAIM_LEASE_MS
+    ) {
+      return { ok: false as const, refusal: "DESTRUCTION_IN_PROGRESS" as const };
     }
     const { count } = await tx.evidenceOwnerDestructionApproval.updateMany({
       where: { evidenceId: input.evidenceId, ownerUserId: input.actorUserId, withdrawnAtUtc: null },

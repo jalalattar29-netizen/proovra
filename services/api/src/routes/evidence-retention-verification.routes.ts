@@ -106,6 +106,11 @@ function sendOwnerApprovalRefusal(reply: FastifyReply, refusal: OwnerDestruction
       });
     case "ALREADY_DESTROYED":
       return reply.code(409).send({ code: "EVIDENCE_ALREADY_DESTROYED", message: "This record has already been permanently deleted." });
+    case "DESTRUCTION_IN_PROGRESS":
+      return reply.code(409).send({
+        code: "DESTRUCTION_IN_PROGRESS",
+        message: "Permanent deletion of this record has already started, so the approval can no longer be withdrawn.",
+      });
   }
 }
 
