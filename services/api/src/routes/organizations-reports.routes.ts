@@ -19,7 +19,8 @@
  *   GET /v1/orgs/:id/reports/audit.csv           (ORG_AUDITOR+)
  *   GET /v1/orgs/:id/reports/governance.csv      (ORG_AUDITOR+)
  *   GET /v1/orgs/:id/reports/external-access.csv (ORG_AUDITOR+)
- *   GET /v1/orgs/:id/reports/download-audit.csv  (ORG_AUDITOR+)
+ *   GET /v1/orgs/:id/reports/download-audit.csv  (ORG_AUDITOR+; rows within the caller's record reach)
+ *   GET /v1/orgs/:id/reports/download-audit-summary.csv (ORG_AUDITOR+; counts only)
  *
  * Every successful export emits an ORG_REPORT_EXPORTED org-audit event
  * (report name + row count only — never the report body).
@@ -58,6 +59,11 @@ import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js
 import { effectiveExternalReviewGrantState } from "../services/external-review/external-review-grant.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { listOrgWorkspaceSeatRows } from "./organizations-governance.routes.js";
+import { listAccessibleWorkspaces } from "../services/access/accessible-workspaces.js";
+import {
+  resolveTenantAuditHiddenResources,
+  tenantAuditHiddenResourceClauses,
+} from "../services/audit/tenant-audit.service.js";
 import {
   toCsv,
   csvDownloadHeaders,
@@ -603,9 +609,21 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
   // workspace id (evidence.routes.ts `auditEvidenceAction` → `emitTenantAudit`).
   // This export used to answer a single "not attributed to an organization"
   // note pointing at a platform-admin endpoint the auditor cannot call. It now
-  // lists the download events of the organization's workspaces (the same
-  // workspace set the external-access export resolves), newest first, under
-  // the same row cap and truncation signalling as audit.csv.
+  // lists the download events of the organization's workspaces, newest first,
+  // under the same row cap and truncation signalling as audit.csv.
+  //
+  // NEW-RG-11-3 (owner decision D, 2026-11-21) — a row names a record (its
+  // evidence id, its workspace, who downloaded it and when), so it is that
+  // record's data. The organization oversight role admits the caller to the
+  // EXPORT; it does not open records. Rows are listed only for:
+  //   1. workspaces of this organization the caller is an ACTIVE member of
+  //      (`listAccessibleWorkspaces`: the canonical membership rule, so a
+  //      suspended, revoked or expired membership contributes nothing); and
+  //   2. inside them, records the caller can reach — the same record/case
+  //      reach `GET /v1/audit/tenant` applies (PRO-BLZ-01,
+  //      `resolveTenantAuditHiddenResources` + `tenantAuditHiddenResourceClauses`).
+  // Organization-wide volume without identifiers is the separate aggregate
+  // export below (download-audit-summary.csv).
   // -------------------------------------------------------------------------
   app.get(
     "/v1/orgs/:id/reports/download-audit.csv",
@@ -625,7 +643,8 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
         select: { id: true, name: true },
       });
       const teamById = new Map(teams.map((t) => [t.id, t.name]));
-      const teamIds = teams.map((t) => t.id);
+      const reach = await downloadAuditReach(orgId, userId, teams.map((t) => t.id));
+      const teamIds = reach.workspaceIds;
 
       const events =
         teamIds.length === 0
@@ -635,6 +654,7 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
                 category: "tenant_audit",
                 workspaceId: { in: teamIds },
                 action: { in: [...DOWNLOAD_AUDIT_ACTIONS] },
+                ...(reach.hiddenClauses.length > 0 ? { AND: reach.hiddenClauses } : {}),
               },
               orderBy: [{ createdAt: "desc" }, { id: "desc" }],
               take: AUDIT_ROW_CAP + 1,
@@ -665,6 +685,9 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
 
       const csv = toCsv(rows, columns);
       reply.header("x-report-available", "true");
+      // NEW-RG-11-3 — additive: the rows are the caller's reach, not the whole
+      // organization; the client says so and points at the aggregate export.
+      reply.header("x-report-scope", "caller-record-reach");
       if (truncated) {
         reply.header("x-report-truncated", "true");
         reply.header("x-report-row-cap", String(AUDIT_ROW_CAP));
@@ -672,11 +695,112 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
       await auditExport(orgId, userId, "download-audit", rows.length, {
         available: true,
         truncated,
+        scope: "caller-record-reach",
+        reachableWorkspaceCount: teamIds.length,
+        organizationWorkspaceCount: teams.length,
         ...(truncated ? { rowCap: AUDIT_ROW_CAP } : {}),
       });
       return sendCsv(reply, "org-download-audit.csv", csv);
     },
   );
+
+  // -------------------------------------------------------------------------
+  // GET /v1/orgs/:id/reports/download-audit-summary.csv  (ORG_AUDITOR+)
+  //
+  // NEW-RG-11-3 (owner decision D) — the authorized ORGANIZATION-WIDE aggregate:
+  // download-event counts per UTC day, workspace and action across every
+  // workspace of the organization. It names no record, no actor and no event:
+  // the only identifiers are the organization's own workspaces, which the
+  // oversight roles already read (seats, external access). A bucket count
+  // cannot be traced back to a record the caller cannot open.
+  // -------------------------------------------------------------------------
+  app.get(
+    "/v1/orgs/:id/reports/download-audit-summary.csv",
+    { preHandler },
+    async (req, reply) => {
+      const orgId = UuidParam.parse((req.params as { id: string }).id);
+      const userId = getAuthUserId(req);
+
+      const access = await requireOrgRole(orgId, userId, OVERSIGHT_EXPORT_ROLES);
+      if (!access.ok) return reply.code(access.denial.status).send(access.denial.body);
+      if (!(await reportRateLimit(userId, "download-audit-summary"))) {
+        return reply.code(429).send(RATE_LIMITED);
+      }
+
+      const teams = await prisma.team.findMany({
+        where: { organizationId: orgId, isPersonal: false },
+        select: { id: true, name: true },
+      });
+      const teamById = new Map(teams.map((t) => [t.id, t.name]));
+      const teamIds = teams.map((t) => t.id);
+
+      const buckets =
+        teamIds.length === 0
+          ? []
+          : await prisma.$queryRaw<Array<{ day: string; workspace_id: string; action: string; event_count: number }>>`
+              SELECT to_char(date_trunc('day', created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day,
+                     workspace_id::text AS workspace_id,
+                     action,
+                     count(*)::int AS event_count
+                FROM admin_audit_logs
+               WHERE category = 'tenant_audit'
+                 AND workspace_id = ANY(${teamIds}::uuid[])
+                 AND action = ANY(${[...DOWNLOAD_AUDIT_ACTIONS]}::text[])
+               GROUP BY 1, 2, 3
+               ORDER BY 1 DESC, 2 ASC, 3 ASC
+               LIMIT ${AUDIT_ROW_CAP + 1}`;
+      const truncated = buckets.length > AUDIT_ROW_CAP;
+      const rows = truncated ? buckets.slice(0, AUDIT_ROW_CAP) : buckets;
+
+      type Row = (typeof rows)[number];
+      const columns: CsvColumn<Row>[] = [
+        { header: "dayUtc", value: (b) => b.day },
+        { header: "workspaceId", value: (b) => b.workspace_id },
+        { header: "workspaceName", value: (b) => teamById.get(b.workspace_id) ?? null },
+        { header: "action", value: (b) => b.action },
+        { header: "eventCount", value: (b) => Number(b.event_count) },
+      ];
+
+      const csv = toCsv(rows, columns);
+      reply.header("x-report-available", "true");
+      reply.header("x-report-scope", "organization-aggregate");
+      if (truncated) {
+        reply.header("x-report-truncated", "true");
+        reply.header("x-report-row-cap", String(AUDIT_ROW_CAP));
+      }
+      await auditExport(orgId, userId, "download-audit-summary", rows.length, {
+        truncated,
+        ...(truncated ? { rowCap: AUDIT_ROW_CAP } : {}),
+      });
+      return sendCsv(reply, "org-download-audit-summary.csv", csv);
+    },
+  );
+}
+
+/**
+ * NEW-RG-11-3 — the download-audit rows this caller may see: the
+ * organization's workspaces in which the caller holds ACTIVE membership
+ * (`listAccessibleWorkspaces`), and the record/case reach of each
+ * (`resolveTenantAuditHiddenResources`, the `/v1/audit/tenant` rule).
+ */
+async function downloadAuditReach(
+  orgId: string,
+  userId: string,
+  orgWorkspaceIds: readonly string[],
+): Promise<{ workspaceIds: string[]; hiddenClauses: ReturnType<typeof tenantAuditHiddenResourceClauses> }> {
+  if (orgWorkspaceIds.length === 0) return { workspaceIds: [], hiddenClauses: [] };
+  const orgSet = new Set(orgWorkspaceIds);
+  const workspaceIds = (await listAccessibleWorkspaces({ userId }, prisma))
+    .filter((w) => w.via === "membership" && w.organizationId === orgId && orgSet.has(w.workspaceId))
+    .map((w) => w.workspaceId);
+  const hidden = { evidenceIds: [] as string[], caseIds: [] as string[], reportIds: [] as string[] };
+  for (const workspaceId of workspaceIds) {
+    const h = await resolveTenantAuditHiddenResources(workspaceId, userId, prisma);
+    hidden.evidenceIds.push(...h.evidenceIds);
+    hidden.caseIds.push(...h.caseIds);
+    hidden.reportIds.push(...h.reportIds);
+  }
+  return { workspaceIds, hiddenClauses: tenantAuditHiddenResourceClauses(hidden) };
 }
 
 /** PRO-O1-14 — the tenant-audit actions a download writes (evidence.routes.ts). */

@@ -150,12 +150,29 @@ const REPORTS: ReadonlyArray<ReportDef> = [
       // stable for spreadsheet / SIEM consumers); the API signals a cap
       // through response headers, which `download` reads and reports on the
       // card. The copy promises nothing the file itself does not do.
-      "Report, verification-package and original download events in the organization's workspaces. Bounded to the most recent 5,000 rows.",
+      // NEW-RG-11-3 — the rows name records, so they cover only the records
+      // the caller can open (workspace membership + case reach); the
+      // organization-wide counts are the summary card below.
+      "Report, verification-package and original download events for the records you can open in this organization's workspaces (your workspace membership and case access decide which). Bounded to the most recent 5,000 rows.",
     file: "download-audit.csv",
     filename: "org-download-audit.csv",
     minRole: "ORG_AUDITOR",
     roles: OVERSIGHT_EXPORT_ROLES,
-    source: "Download events in this organization's workspace audit",
+    source: "Download events in this organization's workspace audit, limited to records you can open",
+    available: true,
+  },
+  {
+    id: "download-audit-summary",
+    label: "Evidence download volume",
+    description:
+      // NEW-RG-11-3 — the authorized organization-wide aggregate: counts per
+      // day, workspace and action. It names no record, person or event.
+      "Download counts per day, workspace and download kind across every workspace in the organization. Counts only — no record, person or event identifiers.",
+    file: "download-audit-summary.csv",
+    filename: "org-download-audit-summary.csv",
+    minRole: "ORG_AUDITOR",
+    roles: OVERSIGHT_EXPORT_ROLES,
+    source: "Download events in this organization's workspace audit (aggregated)",
     available: true,
   },
 ];
