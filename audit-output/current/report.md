@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 58df9f69250b6aec94c8cc1ebb206bb52f1e8e2afcd3400385912772c3e1079c |
+| engineHash    | 185bd5be6e188bed013ddc968d142354062f6ea6633b1e2aaa7c3890f63a9c0f |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -73,7 +73,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 
 | counter                                    | value |
 | ------------------------------------------ | ----- |
-| AuditFilesInventoried                      | 525   |
+| AuditFilesInventoried                      | 526   |
 | AuditFilesUnclassified                     | 0     |
 | AuditArtifactProducersUnknown              | 0     |
 | AuditArtifactConsumersUnknown              | 0     |
@@ -122,7 +122,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
 | HistoricalMigrationsModifiedByPhase0       | 0     |
-| ProductBehaviorTestsInventoried            | 432   |
+| ProductBehaviorTestsInventoried            | 433   |
 
 ### Report roles
 
@@ -169,5 +169,5 @@ _(none — the instrument is sound)_
 
 ### Product closure
 
-- UNWIRED EXECUTABLE WRITERS: 10 terminal writers have zero entrypoints (PRESERVED_PLANNED_WRITER + DEAD_UNREACHABLE)
+- UNWIRED EXECUTABLE WRITERS: 12 terminal writers have zero entrypoints (PRESERVED_PLANNED_WRITER + DEAD_UNREACHABLE)
 - ArchitectureBacklog: UndisposedRoutes = 29 — registered routes with no reviewed product disposition (NON-BLOCKING, no security or completeness credit)
