@@ -329,6 +329,33 @@ describe("PRO-CENZ-01 closure 2 — organization and SIU routes the web now call
       expect(viewer.canWrite).toBe(false);
       expect(viewer.disabledCode).toBe("permission");
       expect(viewer.disabledReason).toContain("read this investigation profile but not change it");
+
+      // L-3 — the READ writes no permission_denied security event; the write
+      // keeps its auditing check. Reading three times, then one refused write,
+      // must leave exactly one new event (the write's): the positive control
+      // proves events are being recorded, so the absence is not vacuous.
+      const deniedEvents = () =>
+        prisma.securityEvent.count({ where: { teamId: A().teamId, eventType: "permission_denied" } });
+      const eventsBefore = await deniedEvents();
+      for (let i = 0; i < 3; i += 1) expect((await viewerOf(A().viewerToken)).canWrite).toBe(false);
+      const refusedWrite = await call("POST", `${base}/checklist/police_report/status`, A().viewerToken, {
+        status: "waived",
+        note: null,
+      });
+      expect(refusedWrite.statusCode, refusedWrite.body).toBe(403);
+      const until = Date.now() + 10_000;
+      while (Date.now() < until && (await deniedEvents()) === eventsBefore) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      // Let any straggler (a read's event, if one were emitted) land too.
+      await new Promise((r) => setTimeout(r, 500));
+      expect(await deniedEvents()).toBe(eventsBefore + 1);
+      const lastDenied = await prisma.securityEvent.findFirstOrThrow({
+        where: { teamId: A().teamId, eventType: "permission_denied" },
+        orderBy: { createdAt: "desc" },
+      });
+      expect(JSON.stringify(lastDenied)).toContain("evidence.update_metadata");
+
       const before = await snapshot();
       expect(await writes(A().viewerToken)).toEqual([403, 403, 403, 403, 403]);
       expect(await snapshot()).toEqual(before);

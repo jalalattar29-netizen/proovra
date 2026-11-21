@@ -117307,7 +117307,7 @@
       "method": "DELETE",
       "path": "/v1/siu/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1340",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1349",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -125490,7 +125490,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/siu-export/preflight",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:879",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:888",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -125560,7 +125560,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/siu-exports",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1077",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1086",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -125622,7 +125622,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/siu-exports/:exportId/download",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1418",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1427",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -125708,7 +125708,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/siu-profile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:575",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:584",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -152824,7 +152824,7 @@
       "method": "GET",
       "path": "/v1/siu/intake-templates",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:487",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:496",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -152881,7 +152881,7 @@
       "method": "GET",
       "path": "/v1/siu/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1115",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1124",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -152939,7 +152939,7 @@
       "method": "GET",
       "path": "/v1/siu/saved-views/custom",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1242",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1251",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -152997,7 +152997,7 @@
       "method": "GET",
       "path": "/v1/siu/worklist",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:528",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:537",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -160033,7 +160033,7 @@
       "method": "PATCH",
       "path": "/v1/siu/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1298",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1307",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171298,7 +171298,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/siu-export",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:918",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:927",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171386,7 +171386,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/siu-profile/checklist/:itemId/map-evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:669",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:678",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171457,7 +171457,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/siu-profile/checklist/:itemId/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:698",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:707",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171527,7 +171527,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/siu-profile/follow-ups",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:777",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:786",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171594,7 +171594,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/siu-profile/follow-ups/:followUpId/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:826",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:835",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171662,7 +171662,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/siu-profile/indicators",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:731",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:740",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171732,7 +171732,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/siu-profile/reveal-pii",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1147",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1156",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -205943,7 +205943,7 @@
       "method": "POST",
       "path": "/v1/siu/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1264",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1273",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -206004,7 +206004,7 @@
       "method": "POST",
       "path": "/v1/siu/saved-views/:id/use",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1365",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1374",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -210349,7 +210349,7 @@
       "method": "PUT",
       "path": "/v1/cases/:id/siu-profile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:612",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:621",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"

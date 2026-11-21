@@ -29,6 +29,7 @@ import {
   evaluateMemberAccess,
   loadMemberAccessSnapshot,
 } from "../services/identity/access-policy.service.js";
+import { gateRequestSessionForWorkspace } from "../services/identity/workspace-session-gate.service.js";
 import { caseVisibleToWhere, evidenceVisibleThroughCasesWhere } from "../services/cases/case-visibility.js";
 import { isMembershipDenial } from "../services/access/membership-denial.js";
 import { evaluateArtifactDownload } from "../services/evidence/artifact-download-gate.service.js";
@@ -275,14 +276,22 @@ async function projectSiuViewer(
   caseId: string,
   ctx: { userId: string; teamId: string; role: string | null; caseOwnerUserId: string | null },
 ): Promise<{ canWrite: boolean; disabledCode: SiuGateRefusal["code"] | "permission" | null; disabledReason: string | null }> {
-  const permission = await evaluateMemberAccess({
-    teamId: ctx.teamId,
-    userId: ctx.userId,
-    permission: "evidence.update_metadata",
-  });
+  // L-3 (closure2 review) — the PURE evaluator on the canonical snapshot, not
+  // `evaluateMemberAccess`: that one audits every deny, so each profile read by
+  // a non-writer wrote a false `permission_denied` security event. This is the
+  // same decision the write routes' auditing check makes (snapshot, canonical
+  // evaluator, then the organization session gate on an allow), without the
+  // event. A "no" here narrows the controls offered; it refuses nothing.
+  const snapshot = await loadMemberAccessSnapshot({ teamId: ctx.teamId, userId: ctx.userId });
+  let mayWrite =
+    snapshot !== null &&
+    evaluateAccess({ kind: "MEMBER", member: snapshot }, { permission: "evidence.update_metadata" }).allowed;
+  if (mayWrite && snapshot?.workspaceKind === "ORGANIZATION") {
+    mayWrite = (await gateRequestSessionForWorkspace({ teamId: ctx.teamId, userId: ctx.userId })).allowed;
+  }
   // The Enterprise question comes first on the write routes for a member who
   // holds the permission; a member without it is refused on role before it.
-  if (!permission.allowed) {
+  if (!mayWrite) {
     return { canWrite: false, disabledCode: "permission", disabledReason: SIU_READ_ONLY_ROLE_REASON };
   }
   const refusal = await siuCaseGateRefusal({
