@@ -82,14 +82,24 @@ async function main(): Promise<void> {
     process.exit(4);
   }
 
+  // Owner decision F (NEW-RG-07-4 / NEW-RG-26-3): acceptance re-checks that the
+  // provisioning operator still holds platform administration. In production the
+  // actor is the platform admin working the sales-led request, so the fixture makes
+  // one; the owner provisioning themself was never a valid operator.
+  const opTag = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  const operator = await prisma.user.create({
+    data: {
+      email: `e2e-operator-${opTag}@test.proovra.local`,
+      provider: "EMAIL",
+      providerUserId: `e2e-operator-${opTag}`,
+      platformRole: "admin",
+    },
+    select: { id: true },
+  });
   const result = await provisionEnterpriseCustomer({
     organizationName,
     ownerEmail: ownerEmail!,
-    // The owner provisions their own org here. In production the actor is the
-    // platform admin working the sales-led request; a fixture has no such
-    // person, and attributing the action to the owner is the honest reading
-    // of who it was done for.
-    actorUserId: owner.id,
+    actorUserId: operator.id,
   });
 
   // Every first owner is invited (PROV-001), so the fixture accepts as the

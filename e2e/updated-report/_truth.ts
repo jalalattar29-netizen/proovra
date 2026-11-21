@@ -60,7 +60,12 @@ export function provisionVerifiedOrganization(ownerEmail: string): { organizatio
      const owner = await prisma.user.findFirst({ where: { email: ${JSON.stringify(ownerEmail.toLowerCase())} }, select: { id: true } });
      const acceptance = await import("/app/services/api/dist/services/organization/org-invite-acceptance.service.js");
      const { hashInviteToken } = await import("/app/services/api/dist/routes/organizations.routes.js");
-     const r = await ent.provisionEnterpriseCustomer({ organizationName: "Truth Journey Verified Org", ownerEmail: ${JSON.stringify(ownerEmail)}, seats: 25, actorUserId: owner.id });
+     // Owner decision F (NEW-RG-07-4 / NEW-RG-26-3): acceptance re-checks that the
+     // provisioning operator still holds platform administration, so the operator is a
+     // platform admin, as in production. The owner provisioning themself never was one.
+     const opTag = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+     const operator = await prisma.user.create({ data: { email: "truth-operator-" + opTag + "@test.proovra.local", provider: "EMAIL", providerUserId: "truth-operator-" + opTag, platformRole: "admin" }, select: { id: true } });
+     const r = await ent.provisionEnterpriseCustomer({ organizationName: "Truth Journey Verified Org", ownerEmail: ${JSON.stringify(ownerEmail)}, seats: 25, actorUserId: operator.id });
      const session = await prisma.authenticatedSession.findFirst({ where: { userId: owner.id, revokedAtUtc: null }, orderBy: { issuedAtUtc: "desc" }, select: { sessionIdHash: true } });
      const accepted = await acceptance.acceptOrganizationInvite({ tokenHash: hashInviteToken(r.ownerInviteToken), userId: owner.id, sessionIdHash: session?.sessionIdHash ?? null });
      if (accepted.kind !== "ok" || !accepted.enterpriseWorkspaceId) throw new Error("owner could not accept: " + accepted.kind);
