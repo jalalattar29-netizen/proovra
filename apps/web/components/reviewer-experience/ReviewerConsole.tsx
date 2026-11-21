@@ -75,6 +75,9 @@ import { apiFetch } from "../../lib/api";
 // Canonical server-projected active space — bulk reviewer mutations are
 // team-only, and the frontend must never re-derive tenancy itself.
 import { useActiveSpace } from "../../lib/platform-context";
+import { useOptionalPlatformContext } from "../../lib/platform-context/PlatformContextProvider";
+import { roleInWorkspace } from "../../lib/platform-context/actorRole";
+import { mayDeleteReviewerSavedView } from "../../lib/evidence/saved-view-sharing";
 import { useHealthDestination } from "../../lib/navigation/healthDestination";
 import { resolveSavedViewQueue } from "../../lib/reviewer-workspace/reviewer-api";
 import {
@@ -176,6 +179,9 @@ type SavedViewRow = {
   id?: string;
   name?: string | null;
   queueType?: string | null;
+  /** Server-projected (ReviewerOpsSavedViewProjection). */
+  createdByUserId?: string | null;
+  visibility?: "PRIVATE" | "TEAM" | null;
   filter?: {
     queue?: ReviewerOpsQueueType;
     onlyMine?: boolean;
@@ -1860,7 +1866,7 @@ const TAB_SAVED_VIEW_QUEUE: Readonly<Partial<Record<TabId, "UNASSIGNED" | "MY_RE
   sla: "OVERDUE",
 };
 
-function SavedViewsPanel({
+export function SavedViewsPanel({
   teamId,
   activeTab,
   views,
@@ -1878,6 +1884,10 @@ function SavedViewsPanel({
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const { confirm } = useConfirmAction();
+  // Closure 2 ("sem" item 4) — Delete is offered on the server's rule only.
+  const platform = useOptionalPlatformContext();
+  const viewerUserId = platform?.envelope?.user?.id ?? null;
+  const viewerRole = roleInWorkspace(platform?.envelope ?? null, teamId);
   const applySavedView = useCallback((view: SavedViewRow) => {
     const queue = resolveSavedViewQueue(view);
     if (queue) {
@@ -2117,6 +2127,7 @@ function SavedViewsPanel({
                     {v.name ?? `View ${idx + 1}`}
                     {v.queueType ? ` · ${v.queueType}` : ""}
                   </button>
+                  {mayDeleteReviewerSavedView(v, viewerUserId, viewerRole) ? (
                   <Button
                     size="sm"
                     variant="ghost"
@@ -2141,6 +2152,7 @@ function SavedViewsPanel({
                   >
                     {deleting ? "Deleting…" : "Delete"}
                   </Button>
+                  ) : null}
                 </li>
               );
             })}

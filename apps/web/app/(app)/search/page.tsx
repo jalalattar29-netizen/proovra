@@ -112,6 +112,10 @@ import {
   type SearchReadinessProjection,
   identifierLabel, identifierTextLabel } from "@proovra/shared";
 import { mapTeamRoleToCanonical, roleHasPermission } from "@proovra/shared";
+import {
+  mayDeleteSearchSavedView,
+  mayRenameSearchSavedView,
+} from "../../../lib/evidence/saved-view-sharing";
 import { actorRoleIn } from "../../../lib/platform-context/actorRole";
 import { handleTablistKeyDown, panelId, tabId } from "../../../lib/a11y/tablist-keyboard";
 // The guidance column stands in for the Inspector while nothing is selected,
@@ -620,6 +624,7 @@ function SearchInner() {
    * role does not get it.
    */
   const searchActivityRole = actorRoleIn(envelope, teamId);
+  const viewerUserId = envelope?.user?.id ?? null;
   const canReadSearchActivity =
     searchActivityRole !== null &&
     roleHasPermission(mapTeamRoleToCanonical(searchActivityRole), "identity.access_review.action" as never);
@@ -2256,25 +2261,34 @@ function SearchInner() {
                           {t(SAVED_VIEW_VISIBILITY_LABEL[v.visibility])}
                         </span>
                       </button>
-                      <button
-                        type="button"
-                        className="search-saved-view__action"
-                        onClick={() => renameSavedView(v.id, v.name)}
-                        aria-label="Rename saved view"
-                        data-search-saved-view-rename={v.id}
-                        title="Rename"
-                      >
-                        ✎
-                      </button>
-                      <button
-                        type="button"
-                        className="search-saved-view__action"
-                        onClick={() => deleteSavedView(v.id)}
-                        aria-label="Delete saved view"
-                        title="Delete"
-                      >
-                        ×
-                      </button>
+                      {/* Closure 2 (PRO-E1-11) — offered only where the
+                          server would act: rename is the creator's (a TEAM
+                          view also needs the shared-view write); delete is
+                          the creator's or the shared-view manager's. */}
+                      {mayRenameSearchSavedView(v, viewerUserId, searchActivityRole) ? (
+                        <button
+                          type="button"
+                          className="search-saved-view__action"
+                          onClick={() => renameSavedView(v.id, v.name)}
+                          aria-label="Rename saved view"
+                          data-search-saved-view-rename={v.id}
+                          title="Rename"
+                        >
+                          ✎
+                        </button>
+                      ) : null}
+                      {mayDeleteSearchSavedView(v, viewerUserId, searchActivityRole) ? (
+                        <button
+                          type="button"
+                          className="search-saved-view__action"
+                          onClick={() => deleteSavedView(v.id)}
+                          aria-label="Delete saved view"
+                          data-search-saved-view-delete={v.id}
+                          title="Delete"
+                        >
+                          ×
+                        </button>
+                      ) : null}
                     </li>
                   ))}
                 </ul>

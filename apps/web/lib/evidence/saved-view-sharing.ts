@@ -81,3 +81,72 @@ export function ownsSavedView(
   if (!currentUserId || !view.ownerUserId) return true;
   return view.ownerUserId === currentUserId;
 }
+
+/**
+ * Closure 2 ("sem" item 4, PRO-E1-11) — the SEARCH console's saved-view
+ * actions, offered on the server's own rule (search.routes.ts +
+ * saved-search.service.ts) so the console never shows a control the server
+ * refuses. The audience of the management block itself is unchanged (platform
+ * administrators; PRO-E1-11 stays ACCEPTED_POLICY): this only stops that block
+ * offering Rename / Delete on a view the viewer may not change.
+ *
+ *   rename  PATCH  /v1/search/saved-views/:id — the CREATOR only (anyone else
+ *           404); a shared (TEAM) view also needs the write a shared view
+ *           needs (`evidence.update_metadata`, PRO-E1-06).
+ *   delete  DELETE /v1/search/saved-views/:id — the creator (a TEAM view again
+ *           only with that write), or `operations.saved_views.manage` for a
+ *           colleague's TEAM view.
+ *
+ * An unknown role keeps today's behaviour for the creator arm (the server
+ * decides); an unknown caller id never claims a colleague's view.
+ */
+export type SearchSavedViewRef = { createdByUserId?: string | null; visibility: "PRIVATE" | "TEAM" };
+
+function roleHolds(role: string | null | undefined, permission: string): boolean | null {
+  if (!role || !WORKSPACE_ROLES.includes(role)) return null;
+  return roleHasPermission(mapTeamRoleToCanonical(role as WorkspaceRole), permission as never);
+}
+
+export function mayRenameSearchSavedView(
+  view: SearchSavedViewRef,
+  currentUserId: string | null | undefined,
+  role: string | null | undefined,
+): boolean {
+  if (!currentUserId || !view.createdByUserId || view.createdByUserId !== currentUserId) return false;
+  if (view.visibility === "PRIVATE") return true;
+  return roleHolds(role, "evidence.update_metadata") !== false;
+}
+
+export function mayDeleteSearchSavedView(
+  view: SearchSavedViewRef,
+  currentUserId: string | null | undefined,
+  role: string | null | undefined,
+): boolean {
+  const manages = roleHolds(role, "operations.saved_views.manage") === true;
+  const own = Boolean(currentUserId && view.createdByUserId && view.createdByUserId === currentUserId);
+  if (own) {
+    if (view.visibility === "PRIVATE") return true;
+    return manages || roleHolds(role, "evidence.update_metadata") !== false;
+  }
+  // A colleague's view is listed only when it is TEAM; only the manager deletes it.
+  return view.visibility === "TEAM" && manages;
+}
+
+/**
+ * Closure 2 ("sem" item 4) — the REVIEWER console's saved queue views. Server
+ * rule (DELETE /v1/reviewer-ops/saved-views/:id, deleteReviewerOpsSavedView):
+ * the creator deletes their own view; a colleague's TEAM view only the
+ * workspace OWNER / ADMIN. The console offered Delete on every row, and a
+ * reviewer who pressed it on a colleague's shared view got "Could not delete
+ * saved view.". An unknown role or caller offers only what the caller owns.
+ */
+export function mayDeleteReviewerSavedView(
+  view: { createdByUserId?: string | null; visibility?: string | null },
+  currentUserId: string | null | undefined,
+  role: string | null | undefined,
+): boolean {
+  // A row without a creator (older API) keeps today's behaviour.
+  if (!view.createdByUserId) return true;
+  if (currentUserId && view.createdByUserId === currentUserId) return true;
+  return view.visibility === "TEAM" && (role === "OWNER" || role === "ADMIN");
+}
