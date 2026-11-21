@@ -1184,6 +1184,26 @@ describe("workspace session governance", () => {
     expect(res.body).not.toContain("sessionIdHash");
   });
 
+  it("NEW-RG08-2 (decision C): revoke ONE session of a governed member without the operator's step-up → 401 STEP_UP_REQUIRED, ZERO revocation; the gate is bound to that session", async () => {
+    makeOtherManaged();
+    H.stepUpSent = true;
+    const res = await app.inject({
+      method: "POST", url: "/v1/identity-security/sessions/revoke",
+      payload: { teamId: TEAM, userId: OTHER, sessionIdHash: FOREIGN_HASH, reason: "OPERATOR_REVOKED" },
+    });
+    expect(res.statusCode, res.body).toBe(401);
+    expect(res.json().error.code).toBe("STEP_UP_REQUIRED");
+    expect(called("revokeSession")).toHaveLength(0);
+    const gate = callInput("requireStepUpForSensitiveAction");
+    expect(gate).toMatchObject({
+      teamId: TEAM,
+      userId: ACTOR,
+      purpose: "CONTRIBUTOR_SESSION_REVOKE",
+      resourceKind: "authenticated_session",
+    });
+    expect(typeof gate.resourceId).toBe("string");
+  });
+
   it("DEC-08: revoke ONE session of an independent (self-serve) member — even one minted while this workspace was active — is the same 404 as an unknown hash, ZERO revocation", async () => {
     // Every session is account-global: ending it signs the person out of
     // their Personal Space. OTHER is a self-serve (Google) account.

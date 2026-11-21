@@ -405,17 +405,195 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
       expect(await prisma.revokedSession.count({ where: { userId: u.userId } })).toBe(0);
 
       await directoryIdentity(u.userId, "g2-dec08-single");
-      const done = await call(
+      // NEW-RG08-2 (decision C) — in scope now, but another person's session
+      // ends only with the operator's step-up.
+      const bare = await call(
         "POST",
         "/v1/identity-security/sessions/revoke",
         owner(),
         { teamId: A().teamId, userId: u.userId, sessionIdHash: startedHere.sessionIdHash },
         { "x-proovra-workspace-id": A().teamId },
       );
+      expect(bare.statusCode, bare.body).toBe(401);
+      expect(json(bare).error.code).toBe("STEP_UP_REQUIRED");
+      expect(await prisma.revokedSession.count({ where: { userId: u.userId } })).toBe(0);
+      const done = await call(
+        "POST",
+        "/v1/identity-security/sessions/revoke",
+        owner(),
+        { teamId: A().teamId, userId: u.userId, sessionIdHash: startedHere.sessionIdHash },
+        {
+          "x-proovra-workspace-id": A().teamId,
+          ...(await ceremony.approvedHeader({
+            token: owner(),
+            userId: A().ownerUserId,
+            teamId: A().teamId,
+            purpose: "CONTRIBUTOR_SESSION_REVOKE",
+            resourceKind: "authenticated_session",
+            resourceId: startedHere.id,
+          })),
+        },
+      );
       expect(done.statusCode, done.body).toBe(200);
       expect(
         await prisma.revokedSession.count({ where: { userId: u.userId, sessionIdHash: startedHere.sessionIdHash } }),
       ).toBe(1);
+    });
+  });
+
+  // ===========================================================================
+  // NEW-RG08-2 (owner decision C) — ending another person's session by hash
+  // needs authority AND step-up; one's own sign-out needs neither
+  // ===========================================================================
+  describe("NEW-RG08-2 (decision C): POST /v1/identity-security/sessions/revoke is stepped up like the admin console's revoke", () => {
+    const url = "/v1/identity-security/sessions/revoke";
+    const ws = () => ({ "x-proovra-workspace-id": A().teamId });
+    const sessionOf = (userId: string) =>
+      prisma.authenticatedSession.create({
+        data: {
+          userId,
+          teamId: A().teamId,
+          sessionIdHash: createHash("sha256").update(randomUUID()).digest("hex"),
+          expiresAtUtc: future(),
+        },
+        select: { id: true, sessionIdHash: true },
+      });
+    const adminProof = (sessionId: string) =>
+      ceremony.approvedHeader({
+        token: admin(),
+        userId: A().adminUserId,
+        teamId: A().teamId,
+        purpose: "CONTRIBUTOR_SESSION_REVOKE",
+        resourceKind: "authenticated_session",
+        resourceId: sessionId,
+      });
+    const revokedCount = (userId: string, sessionIdHash: string) =>
+      prisma.revokedSession.count({ where: { userId, sessionIdHash } });
+    const sidHashOf = (token: string) =>
+      hashSessionId(JSON.parse(Buffer.from(token.split(".")[1]!, "base64url").toString("utf8")).sid as string);
+
+    it("an ADMIN without a step-up is refused 401 STEP_UP_REQUIRED and nothing ends; with one bound to THAT session it ends; an approval for another session does not answer", async () => {
+      const u = await person("g2-rg082-gov", { role: "MEMBER" });
+      await directoryIdentity(u.userId, "g2-rg082-gov");
+      const s = await sessionOf(u.userId);
+      const other = await sessionOf(u.userId);
+      const body = { teamId: A().teamId, userId: u.userId, sessionIdHash: s.sessionIdHash };
+
+      const bare = await call("POST", url, admin(), body, ws());
+      expect(bare.statusCode, bare.body).toBe(401);
+      expect(json(bare).error.code).toBe("STEP_UP_REQUIRED");
+      expect(await revokedCount(u.userId, s.sessionIdHash)).toBe(0);
+
+      // An approval minted for a DIFFERENT session of the same person.
+      const wrongTarget = await call("POST", url, admin(), body, { ...ws(), ...(await adminProof(other.id)) });
+      expect(wrongTarget.statusCode, wrongTarget.body).not.toBe(200);
+      expect(await revokedCount(u.userId, s.sessionIdHash)).toBe(0);
+
+      const ok = await call("POST", url, admin(), body, { ...ws(), ...(await adminProof(s.id)) });
+      expect(ok.statusCode, ok.body).toBe(200);
+      expect(await revokedCount(u.userId, s.sessionIdHash)).toBe(1);
+      expect(await revokedCount(u.userId, other.sessionIdHash)).toBe(0);
+    });
+
+    it("DEC-08: a self-serve member's session answers 404 to the workspace ADMIN even with a step-up approved for it; nothing ends", async () => {
+      const u = await person("g2-rg082-selfserve", { role: "MEMBER" });
+      const s = await sessionOf(u.userId);
+      const res = await call(
+        "POST",
+        url,
+        admin(),
+        { teamId: A().teamId, userId: u.userId, sessionIdHash: s.sessionIdHash },
+        { ...ws(), ...(await adminProof(s.id)) },
+      );
+      expect(res.statusCode, res.body).toBe(404);
+      expect(await prisma.revokedSession.count({ where: { userId: u.userId } })).toBe(0);
+      expect(
+        (await prisma.authenticatedSession.findUniqueOrThrow({ where: { id: s.id }, select: { revokedAtUtc: true } })).revokedAtUtc,
+      ).toBeNull();
+    });
+
+    it("own sign-out needs no extra factor: the caller's CURRENT session ends through this door and through /v1/auth/logout without a step-up; the caller's OTHER session still needs one", async () => {
+      const me = await person("g2-rg082-self", { role: "ADMIN" });
+      await directoryIdentity(me.userId, "g2-rg082-self");
+      const myOther = await sessionOf(me.userId);
+      const otherRes = await call(
+        "POST",
+        url,
+        me.token,
+        { teamId: A().teamId, userId: me.userId, sessionIdHash: myOther.sessionIdHash },
+        ws(),
+      );
+      expect(otherRes.statusCode, otherRes.body).toBe(401);
+      expect(json(otherRes).error.code).toBe("STEP_UP_REQUIRED");
+      expect(await revokedCount(me.userId, myOther.sessionIdHash)).toBe(0);
+
+      const current = sidHashOf(me.token);
+      const own = await call("POST", url, me.token, { teamId: A().teamId, userId: me.userId, sessionIdHash: current }, ws());
+      expect(own.statusCode, own.body).toBe(200);
+      expect(await revokedCount(me.userId, current)).toBe(1);
+      expect((await call("GET", "/v1/auth/me", me.token)).statusCode).toBe(401);
+
+      // The ordinary product sign-out, for anyone, takes no factor either.
+      const plain = await person("g2-rg082-logout", { role: "MEMBER" });
+      const out = await call("POST", "/v1/auth/logout", plain.token, {});
+      expect(out.statusCode, out.body).toBe(200);
+      expect(await revokedCount(plain.userId, sidHashOf(plain.token))).toBe(1);
+      expect((await call("GET", "/v1/auth/me", plain.token)).statusCode).toBe(401);
+    });
+
+    it("another workspace's administrator is refused on team A's governed member, step-up or not; nothing ends", async () => {
+      const B = h.fixtures.teamB;
+      const u = await person("g2-rg082-xws", { role: "MEMBER" });
+      await directoryIdentity(u.userId, "g2-rg082-xws");
+      const s = await sessionOf(u.userId);
+      // Naming team A: B's owner holds no authority there.
+      const asA = await call(
+        "POST",
+        url,
+        B.ownerToken,
+        { teamId: A().teamId, userId: u.userId, sessionIdHash: s.sessionIdHash },
+        ws(),
+      );
+      expect(asA.statusCode, asA.body).toBe(404);
+      // Naming their own team B, made an Enterprise organization workspace for
+      // this case (so the plan gate is not what refuses), even with B's own
+      // step-up approved for that session: the person is not B's member.
+      const bBefore = await prisma.team.findUniqueOrThrow({
+        where: { id: B.teamId },
+        select: { billingPlan: true, billingStatus: true, workspaceKind: true, isPersonal: true, organizationId: true },
+      });
+      const bContractBefore = await prisma.enterpriseContract.findUnique({ where: { organizationId: bBefore.organizationId! } });
+      await makeEnterpriseOrganizationWorkspace(prisma, B.teamId);
+      try {
+        const bProof = await ceremony.approvedHeader({
+          token: B.ownerToken,
+          userId: B.ownerUserId,
+          teamId: B.teamId,
+          purpose: "CONTRIBUTOR_SESSION_REVOKE",
+          resourceKind: "authenticated_session",
+          resourceId: s.id,
+        });
+        const asB = await call(
+          "POST",
+          url,
+          B.ownerToken,
+          { teamId: B.teamId, userId: u.userId, sessionIdHash: s.sessionIdHash },
+          { "x-proovra-workspace-id": B.teamId, ...bProof },
+        );
+        expect(asB.statusCode, asB.body).toBe(404);
+      } finally {
+        const { organizationId: _org, ...restore } = bBefore;
+        await prisma.team.update({ where: { id: B.teamId }, data: restore as never });
+        if (!bContractBefore) {
+          await prisma.enterpriseContract.deleteMany({ where: { organizationId: bBefore.organizationId! } });
+        } else {
+          await prisma.enterpriseContract.update({
+            where: { organizationId: bBefore.organizationId! },
+            data: { status: bContractBefore.status, activationState: bContractBefore.activationState },
+          });
+        }
+      }
+      expect(await prisma.revokedSession.count({ where: { userId: u.userId } })).toBe(0);
     });
   });
 
@@ -557,12 +735,21 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
 
     it("POST /v1/identity-security/sessions/revoke (by hash) ends the parent and its extension child; the unrelated session and its child survive", async () => {
       const f = await family("g2-rg10-hash");
+      // NEW-RG08-2 — stepped up like the admin console's revoke.
+      const proof = await ceremony.approvedHeader({
+        token: owner(),
+        userId: A().ownerUserId,
+        teamId: A().teamId,
+        purpose: "CONTRIBUTOR_SESSION_REVOKE",
+        resourceKind: "authenticated_session",
+        resourceId: f.parent.id,
+      });
       const r = await call(
         "POST",
         "/v1/identity-security/sessions/revoke",
         owner(),
         { teamId: A().teamId, userId: f.u.userId, sessionIdHash: f.parent.sessionIdHash },
-        { "x-proovra-workspace-id": A().teamId },
+        { "x-proovra-workspace-id": A().teamId, ...proof },
       );
       expect(r.statusCode, r.body).toBe(200);
       await expectFamilyEnded(f);

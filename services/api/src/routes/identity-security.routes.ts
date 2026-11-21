@@ -499,6 +499,24 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
       if (!inScope) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
+      // NEW-RG08-2 (decision C) — ending another person's session is stepped
+      // up like /v1/admin/identity/sessions/:id/revoke, after authority and
+      // DEC-08 scope. One's own CURRENT session is a sign-out: no factor.
+      const currentHash = req.user?.sessionIdHash ?? null;
+      const ownCurrentSession =
+        body.userId === actor.userId && currentHash !== null && currentHash === body.sessionIdHash;
+      if (!ownCurrentSession) {
+        const revokeGate = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: body.teamId,
+          userId: actor.userId,
+          purpose: "CONTRIBUTOR_SESSION_REVOKE",
+          resourceKind: "authenticated_session",
+          resourceId: inScope.id,
+        });
+        if (revokeGate.sent) return;
+      }
       const result = await revokeSession({
         teamId: body.teamId,
         userId: body.userId,
