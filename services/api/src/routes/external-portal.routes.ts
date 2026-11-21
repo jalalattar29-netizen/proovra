@@ -64,7 +64,6 @@ import {
 import { resolveWorkflowInGrantScope } from "../services/external-review/portal-scope.service.js";
 import {
   acceptInvitation,
-  issueInvitation,
   listInvitationsForTeam,
   revokeInvitation,
 } from "../services/external-review/portal-invitation.service.js";
@@ -84,7 +83,6 @@ import {
   postCommentInWorkflow,
 } from "../services/external-review/portal-comments.service.js";
 import {
-  deliverInvitationEmail,
   listDeliveriesForGrant,
 } from "../services/external-review/portal-invitation-email.service.js";
 import {
@@ -104,30 +102,15 @@ import {
   projectRecipientContact,
   resolveRecipientContactDisclosure,
 } from "../services/privacy/recipient-contact-disclosure.js";
+import {
+  externalReviewGrantRenewableNow,
+  viewerHoldsExternalReviewRenewAuthority,
+} from "../services/external-review/external-review-renew-authority.js";
 import { hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
 
 // ---------------------------------------------------------------------------
 // Schemas
 // ---------------------------------------------------------------------------
-
-const IssueInvitationBody = z.object({
-  reviewerEmail: z.string().email().max(320),
-  reviewerDisplayName: z.string().max(200).optional(),
-  organization: z.string().max(180).optional(),
-  role: z.enum(EXTERNAL_REVIEWER_ROLES),
-  watermarkPolicy: z.enum(WATERMARK_POLICIES).optional(),
-  mfaRequired: z.boolean().optional(),
-  scope: z.object({
-    kind: z.enum(["EVIDENCE", "CASE", "PACKAGE"]),
-    evidenceId: z.string().uuid().optional(),
-    caseId: z.string().uuid().optional(),
-    packageId: z.string().uuid().optional(),
-  }),
-  expiresAtUtc: z.string().datetime(),
-  allowOriginalDownload: z.boolean().optional(),
-  allowPackageDownload: z.boolean().optional(),
-  safeNote: z.string().max(500).optional(),
-});
 
 const PortalAuthBody = z.object({
   token: z.string().min(8).max(256),
@@ -321,8 +304,8 @@ function isAdministrativeTier(
 }
 
 /**
- * A2-15 — break-glass reveal, resend and send-email each mint a successor
- * token and put it in someone's hands, so each re-asks what issuing asked:
+ * A2-15 — break-glass reveal and resend each mint a successor token and put it
+ * in someone's hands (send-email did too; it is retired, EP-0446), so each re-asks what issuing asked:
  * the grant's subject is still within this operator's Case reach (else the
  * route's own missing-grant answer, so a closed subject and a missing grant
  * are indistinguishable, whatever the plan) and the workspace plan still
@@ -528,88 +511,49 @@ export async function externalPortalRoutes(app: FastifyInstance) {
       // PRO-R1-11 / A2-07 — the reviewer's address follows the one disclosure
       // decision the delivery read applies: masked unless the caller may reveal it.
       const disclosure = await resolveRecipientContactDisclosure(req, { teamId: ctx.workspaceId });
+      // EP-0450 — whether THIS viewer could renew each invitation's grant
+      // (POST /v1/external-review/grants/:id/renew: its permission, the
+      // entitlement, and the grant still live); Renew is offered on this only.
+      const mayRenew = await viewerHoldsExternalReviewRenewAuthority(req, ctx.workspaceId);
+      const now = new Date();
       return reply.code(200).send({
         invitations: rows.map((r) => {
           const contact = projectRecipientContact({ recipientEmail: r.inviteEmail ?? null, recipientPhone: null }, disclosure);
-          return { ...r, inviteEmail: contact.recipientEmail ?? contact.recipientEmailMasked };
+          return {
+            ...r,
+            inviteEmail: contact.recipientEmail ?? contact.recipientEmailMasked,
+            viewerCanRenew:
+              mayRenew && externalReviewGrantRenewableNow({ state: r.grantState, expiresAtUtc: r.expiresAtUtc }, now),
+          };
         }),
       });
     },
   );
 
+  // (RETIRED) POST /v1/external-review/invitations — typed 410 (closure phase 2,
+  // EP-0425, DEC-01).
+  //
+  // DEC-01 settles ONE issuing path: POST /v1/external-review/invitations/bulk
+  // (the console and ExternalReviewSubjectPanel both issue through it, one row
+  // or many). This single-issue route duplicated it and was called by no
+  // client: no web, native (git log -S over apps/mobile finds no
+  // "external-review/invitations" ever), extension, worker or script caller.
+  // It also handed the RAW bearer token back to any administrative-tier caller,
+  // where the product's only token reveal (reveal-token) is OWNER-only
+  // break-glass with a reason and a step-up — a second, weaker disclosure path.
+  // Authentication is kept; nothing is read or written; the answer names /bulk.
   app.post(
     "/v1/external-review/invitations",
     { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      // Issuing an external-reviewer invitation is a queue-assignment-tier
-      // action; `review.assign` is the canonical permission behind it
-      // (OWNER/ADMIN/REVIEWER hold it, VIEWER does not) and it is now
-      // enforced by the primitive BEFORE any workspace data is touched.
-      const ctx = await authorizeCurrentWorkspaceOrFail(req, reply, {
-        permission: "review.assign",
-      });
-      if (!ctx) return reply;
-      if (!isAdministrativeTier(ctx, ctx.workspaceId)) return denyNoPermission(reply);
-      // PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — the External
-      // Review commercial gate, from THE canonical authority (the workspace's
-      // purchased plan) rather than the ProductLine packaging engine, whose
-      // grant no purchase path ever wrote. Same question, same answer, same
-      // function as `external-review.routes.ts` and the console projection.
-      //
-      // NOT wrapped in a swallowing try/catch any more: the old engine call was,
-      // so a resolution failure silently ADMITTED the mutation. A commercial
-      // gate that fails open is not a gate. The resolver itself fails closed on
-      // a missing workspace, and a genuine infrastructure failure now surfaces
-      // as a 500 rather than as a free capability.
-      if (!(await workspaceIncludesExternalReview(ctx.workspaceId))) {
-        return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "EXTERNAL_REVIEW" });
-      }
-      const body = IssueInvitationBody.parse(req.body);
-      // An outside reviewer receives the disclosure package, never original
-      // files: a request for them is refused rather than stored as a promise.
-      if (body.allowOriginalDownload === true) {
-        return reply.code(400).send({ error: { code: "external_review_originals_not_released" } });
-      }
-      // STEP-UP: issuing an invitation grants an outside reviewer access
-      // to sensitive evidence — require a fresh step-up AFTER the RBAC
-      // capability gate, BEFORE the mutation.
-      const gate = await requireStepUpForSensitiveAction({
-        req,
-        reply,
-        teamId: ctx.workspaceId,
-        userId: ctx.userId,
-        purpose: "EXTERNAL_REVIEW_GRANT_ISSUE",
-        resourceKind: "external_review_grant",
-        resourceId:
-          body.scope.evidenceId ??
-          body.scope.caseId ??
-          body.scope.packageId ??
-          null,
-      });
-      if (gate.sent) return;
-      const res = await issueInvitation({
-        teamId: ctx.workspaceId,
-        invitedByUserId: ctx.userId,
-        reviewerEmail: body.reviewerEmail,
-        reviewerDisplayName: body.reviewerDisplayName,
-        organization: body.organization,
-        role: body.role,
-        watermarkPolicy: body.watermarkPolicy,
-        mfaRequired: body.mfaRequired,
-        scope: body.scope,
-        expiresAtUtc: body.expiresAtUtc,
-        allowOriginalDownload: body.allowOriginalDownload,
-        allowPackageDownload: body.allowPackageDownload,
-        safeNote: body.safeNote,
-      });
-      if (!res.ok) return reply.code(409).send({ denial: res.denial });
-      return reply.code(201).send({
-        grantId: res.grantId,
-        role: res.role,
-        // Raw token returned EXACTLY ONCE; never re-derivable.
-        rawToken: res.rawToken,
-      });
-    },
+    async (_req: FastifyRequest, reply: FastifyReply) =>
+      reply.code(410).send({
+        error: {
+          code: "EXTERNAL_REVIEW_SINGLE_INVITATION_RETIRED",
+          message:
+            "External reviewers are invited through POST /v1/external-review/invitations/bulk (one row or many). Nothing was issued.",
+        },
+        canonical: "/v1/external-review/invitations/bulk",
+      }),
   );
 
   app.post(
@@ -1522,91 +1466,28 @@ export async function externalPortalRoutes(app: FastifyInstance) {
     },
   );
 
-  // -------------------------------------------------------------------------
-  // Explicit single-invitation email send.
+  // (RETIRED) POST /v1/external-review/invitations/:id/send-email — typed 410
+  // (closure phase 2, EP-0446).
   //
-  // PHASE 12 REMEDIATION — SEC-001 + §4.3 (2026-08-06).
-  //
-  // Two defects removed here:
-  //
-  //   1. AUTHORIZATION. The route was UNCAPPED and resolved its workspace
-  //      from the stale `User.currentWorkspaceId` pointer, so a removed or
-  //      suspended member could trigger an outbound email on the workspace's
-  //      behalf — an irreversible external side effect performed by a
-  //      non-member. It now runs the canonical primitive with an explicit
-  //      SEND capability (`review.assign`, the same tier as issuing an
-  //      invitation) BEFORE any invitation row is read.
-  //
-  //   2. CALLER-SUPPLIED TOKEN TRUTH. The body carried `rawToken` and the
-  //      server mailed whatever string it was given. Delivery truth is now
-  //      entirely server-owned: `deliverInvitationEmail` loads the
-  //      invitation, re-proves its workspace and live state, MINTS a
-  //      successor token server-side, persists only its hash (atomically
-  //      superseding the predecessor), builds the acceptance URL itself,
-  //      records a durable delivery intent, sends through the canonical
-  //      transport under a durable delivery-derived idempotency key, and
-  //      records a bounded outcome. The request body can no longer influence
-  //      what credential the reviewer receives.
-  // -------------------------------------------------------------------------
-
+  // Proven obsolete (owner decision K, PRO-CENZ-01): it delivered the email for
+  // an invitation the retired single-issue route had issued without one. Every
+  // invitation is now issued through /bulk, which emails the reviewer, and a
+  // re-delivery is POST /v1/external-review/invitations/:id/resend (the console
+  // control), which rotates the token server-side exactly as this did. No
+  // first-party client ever called it (git log -S"/send-email" over apps/web,
+  // apps/mobile and apps/extension finds only the unrelated MFA recovery
+  // resend-email). Authentication is kept; nothing is read, written or sent.
   app.post(
     "/v1/external-review/invitations/:id/send-email",
     { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await authorizeCurrentWorkspaceOrFail(req, reply, {
-        permission: "review.assign",
-      });
-      if (!ctx) return reply;
-      if (!isAdministrativeTier(ctx, ctx.workspaceId)) return denyNoPermission(reply);
-      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
-      // A2-15 — same re-check as resend; a missing invitation answers 404 here.
-      if (await refuseGrantRedisclosure(reply, ctx, ctx.workspaceId, id, { status: 404, denial: "INVITE_NOT_FOUND" })) return reply;
-      // `rawToken` is GONE from the accepted shape. A client that still
-      // sends it is not rejected (extra keys are ignored by this schema) but
-      // the value can never reach the transport.
-      // PRO-R1-15 — nor can the body name the inviter or the workspace: the
-      // PROOVRA-branded email always names the authenticated user and the real
-      // workspace, as resend does. The old fields are still accepted (and
-      // ignored) so an existing API client does not break.
-      z.object({
-        inviterDisplayName: z.string().max(200).optional(),
-        workspaceName: z.string().max(200).optional(),
-      }).parse(req.body ?? {});
-
-      const team = await prisma.team.findUnique({
-        where: { id: ctx.workspaceId },
-        select: { name: true },
-      });
-      const user = await prisma.user.findUnique({
-        where: { id: ctx.userId },
-        select: { displayName: true, email: true },
-      });
-
-      const res = await deliverInvitationEmail({
-        teamId: ctx.workspaceId,
-        grantId: id,
-        actorUserId: ctx.userId,
-        inviterDisplayName: user?.displayName ?? user?.email ?? "PROOVRA operator",
-        workspaceName: team?.name ?? "PROOVRA workspace",
-        reason: "Operator sent the external-reviewer invitation email.",
-      });
-      if (!res.ok) {
-        if (res.denial === "INVITE_NOT_FOUND") {
-          return reply.code(404).send({ denial: "INVITE_NOT_FOUND" });
-        }
-        return reply.code(502).send({
-          denial: "POLICY_REJECTED",
-          deliveryId: res.deliveryId,
-          failureReason: res.failureReason,
-          // PRO-R1-09 — whether the reviewer still holds a working link.
-          previousLinkKept: (res.failureReason ?? "").endsWith(":previous_link_kept"),
-        });
-      }
-      return reply.code(200).send({
-        deliveryId: res.deliveryId,
-        status: res.status,
-        providerMessageId: res.providerMessageId,
-      });
-    },
+    async (_req: FastifyRequest, reply: FastifyReply) =>
+      reply.code(410).send({
+        error: {
+          code: "EXTERNAL_REVIEW_SEND_EMAIL_RETIRED",
+          message:
+            "Invitation emails are re-sent with POST /v1/external-review/invitations/{id}/resend. Nothing was sent.",
+        },
+        canonical: "/v1/external-review/invitations/{id}/resend",
+      }),
   );
 }

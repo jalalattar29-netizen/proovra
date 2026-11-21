@@ -68,6 +68,7 @@ export type ErrorCodeDisposition =
   | { disposition: "internal"; why: string };
 
 const PUBLIC_INTAKE = "apps/web/app/intake/[token]/page.tsx";
+const OWNER_DESTRUCTION_PANEL = "apps/web/app/(app)/evidence/[id]/components/OwnerDestructionApprovalPanel.tsx";
 const REGISTER = "apps/web/app/register/page.tsx";
 const EXCHANGE = "apps/web/app/(app)/exchange/page.tsx";
 const MANAGE_VERIFICATION_PAGE = "apps/web/components/evidence-outputs/ManageVerificationPagePanel.tsx";
@@ -116,26 +117,38 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   // approval) refuse with this; shared copy in user-facing-errors.
   EVIDENCE_NOT_SEALED: { disposition: "customer", where: "global" },
   // MATRIX-M626 (decision I) — refusals of POST /v1/evidence/:id/owner-destruction-approval.
-  DESTRUCTION_REVIEW_REQUIRED: {
-    disposition: "internal",
-    why: "MATRIX-M626 — sent only by the record owner's destruction-approval route, which has no web or native caller yet (API-only; the web control is a recorded follow-up in docs/architecture/caller-less-routes.md).",
-  },
-  EVIDENCE_NOT_IN_TRASH: {
-    disposition: "internal",
-    why: "MATRIX-M626 — sent only by the owner destruction-approval route, which has no web or native caller yet.",
-  },
-  EVIDENCE_ALREADY_DESTROYED: {
-    disposition: "internal",
-    why: "MATRIX-M626 — sent only by the owner destruction-approval route, which has no web or native caller yet.",
-  },
-  DESTRUCTION_IN_PROGRESS: {
-    disposition: "internal",
-    why: "MATRIX-M626 review — as a response code it is sent only by the owner destruction-approval withdrawal (DELETE), which has no web or native caller yet. The lifecycle service's same-named value reaches the web as a lifecycle blockReason in the record projection, not as an error code.",
-  },
+  // Closure phase 2: the record page's owner approval panel says each one.
+  DESTRUCTION_REVIEW_REQUIRED: { disposition: "customer", where: OWNER_DESTRUCTION_PANEL },
+  EVIDENCE_NOT_IN_TRASH: { disposition: "customer", where: OWNER_DESTRUCTION_PANEL },
+  EVIDENCE_ALREADY_DESTROYED: { disposition: "customer", where: OWNER_DESTRUCTION_PANEL },
+  // As a response code: the owner approval withdrawal (DELETE) while destruction
+  // is claimed. The lifecycle service's same-named value reaches the web as a
+  // lifecycle blockReason in the record projection, not as an error code.
+  DESTRUCTION_IN_PROGRESS: { disposition: "customer", where: OWNER_DESTRUCTION_PANEL },
   // NEW-RG-19-1 (decision G) — POST /v1/evidence-requests/:id/recipient-contact.
+  // Closure phase 2: the request page's reveal control says it (and offers no
+  // reveal on a link-backed request, so this is the stale-page answer).
   REVEAL_VIA_INTAKE_LINK: {
+    disposition: "customer",
+    where: "apps/web/app/(app)/evidence-requests/[id]/_components/EvidenceRequestRecipientContact.tsx",
+  },
+  // Closure phase 2 (PRO-CENZ-01) — typed 410 tombstones of retired routes no
+  // first-party client calls; a stale or third-party caller is told where to go.
+  EXTERNAL_REVIEW_SINGLE_INVITATION_RETIRED: {
     disposition: "internal",
-    why: "NEW-RG-19-1 — sent only by the evidence-request contact reveal route, which has no web or native caller yet; the web reveals an intake-link request's contact on the intake link's own route.",
+    why: "EP-0425 tombstone: no web, native or extension build ever called POST /v1/external-review/invitations; the web issues through /invitations/bulk.",
+  },
+  EXTERNAL_REVIEW_SEND_EMAIL_RETIRED: {
+    disposition: "internal",
+    why: "EP-0446 tombstone: no first-party client ever called send-email; the console re-delivers through /resend.",
+  },
+  REDACTION_POLICY_PATCH_RETIRED: {
+    disposition: "internal",
+    why: "EP-0934 tombstone: no first-party client ever sent PATCH /v1/redaction/policy; the web writes versioned policies.",
+  },
+  SEARCH_RELATIONSHIP_CREATE_RETIRED: {
+    disposition: "internal",
+    why: "EP-1066 tombstone: no first-party client ever posted /v1/search/relationships; web and native link through /v1/evidence/:id/relationships.",
   },
   SUPPRESSION_REASON_REQUIRED: {
     disposition: "internal",

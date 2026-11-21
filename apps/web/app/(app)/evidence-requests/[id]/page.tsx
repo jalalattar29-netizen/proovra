@@ -40,6 +40,8 @@ import { EvidenceRequestEventsTab } from "../../../../components/hidden-feature-
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { canTransitionEvidenceRequest, identifierLabel, type EvidenceRequestStatus } from "@proovra/shared";
 import { EvidenceRequestAssignment } from "./_components/EvidenceRequestAssignment";
+import { EvidenceRequestRecipientContact } from "./_components/EvidenceRequestRecipientContact";
+import { EditDraftRequestDialog } from "../../../../components/evidence-requests/EditDraftRequestDialog";
 import {
   LEGACY_NEEDS_MORE_INFO_COPY,
   reviewerNoteStaysInternal,
@@ -100,6 +102,12 @@ type AuthRequestView = {
   }>;
   /** PRO-I1-01 — absent on an older API, which still emails the reviewer note. */
   needsMoreInfoDelivery?: NeedsMoreInfoDelivery;
+  /** DEC-14 / NEW-RG-19-1 — the contact is always masked; the reveal is a separate audited call. */
+  recipientEmailMasked?: string | null;
+  recipientPhoneMasked?: string | null;
+  hasRecipientEmail?: boolean;
+  hasRecipientPhone?: boolean;
+  recipientContactRevealAuthorized?: boolean;
 };
 
 function formatDateTime(iso: string | null): string {
@@ -145,6 +153,8 @@ function Inner() {
   const [contributorMessage, setContributorMessage] = useState("");
   // Bumped after an assignment change so the activity timeline rereads.
   const [eventsRevision, setEventsRevision] = useState(0);
+  // EP-0343 — the DRAFT edit dialog (PATCH /v1/evidence-requests/:id).
+  const [editingDraft, setEditingDraft] = useState(false);
   const { confirm, askReason } = useConfirmAction();
   // A1-03 — assigning, re-requesting, waiving and reviewing stay with the
   // people the inspector always admitted: the intake-links route decision.
@@ -459,6 +469,34 @@ function Inner() {
       {data.instructions ? (
         <p style={paragraphStyle}>{data.instructions}</p>
       ) : null}
+
+      {/* EP-0343 — a DRAFT is corrected before it is sent, by the people who
+          manage requests; the API refuses any other status or role. */}
+      {canManage && data.status === "DRAFT" ? (
+        <button
+          type="button"
+          onClick={() => setEditingDraft(true)}
+          style={secondaryButtonStyle}
+          data-action="edit-draft"
+        >
+          Edit draft
+        </button>
+      ) : null}
+      {editingDraft ? (
+        <EditDraftRequestDialog
+          requestId={data.id}
+          onClose={() => setEditingDraft(false)}
+          onSaved={async () => {
+            setEditingDraft(false);
+            setEventsRevision((value) => value + 1);
+            await load();
+          }}
+        />
+      ) : null}
+
+      {/* NEW-RG-19-1 — masked contact; an audited, stepped-up reveal where the
+          API authorizes it and the request has no intake link. */}
+      <EvidenceRequestRecipientContact request={data} />
 
       {canManage ? (
         <EvidenceRequestAssignment

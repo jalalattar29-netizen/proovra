@@ -143,28 +143,20 @@ describe("Phase 3 — invitation ISSUE / bulk / reveal routes are step-up gated"
     );
   });
 
-  it("single invitation issue gates after requireCap, before issueInvitation", () => {
-    const block = ROUTES_PORTAL.slice(
-      ROUTES_PORTAL.indexOf('"/v1/external-review/invitations"'),
-      ROUTES_PORTAL.indexOf("const res = await issueInvitation("),
-    );
-    // PHASE 12 REMEDIATION — SEC-001 (2026-08-06). INTENTIONAL CONTRACT
-    // CHANGE. The RBAC gate is no longer the local, status-blind
-    // `requireCap(ctx, …)` helper — that helper was deleted along with
-    // `resolveInternalTeam`, the audit's CRITICAL finding. It is now the
-    // canonical primitive plus the administrative-tier floor read from the
-    // PROVEN canonical role, which admits exactly the same ADMIN+OWNER set.
-    //
-    // THE ORDERING PROPERTY THIS TEST EXISTS FOR IS UNCHANGED and still
-    // asserted below: RBAC completes BEFORE the step-up challenge, which
-    // completes before the mutation.
-    expect(block).toMatch(/authorizeCurrentWorkspaceOrFail\(/);
-    expect(block).toMatch(/isAdministrativeTier\(ctx, ctx\.workspaceId\)/);
-    expect(block).toMatch(/requireStepUpForSensitiveAction\(/);
-    expect(block).toMatch(/purpose:\s*"EXTERNAL_REVIEW_GRANT_ISSUE"/);
-    expect(block.indexOf("isAdministrativeTier(ctx, ctx.workspaceId)")).toBeLessThan(
-      block.indexOf("requireStepUpForSensitiveAction("),
-    );
+  // Closure phase 2 (EP-0425, DEC-01) — the single-issue route is a typed 410
+  // tombstone: it can issue nothing, so it reaches neither the RBAC gate nor
+  // the step-up nor the issuer. The one issuing path (bulk, below) keeps the
+  // RBAC-before-step-up-before-mutation ordering.
+  it("the retired single-issue route issues nothing and points to /bulk", () => {
+    const start = ROUTES_PORTAL.indexOf('app.post(\n    "/v1/external-review/invitations",');
+    expect(start).toBeGreaterThanOrEqual(0);
+    const tail = ROUTES_PORTAL.slice(start);
+    const block = tail.slice(0, tail.indexOf("\n  app.", 1));
+    expect(block).toMatch(/reply\.code\(410\)/);
+    expect(block).toMatch(/"EXTERNAL_REVIEW_SINGLE_INVITATION_RETIRED"/);
+    expect(block).toMatch(/canonical:\s*"\/v1\/external-review\/invitations\/bulk"/);
+    expect(block).not.toMatch(/issueInvitation\(|prisma\.|requireStepUpForSensitiveAction\(/);
+    expect(ROUTES_PORTAL).not.toMatch(/const res = await issueInvitation\(/);
   });
 
   it("bulk invitation issue gates before bulkIssueInvitations", () => {

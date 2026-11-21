@@ -99,6 +99,7 @@ import { AppListbox } from "../../../../components/app-primitives";
 import { EvidenceReviewTab } from "./_tabs/EvidenceReviewTab";
 import { EvidenceArtifactsTab } from "./_tabs/EvidenceArtifactsTab";
 import { EvidenceTrashConsequence } from "./_tabs/EvidenceTrashConsequence";
+import { OwnerDestructionApprovalPanel } from "./components/OwnerDestructionApprovalPanel";
 import { EvidenceDiscussionTab } from "./_tabs/EvidenceDiscussionTab";
 import { EvidenceDerivedReviewTab } from "./_tabs/EvidenceDerivedReviewTab";
 import { EvidenceTechnicalAppendixTab } from "./_tabs/EvidenceTechnicalAppendixTab";
@@ -1159,6 +1160,17 @@ function EvidenceDetailPageInner() {
           busy={actionBusy}
           onRestore={() => void restoreTrash()}
         />
+
+        {/* MATRIX-M626 (decision I) — the owner's approval of permanent
+            deletion for a record in no workspace. The API decides whether it
+            applies (GET); for any other record the panel renders nothing. */}
+        {evidence?.deletedAt && evidenceId ? (
+          <OwnerDestructionApprovalPanel
+            key={`${evidenceId}:${evidence.deletedAt}`}
+            evidenceId={evidenceId}
+            lifecycle={evidence.lifecycle ?? null}
+          />
+        ) : null}
 
         {/* LAYER 1 — Hero. Title, status, the record's actions, and the
             legal boundary rendered verbatim from the backend. */}

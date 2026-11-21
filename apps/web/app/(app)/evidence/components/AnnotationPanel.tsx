@@ -168,8 +168,9 @@ export function AnnotationPanel({
                   <p>{item.body || "Annotation metadata recorded."}</p>
                   {canWrite ? (
                     <div className="evidence-library-panel__actions evd-block--tight">
-                      {/* Only the author is offered Edit (server-projected viewerCanEdit). */}
-                      {item.viewerCanEdit !== false ? (
+                      {/* Only the author is offered Edit (server-projected viewerCanEdit).
+                          Fail closed: a row without the projection is not offered Edit. */}
+                      {item.viewerCanEdit === true ? (
                         <button
                           type="button"
                           className="app-secondary-action"

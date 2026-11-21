@@ -47,7 +47,6 @@ import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { authorizeWorkspaceOrFail, contextHasCapability } from "../middleware/authorize.js";
 import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
 import {
-  createRelationship,
   executeSearch,
   listRelationshipsForEvidence,
 } from "../services/search/evidence-search.service.js";
@@ -572,58 +571,29 @@ export async function searchRoutes(app: FastifyInstance) {
   );
 
   // -------------------------------------------------------------------------
-  // POST /v1/search/relationships — create
+  // (RETIRED) POST /v1/search/relationships — typed 410 (closure phase 2, EP-1066)
+  //
+  // Proven obsolete (owner decision K, PRO-CENZ-01): it duplicated
+  // POST /v1/evidence/:id/relationships, the one link-create route the web
+  // (EvidenceRelationshipDialog.tsx) and the native app (capture-links.ts) use.
+  // No shipped client ever called it: the native app only READS
+  // GET /v1/search/relationships/:evidenceId (git log -S over apps/mobile and
+  // apps/extension finds no POST), and no worker or script does. The route
+  // keeps authentication and does nothing else — no read, no write — and names
+  // the canonical route. The GET read above is unchanged.
   // -------------------------------------------------------------------------
   app.post(
     "/v1/search/relationships",
     { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const body = z
-        .object({
-          teamId: z.string().uuid(),
-          sourceEvidenceId: z.string().uuid(),
-          targetEvidenceId: z.string().uuid(),
-          relationshipType: z.enum([
-            "RELATED",
-            "SUPPORTS",
-            "DUPLICATE_OF",
-            "DERIVED_FROM",
-            "SAME_INCIDENT",
-            "CONTRADICTS",
-            "REPLACES",
-            "REFERENCES",
-          ]),
-          note: z.string().max(1000).nullable().optional(),
-        })
-        .parse(req.body ?? {});
-      const operator = await requireSearchOperator(req, reply, body.teamId);
-      if (!operator) return;
-      const row = await createRelationship({
-        teamId: body.teamId,
-        sourceEvidenceId: body.sourceEvidenceId,
-        targetEvidenceId: body.targetEvidenceId,
-        relationshipType:
-          body.relationshipType as prismaPkg.EvidenceRelationshipType,
-        note: body.note ?? null,
-        createdByUserId: operator.userId,
-      });
-      if (!row) {
-        return reply
-          .code(409)
-          .send({ error: { code: "duplicate_or_invalid_relationship" } });
-      }
-      return reply.code(201).send({
-        relationship: {
-          relationshipId: row.id,
-          sourceEvidenceId: row.sourceEvidenceId,
-          targetEvidenceId: row.targetEvidenceId,
-          relationshipType: row.relationshipType,
-          note: row.note,
-          createdByUserId: row.createdByUserId,
-          createdAt: row.createdAt.toISOString(),
+    async (_req: FastifyRequest, reply: FastifyReply) =>
+      reply.code(410).send({
+        error: {
+          code: "SEARCH_RELATIONSHIP_CREATE_RETIRED",
+          message:
+            "Links between records are created on the record: POST /v1/evidence/{evidenceId}/relationships. Nothing was created.",
         },
-      });
-    }
+        canonical: "/v1/evidence/{evidenceId}/relationships",
+      }),
   );
 
   // -------------------------------------------------------------------------

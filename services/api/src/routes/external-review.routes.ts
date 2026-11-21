@@ -64,6 +64,11 @@ import {
   type ExternalReviewGrantRow,
 } from "../services/external-review/external-review-grant.service.js";
 import {
+  EXTERNAL_REVIEW_RENEW_PERMISSION,
+  externalReviewGrantRenewableNow,
+  viewerHoldsExternalReviewRenewAuthority,
+} from "../services/external-review/external-review-renew-authority.js";
+import {
   EXTERNAL_REVIEW_ACCESS_STATES,
   SHARE_GRANT_DEFAULT_LIFETIME_DAYS,
   SHARE_GRANT_MAX_LIFETIME_DAYS,
@@ -317,7 +322,14 @@ export async function externalReviewRoutes(app: FastifyInstance) {
         // listed (reviewer emails and subject ids of restricted matters).
         hidden: await hiddenRecordIdsInWorkspace(q.teamId, actor.actorUserId),
       });
-      return reply.code(200).send({ grants });
+      // EP-0450 — whether THIS viewer could renew each grant (the renew route's
+      // permission + entitlement, and the grant still renewable); the console
+      // and the record panel offer Renew on this answer only.
+      const mayRenew = await viewerHoldsExternalReviewRenewAuthority(req, q.teamId);
+      const now = new Date();
+      return reply.code(200).send({
+        grants: grants.map((g) => ({ ...g, viewerCanRenew: mayRenew && externalReviewGrantRenewableNow(g, now) })),
+      });
     },
   );
 
@@ -392,7 +404,7 @@ export async function externalReviewRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const actor = await authorizeOrFail(req, reply, {
         teamId: body.teamId,
-        permission: "governance.legal_hold.manage",
+        permission: EXTERNAL_REVIEW_RENEW_PERMISSION,
         antiEnumeration: true,
       });
       if (!actor) return;

@@ -499,8 +499,9 @@ describe("free-user audit round 3: A2-12 … A2-17 (live PostgreSQL)", () => {
       expect(resend.statusCode, resend.body).toBe(409);
       expect(resend.json()).toEqual({ denial: "INVITE_NOT_FOUND" });
       const sendEmail = await call("POST", `/v1/external-review/invitations/${issued.grantId}/send-email`, offAdmin, {}, ws(T.teamId));
-      expect(sendEmail.statusCode, sendEmail.body).toBe(404);
-      expect(sendEmail.json()).toEqual({ denial: "INVITE_NOT_FOUND" });
+      // Closure phase 2 (EP-0446) — retired: a typed 410 that touches nothing.
+      expect(sendEmail.statusCode, sendEmail.body).toBe(410);
+      expect(sendEmail.json().error.code).toBe("EXTERNAL_REVIEW_SEND_EMAIL_RETIRED");
 
       expect(await grantRow(issued.grantId)).toEqual(before);
       expect(await deliveries(issued.grantId)).toBe(deliveriesBefore);

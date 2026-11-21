@@ -529,9 +529,11 @@ describe("§1.1 — SEC-001 token lifecycle, delivery integrity and tenancy", ()
     // refusal is proven by the stale-pointer suite; here the question is
     // narrower and complementary: when the operation is refused, does the
     // TRANSPORT stay untouched?
+    // Closure phase 2 (EP-0446) — send-email is a typed 410 tombstone; the
+    // delivery route is /resend, so the refusal is proven there.
     const res = await h.app.inject({
       method: "POST",
-      url: "/v1/external-review/invitations/00000000-0000-4000-8000-0000000000ff/send-email",
+      url: "/v1/external-review/invitations/00000000-0000-4000-8000-0000000000ff/resend",
       headers: {
         authorization: `Bearer ${h.fixtures.teamA.adminToken}`,
         "content-type": "application/json",

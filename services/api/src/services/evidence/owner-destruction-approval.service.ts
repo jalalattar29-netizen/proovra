@@ -116,6 +116,58 @@ export async function approveOwnRecordDestruction(
   });
 }
 
+/**
+ * Closure phase 2 (web control) — what the record's owner may do here NOW, read
+ * by the same eligibility rule the approval uses, so the web never re-derives
+ * it: whether an owner approval applies to this record at all, the approval
+ * standing for the CURRENT trash cycle (an older cycle's approval does not
+ * count and is not reported), and whether a live destruction claim already
+ * makes a withdrawal impossible. Read-only; never creates or changes a row.
+ */
+export async function readOwnRecordDestructionApproval(
+  input: { evidenceId: string; actorUserId: string; now?: Date },
+  client: Pick<PrismaClient, "evidence" | "evidenceOwnerDestructionApproval"> = defaultPrisma,
+): Promise<
+  | { ok: false; refusal: OwnerDestructionApprovalRefusal }
+  | {
+      ok: true;
+      trashedAtUtc: Date;
+      approval: { id: string; approvedAtUtc: Date } | null;
+      destructionInProgress: boolean;
+    }
+> {
+  const now = input.now ?? new Date();
+  const eligible = await eligibleRecord(client, input.evidenceId, input.actorUserId);
+  if (!eligible.ok) return eligible;
+  const [approval, claim] = await Promise.all([
+    client.evidenceOwnerDestructionApproval.findFirst({
+      where: {
+        evidenceId: input.evidenceId,
+        evidenceDeletedAtUtc: eligible.deletedAt,
+        ownerUserId: input.actorUserId,
+        withdrawnAtUtc: null,
+      },
+      select: { id: true, approvedAtUtc: true },
+    }),
+    client.evidence.findUnique({
+      where: { id: input.evidenceId },
+      select: { lifecycleState: true, destructionClaimedAtUtc: true },
+    }),
+  ]);
+  const destructionInProgress = Boolean(
+    claim &&
+      claim.lifecycleState === "PENDING_DESTRUCTION" &&
+      claim.destructionClaimedAtUtc &&
+      claim.destructionClaimedAtUtc.getTime() > now.getTime() - DESTRUCTION_CLAIM_LEASE_MS,
+  );
+  return {
+    ok: true,
+    trashedAtUtc: eligible.deletedAt,
+    approval: approval ? { id: approval.id, approvedAtUtc: approval.approvedAtUtc } : null,
+    destructionInProgress,
+  };
+}
+
 /** The owner withdraws their approval (until the record is destroyed). */
 export async function withdrawOwnRecordDestructionApproval(
   input: { evidenceId: string; actorUserId: string; now?: Date },

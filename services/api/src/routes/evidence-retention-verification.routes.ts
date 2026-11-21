@@ -53,6 +53,7 @@ import { sendDisclosureRefusal } from "./verification-share.routes.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import {
   approveOwnRecordDestruction,
+  readOwnRecordDestructionApproval,
   withdrawOwnRecordDestructionApproval,
   type OwnerDestructionApprovalRefusal,
 } from "../services/evidence/owner-destruction-approval.service.js";
@@ -330,6 +331,33 @@ export async function evidenceRetentionVerificationRoutes(app: FastifyInstance) 
   // is refused here (its workspace's destruction review decides). Approval is
   // not destruction: grace, retention, Object Lock, legal hold and the
   // destruction switches still decide in the executor.
+  // Closure phase 2 — the record owner's web control reads what applies here
+  // from the approval's own eligibility rule (never a client-side guess):
+  //   - not the caller's record, or no such record → 404 (as approve/withdraw);
+  //   - a record an owner approval does not apply to (a workspace record, an
+  //     unsealed upload, not in the trash, destroyed) → 200 offered:false with
+  //     the reason code, so the page shows no control;
+  //   - otherwise offered:true, the approval standing for THIS trash cycle
+  //     (null when none), and whether a live destruction claim already refuses
+  //     a withdrawal. Read-only.
+  app.get("/v1/evidence/:id/owner-destruction-approval", { preHandler: requireAuth }, async (req, reply) => {
+    const { id } = ParamsId.parse(req.params);
+    const actorUserId = getAuthUserId(req);
+    const state = await readOwnRecordDestructionApproval({ evidenceId: id, actorUserId });
+    if (!state.ok) {
+      if (state.refusal === "NOT_FOUND") return reply.code(404).send(NOT_FOUND);
+      return reply.code(200).send({ offered: false, reason: state.refusal });
+    }
+    return reply.code(200).send({
+      offered: true,
+      trashedAtUtc: state.trashedAtUtc.toISOString(),
+      approval: state.approval
+        ? { id: state.approval.id, approvedAtUtc: state.approval.approvedAtUtc.toISOString() }
+        : null,
+      destructionInProgress: state.destructionInProgress,
+    });
+  });
+
   app.post("/v1/evidence/:id/owner-destruction-approval", { preHandler: requireAuth }, async (req, reply) => {
     const { id } = ParamsId.parse(req.params);
     OwnerDestructionApprovalBody.parse(req.body ?? {});
