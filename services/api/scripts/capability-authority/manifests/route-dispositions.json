@@ -516,13 +516,6 @@
       "reviewedAtUtc": "2026-08-16"
     },
     {
-      "routeId": "PATCH /v1/evidence/:id/annotations/:annotationId",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "annotation edit has no control; the panel only lists, creates and deletes",
-      "evidence": "reg services/api/src/routes/evidence.routes.ts:7482 app.patch(\"/v1/evidence/:id/annotations/:annotationId\", { preHandler: requireAuth }); apps/web/app/(app)/evidence/components/AnnotationPanel.tsx:27 GET `/v1/evidence/${evidenceId}/annotations`, :42 POST same, :58 DELETE `/v1/evidence/${evidenceId}/annotations/${annotationId}` — no PATCH anywhere in apps/web|apps/mobile",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "PATCH /v1/evidence/:id/relationships/:relationshipId",
       "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
       "reason": "relationship edit has no control; product only creates and deletes relationships",

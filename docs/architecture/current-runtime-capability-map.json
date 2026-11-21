@@ -5,19 +5,19 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "28109845be5def0ab38aefdd121fdaa3c0cf3d91b45445ac9901f0a76bb48335",
-  "consumerInventoryHash": "addc7c3e3c30f9d526a7dd7fff0aa5d5ad70db12fe0de2c1971da43651c36f9c",
-  "dispositionsHash": "4634dbb508d1b01f04e7988b8009af560f2bce0bd1af8e3f9c1c55ed205704a9",
+  "consumerInventoryHash": "94513c83ee7085512a1a7c06173106365afe9f216ece11c02f272813fd3c2471",
+  "dispositionsHash": "acd2f7538981c463d88697c6258219fe41e4ac7080ba2e0c8aeb9686a69b7cd6",
   "totals": {
     "RegisteredRoutes": 1260,
     "ProductionRegisteredRoutes": 1259,
     "DevelopmentOnlyRoutes": 1,
-    "ProductConsumedRoutes": 1035,
-    "NonProductDispositionedRoutes": 199,
+    "ProductConsumedRoutes": 1036,
+    "NonProductDispositionedRoutes": 198,
     "UndisposedRoutes": 25,
     "ConservationIdentityHolds": true,
-    "ProductConsumerRoutes": 1035,
+    "ProductConsumerRoutes": 1036,
     "MachineOnlyConsumerRoutes": 7,
-    "NoConsumerRoutes": 218,
+    "NoConsumerRoutes": 217,
     "AuthorizationUnresolved": 0,
     "PublicUnguardedRoutes": 43,
     "DynamicUnresolvedRouteRegistrations": 0,
@@ -54,7 +54,7 @@
       "INTENTIONALLY_BACKEND_ONLY": 22,
       "DEAD_REMOVE": 0,
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
-      "MISSING_PRODUCT_UI_POST_RELEASE": 26
+      "MISSING_PRODUCT_UI_POST_RELEASE": 25
     },
     "TerminalWriters": 1696,
     "ReachableSensitiveMutations": 1666,
@@ -134,7 +134,7 @@
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
       "UNDISPOSED": 25,
-      "PRODUCT_CONNECTED": 1040,
+      "PRODUCT_CONNECTED": 1041,
       "EXTERNAL_API": 19,
       "MACHINE_OR_CRON": 22,
       "WEBHOOK": 4,
@@ -143,7 +143,7 @@
       "INTENTIONALLY_BACKEND_ONLY": 24,
       "DEAD_REMOVE": 0,
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
-      "MISSING_PRODUCT_UI_POST_RELEASE": 26
+      "MISSING_PRODUCT_UI_POST_RELEASE": 25
     },
     "MandateDispositionConservationHolds": true,
     "TenantBindingResolved": 1258,
@@ -244,8 +244,8 @@
   "classificationCounts": {
     "BACKEND_ONLY_UNWIRED": 25,
     "COMPATIBILITY_TEMPORARY": 15,
-    "INTERNAL_REQUIRED": 185,
-    "TARGET_COMPLETE": 1035
+    "INTERNAL_REQUIRED": 184,
+    "TARGET_COMPLETE": 1036
   },
   "evidenceLevelCounts": {
     "BEHAVIORALLY_PROVEN": 405,
@@ -7504,10 +7504,10 @@
       "method": "PATCH",
       "route": "/v1/evidence/:id/annotations/:annotationId",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": null,
+      "productConsumer": "apps/web/app/(app)/evidence/components/AnnotationPanel.tsx:90",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "INTERNAL_REQUIRED",
+      "classification": "TARGET_COMPLETE",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
     {
@@ -114564,7 +114564,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/components/AnnotationPanel.tsx",
-          "line": 74,
+          "line": 79,
           "caller": "deleteAnnotation",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -114574,7 +114574,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/evidence-internal-materials.tsx:207 (EvidenceInternalMaterials, MOBILE); apps/web/app/(app)/evidence/components/AnnotationPanel.tsx:74 (deleteAnnotation, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/evidence-internal-materials.tsx:207 (EvidenceInternalMaterials, MOBILE); apps/web/app/(app)/evidence/components/AnnotationPanel.tsx:79 (deleteAnnotation, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -128593,7 +128593,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/components/AnnotationPanel.tsx",
-          "line": 32,
+          "line": 37,
           "caller": "run",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -128603,7 +128603,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/evidence-internal-materials.tsx:107 (EvidenceInternalMaterials, MOBILE); apps/web/app/(app)/evidence/components/AnnotationPanel.tsx:32 (run, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/evidence-internal-materials.tsx:107 (EvidenceInternalMaterials, MOBILE); apps/web/app/(app)/evidence/components/AnnotationPanel.tsx:37 (run, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -156999,14 +156999,23 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/evidence/components/AnnotationPanel.tsx",
+          "line": 90,
+          "caller": "saveEdit",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
       "nonProductConsumers": [],
-      "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "dispositionSource": "REVIEWED",
-      "dispositionEvidence": "reg services/api/src/routes/evidence.routes.ts:7482 app.patch(\"/v1/evidence/:id/annotations/:annotationId\", { preHandler: requireAuth }); apps/web/app/(app)/evidence/components/AnnotationPanel.tsx:27 GET `/v1/evidence/${evidenceId}/annotations`, :42 POST same, :58 DELETE `/v1/evidence/${evidenceId}/annotations/${annotationId}` — no PATCH anywhere in apps/web|apps/mobile",
-      "dispositionReason": "annotation edit has no control; the panel only lists, creates and deletes",
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/components/AnnotationPanel.tsx:90 (saveEdit, WEB)",
+      "dispositionReason": "reached from a product surface",
       "replacement": null,
-      "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
+      "result": "DISPOSED_PRODUCT_CONSUMED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -175181,7 +175190,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/components/AnnotationPanel.tsx",
-          "line": 53,
+          "line": 58,
           "caller": "createAnnotation",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -175191,7 +175200,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/evidence-internal-materials.tsx:189 (EvidenceInternalMaterials, MOBILE); apps/web/app/(app)/evidence/components/AnnotationPanel.tsx:53 (createAnnotation, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/evidence-internal-materials.tsx:189 (EvidenceInternalMaterials, MOBILE); apps/web/app/(app)/evidence/components/AnnotationPanel.tsx:58 (createAnnotation, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
