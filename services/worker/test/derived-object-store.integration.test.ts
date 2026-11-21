@@ -103,6 +103,7 @@ runIf("s3DerivedObjectStore (real MinIO, Object Lock)", () => {
     expect(byId.get(locked.VersionId!)!.sizeBytes).toBe(4321);
     expect(byId.get(locked.VersionId!)!.retainUntil!.getTime()).toBeGreaterThan(Date.now());
     expect(byId.get(held.VersionId!)).toMatchObject({ sizeBytes: 77, legalHold: true });
+    for (const v of listed) expect(v.lastModified, "the reconciler judges a version by when it was created").toBeInstanceOf(Date);
 
     expect(await store.deleteVersion({ bucket, key, versionId: free.VersionId! }, signal())).toBe(true);
     expect(await store.deleteVersion({ bucket, key, versionId: locked.VersionId! }, signal()), "retention refuses the delete").toBe(false);
@@ -118,7 +119,9 @@ runIf("s3DerivedObjectStore (real MinIO, Object Lock)", () => {
       new UploadPartCommand({ Bucket: bucket, Key: key, UploadId: created.UploadId!, PartNumber: 1, Body: randomBytes(5 * 1024 * 1024) }),
     );
     const other = await client.send(new CreateMultipartUploadCommand({ Bucket: bucket, Key: `${key}.x` }));
-    expect(await store.listMultipartUploads({ bucket, key }, signal())).toEqual([created.UploadId]);
+    const pending = await store.listMultipartUploads({ bucket, key }, signal());
+    expect(pending.map((u) => u.uploadId)).toEqual([created.UploadId]);
+    expect(pending[0]!.initiated, "the reconciler judges an upload by when it was initiated").toBeInstanceOf(Date);
     await store.abortMultipartUpload({ bucket, key, uploadId: created.UploadId! }, signal());
     expect(await store.listMultipartUploads({ bucket, key }, signal())).toEqual([]);
     expect(await store.listVersions({ bucket, key }, signal()), "an aborted upload stored no object").toEqual([]);

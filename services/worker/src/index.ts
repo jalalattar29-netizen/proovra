@@ -83,7 +83,7 @@ import {
 } from "./integrity-recheck.js";
 import { runOrphanArtifactScan } from "./orphan-scan.js";
 import { runSearchIndexReconciler } from "./search-index-reconciler.js";
-import { runIntelligenceRunReconciler } from "./intelligence-run-reconciler.js";
+import { defaultDerivedObjectStore, runIntelligenceRunReconciler } from "./intelligence-run-reconciler.js";
 import { runLifecycleRecovery } from "./lifecycle-recovery.js";
 import { withCronLock } from "./cron-lock.js";
 // Phase 27.5 — Governance operationalization workers.
@@ -1200,7 +1200,7 @@ async function runIntelligenceRunReconcilerTick() {
   if (intelligenceRunReconcilerRunning) return;
   intelligenceRunReconcilerRunning = true;
   try {
-    await runIntelligenceRunReconciler({ trigger: "scheduler" });
+    await runIntelligenceRunReconciler({ trigger: "scheduler", derivedObjectStore: defaultDerivedObjectStore });
   } catch (err) {
     logger.error({ err }, "intelligence_run.reconciler.failed");
     captureException(err, { kind: "worker.intelligence_run_reconciler" });

@@ -90,6 +90,10 @@ export async function disposeUnsettledDerivedObject(input: {
 
   // An object a row already references is counted by that row. A database
   // that cannot answer decides nothing (fail closed: no delete, no release).
+  // A row that references the KEY with no version (a legacy row, or an
+  // unversioned store's "null") may count this very object: it is never
+  // deleted, and an unversioned overwrite is counted by that row.
+  let keyCountedWithoutVersion = false;
   if (object.versionId) {
     let referenced: { id: string } | null;
     try {
@@ -97,12 +101,22 @@ export async function disposeUnsettledDerivedObject(input: {
         where: { storageBucket: object.bucket, storageKey: object.key, storageVersionId: object.versionId },
         select: { id: true },
       });
+      keyCountedWithoutVersion = Boolean(
+        await db.evidencePartDerivedAsset.findFirst({
+          where: {
+            storageBucket: object.bucket,
+            storageKey: object.key,
+            OR: [{ storageVersionId: null }, { storageVersionId: "null" }],
+          },
+          select: { id: true },
+        }),
+      );
     } catch {
       logger.error(log, "derived.unsettled_object_reservation_kept");
       return "reservation_kept";
     }
-    if (referenced) {
-      await resolveIntent("ADOPTED", "already_counted");
+    if (referenced || (keyCountedWithoutVersion && object.versionId === "null")) {
+      await resolveIntent("ADOPTED", referenced ? "already_counted" : "counted_by_key_reference");
       await release();
       return "already_counted";
     }
@@ -134,7 +148,7 @@ export async function disposeUnsettledDerivedObject(input: {
         .catch(() => true);
     }
   }
-  if (!held && !keyReferenced) {
+  if (!held && !keyReferenced && !keyCountedWithoutVersion) {
     const removal = await deleteObjectVersions(object).catch(() => null);
     const gone =
       removal != null &&

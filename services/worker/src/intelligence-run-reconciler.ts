@@ -34,7 +34,7 @@ import {
   releaseExpiredDerivedAssetStorageReservations,
 } from "@proovra/shared-runtime";
 
-import { reconcileDerivedAssetStorageIntents, s3DerivedObjectStore } from "./derived-storage-intent.js";
+import { reconcileDerivedAssetStorageIntents, s3DerivedObjectStore, type DerivedObjectStore } from "./derived-storage-intent.js";
 import { workspaceSemanticEgressAllowed } from "./embedding-egress-gate.js";
 import { logger } from "./logger.js";
 import { prisma } from "./db.js";
@@ -115,7 +115,22 @@ const MAX_RECOVERY_ATTEMPTS = 5;
 export type IntelligenceRunReconcileOptions = {
   trigger?: string;
   batchSize?: number;
+  /**
+   * FINAL-VERIFY-2 closure — the object store step 6 judges derived write
+   * intents against (the scheduler passes the S3 store). Absent: step 6 does
+   * not run this tick (the intents stay OPEN and counted).
+   */
+  derivedObjectStore?: () => Promise<DerivedObjectStore>;
 };
+
+/**
+ * FINAL-VERIFY-2 closure — the scheduler's store for step 6: the worker's S3
+ * client, loaded only when the scheduler's tick asks for it.
+ */
+export async function defaultDerivedObjectStore(): Promise<DerivedObjectStore> {
+  const { s3 } = await import("./storage.js");
+  return s3DerivedObjectStore(s3 as never);
+}
 
 export type IntelligenceRunReconcileResult = {
   ok: boolean;
@@ -368,10 +383,12 @@ export async function runIntelligenceRunReconciler(
     // deleted when allowed or adopted on their own rows). Fail-isolated like
     // steps 4 and 5; an intent that cannot be judged stays OPEN and counted.
     try {
-      const { s3 } = await import("./storage.js");
-      const intents = await reconcileDerivedAssetStorageIntents({ store: s3DerivedObjectStore(s3 as never), limit: batchSize });
-      result.derivedIntentsResolved = intents.resolved;
-      result.derivedIntentsKept = intents.kept;
+      if (options.derivedObjectStore) {
+        const store = await options.derivedObjectStore();
+        const intents = await reconcileDerivedAssetStorageIntents({ store, limit: batchSize });
+        result.derivedIntentsResolved = intents.resolved;
+        result.derivedIntentsKept = intents.kept;
+      }
     } catch (err) {
       result.failed += 1;
       logger.warn(
