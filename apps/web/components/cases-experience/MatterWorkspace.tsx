@@ -86,9 +86,10 @@ import { SiuWorklistPanel } from "../../app/(app)/cases/components/SiuWorklistPa
 import { MatterAccessTab } from "./MatterAccessTab";
 import {
   CASE_NOTES_FILTER_SCOPE_MESSAGE,
-  caseNotesPage,
+  LOAD_OLDER_NOTES_LABEL,
   caseNotesTruncationMessage,
 } from "./case-notes-page";
+import { useOlderCaseNotes } from "./use-older-case-notes";
 import type { CaseScope } from "./types";
 import { usePlatformContext } from "../../lib/platform-context";
 import { ReasonedActionButton } from "../../app/(app)/evidence/[id]/components/ReasonedActionButton";
@@ -291,6 +292,8 @@ type MatterEnvelope = {
       /** PRO-K1-07 — the case's comment count; caseComments is the newest 25. Absent on an older API. */
       caseCommentsTotal?: number;
       caseCommentsTruncated?: boolean;
+      /** PRO-K1-07 — cursor for GET /v1/cases/:id/comments (older notes); null on the last page, absent on an older API. */
+      caseCommentsNextCursor?: string | null;
       caseComments: ReadonlyArray<{
         id: string;
         authorUserId: string;
@@ -1789,6 +1792,8 @@ function CommunicationsTab({
   filterText?: string;
 }) {
   const n = envelope.sections.notes;
+  // PRO-K1-07 — the newest page plus any older pages the reader loaded.
+  const caseNotes = useOlderCaseNotes(envelope.case.id, n);
   // Phase C2 — surface the Phase 16 discussion thread aggregator
   // alongside comments/annotations so reviewers see ALL matter-anchored
   // operational communication in one place.
@@ -1827,12 +1832,12 @@ function CommunicationsTab({
     (t) => `${t.title ?? ""} ${t.kind ?? ""} ${t.status ?? ""}`,
   );
   const filteredCaseComments = matchesFilter(
-    n.caseComments,
+    caseNotes.notes,
     filterText,
     (c) => `${c.body ?? ""} ${c.visibility ?? ""}`,
   );
-  // PRO-K1-07 — the list is the newest 25; the count is the case's own.
-  const notesPage = caseNotesPage(n);
+  // PRO-K1-07 — the list is the newest page(s); the count is the case's own.
+  const notesPage = caseNotes.page;
   const notesTruncation = caseNotesTruncationMessage(notesPage);
   const filteredReviewerComments = matchesFilter(
     n.unresolvedReviewerComments,
@@ -1918,7 +1923,7 @@ function CommunicationsTab({
         <p className="app-hint">No case-level comments.</p>
       ) : (
         <ul className="case-detail-rows">
-          {filteredCaseComments.slice(0, 25).map((c) => (
+          {filteredCaseComments.map((c) => (
             <li key={c.id}>
               <em>{c.visibility}</em>
               <span> · {formatRelative(c.createdAt)}</span>
@@ -1930,6 +1935,24 @@ function CommunicationsTab({
           ))}
         </ul>
       )}
+      {notesPage.canLoadOlder ? (
+        <p>
+          <button
+            type="button"
+            className="app-button app-button--secondary"
+            onClick={() => void caseNotes.loadOlder()}
+            disabled={caseNotes.loading}
+            data-matter-case-comments-load-older
+          >
+            {caseNotes.loading ? "Loading older notes…" : LOAD_OLDER_NOTES_LABEL}
+          </button>
+        </p>
+      ) : null}
+      {caseNotes.error ? (
+        <p className="app-hint" role="alert" data-matter-case-comments-load-older-error>
+          {caseNotes.error}
+        </p>
+      ) : null}
       <h3>
         Unresolved reviewer comments ({filteredReviewerComments.length})
       </h3>

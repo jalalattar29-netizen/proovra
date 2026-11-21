@@ -23,6 +23,10 @@ import {
   caseDenialReason,
   parseCaseAssignments,
   parseCaseNotes,
+  parseCaseNotesCursor,
+  parseOlderCaseNotesPage,
+  appendOlderCaseNotes,
+  caseOlderNotesPath,
   parseCaseViewer,
   resolveMemberName,
   summariseCaseDeliverables,
@@ -133,6 +137,10 @@ export default function CaseDetailScreen() {
   const [wsState, setWsState] = useState<WorkspaceState>("loading");
   const [evidence, setEvidence] = useState<CaseEvidenceRow[]>([]);
   const [notes, setNotes] = useState<CaseNote[]>([]);
+  // PRO-K1-07 — the cursor for older notes (null: none, or an older API).
+  const [notesCursor, setNotesCursor] = useState<string | null>(null);
+  const [olderNotesBusy, setOlderNotesBusy] = useState(false);
+  const [olderNotesError, setOlderNotesError] = useState<string | null>(null);
   const [assignments, setAssignments] = useState<CaseAssignment[]>([]);
   // The SERVER's answer to what this caller may do here. Absent means NOT
   // allowed: a client that defaulted to "yes" would offer a destructive action
@@ -192,6 +200,8 @@ export default function CaseDetailScreen() {
       const ws = await apiFetch(`/v1/cases/${encodeURIComponent(String(id))}/matter-workspace`);
       setEvidence(parseCaseEvidenceRows(ws));
       setNotes(parseCaseNotes(ws));
+      setNotesCursor(parseCaseNotesCursor(ws));
+      setOlderNotesError(null);
       setAssignments(parseCaseAssignments(ws));
       setViewer(parseCaseViewer(ws));
       setDeliverables(summariseCaseDeliverables(ws));
@@ -590,6 +600,22 @@ export default function CaseDetailScreen() {
     );
   };
 
+  // PRO-K1-07 — the next older page; the server filters every page by the note read rule.
+  const loadOlderNotes = async () => {
+    if (!id || !notesCursor || olderNotesBusy) return;
+    setOlderNotesBusy(true);
+    setOlderNotesError(null);
+    try {
+      const page = parseOlderCaseNotesPage(await apiFetch(caseOlderNotesPath(String(id), notesCursor)));
+      setNotes((shown) => appendOlderCaseNotes(shown, page.notes));
+      setNotesCursor(page.nextCursor);
+    } catch (err) {
+      setOlderNotesError(toSafeUserError(err).message || "Could not load older notes.");
+    } finally {
+      setOlderNotesBusy(false);
+    }
+  };
+
   const notesTab = () => (
     <>
       <ProovraCard style={styles.block}>
@@ -647,6 +673,21 @@ export default function CaseDetailScreen() {
             </View>
           ))
         )}
+        {notesCursor ? (
+          <View style={styles.composerActions}>
+            <ProovraButton
+              label={olderNotesBusy ? "Loading older notes…" : "Load older notes"}
+              variant="secondary"
+              fullWidth={false}
+              disabled={olderNotesBusy}
+              accessibilityLabel="Load older notes"
+              onPress={() => void loadOlderNotes()}
+            />
+          </View>
+        ) : null}
+        {olderNotesError ? (
+          <ProovraText variant="label" color={theme.color.ink.secondary} testID="case-notes-older-error">{olderNotesError}</ProovraText>
+        ) : null}
       </ProovraCard>
     </>
   );

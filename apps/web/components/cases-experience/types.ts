@@ -421,6 +421,8 @@ export type MatterWorkspaceEnvelope = {
       /** PRO-K1-07 — the case's comment count; caseComments is the newest 25. Absent on an older API. */
       caseCommentsTotal?: number;
       caseCommentsTruncated?: boolean;
+      /** PRO-K1-07 — cursor for GET /v1/cases/:id/comments (older notes); null on the last page, absent on an older API. */
+      caseCommentsNextCursor?: string | null;
       caseComments: Array<{
         id: string;
         authorUserId: string;

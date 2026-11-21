@@ -82,7 +82,8 @@ import { TeamResponsibilityPanel } from "../../collaboration/TeamResponsibilityP
 // Phase CASES-STATUS-LISTBOX (§22) — accessible custom status listbox
 // replaces the native status dropdown in the Settings tab.
 import { CaseStatusSelect } from "./CaseStatusSelect";
-import { caseNotesPage, caseNotesTruncationMessage, type CaseNotesPage } from "../case-notes-page";
+import { LOAD_OLDER_NOTES_LABEL, caseNotesTruncationMessage } from "../case-notes-page";
+import { useOlderCaseNotes } from "../use-older-case-notes";
 // D37 — the repo's disabled-reason pattern: the reason is visible text beside
 // the control, its accessible description and its hover title.
 import { ReasonedActionButton } from "../../../app/(app)/evidence/[id]/components/ReasonedActionButton";
@@ -347,9 +348,6 @@ export function SimpleCaseDetail({
   const evidenceSection = workspace.sections.evidence as { totalCount?: number; truncated?: boolean };
   const evidenceTotal =
     typeof evidenceSection.totalCount === "number" ? evidenceSection.totalCount : evidenceItems.length;
-  const caseComments = workspace.sections.notes?.caseComments ?? [];
-  // PRO-K1-07 — the notes list is the newest 25; the server sends the true count.
-  const caseNotes = caseNotesPage(workspace.sections.notes ?? null);
   const deliverables = summariseDeliverables(workspace);
   const needsAttention = deriveNeedsAttention(workspace);
   const viewer = workspace.viewer;
@@ -502,8 +500,7 @@ export function SimpleCaseDetail({
       {activeTab === "notes" ? (
         <NotesTab
           caseId={caseId}
-          comments={caseComments}
-          notesPage={caseNotes}
+          notesSection={workspace.sections.notes ?? null}
           canComment={viewer.canComment}
           canResolveComment={viewer.canResolveComment}
           viewerUserId={viewer.userId}
@@ -2024,8 +2021,7 @@ function ReportsPackagesTab({
 
 function NotesTab({
   caseId,
-  comments,
-  notesPage,
+  notesSection,
   canComment,
   canResolveComment,
   viewerUserId,
@@ -2034,9 +2030,11 @@ function NotesTab({
   confirm,
 }: {
   caseId: string;
-  comments: NonNullable<MatterWorkspaceEnvelope["sections"]["notes"]>["caseComments"];
-  /** PRO-K1-07 — how many notes the case has, and whether the list is cut. */
-  notesPage: CaseNotesPage;
+  /**
+   * PRO-K1-07 — the workspace's notes section: the newest page, the case's
+   * real count and (on a current API) the cursor for older notes.
+   */
+  notesSection: MatterWorkspaceEnvelope["sections"]["notes"] | null;
   canComment: boolean;
   canResolveComment: boolean;
   /**
@@ -2053,6 +2051,10 @@ function NotesTab({
 }) {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  // PRO-K1-07 — the newest page plus any older pages the reader loaded.
+  const olderNotes = useOlderCaseNotes(caseId, notesSection);
+  const comments = olderNotes.notes;
+  const notesPage = olderNotes.page;
 
   const handleAdd = useCallback(async () => {
     const body = draft.trim();
@@ -2324,6 +2326,26 @@ function NotesTab({
             ))}
           </ul>
         )}
+        {notesPage.canLoadOlder ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: 8 }}>
+            <CaseButton
+              onClick={() => void olderNotes.loadOlder()}
+              disabled={olderNotes.loading}
+              data-simple-case-notes-load-older
+            >
+              {olderNotes.loading ? "Loading older notes…" : LOAD_OLDER_NOTES_LABEL}
+            </CaseButton>
+          </div>
+        ) : null}
+        {olderNotes.error ? (
+          <p
+            role="alert"
+            data-simple-case-notes-load-older-error
+            style={{ margin: "4px 8px 8px", color: "#B9383E", fontSize: 13 }}
+          >
+            {olderNotes.error}
+          </p>
+        ) : null}
       </div>
     </section>
   );

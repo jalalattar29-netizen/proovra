@@ -294,6 +294,35 @@ test("without comment permission the composer is replaced by the web's sentence"
   r.unmount();
 });
 
+test("PRO-K1-07: \"Load older notes\" follows the workspace cursor, appends the older page and disappears at the end", async () => {
+  const note = (i) => ({ id: `n${i}`, authorUserId: "someone-else", body: `Note ${i}`, visibility: "ALL_MEMBERS", resolvedAtUtc: null, resolvedByUserId: null, createdAt: "2026-09-20T10:00:00.000Z" });
+  comments = [note(1), note(2)];
+  const base = routes[`/v1/cases/${CASE}/matter-workspace`];
+  routes[`/v1/cases/${CASE}/matter-workspace`] = (...a) => {
+    const env = base(...a);
+    return { ...env, sections: { ...env.sections, notes: { ...env.sections.notes, caseCommentsTotal: 3, caseCommentsTruncated: true, caseCommentsNextCursor: "cur-2" } } };
+  };
+  routes[`/v1/cases/${CASE}/comments?cursor=`] = () => ({ comments: [note(2), note(3)], nextCursor: null, hasMore: false });
+  const r = await render("Notes");
+  assert.ok(r.hasText("Note 1") && r.hasText("Note 2"));
+  assert.ok(!r.hasText("Note 3"));
+  await r.press("Load older notes");
+  await settle();
+  assert.equal(sent("GET", `/v1/cases/${CASE}/comments?cursor=cur-2`).length, 1);
+  assert.ok(r.hasText("Note 3"));
+  assert.equal(r.texts().filter((x) => x === "Note 2").length, 1, "a note shown twice");
+  assert.equal(r.byLabel("Load older notes").length, 0, "the control stays after the last page");
+  r.unmount();
+});
+
+test("PRO-K1-07: without a cursor (last page, or an older API) no load control is offered", async () => {
+  comments = [{ id: "n1", authorUserId: ME, body: "Only", visibility: "INTERNAL", resolvedAtUtc: null, resolvedByUserId: null, createdAt: "2026-09-20T10:00:00.000Z" }];
+  const r = await render("Notes");
+  assert.ok(r.hasText("Only"));
+  assert.equal(r.byLabel("Load older notes").length, 0);
+  r.unmount();
+});
+
 /* --------------------------------------------------------------- settings */
 
 test("rename saves only a changed name; status changes after an organisational-only confirmation", async () => {
