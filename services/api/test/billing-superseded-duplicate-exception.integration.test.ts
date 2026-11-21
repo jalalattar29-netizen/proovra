@@ -53,7 +53,7 @@ describe("NEW-RG-02-1 — superseded duplicate cancellation is a narrow exceptio
   let effects: typeof import("../src/services/billing/automatic-effects.js");
 
   /** Provider facts by subscription reference; anything absent does not answer. */
-  const facts = new Map<string, { state: ObservedState; cancelAtPeriodEnd?: boolean }>();
+  const facts = new Map<string, { state: ObservedState; cancelAtPeriodEnd?: boolean; providerStatus?: string }>();
   /** Every cancel the step asked for, across the whole file. */
   const cancelCalls: Array<{ provider: string; ref: string }> = [];
   /** References that must never be cancelled (retained subscriptions). */
@@ -62,7 +62,8 @@ describe("NEW-RG-02-1 — superseded duplicate cancellation is a narrow exceptio
   const readProvider = async (_provider: string, ref: string) => {
     const f = facts.get(ref);
     if (!f) return null;
-    return { state: f.state, cancelAtPeriodEnd: f.cancelAtPeriodEnd === true, observedAtUtc: new Date() };
+    const raw = f.providerStatus ?? (f.state === "SUCCEEDED" ? "active" : f.state === "CANCELED" ? "canceled" : null);
+    return { state: f.state, cancelAtPeriodEnd: f.cancelAtPeriodEnd === true, observedAtUtc: new Date(), providerStatus: raw };
   };
   const cancel = async (provider: string, ref: string) => {
     cancelCalls.push({ provider, ref });
@@ -176,6 +177,23 @@ describe("NEW-RG-02-1 — superseded duplicate cancellation is a narrow exceptio
     await retry();
     expect(callsFor(duplicate.providerSubId)).toEqual([]);
     expect(await row(duplicate.id)).toMatchObject({ status: "CANCELED", supersessionCancelState: "CONFIRMED" });
+    // Recorded as what happened: no cancel was sent.
+    expect((await reviews(duplicate.providerSubId))[0]).toMatchObject({
+      reason: "DUPLICATE_BASE_SUBSCRIPTION",
+      providerAction: "ALREADY_ENDED_AT_PROVIDER",
+    });
+  });
+
+  it("a retained subscription that is only TRIALING at the provider is review, never a cancel", async () => {
+    const { retained, duplicate } = await pair();
+    facts.set(retained!.providerSubId, { state: "SUCCEEDED", providerStatus: "trialing" });
+    await retry();
+    expect(callsFor(duplicate.providerSubId)).toEqual([]);
+    expect(await row(duplicate.id)).toMatchObject({ status: "ACTIVE", supersessionCancelState: "REVIEW_REQUIRED" });
+    expect((await reviews(duplicate.providerSubId))[0]).toMatchObject({
+      reason: "DUPLICATE_BASE_SUBSCRIPTION_UNCONFIRMED",
+      detail: expect.objectContaining({ why: "RETAINED_STATUS_NOT_ACTIVE_AT_PROVIDER" }),
+    });
   });
 
   it("no valid retained subscription: review item, no provider call", async () => {
@@ -358,6 +376,47 @@ describe("NEW-RG-02-1 — superseded duplicate cancellation is a narrow exceptio
       detail: expect.objectContaining({ why: "RETAINED_PROVIDER_FACTS_MISSING" }),
     });
     expect(await plan(userId)).toBe("PRO");
+  });
+
+  it("first attempt vs the sweep: the sweep cannot claim inside the first attempt's window, and a failed first attempt never overwrites the sweep's confirmation", async () => {
+    const userId = await user("PRO");
+    const retained = await sub(userId, { provider: "STRIPE" });
+    retainedRefs.add(retained.providerSubId);
+    facts.set(retained.providerSubId, { state: "SUCCEEDED" });
+    const ref = `I-${randomUUID().slice(0, 12)}`;
+    facts.set(ref, { state: "SUCCEEDED" });
+    let sweptLater = -1;
+    // The first attempt's provider call: while it is in flight, the sweep runs.
+    const racingCancel = async (provider: string, cancelRef: string) => {
+      cancelCalls.push({ provider, ref: cancelRef });
+      // (a) A sweep right now must not take the row: it is stamped >= now + 5 min.
+      await retry();
+      // (b) A sweep past that window takes it and confirms the cancellation.
+      sweptLater = (await retry(new Date(Date.now() + 10 * 60_000))).confirmed;
+      // …and the first attempt's own call then fails.
+      return { canceled: false, observedAtUtc: null };
+    };
+    const outcome = await handlers.syncPlanForSubscription({
+      userId,
+      plan: "TEAM",
+      provider: "PAYPAL",
+      providerSubId: ref,
+      status: "ACTIVE",
+      observedAtUtc: new Date(),
+      cancelSupersededAtProvider: racingCancel as never,
+      readSupersededProvider: readProvider as never,
+    });
+    expect(outcome).toMatchObject({ outcome: "SUPERSEDED", canceledAtProvider: false });
+    const duplicate = await prisma.subscription.findUniqueOrThrow({
+      where: { provider_providerSubId: { provider: "PAYPAL", providerSubId: ref } },
+    });
+    expect(sweptLater).toBeGreaterThanOrEqual(1);
+    expect(await row(duplicate.id)).toMatchObject({ status: "CANCELED", supersessionCancelState: "CONFIRMED" });
+    expect((await reviews(ref)).find((r) => r.reason === "DUPLICATE_BASE_SUBSCRIPTION")).toMatchObject({
+      providerAction: "CANCELED_AT_PROVIDER",
+    });
+    // The duplicate was asked twice at most (first attempt + the later sweep), never by the sweep inside the window.
+    expect(callsFor(ref)).toHaveLength(2);
   });
 
   it("the automatic-effects preview lists every candidate with the outcome the sweep would take", async () => {

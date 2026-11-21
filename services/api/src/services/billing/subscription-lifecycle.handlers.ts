@@ -242,7 +242,9 @@ export async function syncPlanForSubscription(params: {
           data: {
             supersededBySubscriptionId: otherLive.id,
             supersessionCancelState: "PENDING",
-            supersessionCancelNextRetryAtUtc: new Date(),
+            // NEW-RG-02-1 — the first attempt (below, outside the lock) owns the
+            // row for its window: the sweep may not claim it before then.
+            supersessionCancelNextRetryAtUtc: new Date(Date.now() + SUPERSESSION_RETRY_MINUTES[0]! * 60_000),
           },
         });
       }
@@ -478,8 +480,9 @@ export async function retrySupersededCancellations(input: {
     });
     const classification = await classifySupersededDuplicate(row, retained, readProvider);
     if (classification.kind === "REVIEW") {
-      await prisma.subscription.update({
-        where: { id: row.id },
+      // CAS on the state this pass started from: a concurrent confirmation wins.
+      const held = await prisma.subscription.updateMany({
+        where: { id: row.id, supersessionCancelState: row.supersessionCancelState },
         data: {
           supersessionCancelState: "REVIEW_REQUIRED",
           // A review pass is not a cancel attempt.
@@ -487,6 +490,7 @@ export async function retrySupersededCancellations(input: {
           supersessionCancelNextRetryAtUtc: new Date(now.getTime() + SUPERSESSION_REVIEW_RECHECK_MINUTES * 60_000),
         },
       });
+      if (held.count !== 1) continue;
       await recordBillingReviewItem({
         userId: row.userId,
         provider: row.provider,
@@ -525,7 +529,7 @@ export async function retrySupersededCancellations(input: {
         providerResourceId: row.providerSubId,
         product: "PLAN",
         reason: "DUPLICATE_BASE_SUBSCRIPTION",
-        providerAction: "CANCELED_AT_PROVIDER",
+        providerAction: "ALREADY_ENDED_AT_PROVIDER",
         refundReviewRequired: true,
         detail: {
           supersededPlan: row.plan,
@@ -545,8 +549,9 @@ export async function retrySupersededCancellations(input: {
       result = { canceled: false, observedAtUtc: null };
     }
     if (!result.canceled) {
-      await prisma.subscription.update({
-        where: { id: row.id },
+      // CAS: a failure never overwrites a confirmation another pass wrote meanwhile.
+      await prisma.subscription.updateMany({
+        where: { id: row.id, supersessionCancelState: row.supersessionCancelState },
         data: {
           supersessionCancelState:
             attemptCount > SUPERSESSION_RETRY_MINUTES.length ? "MANUAL_INTERVENTION" : "RETRY_SCHEDULED",
@@ -708,15 +713,21 @@ async function supersede(input: {
   const classification = duplicate
     ? await classifySupersededDuplicate(duplicate, retained, input.readProvider)
     : ({ kind: "REVIEW", reason: "NOT_SUPERSEDED", retainedSubscriptionId: input.keptSubscriptionId } as const);
+  // Every state write below is a compare-and-set on PENDING, the state the lock
+  // transaction wrote: if the sweep took the row over meanwhile, its outcome
+  // stands (a provider-confirmed cancellation is the one exception: it always
+  // lands, because it is the truth).
+  const FROM = { id: input.duplicateSubscriptionId, supersessionCancelState: "PENDING" } as const;
   if (classification.kind === "REVIEW") {
-    await prisma.subscription.updateMany({
-      where: { provider: input.provider, providerSubId: input.providerSubId },
+    const held = await prisma.subscription.updateMany({
+      where: FROM,
       data: {
         supersessionCancelState: "REVIEW_REQUIRED",
         supersessionCancelAttemptCount: 0,
         supersessionCancelNextRetryAtUtc: new Date(Date.now() + SUPERSESSION_REVIEW_RECHECK_MINUTES * 60_000),
       },
     });
+    if (held.count !== 1) return false;
     await recordBillingReviewItem({
       userId: input.userId,
       provider: input.provider,
@@ -755,23 +766,33 @@ async function supersede(input: {
       observedAtUtc: result.observedAtUtc,
     }).catch(() => undefined);
   }
-  await prisma.subscription.updateMany({
-    where: { provider: input.provider, providerSubId: input.providerSubId },
-    data: result.canceled
-      ? { supersessionCancelState: "CONFIRMED", supersessionCancelNextRetryAtUtc: null, supersessionCancelAttemptCount: 1 }
-      : {
-          supersessionCancelState: "RETRY_SCHEDULED",
-          supersessionCancelAttemptCount: 1,
-          supersessionCancelNextRetryAtUtc: new Date(Date.now() + SUPERSESSION_RETRY_MINUTES[0]! * 60_000),
-        },
-  });
+  if (result.canceled) {
+    await prisma.subscription.updateMany({
+      where: { id: input.duplicateSubscriptionId },
+      data: { supersessionCancelState: "CONFIRMED", supersessionCancelNextRetryAtUtc: null, supersessionCancelAttemptCount: 1 },
+    });
+  } else {
+    await prisma.subscription.updateMany({
+      where: FROM,
+      data: {
+        supersessionCancelState: "RETRY_SCHEDULED",
+        supersessionCancelAttemptCount: 1,
+        supersessionCancelNextRetryAtUtc: new Date(Date.now() + SUPERSESSION_RETRY_MINUTES[0]! * 60_000),
+      },
+    });
+  }
   await recordBillingReviewItem({
     userId: input.userId,
     provider: input.provider,
     providerResourceId: input.providerSubId,
     product: "PLAN",
     reason: "DUPLICATE_BASE_SUBSCRIPTION",
-    providerAction: result.canceled ? "CANCELED_AT_PROVIDER" : "CANCEL_FAILED",
+    // A terminal action is never replaced by CANCEL_FAILED (recordBillingReviewItem).
+    providerAction: !result.canceled
+      ? "CANCEL_FAILED"
+      : classification.duplicateAlreadyEnded
+        ? "ALREADY_ENDED_AT_PROVIDER"
+        : "CANCELED_AT_PROVIDER",
     // The provider charged the first period when it activated the duplicate.
     refundReviewRequired: true,
     detail: {

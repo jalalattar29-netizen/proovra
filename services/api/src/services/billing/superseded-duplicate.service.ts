@@ -19,7 +19,8 @@
  *      entitlement: same account (userId), same workspace binding (teamId, both
  *      personal or the same legacy workspace), a self-service base plan, not
  *      itself superseded, locally ACTIVE and not ending;
- *   3. the provider itself confirms the retained subscription is ACTIVE and not
+ *   3. the provider itself confirms the retained subscription is ACTIVE (raw
+ *      status `active`, never trialing) and not
  *      set to stop renewing (a read, never a write);
  *   4. the provider answers for the duplicate too; if it already ended, the
  *      step only records that (no cancel call), so a retry is idempotent.
@@ -82,6 +83,7 @@ export type SupersessionReviewReason =
   | "RETAINED_PROVIDER_FACTS_MISSING"
   | "RETAINED_NOT_ACTIVE_AT_PROVIDER"
   | "RETAINED_ENDING_AT_PROVIDER"
+  | "RETAINED_STATUS_NOT_ACTIVE_AT_PROVIDER"
   | "DUPLICATE_PROVIDER_FACTS_MISSING";
 
 export type SupersessionClassification =
@@ -89,7 +91,13 @@ export type SupersessionClassification =
   | { kind: "REVIEW"; reason: SupersessionReviewReason; retainedSubscriptionId: string | null };
 
 /** What a provider READ says about one subscription. Null: it did not answer. */
-export type SupersessionProviderFact = { state: ObservedState; cancelAtPeriodEnd: boolean; observedAtUtc: Date | null };
+export type SupersessionProviderFact = {
+  state: ObservedState;
+  cancelAtPeriodEnd: boolean;
+  observedAtUtc: Date | null;
+  /** The provider's raw status (Stripe `active` / `trialing`, PayPal `ACTIVE`); null when not stated. */
+  providerStatus: string | null;
+};
 export type SupersessionProviderReader = (
   provider: prismaPkg.PaymentProvider,
   providerSubId: string,
@@ -157,6 +165,9 @@ export async function classifySupersededDuplicate(
   const kept = await read(retained!.provider, retained!.providerSubId).catch(() => null);
   if (!kept || kept.state === "UNKNOWN") return review("RETAINED_PROVIDER_FACTS_MISSING");
   if (kept.state !== "SUCCEEDED") return review("RETAINED_NOT_ACTIVE_AT_PROVIDER");
+  // SUCCEEDED covers Stripe `trialing` too: only a raw `active` / `ACTIVE` is a
+  // paying retained subscription. Trialing, or no stated status, is review.
+  if (String(kept.providerStatus ?? "").toLowerCase() !== "active") return review("RETAINED_STATUS_NOT_ACTIVE_AT_PROVIDER");
   if (kept.cancelAtPeriodEnd) return review("RETAINED_ENDING_AT_PROVIDER");
 
   const dup = await read(duplicate.provider, duplicate.providerSubId).catch(() => null);
@@ -186,6 +197,7 @@ export function defaultSupersessionProviderReader(): SupersessionProviderReader 
       state: observation.state,
       cancelAtPeriodEnd: observation.cancelAtPeriodEnd,
       observedAtUtc: observation.observedAtUtc,
+      providerStatus: observation.providerStatus ?? null,
     };
   };
 }

@@ -205,6 +205,43 @@ describe("MATRIX-M626 — team-less sealed records need their owner's approval (
     expect(unconfirmed.statusCode).toBe(400);
   });
 
+  it("an approval cannot be withdrawn while the executor holds a live destruction claim", async () => {
+    const owner = await workspacelessOwner();
+    const rec = await record({ ownerUserId: owner.id });
+    await ownerApproval.approveOwnRecordDestruction({ evidenceId: rec.id, actorUserId: owner.id });
+    // The executor's claim: PENDING_DESTRUCTION with a fresh claim stamp (it
+    // read the approval in that transaction and deletes storage after commit).
+    await prisma.evidence.update({
+      where: { id: rec.id },
+      data: { lifecycleState: "PENDING_DESTRUCTION", destructionClaimedAtUtc: new Date() } as never,
+    });
+    expect(await ownerApproval.withdrawOwnRecordDestructionApproval({ evidenceId: rec.id, actorUserId: owner.id })).toEqual({
+      ok: false,
+      refusal: "DESTRUCTION_IN_PROGRESS",
+    });
+    const res = await h.app.inject({
+      method: "DELETE",
+      url: `/v1/evidence/${rec.id}/owner-destruction-approval`,
+      headers: { authorization: `Bearer ${tokens.get(owner.id)}` },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body)).toMatchObject({ code: "DESTRUCTION_IN_PROGRESS" });
+    expect(await prisma.evidenceOwnerDestructionApproval.count({ where: { evidenceId: rec.id, withdrawnAtUtc: null } })).toBe(1);
+
+    // An EXPIRED claim is no longer in flight: the withdrawal is accepted and
+    // the executor's takeover then refuses for want of approval.
+    await prisma.evidence.update({
+      where: { id: rec.id },
+      data: { destructionClaimedAtUtc: new Date(Date.now() - 2 * 60 * 60_000) } as never,
+    });
+    expect(await ownerApproval.withdrawOwnRecordDestructionApproval({ evidenceId: rec.id, actorUserId: owner.id })).toEqual({
+      ok: true,
+      withdrawn: 1,
+    });
+    expect(await destroy(rec.id)).toMatchObject({ ok: false, reason: "DESTRUCTION_APPROVAL_REQUIRED" });
+    expect(objects.has(rec.object)).toBe(true);
+  });
+
   it("a legal hold is never overridden by the owner's approval", async () => {
     const P = h.fixtures.personal;
     const rec = await record({ ownerUserId: P.userId });

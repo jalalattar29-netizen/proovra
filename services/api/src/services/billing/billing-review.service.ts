@@ -104,7 +104,14 @@ export type BillingReviewReason =
 
 export type BillingReviewProduct = "PLAN" | "STORAGE_ADDON" | "EVIDENCE_CREDIT";
 
-export type BillingProviderAction = "NONE" | "CANCELED_AT_PROVIDER" | "CANCEL_FAILED";
+/**
+ * ALREADY_ENDED_AT_PROVIDER (NEW-RG-02-1) — the provider had already stopped it
+ * when PROOVRA looked; no cancel was sent. Terminal, like CANCELED_AT_PROVIDER.
+ */
+export type BillingProviderAction = "NONE" | "CANCELED_AT_PROVIDER" | "ALREADY_ENDED_AT_PROVIDER" | "CANCEL_FAILED";
+
+/** A provider outcome that ends the matter: never replaced by a later, weaker one (CANCEL_FAILED, NONE). */
+const TERMINAL_PROVIDER_ACTIONS: ReadonlySet<string> = new Set(["CANCELED_AT_PROVIDER", "ALREADY_ENDED_AT_PROVIDER"]);
 
 /** How long a provider's ACTIVE may lack a completed payment before a person is asked to look. */
 export const UNPROVEN_PAYMENT_REVIEW_AFTER_MS = 60 * 60 * 1000;
@@ -144,8 +151,8 @@ export async function noteActiveWithoutCompletedPayment(input: {
  * Record (or update) ONE review item. Idempotent on
  * (provider, providerResourceId, reason): a redelivered webhook or a second
  * re-check updates the same row, never a second one. A later, stronger
- * provider action (CANCELED_AT_PROVIDER after CANCEL_FAILED) replaces a
- * weaker one; `refundReviewRequired` only ever becomes true.
+ * provider action (CANCELED_AT_PROVIDER or ALREADY_ENDED_AT_PROVIDER after
+ * CANCEL_FAILED) replaces a weaker one, and a terminal one is never replaced; `refundReviewRequired` only ever becomes true.
  */
 export async function recordBillingReviewItem(input: {
   userId: string;
@@ -198,8 +205,7 @@ export async function recordBillingReviewItem(input: {
     if (count === 0) await recordBillingReviewItem(input, client);
     return;
   }
-  const stronger =
-    existing.providerAction !== "CANCELED_AT_PROVIDER" && providerAction !== "NONE";
+  const stronger = !TERMINAL_PROVIDER_ACTIONS.has(existing.providerAction) && providerAction !== "NONE";
   await client.billingReviewItem.update({
     where: { id: existing.id },
     data: {
