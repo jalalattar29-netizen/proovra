@@ -157,9 +157,9 @@
       "QueueRegistryProblems": 0
     },
     "mutations": {
-      "terminalWriters": 1700,
-      "reachable": 1670,
-      "classified": 1670,
+      "terminalWriters": 1701,
+      "reachable": 1671,
+      "classified": 1671,
       "unclassified": 0,
       "moduleScopedAttribution": 0,
       "nonRequest": 30,
@@ -175,7 +175,7 @@
       "conservationHolds": true,
       "writerConservationHolds": true,
       "byWriterBucket": {
-        "ROUTE_ATTRIBUTED_REACHABLE": 1485,
+        "ROUTE_ATTRIBUTED_REACHABLE": 1486,
         "JOB_ATTRIBUTED_REACHABLE": 173,
         "MODULE_SCOPED_REACHABLE": 0,
         "REGISTERED_CLI": 11,
@@ -194,7 +194,7 @@
       "byFamily": {
         "ACCOUNT_SESSION_SECURITY": 277,
         "ORGANIZATION": 44,
-        "ORGANIZATION_MEMBERSHIP": 34,
+        "ORGANIZATION_MEMBERSHIP": 35,
         "WORKSPACE": 85,
         "WORKSPACE_MEMBERSHIP_INVITATION": 69,
         "CASE": 95,

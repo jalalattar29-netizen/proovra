@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 26
     },
-    "TerminalWriters": 1700,
-    "ReachableSensitiveMutations": 1670,
-    "ClassifiedSensitiveMutations": 1670,
+    "TerminalWriters": 1701,
+    "ReachableSensitiveMutations": 1671,
+    "ClassifiedSensitiveMutations": 1671,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 30,
@@ -73,7 +73,7 @@
     "byFamily": {
       "ACCOUNT_SESSION_SECURITY": 277,
       "ORGANIZATION": 44,
-      "ORGANIZATION_MEMBERSHIP": 34,
+      "ORGANIZATION_MEMBERSHIP": 35,
       "WORKSPACE": 85,
       "WORKSPACE_MEMBERSHIP_INVITATION": 69,
       "CASE": 95,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1485,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1486,
       "JOB_ATTRIBUTED_REACHABLE": 173,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 11,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 12374,
+      "METHOD_ON_VALUE": 12375,
       "UNRESOLVED_IDENTIFIER": 1803
     },
     "MutationFixpointRounds": 11,
@@ -35956,8 +35956,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.create@1042",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1042",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.create@1043",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1043",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimCreateUser",
       "kind": "DATABASE",
@@ -35989,8 +35989,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.update@1753",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1753",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.update@1764",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1764",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimReactivateUser",
       "kind": "DATABASE",
@@ -36022,8 +36022,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.update@1871",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1871",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.update@1882",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1882",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimUpdateUserAttributes",
       "kind": "DATABASE",
@@ -36055,8 +36055,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.updateMany@1470",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1470",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.updateMany@1481",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1481",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimDeactivateUser",
       "kind": "DATABASE",
@@ -36089,8 +36089,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.create@209",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:209",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.create@210",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:210",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "createScimToken",
       "kind": "DATABASE",
@@ -36122,8 +36122,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.create@442",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:442",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.create@443",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:443",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "rotateScimToken",
       "kind": "DATABASE",
@@ -36155,8 +36155,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.update@789",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:789",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.update@790",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:790",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "authenticateScimRequest",
       "kind": "DATABASE",
@@ -36197,8 +36197,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.updateMany@305",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:305",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.updateMany@306",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:306",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "revokeScimToken",
       "kind": "DATABASE",
@@ -36230,8 +36230,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.updateMany@417",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:417",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.updateMany@418",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:418",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "rotateScimToken",
       "kind": "DATABASE",
@@ -36263,8 +36263,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#user.create@1028",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1028",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#user.create@1029",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1029",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimCreateUser",
       "kind": "DATABASE",
@@ -36296,8 +36296,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#user.updateMany@1524",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1524",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#user.updateMany@1535",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1535",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimDeactivateUser",
       "kind": "DATABASE",
@@ -58014,8 +58014,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$executeRawUnsafe@1033",
-      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:1033",
+      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$executeRawUnsafe@1030",
+      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:1030",
       "file": "services/api/src/services/external-review/external-review-grant.service.ts",
       "enclosingDeclaration": "recordExternalReviewAccess",
       "kind": "RAW_SQL",
@@ -58048,8 +58048,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$queryRawUnsafe@1221",
-      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:1221",
+      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$queryRawUnsafe@1218",
+      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:1218",
       "file": "services/api/src/services/external-review/external-review-grant.service.ts",
       "enclosingDeclaration": "rotateExternalReviewGrantToken",
       "kind": "RAW_SQL",
@@ -58121,8 +58121,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$queryRawUnsafe@943",
-      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:943",
+      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$queryRawUnsafe@940",
+      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:940",
       "file": "services/api/src/services/external-review/external-review-grant.service.ts",
       "enclosingDeclaration": "transitionExternalReviewGrant",
       "kind": "RAW_SQL",
@@ -64886,8 +64886,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.deleteMany@1546",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1546",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.deleteMany@1574",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1574",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "removeAllOrganizationMembershipsForUser",
       "kind": "DATABASE",
@@ -64921,8 +64921,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.update@1376",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1376",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.update@1403",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1403",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "updateOrganizationMembershipRole",
       "kind": "DATABASE",
@@ -65075,8 +65075,42 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.create@1664",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1664",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.updateMany@1395",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1395",
+      "file": "services/api/src/services/identity/membership-provisioning.service.ts",
+      "enclosingDeclaration": "updateOrganizationMembershipRole",
+      "kind": "DATABASE",
+      "target": "organizationMembership",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ORGANIZATION_MEMBERSHIP",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "PATCH /v1/orgs/:id/members/:memberId",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/organizations.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.create@1692",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1692",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "reopenWorkspaceOwnerMembership",
       "kind": "DATABASE",
@@ -65149,8 +65183,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1583",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1583",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1611",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1611",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "transferWorkspaceOwnerRoles",
       "kind": "DATABASE",
@@ -65184,8 +65218,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1601",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1601",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1629",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1629",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "transferWorkspaceOwnerRoles",
       "kind": "DATABASE",
@@ -65219,8 +65253,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1642",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1642",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1670",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1670",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "reopenWorkspaceOwnerMembership",
       "kind": "DATABASE",
@@ -65252,8 +65286,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1769",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1769",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1797",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1797",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "massReactivateSuspendedWorkspaceMemberships",
       "kind": "DATABASE",
@@ -65323,8 +65357,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1492",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1492",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1520",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1520",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "massRevokeWorkspaceMemberships",
       "kind": "DATABASE",
@@ -65361,8 +65395,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1699",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1699",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1727",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1727",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "massSuspendWorkspaceMemberships",
       "kind": "DATABASE",
@@ -65395,8 +65429,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1772",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1772",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1800",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1800",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "massReactivateSuspendedWorkspaceMemberships",
       "kind": "DATABASE",
@@ -95593,8 +95627,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/organization/org-ownership-offer.service.ts#organizationOwnershipOffer.update@251",
-      "terminalLocation": "services/api/src/services/organization/org-ownership-offer.service.ts:251",
+      "writerId": "services/api/src/services/organization/org-ownership-offer.service.ts#organizationOwnershipOffer.update@264",
+      "terminalLocation": "services/api/src/services/organization/org-ownership-offer.service.ts:264",
       "file": "services/api/src/services/organization/org-ownership-offer.service.ts",
       "enclosingDeclaration": "acceptOrganizationOwnershipOffer",
       "kind": "DATABASE",
@@ -95626,8 +95660,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/organization/org-ownership-offer.service.ts#organizationOwnershipOffer.update@285",
-      "terminalLocation": "services/api/src/services/organization/org-ownership-offer.service.ts:285",
+      "writerId": "services/api/src/services/organization/org-ownership-offer.service.ts#organizationOwnershipOffer.update@300",
+      "terminalLocation": "services/api/src/services/organization/org-ownership-offer.service.ts:300",
       "file": "services/api/src/services/organization/org-ownership-offer.service.ts",
       "enclosingDeclaration": "acceptOrganizationOwnershipOffer",
       "kind": "DATABASE",
@@ -95659,8 +95693,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/organization/org-ownership-offer.service.ts#organizationOwnershipOffer.update@377",
-      "terminalLocation": "services/api/src/services/organization/org-ownership-offer.service.ts:377",
+      "writerId": "services/api/src/services/organization/org-ownership-offer.service.ts#organizationOwnershipOffer.update@401",
+      "terminalLocation": "services/api/src/services/organization/org-ownership-offer.service.ts:401",
       "file": "services/api/src/services/organization/org-ownership-offer.service.ts",
       "enclosingDeclaration": "settleOrganizationOwnershipOffer",
       "kind": "DATABASE",
@@ -95726,8 +95760,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/organization/org-ownership-offer.service.ts#organizationOwnershipOffer.updateMany@240",
-      "terminalLocation": "services/api/src/services/organization/org-ownership-offer.service.ts:240",
+      "writerId": "services/api/src/services/organization/org-ownership-offer.service.ts#organizationOwnershipOffer.updateMany@241",
+      "terminalLocation": "services/api/src/services/organization/org-ownership-offer.service.ts:241",
       "file": "services/api/src/services/organization/org-ownership-offer.service.ts",
       "enclosingDeclaration": "acceptOrganizationOwnershipOffer",
       "kind": "DATABASE",
@@ -131675,6 +131709,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "caseEvidenceLink",
+        "crossOrgReviewGrant",
         "evidenceLegalHold",
         "externalReviewerRoleAssignment",
         "organizationSecurityPolicy",
@@ -131688,6 +131723,8 @@
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: crossOrgReviewGrant.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
@@ -131728,6 +131765,7 @@
       "modelsRead": [
         "authenticatedSession",
         "caseEvidenceLink",
+        "crossOrgReviewGrant",
         "custodyEvent",
         "evidence",
         "evidenceLegalHold",
@@ -131748,6 +131786,8 @@
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: crossOrgReviewGrant.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
@@ -145809,6 +145849,7 @@
       "modelsRead": [
         "adminAuditLog",
         "caseEvidenceLink",
+        "crossOrgReviewGrant",
         "evidenceLegalHold",
         "externalReviewActivity",
         "externalReviewerRoleAssignment",
@@ -145827,6 +145868,8 @@
       "tenantBindingEvidence": [
         "packages/shared-runtime/src/standing-creator-authority.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/services/workspace/operating-workspace.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: crossOrgReviewGrant.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate"
       ],
@@ -145895,6 +145938,7 @@
       "modelsRead": [
         "adminAuditLog",
         "caseEvidenceLink",
+        "crossOrgReviewGrant",
         "evidenceLegalHold",
         "evidenceReviewWorkflow",
         "externalReviewDecision",
@@ -145914,6 +145958,8 @@
       "tenantBindingEvidence": [
         "packages/shared-runtime/src/standing-creator-authority.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/services/workspace/operating-workspace.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: crossOrgReviewGrant.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate",
         "services/api/src/services/external-review/portal-projection.service.ts: caseEvidenceLink.findMany — no tenant or self predicate",
@@ -145976,6 +146022,7 @@
       "modelsRead": [
         "adminAuditLog",
         "caseEvidenceLink",
+        "crossOrgReviewGrant",
         "evidenceLegalHold",
         "evidenceReviewWorkflow",
         "externalReviewComment",
@@ -145995,6 +146042,8 @@
       "tenantBindingEvidence": [
         "packages/shared-runtime/src/standing-creator-authority.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/services/workspace/operating-workspace.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: crossOrgReviewGrant.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate",
         "services/api/src/services/external-review/portal-scope.service.ts: verificationPackage.findFirst — no tenant or self predicate"
@@ -146056,6 +146105,7 @@
       "modelsRead": [
         "adminAuditLog",
         "caseEvidenceLink",
+        "crossOrgReviewGrant",
         "evidenceLegalHold",
         "evidenceReviewWorkflow",
         "externalReviewDecision",
@@ -146075,6 +146125,8 @@
       "tenantBindingEvidence": [
         "packages/shared-runtime/src/standing-creator-authority.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/services/workspace/operating-workspace.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: crossOrgReviewGrant.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate",
         "services/api/src/services/external-review/portal-scope.service.ts: verificationPackage.findFirst — no tenant or self predicate"
@@ -146137,6 +146189,7 @@
         "adminAuditLog",
         "authenticatedSession",
         "caseEvidenceLink",
+        "crossOrgReviewGrant",
         "custodyEvent",
         "evidence",
         "evidenceLegalHold",
@@ -146162,15 +146215,15 @@
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: crossOrgReviewGrant.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate",
         "services/api/src/services/external-review/portal-scope.service.ts: verificationPackage.findFirst — no tenant or self predicate",
         "services/api/src/routes/external-portal.routes.ts: externalReviewGrant.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
-        "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
-        "packages/shared-runtime/src/integrity-recheck/authority.ts: evidence.updateMany — no tenant or self predicate",
-        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate"
+        "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -158657,6 +158710,7 @@
         "services/api/src/services/identity/org-membership-lifecycle.service.ts: the canonical organization membership-status predicate (packages/shared)",
         "services/api/src/services/organization/org-access.ts: organization.findUnique — no tenant or self predicate",
         "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
+        "services/api/src/services/identity/membership-provisioning.service.ts: organizationMembership.updateMany — no tenant or self predicate",
         "services/api/src/services/identity/membership-provisioning.service.ts: organizationMembership.update — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
@@ -179164,6 +179218,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "caseEvidenceLink",
+        "crossOrgReviewGrant",
         "evidenceLegalHold",
         "externalReviewerRoleAssignment",
         "organizationSecurityPolicy",
@@ -179177,6 +179232,8 @@
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: crossOrgReviewGrant.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
@@ -179370,6 +179427,8 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "crossOrgReviewGrant",
+        "externalReviewerRoleAssignment",
         "organizationSecurityPolicy",
         "revokedSession",
         "ssoConnection",
@@ -179383,7 +179442,9 @@
         "services/api/src/middleware/authorize.ts: the canonical authorization evaluator (ACTIVE membership + tenant + capability)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: crossOrgReviewGrant.findFirst — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -179707,6 +179768,7 @@
       "modelsRead": [
         "authenticatedSession",
         "case",
+        "crossOrgReviewGrant",
         "evidence",
         "externalReviewGrant",
         "externalReviewerRoleAssignment",
@@ -180029,6 +180091,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "crossOrgReviewGrant",
         "externalReviewGrant",
         "externalReviewInvitationDelivery",
         "externalReviewerRoleAssignment",
@@ -180048,7 +180111,9 @@
       "tenantBindingEvidence": [
         "services/api/src/middleware/authorize.ts: the canonical current-workspace evaluator",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: crossOrgReviewGrant.findFirst — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -180344,6 +180409,7 @@
       "modelsRead": [
         "accessReviewItem",
         "authenticatedSession",
+        "crossOrgReviewGrant",
         "departmentMembership",
         "enterpriseContract",
         "entitlement",
@@ -180391,6 +180457,8 @@
         "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
         "services/api/src/services/identity/rbac.service.ts: teamMember.findUnique — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: crossOrgReviewGrant.findFirst — no tenant or self predicate",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
@@ -180874,6 +180942,8 @@
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: crossOrgReviewGrant.findFirst — no tenant or self predicate",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
@@ -197252,6 +197322,7 @@
       "modelsRead": [
         "adminAuditLog",
         "caseEvidenceLink",
+        "crossOrgReviewGrant",
         "evidenceLegalHold",
         "externalReviewerRoleAssignment",
         "organizationSecurityPolicy",
@@ -197270,6 +197341,8 @@
       "tenantBindingEvidence": [
         "packages/shared-runtime/src/standing-creator-authority.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: crossOrgReviewGrant.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate"
       ],
@@ -197330,6 +197403,7 @@
       "modelsRead": [
         "adminAuditLog",
         "caseEvidenceLink",
+        "crossOrgReviewGrant",
         "evidenceLegalHold",
         "externalReviewerRoleAssignment",
         "organizationSecurityPolicy",
@@ -197347,6 +197421,8 @@
       "tenantBindingEvidence": [
         "packages/shared-runtime/src/standing-creator-authority.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/services/workspace/operating-workspace.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: crossOrgReviewGrant.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate"
       ],
@@ -197395,6 +197471,7 @@
       "tenantBindingAuthority": "teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "crossOrgReviewGrant",
         "externalReviewerRoleAssignment",
         "organizationSecurityPolicy",
         "ssoConnection",
@@ -197411,7 +197488,9 @@
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/routes/external-portal.routes.ts: externalReviewerRoleAssignment.findFirst — no tenant or self predicate",
         "services/api/src/services/access-control/sso-hardening.service.ts: ssoConnection.findUniqueOrThrow — no tenant or self predicate",
-        "services/api/src/services/external-review/portal-sso.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate"
+        "services/api/src/services/external-review/portal-sso.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: crossOrgReviewGrant.findFirst — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -197526,6 +197605,7 @@
       "modelsRead": [
         "adminAuditLog",
         "caseEvidenceLink",
+        "crossOrgReviewGrant",
         "evidenceLegalHold",
         "evidenceReviewWorkflow",
         "externalReviewComment",
@@ -197546,6 +197626,8 @@
       "tenantBindingEvidence": [
         "packages/shared-runtime/src/standing-creator-authority.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/services/workspace/operating-workspace.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: crossOrgReviewGrant.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate",
         "services/api/src/services/external-review/portal-scope.service.ts: verificationPackage.findFirst — no tenant or self predicate"
@@ -197608,6 +197690,7 @@
       "modelsRead": [
         "adminAuditLog",
         "caseEvidenceLink",
+        "crossOrgReviewGrant",
         "evidenceLegalHold",
         "evidenceReviewWorkflow",
         "externalReviewActivity",
@@ -197629,6 +197712,8 @@
       "tenantBindingEvidence": [
         "packages/shared-runtime/src/standing-creator-authority.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/services/workspace/operating-workspace.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: crossOrgReviewGrant.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate",
         "services/api/src/services/external-review/portal-scope.service.ts: verificationPackage.findFirst — no tenant or self predicate",
@@ -197693,6 +197778,7 @@
       "modelsRead": [
         "adminAuditLog",
         "caseEvidenceLink",
+        "crossOrgReviewGrant",
         "evidenceLegalHold",
         "evidenceReviewWorkflow",
         "externalReviewActivity",
@@ -197712,6 +197798,8 @@
       "tenantBindingEvidence": [
         "packages/shared-runtime/src/standing-creator-authority.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/services/workspace/operating-workspace.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: crossOrgReviewGrant.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate",
         "services/api/src/services/external-review/portal-scope.service.ts: verificationPackage.findFirst — no tenant or self predicate"
