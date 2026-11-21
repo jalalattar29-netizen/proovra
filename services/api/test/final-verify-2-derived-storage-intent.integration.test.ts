@@ -522,6 +522,12 @@ describe("FINAL-VERIFY-2 — derived write intents keep possibly-stored bytes co
       reason: "storage_reservation_lost_at_settle",
     });
     const vB = fake.put(BUCKET, key, 2 * MIB);
+    // A's window and grace are long over, but B (same key) is live and has
+    // not settled yet: the key is not judged (B's version would look
+    // unreferenced and could be removed under it).
+    await age(a, ttl() + grace() + 1_000);
+    expect((await reconcile()).claimed, "no judgment of a key a live holder may still write or settle").toBe(0);
+    await prisma.$executeRaw`UPDATE "derived_asset_storage_intents" SET "holder_stamp_utc" = NOW() WHERE "id" = ${a.intentId}::uuid`;
     const settledB = await intents.settleDerivedAssetUnderIntent({ hold: b, record: recordFor(vB) });
     expect(settledB.ok).toBe(true);
     expect((await intentOf(b.intentId)).state).toBe("SETTLED");
