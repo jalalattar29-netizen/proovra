@@ -4,18 +4,18 @@
   "generator": "services/api/scripts/generate-runtime-capability-map.mjs",
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
-  "routeInventoryHash": "28109845be5def0ab38aefdd121fdaa3c0cf3d91b45445ac9901f0a76bb48335",
-  "consumerInventoryHash": "addc7c3e3c30f9d526a7dd7fff0aa5d5ad70db12fe0de2c1971da43651c36f9c",
+  "routeInventoryHash": "f8f6c8760d107bba92e68a46d09014b9566f74ebe68fa243ed1075a69d3e9614",
+  "consumerInventoryHash": "9282dc4fd488a89f8dbfabed831db7d2d3b85c6be22f555a79301c340f40d1df",
   "dispositionsHash": "4634dbb508d1b01f04e7988b8009af560f2bce0bd1af8e3f9c1c55ed205704a9",
   "totals": {
-    "RegisteredRoutes": 1260,
-    "ProductionRegisteredRoutes": 1259,
+    "RegisteredRoutes": 1264,
+    "ProductionRegisteredRoutes": 1263,
     "DevelopmentOnlyRoutes": 1,
-    "ProductConsumedRoutes": 1035,
+    "ProductConsumedRoutes": 1039,
     "NonProductDispositionedRoutes": 199,
     "UndisposedRoutes": 25,
     "ConservationIdentityHolds": true,
-    "ProductConsumerRoutes": 1035,
+    "ProductConsumerRoutes": 1039,
     "MachineOnlyConsumerRoutes": 7,
     "NoConsumerRoutes": 218,
     "AuthorizationUnresolved": 0,
@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 26
     },
-    "TerminalWriters": 1696,
-    "ReachableSensitiveMutations": 1666,
-    "ClassifiedSensitiveMutations": 1666,
+    "TerminalWriters": 1700,
+    "ReachableSensitiveMutations": 1670,
+    "ClassifiedSensitiveMutations": 1670,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 30,
@@ -72,9 +72,9 @@
     "UnsafeEffectsInsideTransactions": 0,
     "byFamily": {
       "ACCOUNT_SESSION_SECURITY": 277,
-      "ORGANIZATION": 39,
+      "ORGANIZATION": 44,
       "ORGANIZATION_MEMBERSHIP": 34,
-      "WORKSPACE": 86,
+      "WORKSPACE": 85,
       "WORKSPACE_MEMBERSHIP_INVITATION": 69,
       "CASE": 95,
       "EVIDENCE_CUSTODY_FINALIZATION": 393,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1481,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1485,
       "JOB_ATTRIBUTED_REACHABLE": 173,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 11,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 12369,
+      "METHOD_ON_VALUE": 12374,
       "UNRESOLVED_IDENTIFIER": 1803
     },
     "MutationFixpointRounds": 11,
@@ -134,7 +134,7 @@
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
       "UNDISPOSED": 25,
-      "PRODUCT_CONNECTED": 1040,
+      "PRODUCT_CONNECTED": 1044,
       "EXTERNAL_API": 19,
       "MACHINE_OR_CRON": 22,
       "WEBHOOK": 4,
@@ -146,14 +146,14 @@
       "MISSING_PRODUCT_UI_POST_RELEASE": 26
     },
     "MandateDispositionConservationHolds": true,
-    "TenantBindingResolved": 1258,
+    "TenantBindingResolved": 1262,
     "TenantBindingUnresolved": 0,
     "byDataScope": {
       "PUBLIC_DATA": 37,
       "GLOBAL_USER_SELF": 56,
       "PLATFORM_GLOBAL": 52,
       "WORKSPACE_SCOPED": 710,
-      "ORGANIZATION_SCOPED": 136,
+      "ORGANIZATION_SCOPED": 140,
       "MULTI_TENANT_PLATFORM_ADMIN": 143,
       "TOKEN_SCOPED": 39,
       "PROVIDER_SCOPED": 4,
@@ -161,11 +161,11 @@
       "NO_DATA_ACCESS": 57
     },
     "TenantUnboundInsertRoutes": 0,
-    "OrganizationRoutesMeasured": 1016,
+    "OrganizationRoutesMeasured": 1031,
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
-    "ClassifiedSecurityRoutes": 1258,
+    "ClassifiedSecurityRoutes": 1262,
     "UnclassifiedSecurityRoutes": 0,
     "DevelopmentGatedRoutes": 1,
     "SecurityFamilyConservationHolds": true,
@@ -187,8 +187,8 @@
         "tagged": 397
       },
       "ORGANIZATION_AUTHORIZED": {
-        "primary": 136,
-        "tagged": 136
+        "primary": 140,
+        "tagged": 140
       },
       "PLATFORM_ADMIN": {
         "primary": 143,
@@ -240,25 +240,25 @@
       }
     }
   },
-  "totalRoutes": 1260,
+  "totalRoutes": 1264,
   "classificationCounts": {
     "BACKEND_ONLY_UNWIRED": 25,
     "COMPATIBILITY_TEMPORARY": 15,
     "INTERNAL_REQUIRED": 185,
-    "TARGET_COMPLETE": 1035
+    "TARGET_COMPLETE": 1039
   },
   "evidenceLevelCounts": {
     "BEHAVIORALLY_PROVEN": 405,
     "BEHAVIORAL_SERVICE_ONLY": 18,
     "STRUCTURALLY_CONNECTED_ONLY": 516,
-    "UNPROVEN": 321
+    "UNPROVEN": 325
   },
   "verticalCounts": {
     "ENTERPRISE_IDENTITY_SECURITY": 181,
     "EVIDENCE_OPERATIONS": 279,
     "OPERATIONS_AUTOMATION": 1,
     "OPERATIONS_INTELLIGENCE": 126,
-    "PLATFORM_CORE": 533,
+    "PLATFORM_CORE": 537,
     "TRUST_ADMINISTRATION": 140
   },
   "capabilities": [
@@ -5489,6 +5489,18 @@
       "route": "/v1/orgs/:id/operations/rollup",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
       "productConsumer": "apps/web/app/(app)/organizations/[id]/admin/readiness/page.tsx:209",
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "GET:/v1/orgs/:id/ownership-offer",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/orgs/:id/ownership-offer",
+      "registeringFile": "services/api/src/routes/organizations.routes.ts",
+      "productConsumer": "apps/web/app/(app)/organizations/[id]/_components/OrgOwnershipOffer.tsx:87",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -13276,7 +13288,7 @@
       "method": "POST",
       "route": "/v1/orgs/:id/closure",
       "registeringFile": "services/api/src/routes/organizations.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:322",
+      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:329",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -13288,7 +13300,7 @@
       "method": "POST",
       "route": "/v1/orgs/:id/closure/:requestId/cancel",
       "registeringFile": "services/api/src/routes/organizations.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:344",
+      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:351",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -13437,6 +13449,42 @@
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
+    },
+    {
+      "capabilityId": "POST:/v1/orgs/:id/ownership-offer/:offerId/accept",
+      "vertical": "PLATFORM_CORE",
+      "method": "POST",
+      "route": "/v1/orgs/:id/ownership-offer/:offerId/accept",
+      "registeringFile": "services/api/src/routes/organizations.routes.ts",
+      "productConsumer": "apps/web/app/(app)/organizations/[id]/_components/OrgOwnershipOffer.tsx:113",
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "POST:/v1/orgs/:id/ownership-offer/:offerId/cancel",
+      "vertical": "PLATFORM_CORE",
+      "method": "POST",
+      "route": "/v1/orgs/:id/ownership-offer/:offerId/cancel",
+      "registeringFile": "services/api/src/routes/organizations.routes.ts",
+      "productConsumer": "apps/web/app/(app)/organizations/[id]/_components/OrgOwnershipOffer.tsx:113",
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "POST:/v1/orgs/:id/ownership-offer/:offerId/decline",
+      "vertical": "PLATFORM_CORE",
+      "method": "POST",
+      "route": "/v1/orgs/:id/ownership-offer/:offerId/decline",
+      "registeringFile": "services/api/src/routes/organizations.routes.ts",
+      "productConsumer": "apps/web/app/(app)/organizations/[id]/_components/OrgOwnershipOffer.tsx:113",
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
     },
     {
       "capabilityId": "POST:/v1/orgs/:id/policies/retention",
@@ -16414,6 +16462,7 @@
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:id/workspaces/:teamId/resume",
@@ -21410,6 +21459,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -22536,6 +22586,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -23687,6 +23738,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -24838,6 +24890,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -25964,6 +26017,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -27115,6 +27169,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -28241,6 +28296,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -33190,41 +33246,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organization.update@2907",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2907",
-      "file": "services/api/src/routes/organizations.routes.ts",
-      "enclosingDeclaration": "organizationsRoutes",
-      "kind": "DATABASE",
-      "target": "organization",
-      "mutationKind": "update",
-      "primaryFamily": "ORGANIZATION",
-      "insideTransaction": true,
-      "entryRoutes": [
-        "POST /v1/orgs/:id/transfer-ownership"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/organizations.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organization.update@958",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:958",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organization.update@964",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:964",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -33256,8 +33279,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.create@3255",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3255",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.create@3242",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3242",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -33289,8 +33312,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.create@3301",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3301",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.create@3288",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3288",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -33322,8 +33345,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.updateMany@3386",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3386",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.updateMany@3373",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3373",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -33355,8 +33378,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationDataExportRequest.create@3668",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3668",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationDataExportRequest.create@3655",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3655",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationDataExportRoutes",
       "kind": "DATABASE",
@@ -33388,8 +33411,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationDataExportRequest.update@3703",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3703",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationDataExportRequest.update@3690",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3690",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationDataExportRoutes",
       "kind": "DATABASE",
@@ -33421,8 +33444,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.create@1187",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1187",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.create@1193",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1193",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -33454,8 +33477,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.update@1839",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1839",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.update@1845",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1845",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -33487,8 +33510,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.updateMany@1693",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1693",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.updateMany@1699",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1699",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -33520,8 +33543,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.updateMany@1829",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1829",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.updateMany@1835",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1835",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -33553,8 +33576,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#user.update@2705",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2705",
+      "writerId": "services/api/src/routes/organizations.routes.ts#user.update@2711",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2711",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -33586,8 +33609,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#user.updateMany@2240",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2240",
+      "writerId": "services/api/src/routes/organizations.routes.ts#user.updateMany@2246",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2246",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -36763,7 +36786,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "MEMBERSHIP_LOOKUP+NONE",
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -39031,6 +39054,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:id/workspaces/:teamId/resume",
@@ -40206,6 +40230,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:id/workspaces/:teamId/resume",
@@ -41381,6 +41406,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:id/workspaces/:teamId/resume",
@@ -45170,6 +45196,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:id/workspaces/:teamId/resume",
@@ -45665,7 +45692,7 @@
         "DELETE /v1/teams/:id/members/:memberId",
         "PATCH /v1/admin/orgs/:id/contract",
         "PATCH /v1/admin/orgs/:id/plan",
-        "POST /v1/orgs/:id/transfer-ownership",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/teams/:id/leave",
         "POST /v1/teams/:id/ownership-offer/:offerId/accept",
         "POST /v1/teams/invites/:token/accept",
@@ -50988,8 +51015,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.create@708",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:708",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.create@714",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:714",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "createCollaborationTeam",
       "kind": "DATABASE",
@@ -51021,8 +51048,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@1468",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1468",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@1474",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1474",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "updateCollaborationTeam",
       "kind": "DATABASE",
@@ -51054,8 +51081,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.updateMany@1681",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1681",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.updateMany@1687",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1687",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "archiveCollaborationTeam",
       "kind": "DATABASE",
@@ -51087,8 +51114,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.updateMany@1799",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1799",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.updateMany@1805",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1805",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "unarchiveCollaborationTeam",
       "kind": "DATABASE",
@@ -51120,8 +51147,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.updateMany@518",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:518",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.updateMany@524",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:524",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "recordActivity",
       "kind": "DATABASE",
@@ -51166,8 +51193,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamActivity.create@505",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:505",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamActivity.create@511",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:511",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "recordActivity",
       "kind": "DATABASE",
@@ -51212,8 +51239,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.create@3580",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:3580",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.create@3601",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:3601",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "createAssignment",
       "kind": "DATABASE",
@@ -51245,8 +51272,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.updateMany@1706",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1706",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.updateMany@1712",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1712",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "archiveCollaborationTeam",
       "kind": "DATABASE",
@@ -51278,8 +51305,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.updateMany@3804",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:3804",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.updateMany@3825",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:3825",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "updateAssignment",
       "kind": "DATABASE",
@@ -51311,8 +51338,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@2460",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2460",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@2466",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2466",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "revokeInvite",
       "kind": "DATABASE",
@@ -51344,8 +51371,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.updateMany@1723",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1723",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.updateMany@1729",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1729",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "archiveCollaborationTeam",
       "kind": "DATABASE",
@@ -51377,8 +51404,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.updateMany@2584",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2584",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.updateMany@2590",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2590",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -51411,8 +51438,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.updateMany@2716",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2716",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.updateMany@2737",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2737",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -51445,8 +51472,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@1941",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1941",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@1947",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1947",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "addExistingMember",
       "kind": "DATABASE",
@@ -51479,8 +51506,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@2052",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2052",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@2058",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2058",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "recoverCollaborationTeamLead",
       "kind": "DATABASE",
@@ -51512,8 +51539,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@2759",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2759",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@2780",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2780",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -51546,8 +51573,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@720",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:720",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@726",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:726",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "createCollaborationTeam",
       "kind": "DATABASE",
@@ -51579,8 +51606,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1918",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1918",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1924",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1924",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "addExistingMember",
       "kind": "DATABASE",
@@ -51613,8 +51640,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2035",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2035",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2041",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2041",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "recoverCollaborationTeamLead",
       "kind": "DATABASE",
@@ -51646,8 +51673,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2045",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2045",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2051",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2051",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "recoverCollaborationTeamLead",
       "kind": "DATABASE",
@@ -51679,8 +51706,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2148",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2148",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2154",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2154",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "changeMemberRole",
       "kind": "DATABASE",
@@ -51712,8 +51739,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2222",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2222",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2228",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2228",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "suspendMember",
       "kind": "DATABASE",
@@ -51745,8 +51772,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2320",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2320",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2326",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2326",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "reinstateMember",
       "kind": "DATABASE",
@@ -51778,8 +51805,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2378",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2378",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2384",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2384",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "removeMember",
       "kind": "DATABASE",
@@ -51812,8 +51839,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2743",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2743",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2764",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2764",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -55147,7 +55174,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "BEARER_TOKEN_SUBJECT+CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY",
+        "authorizationAuthority": "BEARER_TOKEN_SUBJECT+CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -57987,8 +58014,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$executeRawUnsafe@940",
-      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:940",
+      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$executeRawUnsafe@1033",
+      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:1033",
       "file": "services/api/src/services/external-review/external-review-grant.service.ts",
       "enclosingDeclaration": "recordExternalReviewAccess",
       "kind": "RAW_SQL",
@@ -58006,7 +58033,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "BEARER_TOKEN_SUBJECT+NAMED_AUTHORITY",
+        "authorizationAuthority": "NAMED_AUTHORITY",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -58021,8 +58048,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$queryRawUnsafe@1120",
-      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:1120",
+      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$queryRawUnsafe@1221",
+      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:1221",
       "file": "services/api/src/services/external-review/external-review-grant.service.ts",
       "enclosingDeclaration": "rotateExternalReviewGrantToken",
       "kind": "RAW_SQL",
@@ -58056,8 +58083,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$queryRawUnsafe@405",
-      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:405",
+      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$queryRawUnsafe@409",
+      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:409",
       "file": "services/api/src/services/external-review/external-review-grant.service.ts",
       "enclosingDeclaration": "issueExternalReviewGrantInner",
       "kind": "RAW_SQL",
@@ -58094,8 +58121,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$queryRawUnsafe@850",
-      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:850",
+      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$queryRawUnsafe@943",
+      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:943",
       "file": "services/api/src/services/external-review/external-review-grant.service.ts",
       "enclosingDeclaration": "transitionExternalReviewGrant",
       "kind": "RAW_SQL",
@@ -58132,7 +58159,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "BEARER_TOKEN_SUBJECT+CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY+NONE",
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -58147,8 +58174,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#externalReviewGrant.updateMany@799",
-      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:799",
+      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#externalReviewGrant.updateMany@803",
+      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:803",
       "file": "services/api/src/services/external-review/external-review-grant.service.ts",
       "enclosingDeclaration": "renewExternalReviewGrant",
       "kind": "DATABASE",
@@ -58221,7 +58248,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "BEARER_TOKEN_SUBJECT+CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY+NONE",
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY+NONE",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -58287,7 +58314,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "BEARER_TOKEN_SUBJECT",
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -58320,7 +58347,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "BEARER_TOKEN_SUBJECT",
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -58353,7 +58380,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "BEARER_TOKEN_SUBJECT",
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -58593,7 +58620,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "BEARER_TOKEN_SUBJECT",
+        "authorizationAuthority": "NAMED_AUTHORITY",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -58644,8 +58671,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-review/portal-session.service.ts#externalReviewerRoleAssignment.update@307",
-      "terminalLocation": "services/api/src/services/external-review/portal-session.service.ts:307",
+      "writerId": "services/api/src/services/external-review/portal-session.service.ts#externalReviewerRoleAssignment.update@318",
+      "terminalLocation": "services/api/src/services/external-review/portal-session.service.ts:318",
       "file": "services/api/src/services/external-review/portal-session.service.ts",
       "enclosingDeclaration": "establishPortalSession",
       "kind": "DATABASE",
@@ -58671,7 +58698,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "BEARER_TOKEN_SUBJECT+NAMED_AUTHORITY",
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -58704,7 +58731,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "NONE",
+        "authorizationAuthority": "NAMED_AUTHORITY",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -61100,6 +61127,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -64504,8 +64532,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.create@227",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:227",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.create@228",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:228",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "recordMembershipGrant",
       "kind": "DATABASE",
@@ -64542,7 +64570,7 @@
         "POST /v1/org-invites/accept",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
-        "POST /v1/orgs/:id/transfer-ownership",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/workspaces/:teamId/resume",
         "POST /v1/orgs/:id/workspaces/:teamId/suspend",
         "POST /v1/platform/context/switch-workspace",
@@ -64589,8 +64617,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.updateMany@1135",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1135",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.updateMany@1154",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1154",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "closeGrantsForTeamMembers",
       "kind": "DATABASE",
@@ -64627,8 +64655,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.updateMany@1155",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1155",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.updateMany@1174",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1174",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "closeGrantsForOrgMemberships",
       "kind": "DATABASE",
@@ -64665,8 +64693,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.updateMany@326",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:326",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.updateMany@327",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:327",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "closeMembershipGrantsByRef",
       "kind": "DATABASE",
@@ -64701,8 +64729,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.updateMany@769",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:769",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.updateMany@788",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:788",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "revokeAllMembershipGrants",
       "kind": "DATABASE",
@@ -64738,8 +64766,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.create@538",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:538",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.create@557",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:557",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "grantOrganizationMembership",
       "kind": "DATABASE",
@@ -64788,8 +64816,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.create@970",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:970",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.create@989",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:989",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "provisionMembership",
       "kind": "DATABASE",
@@ -64818,7 +64846,7 @@
         "POST /v1/identity/links/organization",
         "POST /v1/org-invites/:token/accept",
         "POST /v1/org-invites/accept",
-        "POST /v1/orgs/:id/transfer-ownership",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/platform/context/switch-workspace",
         "POST /v1/teams/invites/:token/accept",
         "POST /v1/teams/invites/accept",
@@ -64858,8 +64886,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.deleteMany@1527",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1527",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.deleteMany@1546",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1546",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "removeAllOrganizationMembershipsForUser",
       "kind": "DATABASE",
@@ -64893,8 +64921,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.update@1357",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1357",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.update@1376",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1376",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "updateOrganizationMembershipRole",
       "kind": "DATABASE",
@@ -64904,7 +64932,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "PATCH /v1/orgs/:id/members/:memberId",
-        "POST /v1/orgs/:id/transfer-ownership"
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -64927,8 +64955,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.update@510",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:510",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.update@529",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:529",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "grantOrganizationMembership",
       "kind": "DATABASE",
@@ -64977,8 +65005,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.update@964",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:964",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.update@983",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:983",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "provisionMembership",
       "kind": "DATABASE",
@@ -65007,7 +65035,7 @@
         "POST /v1/identity/links/organization",
         "POST /v1/org-invites/:token/accept",
         "POST /v1/org-invites/accept",
-        "POST /v1/orgs/:id/transfer-ownership",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/platform/context/switch-workspace",
         "POST /v1/teams/invites/:token/accept",
         "POST /v1/teams/invites/accept",
@@ -65047,8 +65075,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.create@1645",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1645",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.create@1664",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1664",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "reopenWorkspaceOwnerMembership",
       "kind": "DATABASE",
@@ -65080,8 +65108,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1216",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1216",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1235",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1235",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "applyDirectoryRoleChange",
       "kind": "DATABASE",
@@ -65121,8 +65149,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1564",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1564",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1583",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1583",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "transferWorkspaceOwnerRoles",
       "kind": "DATABASE",
@@ -65131,7 +65159,7 @@
       "primaryFamily": "WORKSPACE_MEMBERSHIP_INVITATION",
       "insideTransaction": false,
       "entryRoutes": [
-        "POST /v1/orgs/:id/transfer-ownership",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/teams/:id/ownership-offer/:offerId/accept"
       ],
       "entryJobs": [],
@@ -65156,8 +65184,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1582",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1582",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1601",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1601",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "transferWorkspaceOwnerRoles",
       "kind": "DATABASE",
@@ -65166,7 +65194,7 @@
       "primaryFamily": "WORKSPACE_MEMBERSHIP_INVITATION",
       "insideTransaction": false,
       "entryRoutes": [
-        "POST /v1/orgs/:id/transfer-ownership",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/teams/:id/ownership-offer/:offerId/accept"
       ],
       "entryJobs": [],
@@ -65191,8 +65219,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1623",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1623",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1642",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1642",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "reopenWorkspaceOwnerMembership",
       "kind": "DATABASE",
@@ -65224,8 +65252,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1750",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1750",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1769",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1769",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "massReactivateSuspendedWorkspaceMemberships",
       "kind": "DATABASE",
@@ -65258,8 +65286,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@802",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:802",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@821",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:821",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "suspendWorkspaceMembership",
       "kind": "DATABASE",
@@ -65295,8 +65323,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1473",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1473",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1492",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1492",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "massRevokeWorkspaceMemberships",
       "kind": "DATABASE",
@@ -65333,8 +65361,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1680",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1680",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1699",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1699",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "massSuspendWorkspaceMemberships",
       "kind": "DATABASE",
@@ -65367,8 +65395,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1753",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1753",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1772",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1772",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "massReactivateSuspendedWorkspaceMemberships",
       "kind": "DATABASE",
@@ -65401,8 +65429,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.upsert@1071",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1071",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.upsert@1090",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1090",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "provisionMembership",
       "kind": "DATABASE",
@@ -65431,7 +65459,7 @@
         "POST /v1/identity/links/organization",
         "POST /v1/org-invites/:token/accept",
         "POST /v1/org-invites/accept",
-        "POST /v1/orgs/:id/transfer-ownership",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/platform/context/switch-workspace",
         "POST /v1/teams/invites/:token/accept",
         "POST /v1/teams/invites/accept",
@@ -65471,8 +65499,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.upsert@694",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:694",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.upsert@713",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:713",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "grantWorkspaceMembership",
       "kind": "DATABASE",
@@ -65501,7 +65529,7 @@
         "POST /v1/identity/links/organization",
         "POST /v1/org-invites/:token/accept",
         "POST /v1/org-invites/accept",
-        "POST /v1/orgs/:id/transfer-ownership",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/platform/context/switch-workspace",
         "POST /v1/teams/invites/:token/accept",
         "POST /v1/teams/invites/accept",
@@ -73448,6 +73476,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -74564,6 +74593,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -75680,6 +75710,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -76806,6 +76837,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -77931,6 +77963,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -79047,6 +79080,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -80172,6 +80206,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -81288,6 +81323,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -82404,6 +82440,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -83530,6 +83567,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -85046,6 +85084,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -86163,6 +86202,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -87280,6 +87320,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -88397,6 +88438,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -89514,6 +89556,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -90631,6 +90674,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -91748,6 +91792,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -92865,6 +92910,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -94157,41 +94203,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/organization/enterprise-contract.service.ts#enterpriseContract.updateMany@471",
-      "terminalLocation": "services/api/src/services/organization/enterprise-contract.service.ts:471",
-      "file": "services/api/src/services/organization/enterprise-contract.service.ts",
-      "enclosingDeclaration": "transferEnterpriseContractOwnerTx",
-      "kind": "DATABASE",
-      "target": "enterpriseContract",
-      "mutationKind": "updateMany",
-      "primaryFamily": "WORKSPACE",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/orgs/:id/transfer-ownership"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/organizations.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/organization/enterprise-contract.service.ts#enterpriseContract.upsert@536",
-      "terminalLocation": "services/api/src/services/organization/enterprise-contract.service.ts:536",
+      "writerId": "services/api/src/services/organization/enterprise-contract.service.ts#enterpriseContract.upsert@529",
+      "terminalLocation": "services/api/src/services/organization/enterprise-contract.service.ts:529",
       "file": "services/api/src/services/organization/enterprise-contract.service.ts",
       "enclosingDeclaration": "upsertEnterpriseContract",
       "kind": "DATABASE",
@@ -94329,8 +94342,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/organization/org-audit.service.ts#organizationAuditEvent.create@222",
-      "terminalLocation": "services/api/src/services/organization/org-audit.service.ts:222",
+      "writerId": "services/api/src/services/organization/org-audit.service.ts#organizationAuditEvent.create@227",
+      "terminalLocation": "services/api/src/services/organization/org-audit.service.ts:227",
       "file": "services/api/src/services/organization/org-audit.service.ts",
       "enclosingDeclaration": "emitOrgAuditEvent",
       "kind": "DATABASE",
@@ -94375,6 +94388,9 @@
         "POST /v1/orgs/:id/invites/bulk/resend",
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/leave",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/cancel",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/decline",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains",
@@ -95530,6 +95546,205 @@
       "entrySchedules": [],
       "invariants": {
         "authorizationAuthority": "NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/organization/org-ownership-offer.service.ts#organizationOwnershipOffer.create@163",
+      "terminalLocation": "services/api/src/services/organization/org-ownership-offer.service.ts:163",
+      "file": "services/api/src/services/organization/org-ownership-offer.service.ts",
+      "enclosingDeclaration": "offerOrganizationOwnership",
+      "kind": "DATABASE",
+      "target": "organizationOwnershipOffer",
+      "mutationKind": "create",
+      "primaryFamily": "ORGANIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/orgs/:id/transfer-ownership"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/organizations.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/organization/org-ownership-offer.service.ts#organizationOwnershipOffer.update@251",
+      "terminalLocation": "services/api/src/services/organization/org-ownership-offer.service.ts:251",
+      "file": "services/api/src/services/organization/org-ownership-offer.service.ts",
+      "enclosingDeclaration": "acceptOrganizationOwnershipOffer",
+      "kind": "DATABASE",
+      "target": "organizationOwnershipOffer",
+      "mutationKind": "update",
+      "primaryFamily": "ORGANIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/organizations.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/organization/org-ownership-offer.service.ts#organizationOwnershipOffer.update@285",
+      "terminalLocation": "services/api/src/services/organization/org-ownership-offer.service.ts:285",
+      "file": "services/api/src/services/organization/org-ownership-offer.service.ts",
+      "enclosingDeclaration": "acceptOrganizationOwnershipOffer",
+      "kind": "DATABASE",
+      "target": "organizationOwnershipOffer",
+      "mutationKind": "update",
+      "primaryFamily": "ORGANIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/organizations.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/organization/org-ownership-offer.service.ts#organizationOwnershipOffer.update@377",
+      "terminalLocation": "services/api/src/services/organization/org-ownership-offer.service.ts:377",
+      "file": "services/api/src/services/organization/org-ownership-offer.service.ts",
+      "enclosingDeclaration": "settleOrganizationOwnershipOffer",
+      "kind": "DATABASE",
+      "target": "organizationOwnershipOffer",
+      "mutationKind": "update",
+      "primaryFamily": "ORGANIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/orgs/:id/ownership-offer/:offerId/cancel",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/decline"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/organizations.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/organization/org-ownership-offer.service.ts#organizationOwnershipOffer.updateMany@158",
+      "terminalLocation": "services/api/src/services/organization/org-ownership-offer.service.ts:158",
+      "file": "services/api/src/services/organization/org-ownership-offer.service.ts",
+      "enclosingDeclaration": "offerOrganizationOwnership",
+      "kind": "DATABASE",
+      "target": "organizationOwnershipOffer",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ORGANIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/orgs/:id/transfer-ownership"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/organizations.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/organization/org-ownership-offer.service.ts#organizationOwnershipOffer.updateMany@240",
+      "terminalLocation": "services/api/src/services/organization/org-ownership-offer.service.ts:240",
+      "file": "services/api/src/services/organization/org-ownership-offer.service.ts",
+      "enclosingDeclaration": "acceptOrganizationOwnershipOffer",
+      "kind": "DATABASE",
+      "target": "organizationOwnershipOffer",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ORGANIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/organizations.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -101706,6 +101921,7 @@
         "POST /v1/orgs/:id/invites",
         "POST /v1/orgs/:id/invites/bulk",
         "POST /v1/orgs/:id/invites/csv",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/teams/:id/closure",
         "POST /v1/teams/:id/ownership-offer/:offerId/accept",
@@ -103210,6 +103426,7 @@
         "POST /v1/orgs/:id/invites/csv",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/orgs/:id/policies/retention",
         "POST /v1/orgs/:id/transfer-ownership",
         "POST /v1/orgs/:orgId/domains/:id/verify",
@@ -103600,7 +103817,7 @@
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
-        "POST /v1/orgs/:id/transfer-ownership",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
         "POST /v1/teams/:id/leave",
         "POST /v1/teams/:id/ownership-offer/:offerId/accept",
@@ -103666,7 +103883,7 @@
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
-        "POST /v1/orgs/:id/transfer-ownership",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
         "POST /v1/teams/:id/leave",
         "POST /v1/teams/:id/ownership-offer/:offerId/accept",
@@ -103732,7 +103949,7 @@
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
-        "POST /v1/orgs/:id/transfer-ownership",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
         "POST /v1/teams/:id/leave",
         "POST /v1/teams/:id/ownership-offer/:offerId/accept",
@@ -103887,7 +104104,7 @@
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
-        "POST /v1/orgs/:id/transfer-ownership",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
         "POST /v1/teams/:id/leave",
         "POST /v1/teams/:id/ownership-offer/:offerId/accept",
@@ -103953,7 +104170,7 @@
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
-        "POST /v1/orgs/:id/transfer-ownership",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
         "POST /v1/teams/:id/leave",
         "POST /v1/teams/:id/ownership-offer/:offerId/accept",
@@ -104178,7 +104395,7 @@
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
-        "POST /v1/orgs/:id/transfer-ownership",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
         "POST /v1/teams/:id/leave",
         "POST /v1/teams/:id/ownership-offer/:offerId/accept",
@@ -104244,7 +104461,7 @@
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
-        "POST /v1/orgs/:id/transfer-ownership",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
         "POST /v1/teams/:id/leave",
         "POST /v1/teams/:id/ownership-offer/:offerId/accept",
@@ -104375,7 +104592,7 @@
         "POST /v1/admin/identity/scim/groups/:id/projections",
         "POST /v1/governance/access-reviews/items/:id/decision",
         "POST /v1/identity/members/:id/role",
-        "POST /v1/orgs/:id/transfer-ownership",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
         "POST /v1/teams/:id/ownership-offer/:offerId/accept",
         "POST /v2/scim/Groups"
@@ -104427,7 +104644,7 @@
         "POST /v1/admin/identity/scim/groups/:id/projections",
         "POST /v1/governance/access-reviews/items/:id/decision",
         "POST /v1/identity/members/:id/role",
-        "POST /v1/orgs/:id/transfer-ownership",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
         "POST /v1/teams/:id/ownership-offer/:offerId/accept",
         "POST /v2/scim/Groups"
@@ -107477,8 +107694,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-lifecycle.service.ts#team.update@853",
-      "terminalLocation": "services/api/src/services/workspace/workspace-lifecycle.service.ts:853",
+      "writerId": "services/api/src/services/workspace/workspace-lifecycle.service.ts#team.update@857",
+      "terminalLocation": "services/api/src/services/workspace/workspace-lifecycle.service.ts:857",
       "file": "services/api/src/services/workspace/workspace-lifecycle.service.ts",
       "enclosingDeclaration": "transferOrganizationWorkspaceOwnersTx",
       "kind": "DATABASE",
@@ -107487,7 +107704,7 @@
       "primaryFamily": "WORKSPACE",
       "insideTransaction": false,
       "entryRoutes": [
-        "POST /v1/orgs/:id/transfer-ownership"
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -107707,8 +107924,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-lifecycle.service.ts#teamActivity.create@926",
-      "terminalLocation": "services/api/src/services/workspace/workspace-lifecycle.service.ts:926",
+      "writerId": "services/api/src/services/workspace/workspace-lifecycle.service.ts#teamActivity.create@925",
+      "terminalLocation": "services/api/src/services/workspace/workspace-lifecycle.service.ts:925",
       "file": "services/api/src/services/workspace/workspace-lifecycle.service.ts",
       "enclosingDeclaration": "resumeOrganizationWorkspace",
       "kind": "DATABASE",
@@ -115651,7 +115868,7 @@
       "method": "DELETE",
       "path": "/v1/orgs/:id/invites/:inviteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1647",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1653",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -115722,7 +115939,7 @@
       "method": "DELETE",
       "path": "/v1/orgs/:id/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2135",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2141",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -131454,27 +131671,26 @@
       "authorizationAuthority": "PORTAL_TOKEN",
       "dataScope": "TOKEN_SCOPED",
       "tenantType": "TOKEN_BOUND",
-      "tenantBindingAuthority": null,
-      "membershipStatusRequirement": null,
+      "tenantBindingAuthority": "teamMemberStatusGrantsAccess",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "adminAuditLog",
         "caseEvidenceLink",
         "evidenceLegalHold",
         "externalReviewerRoleAssignment",
+        "organizationSecurityPolicy",
+        "ssoConnection",
         "team",
-        "user",
+        "teamMember",
         "verificationPackage"
       ],
-      "modelsWritten": [
-        "adminAuditLog",
-        "securityEvent"
-      ],
+      "modelsWritten": [],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate"
       ],
-      "tenantIdSource": "BEARER_TOKEN_SUBJECT",
+      "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 403",
       "tenantStampingInsertSites": [],
@@ -131507,10 +131723,9 @@
       "authorizationAuthority": "PORTAL_TOKEN",
       "dataScope": "TOKEN_SCOPED",
       "tenantType": "TOKEN_BOUND",
-      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
+      "tenantBindingAuthority": "teamMemberStatusGrantsAccess + evaluateMemberAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "adminAuditLog",
         "authenticatedSession",
         "caseEvidenceLink",
         "custodyEvent",
@@ -131519,21 +131734,19 @@
         "externalReviewerRoleAssignment",
         "organizationSecurityPolicy",
         "report",
+        "ssoConnection",
         "team",
         "teamMember",
-        "user",
         "verificationPackage"
       ],
       "modelsWritten": [
-        "adminAuditLog",
         "custodyEvent",
-        "evidence",
-        "securityEvent"
+        "evidence"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
@@ -140997,7 +141210,7 @@
       "method": "GET",
       "path": "/v1/me/orgs",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:350",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:356",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -143531,7 +143744,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:457",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:463",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -143600,7 +143813,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 333,
+          "line": 334,
           "caller": "OrganizationDetailInner",
           "class": "WEB",
           "primitive": "safeFetch",
@@ -143663,7 +143876,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/audit-events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3463",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3450",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -143708,7 +143921,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 336,
+          "line": 337,
           "caller": "OrganizationDetailInner",
           "class": "WEB",
           "primitive": "safeFetch",
@@ -143828,7 +144041,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/closure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3111",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3098",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -143857,7 +144070,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 1360,
+          "line": 1377,
           "caller": "OrgLifecycleControls",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -143867,7 +144080,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:236 (OrganizationDetailScreen, MOBILE); apps/mobile/app/(stack)/organizations/[id].tsx:258 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1360 (OrgLifecycleControls, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:236 (OrganizationDetailScreen, MOBILE); apps/mobile/app/(stack)/organizations/[id].tsx:258 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1377 (OrgLifecycleControls, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -143911,7 +144124,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/data-export",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3615",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3602",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -144032,7 +144245,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/invites",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1578",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1584",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -144069,7 +144282,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 337,
+          "line": 338,
           "caller": "OrganizationDetailInner",
           "class": "WEB",
           "primitive": "safeFetch",
@@ -144172,7 +144385,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/members",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:573",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:579",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -144217,7 +144430,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 334,
+          "line": 335,
           "caller": "OrganizationDetailInner",
           "class": "WEB",
           "primitive": "safeFetch",
@@ -144225,7 +144438,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 1328,
+          "line": 1345,
           "caller": "OrgLifecycleControls",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -144423,6 +144636,65 @@
         "services/api/src/services/access/record-reach.ts: caseEvidenceLink.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
+      "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "GET /v1/orgs/:id/ownership-offer",
+      "method": "GET",
+      "path": "/v1/orgs/:id/ownership-offer",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2892",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requireOrgMember -> services/api/src/routes/organizations-governance.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
+        "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
+      ],
+      "gates": [
+        "ORGANIZATION_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/organizations/[id]/_components/OrgOwnershipOffer.tsx",
+          "line": 87,
+          "caller": "OrgOwnershipOffer",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/_components/OrgOwnershipOffer.tsx:87 (OrgOwnershipOffer, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "ORGANIZATION_AUTHORIZED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "ORGANIZATION_SCOPED",
+      "tenantType": "ORGANIZATION",
+      "tenantBindingAuthority": "checkOrgAccess + organizationMembershipGrantsAccess",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "organization",
+        "organizationMembership",
+        "organizationOwnershipOffer"
+      ],
+      "modelsWritten": [],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/services/organization/org-access.ts: the canonical organization access evaluator (refuses ARCHIVED/SUSPENDED orgs, ACTIVE org membership by the shared predicate, role precedence, contract expiry)",
+        "services/api/src/services/identity/org-membership-lifecycle.service.ts: the canonical organization membership-status predicate (packages/shared)",
+        "services/api/src/services/organization/org-access.ts: organization.findUnique — no tenant or self predicate",
+        "services/api/src/routes/organizations.routes.ts: organization.findUnique — no tenant or self predicate"
+      ],
+      "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [],
@@ -144980,7 +145252,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/workspaces",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:770",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:776",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -145041,7 +145313,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 335,
+          "line": 336,
           "caller": "OrganizationDetailInner",
           "class": "WEB",
           "primitive": "safeFetch",
@@ -145501,7 +145773,7 @@
       "method": "GET",
       "path": "/v1/portal/activity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1305",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1310",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "resolvePortalSession -> services/api/src/routes/external-portal.routes.ts: reaches the external-review portal grant/session authority (resolvePortalSession)"
@@ -145532,31 +145804,33 @@
       "authorizationAuthority": "PORTAL_TOKEN",
       "dataScope": "TOKEN_SCOPED",
       "tenantType": "TOKEN_BOUND",
-      "tenantBindingAuthority": null,
-      "membershipStatusRequirement": null,
+      "tenantBindingAuthority": "inline-membership-status-check",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
         "caseEvidenceLink",
         "evidenceLegalHold",
         "externalReviewActivity",
         "externalReviewerRoleAssignment",
+        "organizationSecurityPolicy",
         "team",
+        "teamMember",
         "user",
         "verificationPackage"
       ],
       "modelsWritten": [
         "adminAuditLog",
         "externalReviewActivity",
-        "externalReviewerRoleAssignment",
-        "securityEvent"
+        "externalReviewerRoleAssignment"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
+        "packages/shared-runtime/src/standing-creator-authority.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/services/workspace/operating-workspace.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate"
       ],
-      "tenantIdSource": "BEARER_TOKEN_SUBJECT",
+      "tenantIdSource": "MEMBERSHIP_LOOKUP",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 403",
       "tenantStampingInsertSites": [
@@ -145569,7 +145843,7 @@
       "method": "GET",
       "path": "/v1/portal/dashboard",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1053",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1058",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "resolvePortalSession -> services/api/src/routes/external-portal.routes.ts: reaches the external-review portal grant/session authority (resolvePortalSession)"
@@ -145616,8 +145890,8 @@
       "authorizationAuthority": "PORTAL_TOKEN",
       "dataScope": "TOKEN_SCOPED",
       "tenantType": "TOKEN_BOUND",
-      "tenantBindingAuthority": null,
-      "membershipStatusRequirement": null,
+      "tenantBindingAuthority": "inline-membership-status-check",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
         "caseEvidenceLink",
@@ -145625,25 +145899,27 @@
         "evidenceReviewWorkflow",
         "externalReviewDecision",
         "externalReviewerRoleAssignment",
+        "organizationSecurityPolicy",
         "team",
+        "teamMember",
         "user",
         "verificationPackage"
       ],
       "modelsWritten": [
         "adminAuditLog",
         "externalReviewActivity",
-        "externalReviewerRoleAssignment",
-        "securityEvent"
+        "externalReviewerRoleAssignment"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
+        "packages/shared-runtime/src/standing-creator-authority.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/services/workspace/operating-workspace.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate",
         "services/api/src/services/external-review/portal-projection.service.ts: caseEvidenceLink.findMany — no tenant or self predicate",
         "services/api/src/services/external-review/portal-projection.service.ts: verificationPackage.findFirst — no tenant or self predicate"
       ],
-      "tenantIdSource": "BEARER_TOKEN_SUBJECT",
+      "tenantIdSource": "MEMBERSHIP_LOOKUP",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 403",
       "tenantStampingInsertSites": [
@@ -145656,7 +145932,7 @@
       "method": "GET",
       "path": "/v1/portal/work/:workflowId/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1095",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1100",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "resolvePortalSession -> services/api/src/routes/external-portal.routes.ts: reaches the external-review portal grant/session authority (resolvePortalSession)"
@@ -145695,8 +145971,8 @@
       "authorizationAuthority": "PORTAL_TOKEN",
       "dataScope": "TOKEN_SCOPED",
       "tenantType": "TOKEN_BOUND",
-      "tenantBindingAuthority": null,
-      "membershipStatusRequirement": null,
+      "tenantBindingAuthority": "inline-membership-status-check",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
         "caseEvidenceLink",
@@ -145704,24 +145980,26 @@
         "evidenceReviewWorkflow",
         "externalReviewComment",
         "externalReviewerRoleAssignment",
+        "organizationSecurityPolicy",
         "team",
+        "teamMember",
         "user",
         "verificationPackage"
       ],
       "modelsWritten": [
         "adminAuditLog",
         "externalReviewActivity",
-        "externalReviewerRoleAssignment",
-        "securityEvent"
+        "externalReviewerRoleAssignment"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
+        "packages/shared-runtime/src/standing-creator-authority.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/services/workspace/operating-workspace.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate",
         "services/api/src/services/external-review/portal-scope.service.ts: verificationPackage.findFirst — no tenant or self predicate"
       ],
-      "tenantIdSource": "BEARER_TOKEN_SUBJECT",
+      "tenantIdSource": "MEMBERSHIP_LOOKUP",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 403",
       "tenantStampingInsertSites": [
@@ -145734,7 +146012,7 @@
       "method": "GET",
       "path": "/v1/portal/work/:workflowId/decisions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1183",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1188",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "resolvePortalSession -> services/api/src/routes/external-portal.routes.ts: reaches the external-review portal grant/session authority (resolvePortalSession)"
@@ -145773,8 +146051,8 @@
       "authorizationAuthority": "PORTAL_TOKEN",
       "dataScope": "TOKEN_SCOPED",
       "tenantType": "TOKEN_BOUND",
-      "tenantBindingAuthority": null,
-      "membershipStatusRequirement": null,
+      "tenantBindingAuthority": "inline-membership-status-check",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
         "caseEvidenceLink",
@@ -145782,24 +146060,26 @@
         "evidenceReviewWorkflow",
         "externalReviewDecision",
         "externalReviewerRoleAssignment",
+        "organizationSecurityPolicy",
         "team",
+        "teamMember",
         "user",
         "verificationPackage"
       ],
       "modelsWritten": [
         "adminAuditLog",
         "externalReviewActivity",
-        "externalReviewerRoleAssignment",
-        "securityEvent"
+        "externalReviewerRoleAssignment"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
+        "packages/shared-runtime/src/standing-creator-authority.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/services/workspace/operating-workspace.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate",
         "services/api/src/services/external-review/portal-scope.service.ts: verificationPackage.findFirst — no tenant or self predicate"
       ],
-      "tenantIdSource": "BEARER_TOKEN_SUBJECT",
+      "tenantIdSource": "MEMBERSHIP_LOOKUP",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 403",
       "tenantStampingInsertSites": [
@@ -145812,7 +146092,7 @@
       "method": "GET",
       "path": "/v1/portal/work/:workflowId/verification-package",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1224",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1229",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "resolvePortalSession -> services/api/src/routes/external-portal.routes.ts: reaches the external-review portal grant/session authority (resolvePortalSession)"
@@ -145875,8 +146155,7 @@
         "custodyEvent",
         "evidence",
         "externalReviewActivity",
-        "externalReviewerRoleAssignment",
-        "securityEvent"
+        "externalReviewerRoleAssignment"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
@@ -158235,7 +158514,7 @@
       "method": "PATCH",
       "path": "/v1/orgs/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:927",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:933",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -158256,7 +158535,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 404,
+          "line": 405,
           "caller": "OrganizationDetailInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -158282,7 +158561,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/org-settings.tsx:52 (save, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:404 (OrganizationDetailInner, WEB); apps/web/app/(app)/organizations/[id]/setup/page.tsx:453 (OrganizationSetupInner, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/org-settings.tsx:52 (save, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:405 (OrganizationDetailInner, WEB); apps/web/app/(app)/organizations/[id]/setup/page.tsx:453 (OrganizationSetupInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -158323,7 +158602,7 @@
       "method": "PATCH",
       "path": "/v1/orgs/:id/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1970",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1976",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -178881,27 +179160,26 @@
       "authorizationAuthority": "PORTAL_TOKEN",
       "dataScope": "TOKEN_SCOPED",
       "tenantType": "TOKEN_BOUND",
-      "tenantBindingAuthority": null,
-      "membershipStatusRequirement": null,
+      "tenantBindingAuthority": "teamMemberStatusGrantsAccess",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "adminAuditLog",
         "caseEvidenceLink",
         "evidenceLegalHold",
         "externalReviewerRoleAssignment",
+        "organizationSecurityPolicy",
+        "ssoConnection",
         "team",
-        "user",
+        "teamMember",
         "verificationPackage"
       ],
-      "modelsWritten": [
-        "adminAuditLog",
-        "securityEvent"
-      ],
+      "modelsWritten": [],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate"
       ],
-      "tenantIdSource": "BEARER_TOKEN_SUBJECT",
+      "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 403",
       "tenantStampingInsertSites": [],
@@ -179463,7 +179741,7 @@
       "method": "POST",
       "path": "/v1/external-review/invitations/:id/send-email",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1547",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1552",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -179535,7 +179813,7 @@
       "method": "POST",
       "path": "/v1/external-review/invitations/:id/sessions/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1461",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1466",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -194447,7 +194725,7 @@
       "method": "POST",
       "path": "/v1/org-invite-deliveries/process",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1950",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1956",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)"
@@ -194467,7 +194745,7 @@
       ],
       "primaryDisposition": "WORKER_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/organizations.routes.ts:1950 — worker caller(s): services/worker/src/org-invite-delivery.worker.ts:106 (runOrgInviteDeliverySweep)",
+      "dispositionEvidence": "services/api/src/routes/organizations.routes.ts:1956 — worker caller(s): services/worker/src/org-invite-delivery.worker.ts:106 (runOrgInviteDeliverySweep)",
       "dispositionReason": "called by the worker service",
       "replacement": null,
       "result": "DISPOSED_WORKER_CONSUMER",
@@ -194506,7 +194784,7 @@
       "method": "POST",
       "path": "/v1/org-invites/:token/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1556",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1562",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -194589,7 +194867,7 @@
       "method": "POST",
       "path": "/v1/org-invites/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1533",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1539",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -194680,7 +194958,7 @@
       "method": "POST",
       "path": "/v1/org-invites/lookup",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1305",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1311",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -194739,7 +195017,7 @@
       "method": "POST",
       "path": "/v1/orgs",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:907",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:913",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -194778,7 +195056,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/closure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3155",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3142",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -194791,7 +195069,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/organizations/[id].tsx",
-          "line": 322,
+          "line": 329,
           "caller": "OrganizationDetailScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -194799,7 +195077,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 1433,
+          "line": 1455,
           "caller": "OrgLifecycleControls",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -194809,7 +195087,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:322 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1433 (OrgLifecycleControls, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:329 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1455 (OrgLifecycleControls, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -194867,7 +195145,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/closure/:requestId/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3342",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3329",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -194880,7 +195158,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/organizations/[id].tsx",
-          "line": 344,
+          "line": 351,
           "caller": "OrganizationDetailScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -194888,7 +195166,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 1480,
+          "line": 1502,
           "caller": "OrgLifecycleControls",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -194898,7 +195176,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:344 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1480 (OrgLifecycleControls, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:351 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1502 (OrgLifecycleControls, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -194941,7 +195219,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/data-export",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3640",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3627",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -195002,7 +195280,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/data-export/:requestId/links",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3723",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3710",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -195072,7 +195350,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/data-export/:requestId/manifest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3685",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3672",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -195130,7 +195408,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/invites",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1036",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1042",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -195217,7 +195495,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/invites/:inviteId/resend",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1761",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1767",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -195615,7 +195893,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/leave",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2630",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2636",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -195634,7 +195912,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 464,
+          "line": 466,
           "caller": "OrganizationDetailInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -195644,7 +195922,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:281 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:464 (OrganizationDetailInner, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:281 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:466 (OrganizationDetailInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -195738,7 +196016,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/members/:memberId/restore",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2593",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2599",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -195860,7 +196138,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/members/:memberId/suspend",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2588",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2594",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -195978,6 +196256,219 @@
       "tenantUnboundInsertSites": []
     },
     {
+      "routeId": "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
+      "method": "POST",
+      "path": "/v1/orgs/:id/ownership-offer/:offerId/accept",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2915",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requireOrgMember -> services/api/src/routes/organizations-governance.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
+        "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
+      ],
+      "gates": [
+        "ORGANIZATION_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/organizations/[id]/_components/OrgOwnershipOffer.tsx",
+          "line": 113,
+          "caller": "OrgOwnershipOffer",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/_components/OrgOwnershipOffer.tsx:113 (OrgOwnershipOffer, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "ORGANIZATION_AUTHORIZED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "ORGANIZATION_SCOPED",
+      "tenantType": "ORGANIZATION",
+      "tenantBindingAuthority": "checkOrgAccess + organizationMembershipGrantsAccess + teamMemberStatusGrantsAccess",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "authenticatedSession",
+        "enterpriseContract",
+        "mfaFactor",
+        "organization",
+        "organizationClosureRequest",
+        "organizationMembership",
+        "organizationOwnershipOffer",
+        "team",
+        "teamMember",
+        "user"
+      ],
+      "modelsWritten": [
+        "analyticsEvent",
+        "apiCredential",
+        "automationWebhookDestination",
+        "externalReviewGrant",
+        "lifecycleWebhookEndpoint",
+        "membershipGrant",
+        "mfaFactor",
+        "organizationAuditEvent",
+        "organizationMembership",
+        "organizationOwnershipOffer",
+        "securityEvent",
+        "team",
+        "teamMember",
+        "verificationShareToken",
+        "webhookEndpoint",
+        "workflowIntakeLink"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/services/organization/org-access.ts: the canonical organization access evaluator (refuses ARCHIVED/SUSPENDED orgs, ACTIVE org membership by the shared predicate, role precedence, contract expiry)",
+        "services/api/src/services/identity/org-membership-lifecycle.service.ts: the canonical organization membership-status predicate (packages/shared)",
+        "packages/shared-runtime/src/standing-creator-authority.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/organization/org-access.ts: organization.findUnique — no tenant or self predicate",
+        "services/api/src/services/billing/workspace-seats.service.ts: teamMember.count — no tenant or self predicate"
+      ],
+      "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
+      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
+      "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantStampingInsertSites": [
+        "services/api/src/services/identity/membership-provisioning.service.ts: organizationMembership.create",
+        "services/api/src/services/organization/org-audit.service.ts: organizationAuditEvent.create"
+      ],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "POST /v1/orgs/:id/ownership-offer/:offerId/cancel",
+      "method": "POST",
+      "path": "/v1/orgs/:id/ownership-offer/:offerId/cancel",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2972",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requireOrgMember -> services/api/src/routes/organizations-governance.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
+        "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
+      ],
+      "gates": [
+        "ORGANIZATION_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/organizations/[id]/_components/OrgOwnershipOffer.tsx",
+          "line": 113,
+          "caller": "OrgOwnershipOffer",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/_components/OrgOwnershipOffer.tsx:113 (OrgOwnershipOffer, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "ORGANIZATION_AUTHORIZED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "ORGANIZATION_SCOPED",
+      "tenantType": "ORGANIZATION",
+      "tenantBindingAuthority": "checkOrgAccess + organizationMembershipGrantsAccess",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "organization",
+        "organizationMembership",
+        "organizationOwnershipOffer"
+      ],
+      "modelsWritten": [
+        "organizationAuditEvent",
+        "organizationOwnershipOffer"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/services/organization/org-access.ts: the canonical organization access evaluator (refuses ARCHIVED/SUSPENDED orgs, ACTIVE org membership by the shared predicate, role precedence, contract expiry)",
+        "services/api/src/services/identity/org-membership-lifecycle.service.ts: the canonical organization membership-status predicate (packages/shared)",
+        "services/api/src/services/organization/org-access.ts: organization.findUnique — no tenant or self predicate"
+      ],
+      "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
+      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
+      "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantStampingInsertSites": [
+        "services/api/src/services/organization/org-audit.service.ts: organizationAuditEvent.create"
+      ],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "POST /v1/orgs/:id/ownership-offer/:offerId/decline",
+      "method": "POST",
+      "path": "/v1/orgs/:id/ownership-offer/:offerId/decline",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2972",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requireOrgMember -> services/api/src/routes/organizations-governance.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
+        "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
+      ],
+      "gates": [
+        "ORGANIZATION_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/organizations/[id]/_components/OrgOwnershipOffer.tsx",
+          "line": 113,
+          "caller": "OrgOwnershipOffer",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/_components/OrgOwnershipOffer.tsx:113 (OrgOwnershipOffer, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "ORGANIZATION_AUTHORIZED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "ORGANIZATION_SCOPED",
+      "tenantType": "ORGANIZATION",
+      "tenantBindingAuthority": "checkOrgAccess + organizationMembershipGrantsAccess",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "organization",
+        "organizationMembership",
+        "organizationOwnershipOffer"
+      ],
+      "modelsWritten": [
+        "organizationAuditEvent",
+        "organizationOwnershipOffer"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/services/organization/org-access.ts: the canonical organization access evaluator (refuses ARCHIVED/SUSPENDED orgs, ACTIVE org membership by the shared predicate, role precedence, contract expiry)",
+        "services/api/src/services/identity/org-membership-lifecycle.service.ts: the canonical organization membership-status predicate (packages/shared)",
+        "services/api/src/services/organization/org-access.ts: organization.findUnique — no tenant or self predicate"
+      ],
+      "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
+      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
+      "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantStampingInsertSites": [
+        "services/api/src/services/organization/org-audit.service.ts: organizationAuditEvent.create"
+      ],
+      "tenantUnboundInsertSites": []
+    },
+    {
       "routeId": "POST /v1/orgs/:id/policies/retention",
       "method": "POST",
       "path": "/v1/orgs/:id/policies/retention",
@@ -196039,7 +196530,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/transfer-ownership",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2789",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2817",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -196060,7 +196551,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/page.tsx",
-          "line": 1390,
+          "line": 1407,
           "caller": "OrgLifecycleControls",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -196070,7 +196561,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:304 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1390 (OrgLifecycleControls, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:304 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1407 (OrgLifecycleControls, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -196080,52 +196571,34 @@
       "authorizationAuthority": "MULTI_GATE",
       "dataScope": "ORGANIZATION_SCOPED",
       "tenantType": "ORGANIZATION",
-      "tenantBindingAuthority": "checkOrgAccess + organizationMembershipGrantsAccess + teamMemberStatusGrantsAccess",
+      "tenantBindingAuthority": "checkOrgAccess + organizationMembershipGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
-        "enterpriseContract",
         "mfaFactor",
         "organization",
+        "organizationClosureRequest",
         "organizationMembership",
-        "team",
-        "teamMember",
+        "organizationOwnershipOffer",
         "user"
       ],
       "modelsWritten": [
-        "analyticsEvent",
-        "apiCredential",
-        "automationWebhookDestination",
-        "enterpriseContract",
-        "externalReviewGrant",
-        "lifecycleWebhookEndpoint",
-        "membershipGrant",
         "mfaFactor",
-        "organization",
         "organizationAuditEvent",
-        "organizationMembership",
-        "securityEvent",
-        "team",
-        "teamMember",
-        "verificationShareToken",
-        "webhookEndpoint",
-        "workflowIntakeLink"
+        "organizationOwnershipOffer",
+        "securityEvent"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/organization/org-access.ts: the canonical organization access evaluator (refuses ARCHIVED/SUSPENDED orgs, ACTIVE org membership by the shared predicate, role precedence, contract expiry)",
         "services/api/src/services/identity/org-membership-lifecycle.service.ts: the canonical organization membership-status predicate (packages/shared)",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/organization/org-access.ts: organization.findUnique — no tenant or self predicate",
-        "services/api/src/services/billing/workspace-seats.service.ts: teamMember.count — no tenant or self predicate",
-        "services/api/src/routes/organizations.routes.ts: organization.findUnique — no tenant or self predicate",
-        "services/api/src/routes/organizations.routes.ts: organization.update — no tenant or self predicate"
+        "services/api/src/services/organization/org-access.ts: organization.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
-        "services/api/src/services/identity/membership-provisioning.service.ts: organizationMembership.create",
+        "services/api/src/services/organization/org-ownership-offer.service.ts: organizationOwnershipOffer.create",
         "services/api/src/services/organization/org-audit.service.ts: organizationAuditEvent.create"
       ],
       "tenantUnboundInsertSites": []
@@ -196135,7 +196608,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/workspaces/:teamId/resume",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3018",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3005",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -196215,7 +196688,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/workspaces/:teamId/suspend",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3018",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3005",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -196774,14 +197247,16 @@
       "authorizationAuthority": "PORTAL_TOKEN",
       "dataScope": "TOKEN_SCOPED",
       "tenantType": "TOKEN_BOUND",
-      "tenantBindingAuthority": null,
-      "membershipStatusRequirement": null,
+      "tenantBindingAuthority": "teamMemberStatusGrantsAccess",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
         "caseEvidenceLink",
         "evidenceLegalHold",
         "externalReviewerRoleAssignment",
+        "organizationSecurityPolicy",
         "team",
+        "teamMember",
         "user",
         "verificationPackage"
       ],
@@ -196793,11 +197268,12 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
+        "packages/shared-runtime/src/standing-creator-authority.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate"
       ],
-      "tenantIdSource": "BEARER_TOKEN_SUBJECT",
+      "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 403",
       "tenantStampingInsertSites": [
@@ -196810,7 +197286,7 @@
       "method": "POST",
       "path": "/v1/portal/logout",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1031",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1036",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "resolvePortalSession -> services/api/src/routes/external-portal.routes.ts: reaches the external-review portal grant/session authority (resolvePortalSession)"
@@ -196849,30 +197325,32 @@
       "authorizationAuthority": "PORTAL_TOKEN",
       "dataScope": "TOKEN_SCOPED",
       "tenantType": "TOKEN_BOUND",
-      "tenantBindingAuthority": null,
-      "membershipStatusRequirement": null,
+      "tenantBindingAuthority": "inline-membership-status-check",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
         "caseEvidenceLink",
         "evidenceLegalHold",
         "externalReviewerRoleAssignment",
+        "organizationSecurityPolicy",
         "team",
+        "teamMember",
         "user",
         "verificationPackage"
       ],
       "modelsWritten": [
         "adminAuditLog",
         "externalReviewActivity",
-        "externalReviewerRoleAssignment",
-        "securityEvent"
+        "externalReviewerRoleAssignment"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
+        "packages/shared-runtime/src/standing-creator-authority.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/services/workspace/operating-workspace.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate"
       ],
-      "tenantIdSource": "BEARER_TOKEN_SUBJECT",
+      "tenantIdSource": "MEMBERSHIP_LOOKUP",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 403",
       "tenantStampingInsertSites": [
@@ -196885,7 +197363,7 @@
       "method": "POST",
       "path": "/v1/portal/sso/callback",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1407",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1412",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -196914,29 +197392,28 @@
       "authorizationAuthority": "PUBLIC_UNGUARDED",
       "dataScope": "PUBLIC_DATA",
       "tenantType": "NONE",
-      "tenantBindingAuthority": null,
-      "membershipStatusRequirement": null,
+      "tenantBindingAuthority": "teamMemberStatusGrantsAccess",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "adminAuditLog",
         "externalReviewerRoleAssignment",
+        "organizationSecurityPolicy",
         "ssoConnection",
         "team",
-        "user"
+        "teamMember"
       ],
       "modelsWritten": [
-        "adminAuditLog",
         "externalReviewActivity",
         "externalReviewerRoleAssignment",
-        "securityEvent",
         "ssoCallbackAttempt"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/routes/external-portal.routes.ts: externalReviewerRoleAssignment.findFirst — no tenant or self predicate",
         "services/api/src/services/access-control/sso-hardening.service.ts: ssoConnection.findUniqueOrThrow — no tenant or self predicate",
         "services/api/src/services/external-review/portal-sso.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate"
       ],
-      "tenantIdSource": "NONE",
+      "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 404",
       "tenantStampingInsertSites": [
@@ -196950,7 +197427,7 @@
       "method": "POST",
       "path": "/v1/portal/sso/start/:grantId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1344",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1349",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -197005,7 +197482,7 @@
       "method": "POST",
       "path": "/v1/portal/work/:workflowId/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1126",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1131",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "resolvePortalSession -> services/api/src/routes/external-portal.routes.ts: reaches the external-review portal grant/session authority (resolvePortalSession)"
@@ -197044,8 +197521,8 @@
       "authorizationAuthority": "PORTAL_TOKEN",
       "dataScope": "TOKEN_SCOPED",
       "tenantType": "TOKEN_BOUND",
-      "tenantBindingAuthority": null,
-      "membershipStatusRequirement": null,
+      "tenantBindingAuthority": "inline-membership-status-check",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
         "caseEvidenceLink",
@@ -197053,7 +197530,9 @@
         "evidenceReviewWorkflow",
         "externalReviewComment",
         "externalReviewerRoleAssignment",
+        "organizationSecurityPolicy",
         "team",
+        "teamMember",
         "user",
         "verificationPackage"
       ],
@@ -197061,17 +197540,17 @@
         "adminAuditLog",
         "externalReviewActivity",
         "externalReviewComment",
-        "externalReviewerRoleAssignment",
-        "securityEvent"
+        "externalReviewerRoleAssignment"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
+        "packages/shared-runtime/src/standing-creator-authority.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/services/workspace/operating-workspace.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate",
         "services/api/src/services/external-review/portal-scope.service.ts: verificationPackage.findFirst — no tenant or self predicate"
       ],
-      "tenantIdSource": "BEARER_TOKEN_SUBJECT",
+      "tenantIdSource": "MEMBERSHIP_LOOKUP",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 403",
       "tenantStampingInsertSites": [
@@ -197085,7 +197564,7 @@
       "method": "POST",
       "path": "/v1/portal/work/:workflowId/decision",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1153",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1158",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "resolvePortalSession -> services/api/src/routes/external-portal.routes.ts: reaches the external-review portal grant/session authority (resolvePortalSession)"
@@ -197124,8 +197603,8 @@
       "authorizationAuthority": "PORTAL_TOKEN",
       "dataScope": "TOKEN_SCOPED",
       "tenantType": "TOKEN_BOUND",
-      "tenantBindingAuthority": null,
-      "membershipStatusRequirement": null,
+      "tenantBindingAuthority": "inline-membership-status-check",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
         "caseEvidenceLink",
@@ -197134,7 +197613,9 @@
         "externalReviewActivity",
         "externalReviewDecision",
         "externalReviewerRoleAssignment",
+        "organizationSecurityPolicy",
         "team",
+        "teamMember",
         "user",
         "verificationPackage"
       ],
@@ -197142,11 +197623,11 @@
         "adminAuditLog",
         "externalReviewActivity",
         "externalReviewDecision",
-        "externalReviewerRoleAssignment",
-        "securityEvent"
+        "externalReviewerRoleAssignment"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
+        "packages/shared-runtime/src/standing-creator-authority.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/services/workspace/operating-workspace.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate",
@@ -197154,7 +197635,7 @@
         "services/api/src/services/external-review/portal-decisions.service.ts: externalReviewDecision.findUnique — no tenant or self predicate",
         "services/api/src/services/external-review/portal-decisions.service.ts: externalReviewDecision.update — no tenant or self predicate"
       ],
-      "tenantIdSource": "BEARER_TOKEN_SUBJECT",
+      "tenantIdSource": "MEMBERSHIP_LOOKUP",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 403",
       "tenantStampingInsertSites": [
@@ -197168,7 +197649,7 @@
       "method": "POST",
       "path": "/v1/portal/work/:workflowId/view",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1276",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1281",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "resolvePortalSession -> services/api/src/routes/external-portal.routes.ts: reaches the external-review portal grant/session authority (resolvePortalSession)"
@@ -197207,8 +197688,8 @@
       "authorizationAuthority": "PORTAL_TOKEN",
       "dataScope": "TOKEN_SCOPED",
       "tenantType": "TOKEN_BOUND",
-      "tenantBindingAuthority": null,
-      "membershipStatusRequirement": null,
+      "tenantBindingAuthority": "inline-membership-status-check",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
         "caseEvidenceLink",
@@ -197216,24 +197697,26 @@
         "evidenceReviewWorkflow",
         "externalReviewActivity",
         "externalReviewerRoleAssignment",
+        "organizationSecurityPolicy",
         "team",
+        "teamMember",
         "user",
         "verificationPackage"
       ],
       "modelsWritten": [
         "adminAuditLog",
         "externalReviewActivity",
-        "externalReviewerRoleAssignment",
-        "securityEvent"
+        "externalReviewerRoleAssignment"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
+        "packages/shared-runtime/src/standing-creator-authority.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/services/workspace/operating-workspace.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate",
         "services/api/src/services/external-review/portal-scope.service.ts: verificationPackage.findFirst — no tenant or self predicate"
       ],
-      "tenantIdSource": "BEARER_TOKEN_SUBJECT",
+      "tenantIdSource": "MEMBERSHIP_LOOKUP",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 403",
       "tenantStampingInsertSites": [

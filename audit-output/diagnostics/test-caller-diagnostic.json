@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "28109845be5def0ab38aefdd121fdaa3c0cf3d91b45445ac9901f0a76bb48335",
+  "capabilityRouteInventoryHash": "f8f6c8760d107bba92e68a46d09014b9566f74ebe68fa243ed1075a69d3e9614",
   "totals": {
-    "routes": 1260,
+    "routes": 1264,
     "routesWithAnyTestCaller": 59,
     "testOnlyRoutes": 8,
     "testCallSites": 151,
@@ -2673,6 +2673,12 @@
     },
     {
       "routeId": "GET /v1/orgs/:id/operations/rollup",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/orgs/:id/ownership-offer",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -6717,6 +6723,24 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/orgs/:id/ownership-offer/:offerId/cancel",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/orgs/:id/ownership-offer/:offerId/decline",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/orgs/:id/policies/retention",
       "testCallerCount": 0,
       "testOnly": false,
@@ -7707,5 +7731,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "200f2fc7a967d19a22d3c95a6f694f942321e4143e05588adf89717e151840d0"
+  "contentHash": "a7bc9995eb12f3a3c5d83c3e238acce98fc7ce0f49e5ab01588bf68526fb611a"
 }
