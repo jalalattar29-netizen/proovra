@@ -46,9 +46,17 @@ export async function recordLegalAcceptances(params: {
   const changed = params.acceptances.filter((a) => byKey.get(a.policyKey)?.policyVersion !== a.policyVersion);
   if (changed.length === 0) return;
 
-  await db.$transaction(
-    changed.map((item) =>
-      db.userLegalAcceptance.upsert({
+  /*
+   * PRO-A1-07 (closure) — the history row and the change it records commit in
+   * ONE transaction: the upsert overwrites the previous acceptance, so if the
+   * audit row cannot be written the change is rolled back and the request
+   * fails, instead of committing the overwrite and losing the replaced version
+   * silently (the PRO-G2-08 critical-audit pattern).
+   */
+  await db.$transaction(async (tx) => {
+    const client = tx as unknown as PrismaClient;
+    for (const item of changed) {
+      await client.userLegalAcceptance.upsert({
         where: {
           userId_policyKey: {
             userId: params.userId,
@@ -70,34 +78,32 @@ export async function recordLegalAcceptances(params: {
           ipAddress: params.req?.ip ?? null,
           userAgent: readUserAgent(params.req),
         },
-      })
-    )
-  );
-
-  for (const item of changed) {
-    const previous = byKey.get(item.policyKey) ?? null;
-    await emitTenantAudit(
-      {
-        action: "identity.legal_accepted",
-        outcome: "success",
-        sourceApp: "API",
-        actorUserId: params.userId,
-        workspaceId: null,
-        resourceType: "legal_policy",
-        resourceId: item.policyKey,
-
-        metadata: {
-          policyKey: item.policyKey,
-          acceptedVersion: item.policyVersion,
-          source: params.source ?? null,
-          previousVersion: previous?.policyVersion ?? null,
-          previousAcceptedAt: previous?.acceptedAt ? previous.acceptedAt.toISOString() : null,
-          previousSource: previous?.source ?? null,
+      });
+    }
+    for (const item of changed) {
+      const previous = byKey.get(item.policyKey) ?? null;
+      await emitTenantAudit(
+        {
+          action: "identity.legal_accepted",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: params.userId,
+          workspaceId: null,
+          resourceType: "legal_policy",
+          resourceId: item.policyKey,
+          metadata: {
+            policyKey: item.policyKey,
+            acceptedVersion: item.policyVersion,
+            source: params.source ?? null,
+            previousVersion: previous?.policyVersion ?? null,
+            previousAcceptedAt: previous?.acceptedAt ? previous.acceptedAt.toISOString() : null,
+            previousSource: previous?.source ?? null,
+          },
         },
-      },
-      db,
-    ).catch(() => undefined);
-  }
+        client,
+      );
+    }
+  });
 }
 
 export async function getUserLegalAcceptanceStatus(params: {

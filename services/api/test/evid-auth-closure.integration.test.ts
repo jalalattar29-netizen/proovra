@@ -15,11 +15,26 @@
  */
 import { randomUUID } from "node:crypto";
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 import { makeEnterpriseOrganizationWorkspace } from "./support/enterprise-organization.js";
 import type { FixtureDeps } from "./point7/product-fixtures.js";
+
+// PRO-A1-07 — an audit-append fault switch for the legal-acceptance history row only.
+const faults = vi.hoisted(() => ({ legalAudit: false }));
+vi.mock("../src/services/audit/tenant-audit.service.js", async (importOriginal) => {
+  const real = await importOriginal<typeof import("../src/services/audit/tenant-audit.service.js")>();
+  return {
+    ...real,
+    emitTenantAudit: async (...args: Parameters<typeof real.emitTenantAudit>) => {
+      if (faults.legalAudit && (args[0] as { action?: string }).action === "identity.legal_accepted") {
+        throw new Error("simulated audit append failure");
+      }
+      return real.emitTenantAudit(...args);
+    },
+  };
+});
 
 type Json = Record<string, unknown>;
 type Res = { statusCode: number; body: string; headers: Record<string, unknown> };
@@ -224,6 +239,38 @@ describe("closure evidence — WS-AUTH rows (live PostgreSQL)", () => {
       expect(row.acceptedAt.toISOString()).toBe(originalAt.toISOString());
       expect(row.source).toBe("register");
       expect(await history(a.id)).toHaveLength(0);
+    });
+
+    it("refused: when the history row cannot be written the change fails and the earlier acceptance is kept", async () => {
+      const a = await passwordAccount("a107fault");
+      const token = deps.mintToken(a.id, a.email);
+      const key = Object.keys(legalVersions.REQUIRED_LEGAL_VERSIONS)[0]!;
+      const current = (legalVersions.REQUIRED_LEGAL_VERSIONS as Record<string, string>)[key]!;
+      const earlierAt = new Date("2025-03-04T05:06:07.000Z");
+      await prisma.userLegalAcceptance.update({
+        where: { userId_policyKey: { userId: a.id, policyKey: key } },
+        data: { policyVersion: "2000-01-01", acceptedAt: earlierAt, source: "mobile" },
+      });
+      faults.legalAudit = true;
+      let r;
+      try {
+        r = await call("POST", "/v1/users/legal-acceptance", token, { acceptances: [{ policyKey: key, policyVersion: current }], source: "web" });
+      } finally {
+        faults.legalAudit = false;
+      }
+      expect(r.statusCode, r.body).toBeGreaterThanOrEqual(500);
+      const row = await prisma.userLegalAcceptance.findUniqueOrThrow({
+        where: { userId_policyKey: { userId: a.id, policyKey: key } },
+      });
+      expect(row.policyVersion).toBe("2000-01-01");
+      expect(row.acceptedAt.toISOString()).toBe(earlierAt.toISOString());
+      expect(row.source).toBe("mobile");
+      expect(await history(a.id)).toHaveLength(0);
+
+      // A retry once the audit works records the acceptance AND its history.
+      const retry = await call("POST", "/v1/users/legal-acceptance", token, { acceptances: [{ policyKey: key, policyVersion: current }], source: "web" });
+      expect(retry.statusCode, retry.body).toBe(200);
+      expect(await history(a.id)).toHaveLength(1);
     });
 
     it("refused: a version that is not the current one is answered 400 and nothing is recorded", async () => {
