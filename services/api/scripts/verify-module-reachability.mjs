@@ -165,6 +165,10 @@ const ENTRYPOINTS = Object.freeze({
     // trust manifests the old unscoped builder filled with other teams' rows.
     // No write mode (pnpm --filter proovra-api ops:trust-manifest-exposure-inventory).
     "services/api/src/scripts/trust-manifest-exposure-inventory.ts",
+    // OPS closure 2 (2026-11-21) — the operator's alert delivery proof: a
+    // labelled synthetic alert and recovery through the watchdog's own webhook
+    // transport, read back from Discord (node dist/scripts/ops-alert-delivery-test.js).
+    "services/api/src/scripts/ops-alert-delivery-test.ts",
     "services/api/src/seed-signing-key.ts",
     "services/api/prisma/scripts/org-security-policy-readiness.ts",
     // OTS INTEGRITY DECOUPLING (2026-09-09) — the bounded reconciliation for

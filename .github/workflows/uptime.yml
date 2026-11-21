@@ -1,0 +1,50 @@
+name: uptime
+
+# OPS closure 2 (2026-11-21) — an uptime check that runs OUTSIDE the production
+# host, so it still reports when the host, Docker, Caddy, the API process or the
+# API's in-process outage watchdog are down (the watchdog cannot see its own
+# death). What it probes and what it cannot see: docs/runbooks/disaster-recovery.md,
+# "External uptime check".
+#
+# - Scheduled only (plus manual): never on push or pull_request, so it can never
+#   be a required check and never runs in a PR's checks.
+# - Its own concurrency group: it never cancels or queues behind ci, deploy or
+#   any other workflow; a slow run is not overlapped by the next one.
+# - Needs the repository secret OPS_ALERT_WEBHOOK_URL (the owner adds it; the same
+#   Discord webhook the API uses is fine). Without it every run FAILS with an
+#   explicit error, so the missing destination is visible, not silent.
+# - GitHub runs schedules on the default branch only and may delay them by
+#   several minutes under load; cadence here is every 10 minutes.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: uptime-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out the probe script only
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            scripts/ops/uptime-probe.mjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Probe api.proovra.com and www.proovra.com from outside the host
+        env:
+          OPS_ALERT_WEBHOOK_URL: ${{ secrets.OPS_ALERT_WEBHOOK_URL }}
+          GITHUB_TOKEN: ${{ github.token }}
+          UPTIME_WORKFLOW_FILE: uptime.yml
+          UPTIME_BRANCH: ${{ github.event.repository.default_branch }}
+        run: node scripts/ops/uptime-probe.mjs

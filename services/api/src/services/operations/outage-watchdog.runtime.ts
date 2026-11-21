@@ -4,16 +4,20 @@
  *
  * Reads: worker_leases (getWorkerFleetHealth), BullMQ counts
  * (getQueueInventory), governance_reconciliation_runs and
- * platform_backup_records (Prisma), and the worker's boot records in the shared
+ * platform_backup_records (Prisma: DATABASE_BACKUP, OFFHOST_COPY, RESTORE_DRILL),
+ * statfs of OPS_WATCHDOG_DISK_PATHS (default "/"), and the worker's boot records in the shared
  * Redis (the queue-inventory connection, REDIS_URL). Sends through
  * dispatchOpsAlert. Called by the platform maintenance sweep under its lease.
  */
+import { statfs } from "node:fs/promises";
+
 import { prisma } from "../../db.js";
 import { dispatchOpsAlert } from "../alerts/alert.service.js";
 import { getQueueHandle, getQueueInventory } from "./queue-inventory.service.js";
 import { KNOWN_QUEUE_NAMES } from "./queue-replay-safety.service.js";
 import { getWorkerFleetHealth } from "./worker-liveness.service.js";
 import {
+  readDiskUsage,
   readOutageFacts,
   readOutageWatchdogConfig,
   redisWatchdogState,
@@ -68,6 +72,13 @@ export async function runOutageWatchdogNow(logger?: Logger): Promise<OutageWatch
             // "unknown" (budget spent) and "outage" (Redis refused the probe) are not measurements.
             readable: q.health !== "unknown" && q.health !== "outage",
           })),
+        // The container root ("/" by default) is an overlay on the Docker data
+        // disk, which on the production host also holds the backups directory.
+        readDisk: () =>
+          readDiskUsage(config.diskPaths, async (path) => {
+            const s = await statfs(path);
+            return { bsize: Number(s.bsize), blocks: Number(s.blocks), bfree: Number(s.bfree), bavail: Number(s.bavail) };
+          }),
       }),
   });
 }

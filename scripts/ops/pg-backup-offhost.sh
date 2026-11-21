@@ -4,12 +4,24 @@
 #
 # A backup on the host it protects does not survive that host. This runs in the
 # aws-cli image beside the `pg-backup` service and copies the backup directory to
-# an S3-compatible bucket, then confirms the newest dump and its checksum are
-# there. The result goes in .offhost-status, which pg-backup-cycle.sh records.
+# an S3-compatible bucket, then VERIFIES the newest backup at the destination:
 #
-# The bucket should be in another account or at least another region from the
-# evidence bucket, with its own credentials. Which one is the operator's choice.
-# Lifecycle and retention there belong to that bucket's configuration.
+#   - all four artifacts are there: proovra-<stamp>.dump, .dump.sha256, .counts
+#     and .schema (the restore drill needs every one of them);
+#   - each has exactly the local size;
+#   - the remote .dump.sha256 is byte-for-byte the local one.
+#
+# The full end-to-end proof (download the remote dump, check its SHA-256 and
+# restore it) is pg-backup-offhost-verify.sh. The result goes in
+# .offhost-status, which pg-backup-cycle.sh records as OFFHOST_COPY.
+#
+# The bucket must be separate from the evidence bucket and its credential, with
+# versioning and a lifecycle rule for retention (docs/runbooks/disaster-recovery.md,
+# "Off-host backup destination"). Object Lock is not recommended with the pinned
+# aws-cli 2.17: it sends no Content-MD5 or checksum header on upload, which S3
+# requires for objects under an Object Lock retention. This script never deletes anything remotely:
+# `sync` without --delete, so a credential without s3:DeleteObject suffices and
+# local retention (BACKUP_RETAIN) never removes an off-host copy.
 #
 # Environment:
 #   BACKUP_S3_URI                  required; s3://bucket/prefix
@@ -36,8 +48,14 @@ report() {
   mv "$BACKUP_DIR/.offhost-status.partial" "$BACKUP_DIR/.offhost-status"
 }
 
+# The size `aws s3 ls` reports for exactly this object name, or nothing.
+remote_size() {
+  local name="$1"
+  aws s3 ls "${URI%/}/${name}" 2>/dev/null | awk -v n="$name" '$4 == n {print $3}' | head -n 1
+}
+
 copy_once() {
-  local newest stamp remote
+  local newest stamp name f local_size remote remote_sha
   newest="$(ls -1 "$BACKUP_DIR"/proovra-*.dump 2>/dev/null | sort | tail -n 1 || true)"
   if [ -z "$newest" ]; then
     echo "pg-backup-offhost: no backup to copy yet"
@@ -50,19 +68,49 @@ copy_once() {
     report "$stamp" FAILED
     return 1
   fi
-  if ! aws s3 sync "$BACKUP_DIR" "$URI" --exclude ".*" --no-progress --only-show-errors; then
+  case "$URI" in
+    s3://?*) ;;
+    *)
+      echo "pg-backup-offhost: FAILED — BACKUP_S3_URI must be s3://bucket[/prefix]" >&2
+      report "$stamp" FAILED
+      return 1
+      ;;
+  esac
+  for f in "proovra-${stamp}.dump" "proovra-${stamp}.dump.sha256" "proovra-${stamp}.counts" "proovra-${stamp}.schema"; do
+    if [ ! -s "$BACKUP_DIR/$f" ]; then
+      echo "pg-backup-offhost: FAILED — the local backup is incomplete: $f is missing" >&2
+      report "$stamp" FAILED
+      return 1
+    fi
+  done
+  if ! aws s3 sync "$BACKUP_DIR" "$URI" --exclude ".*" --exclude "*/*" --no-progress --only-show-errors; then
     echo "pg-backup-offhost: FAILED — the copy did not complete" >&2
     report "$stamp" FAILED
     return 1
   fi
-  remote="$(aws s3 ls "${URI%/}/proovra-${stamp}.dump.sha256" 2>/dev/null || true)"
-  if [ -z "$remote" ] || ! aws s3 ls "${URI%/}/proovra-${stamp}.dump" >/dev/null 2>&1; then
-    echo "pg-backup-offhost: FAILED — the newest backup is not at the destination" >&2
+  # Verify the newest backup at the destination: every artifact, every size.
+  for f in "proovra-${stamp}.dump" "proovra-${stamp}.dump.sha256" "proovra-${stamp}.counts" "proovra-${stamp}.schema"; do
+    local_size="$(wc -c <"$BACKUP_DIR/$f" | tr -d ' ')"
+    remote="$(remote_size "$f")"
+    if [ -z "$remote" ]; then
+      echo "pg-backup-offhost: FAILED — $f is not at the destination" >&2
+      report "$stamp" FAILED
+      return 1
+    fi
+    if [ "$remote" != "$local_size" ]; then
+      echo "pg-backup-offhost: FAILED — $f is $remote bytes at the destination and $local_size bytes here" >&2
+      report "$stamp" FAILED
+      return 1
+    fi
+  done
+  remote_sha="$(aws s3 cp "${URI%/}/proovra-${stamp}.dump.sha256" - 2>/dev/null || true)"
+  if [ "$remote_sha" != "$(cat "$BACKUP_DIR/proovra-${stamp}.dump.sha256")" ]; then
+    echo "pg-backup-offhost: FAILED — the checksum file at the destination differs from the local one" >&2
     report "$stamp" FAILED
     return 1
   fi
   report "$stamp" SUCCEEDED
-  echo "pg-backup-offhost: OK proovra-${stamp}.dump copied"
+  echo "pg-backup-offhost: OK proovra-${stamp}.dump copied and verified (4 artifacts, sizes and checksum file match)"
 }
 
 if [ "${1:-}" = "--loop" ]; then

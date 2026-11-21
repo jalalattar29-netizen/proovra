@@ -361,12 +361,12 @@ describe("AUD-023 — pg-backup.sh + pg-restore-drill.sh against disposable Post
         )
       ).rows as Array<{ kind: string; outcome: string; backup_stamp: string | null; table_count: number | null; row_count: string | null; sha256: string | null }>;
 
-    function runAws(script: string, env: Record<string, string>) {
+    function runAws(script: string, env: Record<string, string>, dir: string = backups) {
       const res = spawnSync(
         "docker",
         [
           "run", "--rm", "--add-host", "host.docker.internal:host-gateway",
-          "-v", `${OPS_DIR}:/ops:ro`, "-v", `${backups}:/backups`,
+          "-v", `${OPS_DIR}:/ops:ro`, "-v", `${dir}:/backups`,
           "-e", `AWS_ACCESS_KEY_ID=${process.env.S3_ACCESS_KEY}`,
           "-e", `AWS_SECRET_ACCESS_KEY=${process.env.S3_SECRET_KEY}`,
           "-e", "AWS_DEFAULT_REGION=us-east-1",
@@ -444,6 +444,100 @@ describe("AUD-023 — pg-backup.sh + pg-restore-drill.sh against disposable Post
       expect((await records()).filter((r) => r.kind === "OFFHOST_COPY").map((r) => r.outcome)).toEqual(["SUCCEEDED"]);
       runAws(`aws s3 rb s3://${BUCKET} --force`, {});
     }, 300_000);
+
+    // OPS closure 2 (2026-11-21) — the off-host copy is verified after upload
+    // (all four artifacts, sizes, the checksum file), and the RETRIEVED copy is
+    // proven to restore (pg-backup-offhost-verify.sh: fetch, then drill).
+    describe("off-host verification", () => {
+      const VBUCKET = `backup-verify-${CYCLE_RUN}`;
+      const URI = `s3://${VBUCKET}/db`;
+      const newestDump = () => readdirSync(backups).filter((f) => /^proovra-\d{8}T\d{6}Z\.dump$/.test(f)).sort().at(-1)!;
+
+      beforeAll(() => {
+        const made = runAws(`aws s3 mb s3://${VBUCKET}`, {});
+        expect(made.code, made.out).toBe(0);
+      });
+      afterAll(() => {
+        runAws(`aws s3 rb s3://${VBUCKET} --force`, {});
+      });
+
+      it("the copy carries the dump, its .sha256, .counts and .schema, and is verified at the destination", () => {
+        const copied = runAws("bash /ops/pg-backup-offhost.sh", { BACKUP_S3_URI: URI, BACKUP_DIR: "/backups" });
+        expect(copied.code, copied.out).toBe(0);
+        expect(copied.out).toMatch(/pg-backup-offhost: OK proovra-\d{8}T\d{6}Z\.dump copied and verified \(4 artifacts, sizes and checksum file match\)/);
+        const stem = newestDump().replace(/\.dump$/, "");
+        const listed = runAws(`aws s3 ls ${URI}/`, {}).out;
+        for (const ext of [".dump", ".dump.sha256", ".counts", ".schema"]) expect(listed).toContain(`${stem}${ext}`);
+        expect(listed).not.toMatch(/offhost-status|offhost-verify|last-drill/);
+        expect(readFileSync(join(backups, ".offhost-status"), "utf8")).toMatch(/ SUCCEEDED/);
+      }, 300_000);
+
+      it("an incomplete local backup is never copied as a success", () => {
+        const partial = mkdtempSync(join(tmpdir(), "offhost-partial-"));
+        try {
+          const name = "proovra-20261121T000000Z.dump";
+          writeFileSync(join(partial, name), "not a dump");
+          writeFileSync(join(partial, `${name}.sha256`), `0000  ${name}\n`);
+          const res = runAws("bash /ops/pg-backup-offhost.sh", { BACKUP_S3_URI: `s3://${VBUCKET}/partial`, BACKUP_DIR: "/backups" }, partial);
+          expect(res.code).not.toBe(0);
+          expect(res.out).toMatch(/FAILED — the local backup is incomplete: proovra-20261121T000000Z\.counts is missing/);
+          expect(readFileSync(join(partial, ".offhost-status"), "utf8")).toMatch(/ FAILED/);
+        } finally {
+          rmSync(partial, { recursive: true, force: true });
+        }
+      }, 120_000);
+
+      it("the newest off-host copy is retrieved, matches the uploaded .sha256, the local record and the database record, and restores", async () => {
+        const fetched = runAws("bash /ops/pg-backup-offhost-verify.sh fetch", { BACKUP_S3_URI: URI, BACKUP_DIR: "/backups" });
+        expect(fetched.code, fetched.out).toBe(0);
+        expect(fetched.out).toContain(`newest off-host backup is ${newestDump()}`);
+        expect(fetched.out).toMatch(/sha256 of the retrieved dump matches the uploaded \.sha256/);
+        expect(fetched.out).toMatch(/sha256 matches the local record/);
+        // The record the cycle wrote for this backup (the newest local dump).
+        const sha = readFileSync(join(backups, `${newestDump()}.sha256`), "utf8").split(" ")[0]!;
+        await src!.query("DELETE FROM platform_backup_records WHERE kind = 'DATABASE_BACKUP' AND sha256 = $1", [sha]);
+        await src!.query(
+          "INSERT INTO platform_backup_records (kind, outcome, backup_stamp, sha256) VALUES ('DATABASE_BACKUP', 'SUCCEEDED', $1, $2)",
+          [newestDump().replace(/^proovra-|\.dump$/g, ""), sha],
+        );
+        const drilled = runInClientImage(["bash", "/ops/pg-backup-offhost-verify.sh", "drill"], { BACKUP_DIR: "/backups", DATABASE_URL: `${SRC_URL}?schema=public` }, backups);
+        expect(drilled.code, drilled.out).toBe(0);
+        expect(drilled.out).toMatch(/sha256 matches platform_backup_records/);
+        expect(drilled.out).toMatch(/pg-restore-drill: PASS/);
+        expect(drilled.out).toMatch(/pg-backup-offhost-verify: PASS — the off-host copy proovra-\d{8}T\d{6}Z\.dump was retrieved/);
+        expect(readdirSync(backups)).not.toContain(".offhost-verify");
+      }, 300_000);
+
+      it("a tampered off-host dump is refused at the checksum, before any restore", () => {
+        const name = newestDump();
+        const t = runAws(`head -c 4096 /dev/urandom > /tmp/x && aws s3 cp /tmp/x ${URI}/${name} --only-show-errors`, {});
+        expect(t.code, t.out).toBe(0);
+        const res = runAws("bash /ops/pg-backup-offhost-verify.sh fetch", { BACKUP_S3_URI: URI, BACKUP_DIR: "/backups" });
+        expect(res.code).not.toBe(0);
+        expect(res.out).toMatch(/checksum mismatch — the retrieved proovra-.*\.dump hashes to [0-9a-f]{64}, the uploaded \.sha256 says/);
+        expect(res.out).not.toMatch(/fetch OK/);
+      }, 120_000);
+
+      it("a substituted dump with a matching substituted .sha256 still fails against the local record", () => {
+        const name = newestDump();
+        const t = runAws(
+          `head -c 4096 /dev/urandom > /tmp/${name} && (cd /tmp && sha256sum ${name} > ${name}.sha256) && ` +
+            `aws s3 cp /tmp/${name} ${URI}/${name} --only-show-errors && aws s3 cp /tmp/${name}.sha256 ${URI}/${name}.sha256 --only-show-errors`,
+          {},
+        );
+        expect(t.code, t.out).toBe(0);
+        const res = runAws("bash /ops/pg-backup-offhost-verify.sh fetch", { BACKUP_S3_URI: URI, BACKUP_DIR: "/backups" });
+        expect(res.code).not.toBe(0);
+        expect(res.out).toMatch(/matches the uploaded \.sha256/);
+        expect(res.out).toMatch(/checksum mismatch — the retrieved proovra-.*\.dump differs from the local record/);
+      }, 120_000);
+
+      it("the drill phase refuses to run without a fetch", () => {
+        const res = runInClientImage(["bash", "/ops/pg-backup-offhost-verify.sh", "drill"], { BACKUP_DIR: "/backups", VERIFY_DIR: "/backups/.nothing-here" }, backups);
+        expect(res.code).not.toBe(0);
+        expect(res.out).toMatch(/nothing fetched: run the fetch phase first/);
+      }, 60_000);
+    });
 
     it("an off-host copy with no destination reports FAILED, never silence", () => {
       const res = runAws("bash /ops/pg-backup-offhost.sh", { BACKUP_S3_URI: "", BACKUP_DIR: "/backups" });
