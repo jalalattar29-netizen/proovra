@@ -99,6 +99,19 @@ describe("sem item 1 — SCIM protects the LAST live organization owner, not eve
     });
   }
 
+  /** Hand the seeded workspace's ownership to `userId` (so the seeded owner owns no workspace). */
+  async function handWorkspaceTo(o: Org, userId: string) {
+    await prisma.team.update({ where: { id: o.workspaceId }, data: { ownerUserId: userId } });
+    await prisma.teamMember.update({
+      where: { teamId_userId: { teamId: o.workspaceId, userId } },
+      data: { role: "OWNER" },
+    });
+    await prisma.teamMember.update({
+      where: { teamId_userId: { teamId: o.workspaceId, userId: o.owner.userId } },
+      data: { role: "ADMIN" },
+    });
+  }
+
   const ctxOf = (o: Org) => ({
     teamId: o.workspaceId,
     organizationId: o.orgId,
@@ -227,6 +240,9 @@ describe("sem item 1 — SCIM protects the LAST live organization owner, not eve
     for (let i = 0; i < 4; i += 1) {
       const o = await organization();
       const second = await member(o, "ORG_OWNER");
+      // Neither owner owns a workspace (review L-2 refuses a workspace owner
+      // separately), so the two suspensions contend only for the owner count.
+      await handWorkspaceTo(o, (await member(o, "ORG_ADMIN")).userId);
       await directoryManaged(o, o.owner.userId);
       await directoryManaged(o, second.userId);
 
@@ -258,6 +274,61 @@ describe("sem item 1 — SCIM protects the LAST live organization owner, not eve
     }
   });
 
+  it("review L-2: a non-last owner (or an admin) who OWNS a workspace is refused like the manual suspension (OWNERSHIP_TRANSFER_REQUIRED), nothing written; once the workspace moves, the push suspends", async () => {
+    const o = await organization();
+    const second = await member(o, "ORG_OWNER");
+    await directoryManaged(o, o.owner.userId);
+    // o.owner owns the seeded workspace; another live owner exists.
+    const token = await scimTokenFor(o);
+    const del = await scimCall(token, "DELETE", `/v2/scim/Users/${o.owner.userId}`);
+    expect(del.statusCode, del.body).toBe(409);
+    expect(del.json()).toMatchObject({ detail: "OWNERSHIP_TRANSFER_REQUIRED" });
+    const patch = await scimCall(token, "PATCH", `/v2/scim/Users/${o.owner.userId}`, {
+      schemas: ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+      Operations: [{ op: "replace", path: "active", value: false }],
+    });
+    expect(patch.statusCode, patch.body).toBe(409);
+    expect(await deactivate(o, o.owner.userId)).toEqual({ ok: false, workspaceOwnerProtected: true });
+    expect(await govStatus(o.owner.membershipId)).toBe("ACTIVE");
+    expect(
+      (await prisma.externalIdentityMapping.findFirstOrThrow({ where: { organizationId: o.orgId, userId: o.owner.userId }, select: { unlinkedAtUtc: true } }))
+        .unlinkedAtUtc,
+    ).toBeNull();
+    // The manual suspension answers the same for the same target.
+    const manual = await h.app.inject({
+      method: "POST",
+      url: `/v1/orgs/${o.orgId}/members/${o.owner.membershipId}/suspend`,
+      headers: bearer(second.token),
+      payload: {},
+    });
+    expect(manual.statusCode, manual.body).toBe(409);
+    expect(manual.json()).toMatchObject({ error: { code: "OWNERSHIP_TRANSFER_REQUIRED" } });
+
+    // An ORG_ADMIN who owns a second workspace is refused the same way.
+    const admin = await member(o, "ORG_ADMIN");
+    await directoryManaged(o, admin.userId);
+    const w2 = await prisma.team.create({
+      data: {
+        name: `sem-w2-${randomUUID().slice(0, 6)}`,
+        ownerUserId: admin.userId,
+        isPersonal: false,
+        organizationId: o.orgId,
+        workspaceKind: "ORGANIZATION",
+        billingPlan: "ENTERPRISE",
+        billingStatus: "ACTIVE",
+      },
+      select: { id: true },
+    });
+    await prisma.teamMember.create({ data: { teamId: w2.id, userId: admin.userId, role: "OWNER", status: "ACTIVE" } });
+    expect(await deactivate(o, admin.userId)).toEqual({ ok: false, workspaceOwnerProtected: true });
+
+    // Once the seeded workspace's ownership moves to the second owner, the push suspends o.owner.
+    await handWorkspaceTo(o, second.userId);
+    expect(await deactivate(o, o.owner.userId)).toEqual({ ok: true });
+    expect(await govStatus(o.owner.membershipId)).toBe("SUSPENDED");
+    expect(await liveOwners(o.orgId)).toEqual([second.userId]);
+  });
+
   it("an ownership acceptance racing a suspension of the offerer keeps exactly one live owner, in either order", async () => {
     const offer = (o: Org, targetUserId: string) =>
       h.app.inject({
@@ -284,6 +355,7 @@ describe("sem item 1 — SCIM protects the LAST live organization owner, not eve
       const made = await offer(o, recipient.userId);
       expect(made.statusCode, made.body).toBe(202);
       const offerId = (made.json() as { offer: { id: string } }).offer.id;
+      // The sole owner (who also owns the workspace) is refused; the last-owner rule decides first.
       expect(await deactivate(o, o.owner.userId)).toEqual({ ok: false, lastOwnerProtected: true });
       const ok = await accept(o, recipient, offerId);
       expect(ok.statusCode, ok.body).toBe(200);

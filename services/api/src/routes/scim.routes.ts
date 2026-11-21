@@ -34,10 +34,11 @@ import {
 import {
   EXISTING_ACCOUNT_CONSENT_DETAIL,
   SCIM_LAST_OWNER_DETAIL,
+  SCIM_WORKSPACE_OWNER_DETAIL,
   authenticateScimRequest,
   scimCreateUser,
   scimDeactivateUser,
-  scimDeactivationHitsLastOwner,
+  scimDeactivationRefusal,
   scimListUsers,
   scimReactivateUser,
   scimReadUser,
@@ -277,11 +278,12 @@ export async function scimRoutes(app: FastifyInstance) {
       // live owner is refused; refuse it before the attribute write so a
       // combined PATCH changes nothing (the service decides again under the
       // owners' lock).
-      if (plan.active === false && (await scimDeactivationHitsLastOwner(ctx, id))) {
+      const preRefusal = plan.active === false ? await scimDeactivationRefusal(ctx, id) : null;
+      if (preRefusal) {
         return reply
           .type("application/scim+json")
           .code(409)
-          .send(scimError(409, SCIM_LAST_OWNER_DETAIL));
+          .send(scimError(409, preRefusal === "last_owner" ? SCIM_LAST_OWNER_DETAIL : SCIM_WORKSPACE_OWNER_DETAIL));
       }
       if (plan.displayName !== undefined || plan.role !== undefined) {
         const upd = await scimUpdateUserAttributes(ctx, id, {
@@ -310,11 +312,11 @@ export async function scimRoutes(app: FastifyInstance) {
       // Apply the `active` transition.
       if (plan.active === false) {
         const result = await scimDeactivateUser(ctx, id);
-        if (result.lastOwnerProtected) {
+        if (result.lastOwnerProtected || result.workspaceOwnerProtected) {
           return reply
             .type("application/scim+json")
             .code(409)
-            .send(scimError(409, SCIM_LAST_OWNER_DETAIL));
+            .send(scimError(409, result.lastOwnerProtected ? SCIM_LAST_OWNER_DETAIL : SCIM_WORKSPACE_OWNER_DETAIL));
         }
         if (!result.ok) {
           return reply
@@ -370,11 +372,11 @@ export async function scimRoutes(app: FastifyInstance) {
       if (!ctx) return;
       const { id } = ParamsUserId.parse(req.params);
       const result = await scimDeactivateUser(ctx, id);
-      if (result.lastOwnerProtected) {
+      if (result.lastOwnerProtected || result.workspaceOwnerProtected) {
         return reply
           .type("application/scim+json")
           .code(409)
-          .send(scimError(409, SCIM_LAST_OWNER_DETAIL));
+          .send(scimError(409, result.lastOwnerProtected ? SCIM_LAST_OWNER_DETAIL : SCIM_WORKSPACE_OWNER_DETAIL));
       }
       if (!result.ok) {
         return reply
