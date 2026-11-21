@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "28109845be5def0ab38aefdd121fdaa3c0cf3d91b45445ac9901f0a76bb48335",
-  "consumerInventoryHash": "addc7c3e3c30f9d526a7dd7fff0aa5d5ad70db12fe0de2c1971da43651c36f9c",
+  "consumerInventoryHash": "354a63a3cbc63e57cd4d0b23b06922800fac80921333e18a75e4709bc2960f97",
   "dispositionsHash": "4634dbb508d1b01f04e7988b8009af560f2bce0bd1af8e3f9c1c55ed205704a9",
   "totals": {
     "RegisteredRoutes": 1260,
@@ -5860,7 +5860,7 @@
       "method": "GET",
       "route": "/v1/redaction/projects/:id",
       "registeringFile": "services/api/src/routes/redaction.routes.ts",
-      "productConsumer": "apps/web/app/(app)/redaction/[projectId]/page.tsx:170",
+      "productConsumer": "apps/web/app/(app)/redaction/[projectId]/page.tsx:171",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -13636,7 +13636,7 @@
       "method": "POST",
       "route": "/v1/redaction/derivatives/:id/quarantine",
       "registeringFile": "services/api/src/routes/redaction.routes.ts",
-      "productConsumer": "apps/web/app/(app)/redaction/[projectId]/page.tsx:323",
+      "productConsumer": "apps/web/app/(app)/redaction/[projectId]/page.tsx:324",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -13720,7 +13720,7 @@
       "method": "POST",
       "route": "/v1/redaction/projects/:id/versions",
       "registeringFile": "services/api/src/routes/redaction.routes.ts",
-      "productConsumer": "apps/web/app/(app)/redaction/[projectId]/page.tsx:230",
+      "productConsumer": "apps/web/app/(app)/redaction/[projectId]/page.tsx:231",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -13732,7 +13732,7 @@
       "method": "POST",
       "route": "/v1/redaction/versions/:id/approve",
       "registeringFile": "services/api/src/routes/redaction.routes.ts",
-      "productConsumer": "apps/web/app/(app)/redaction/[projectId]/page.tsx:269",
+      "productConsumer": "apps/web/app/(app)/redaction/[projectId]/page.tsx:270",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -13756,7 +13756,7 @@
       "method": "POST",
       "route": "/v1/redaction/versions/:id/derivative",
       "registeringFile": "services/api/src/routes/redaction.routes.ts",
-      "productConsumer": "apps/web/app/(app)/redaction/[projectId]/page.tsx:269",
+      "productConsumer": "apps/web/app/(app)/redaction/[projectId]/page.tsx:270",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -13780,7 +13780,7 @@
       "method": "POST",
       "route": "/v1/redaction/versions/:id/publish",
       "registeringFile": "services/api/src/routes/redaction.routes.ts",
-      "productConsumer": "apps/web/app/(app)/redaction/[projectId]/page.tsx:269",
+      "productConsumer": "apps/web/app/(app)/redaction/[projectId]/page.tsx:270",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -13804,7 +13804,7 @@
       "method": "POST",
       "route": "/v1/redaction/versions/:id/submit",
       "registeringFile": "services/api/src/routes/redaction.routes.ts",
-      "productConsumer": "apps/web/app/(app)/redaction/[projectId]/page.tsx:269",
+      "productConsumer": "apps/web/app/(app)/redaction/[projectId]/page.tsx:270",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -97333,8 +97333,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/redaction/redaction-region.service.ts#redactionDetection.updateMany@151",
-      "terminalLocation": "services/api/src/services/redaction/redaction-region.service.ts:151",
+      "writerId": "services/api/src/services/redaction/redaction-region.service.ts#redactionDetection.updateMany@159",
+      "terminalLocation": "services/api/src/services/redaction/redaction-region.service.ts:159",
       "file": "services/api/src/services/redaction/redaction-region.service.ts",
       "enclosingDeclaration": "removeRedactionRegion",
       "kind": "DATABASE",
@@ -97366,8 +97366,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/redaction/redaction-region.service.ts#redactionRegion.create@83",
-      "terminalLocation": "services/api/src/services/redaction/redaction-region.service.ts:83",
+      "writerId": "services/api/src/services/redaction/redaction-region.service.ts#redactionRegion.create@91",
+      "terminalLocation": "services/api/src/services/redaction/redaction-region.service.ts:91",
       "file": "services/api/src/services/redaction/redaction-region.service.ts",
       "enclosingDeclaration": "addRedactionRegion",
       "kind": "DATABASE",
@@ -97401,8 +97401,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/redaction/redaction-region.service.ts#redactionRegion.delete@149",
-      "terminalLocation": "services/api/src/services/redaction/redaction-region.service.ts:149",
+      "writerId": "services/api/src/services/redaction/redaction-region.service.ts#redactionRegion.delete@157",
+      "terminalLocation": "services/api/src/services/redaction/redaction-region.service.ts:157",
       "file": "services/api/src/services/redaction/redaction-region.service.ts",
       "enclosingDeclaration": "removeRedactionRegion",
       "kind": "DATABASE",
@@ -146943,7 +146943,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/redaction/[projectId]/page.tsx",
-          "line": 170,
+          "line": 171,
           "caller": "RedactionProjectShell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -146951,7 +146951,7 @@
         },
         {
           "file": "apps/web/app/(app)/redaction/[projectId]/page.tsx",
-          "line": 350,
+          "line": 351,
           "caller": "RedactionProjectShell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -146961,7 +146961,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/redaction/[projectId]/page.tsx:170 (RedactionProjectShell, WEB); apps/web/app/(app)/redaction/[projectId]/page.tsx:350 (RedactionProjectShell, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/redaction/[projectId]/page.tsx:171 (RedactionProjectShell, WEB); apps/web/app/(app)/redaction/[projectId]/page.tsx:351 (RedactionProjectShell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -197261,7 +197261,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/redaction/[projectId]/page.tsx",
-          "line": 323,
+          "line": 324,
           "caller": "RedactionProjectShell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -197271,7 +197271,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/redaction/[projectId]/page.tsx:323 (RedactionProjectShell, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/redaction/[projectId]/page.tsx:324 (RedactionProjectShell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -197910,7 +197910,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/redaction/[projectId]/page.tsx",
-          "line": 230,
+          "line": 231,
           "caller": "RedactionProjectShell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -197920,7 +197920,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/redaction/[projectId]/page.tsx:230 (RedactionProjectShell, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/redaction/[projectId]/page.tsx:231 (RedactionProjectShell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -198004,7 +198004,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/redaction/[projectId]/page.tsx",
-          "line": 269,
+          "line": 270,
           "caller": "RedactionProjectShell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -198012,7 +198012,7 @@
         },
         {
           "file": "apps/web/app/(app)/redaction/[projectId]/page.tsx",
-          "line": 276,
+          "line": 277,
           "caller": "RedactionProjectShell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -198022,7 +198022,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/redaction/[projectId]/page.tsx:269 (RedactionProjectShell, WEB); apps/web/app/(app)/redaction/[projectId]/page.tsx:276 (RedactionProjectShell, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/redaction/[projectId]/page.tsx:270 (RedactionProjectShell, WEB); apps/web/app/(app)/redaction/[projectId]/page.tsx:277 (RedactionProjectShell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -198204,7 +198204,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/redaction/[projectId]/page.tsx",
-          "line": 269,
+          "line": 270,
           "caller": "RedactionProjectShell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -198212,7 +198212,7 @@
         },
         {
           "file": "apps/web/app/(app)/redaction/[projectId]/page.tsx",
-          "line": 276,
+          "line": 277,
           "caller": "RedactionProjectShell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -198222,7 +198222,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/redaction/[projectId]/page.tsx:269 (RedactionProjectShell, WEB); apps/web/app/(app)/redaction/[projectId]/page.tsx:276 (RedactionProjectShell, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/redaction/[projectId]/page.tsx:270 (RedactionProjectShell, WEB); apps/web/app/(app)/redaction/[projectId]/page.tsx:277 (RedactionProjectShell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -198418,7 +198418,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/redaction/[projectId]/page.tsx",
-          "line": 269,
+          "line": 270,
           "caller": "RedactionProjectShell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -198426,7 +198426,7 @@
         },
         {
           "file": "apps/web/app/(app)/redaction/[projectId]/page.tsx",
-          "line": 276,
+          "line": 277,
           "caller": "RedactionProjectShell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -198436,7 +198436,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/redaction/[projectId]/page.tsx:269 (RedactionProjectShell, WEB); apps/web/app/(app)/redaction/[projectId]/page.tsx:276 (RedactionProjectShell, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/redaction/[projectId]/page.tsx:270 (RedactionProjectShell, WEB); apps/web/app/(app)/redaction/[projectId]/page.tsx:277 (RedactionProjectShell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -198540,20 +198540,12 @@
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
-        },
-        {
-          "file": "apps/web/components/redaction/VideoRedactionViewer.tsx",
-          "line": 105,
-          "caller": "VideoRedactionViewer",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
         }
       ],
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/redaction/ImageRedactionViewer.tsx:147 (ImageRedactionViewer, WEB); apps/web/components/redaction/PdfRedactionViewer.tsx:219 (PdfRedactionViewer, WEB); apps/web/components/redaction/VideoRedactionViewer.tsx:105 (VideoRedactionViewer, WEB)",
+      "dispositionEvidence": "apps/web/components/redaction/ImageRedactionViewer.tsx:147 (ImageRedactionViewer, WEB); apps/web/components/redaction/PdfRedactionViewer.tsx:219 (PdfRedactionViewer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -198637,7 +198629,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/redaction/[projectId]/page.tsx",
-          "line": 269,
+          "line": 270,
           "caller": "RedactionProjectShell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -198645,7 +198637,7 @@
         },
         {
           "file": "apps/web/app/(app)/redaction/[projectId]/page.tsx",
-          "line": 276,
+          "line": 277,
           "caller": "RedactionProjectShell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -198655,7 +198647,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/redaction/[projectId]/page.tsx:269 (RedactionProjectShell, WEB); apps/web/app/(app)/redaction/[projectId]/page.tsx:276 (RedactionProjectShell, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/redaction/[projectId]/page.tsx:270 (RedactionProjectShell, WEB); apps/web/app/(app)/redaction/[projectId]/page.tsx:277 (RedactionProjectShell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

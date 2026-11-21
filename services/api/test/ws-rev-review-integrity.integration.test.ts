@@ -606,7 +606,7 @@ describe("WS-REV — external review and decision integrity (live PostgreSQL)", 
         select: { id: true },
       });
     }
-    async function project(evidenceId: string, artifactKind: "IMAGE" | "PDF", token = A().adminToken) {
+    async function project(evidenceId: string, artifactKind: "IMAGE" | "PDF" | "VIDEO", token = A().adminToken) {
       const open = await call("POST", `/v1/redaction/projects${q()}`, token, { evidenceId, artifactKind });
       expect(open.statusCode, open.body).toBe(201);
       const projectId = open.json().projectId as string;
@@ -651,6 +651,28 @@ describe("WS-REV — external review and decision integrity (live PostgreSQL)", 
       const rect = await call("POST", regions, A().adminToken, { kind: "PDF_PAGE_RECT", method: "BLACKOUT", geometry: { pageIndex: 0, rect: { x: 0.1, y: 0.1, width: 0.2, height: 0.2 } } });
       expect(rect.statusCode, rect.body).toBe(201);
       expect((await call("POST", `/v1/redaction/versions/${versionId}/submit${q()}`, A().adminToken, {})).statusCode).toBe(200);
+    });
+
+    it("WEB-OLD-API-COMPAT-1 / PRO-R3-04 (closure): a hand-drawn video frame-range region is refused on every project; nothing is stored", async () => {
+      const video = await media({ type: "VIDEO", mimeType: "video/mp4" });
+      const { versionId } = await project(video.id, "VIDEO");
+      const frameBox = { startFrame: 0, endFrame: 30, bbox: { x: 0.1, y: 0.1, width: 0.2, height: 0.2 } };
+      for (const method of ["BLUR", "BLACKOUT"]) {
+        const res = await call("POST", `/v1/redaction/versions/${versionId}/regions${q()}`, A().adminToken, { kind: "VIDEO_FRAME_BBOX", method, geometry: frameBox });
+        expect(res.statusCode, res.body).toBe(409);
+        expect(res.json().denial).toBe("REGION_KIND_UNSUPPORTED");
+      }
+      expect(await prisma.redactionRegion.count({ where: { versionId } })).toBe(0);
+      expect(await prisma.redactionActivity.count({ where: { versionId, code: "REGION_ADDED" } })).toBe(0);
+      // The same author still adds the regions the product supports (an image box).
+      const image = await media({});
+      const img = await project(image.id, "IMAGE");
+      const imgRegions = `/v1/redaction/versions/${img.versionId}/regions${q()}`;
+      const frameOnImage = await call("POST", imgRegions, A().adminToken, { kind: "VIDEO_FRAME_BBOX", method: "BLACKOUT", geometry: frameBox });
+      expect(frameOnImage.json().denial).toBe("REGION_KIND_UNSUPPORTED");
+      const box = await call("POST", imgRegions, A().adminToken, { kind: "BBOX_NORMALIZED", method: "BLACKOUT", geometry: { x: 0.1, y: 0.1, width: 0.2, height: 0.2 } });
+      expect(box.statusCode, box.body).toBe(201);
+      expect(await prisma.redactionRegion.count({ where: { versionId: img.versionId } })).toBe(1);
     });
 
     it("PRO-R3-02 / PRO-R3-12: an out-of-bounds acceptance writes nothing; removing a promoted region re-queues its detection", async () => {

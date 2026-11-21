@@ -56,6 +56,14 @@ export async function addRedactionRegion(
   if (!isValidRegionGeometry(input.kind, input.geometry)) {
     return { ok: false, denial: "REGION_OUT_OF_BOUNDS" };
   }
+  // PRO-R3-04 / WEB-OLD-API-COMPAT-1 (closure) — video-region authoring is not
+  // a supported capability: no frame preview is served, no renderer burns a
+  // frame-range box, and a video copy is refused (UNSUPPORTED_REDACTION_MEDIA).
+  // VIDEO_FRAME_BBOX is written only by hand (no detection provider suggests
+  // it), so it is refused for every project before anything is stored.
+  if (input.kind === "VIDEO_FRAME_BBOX") {
+    return { ok: false, denial: "REGION_KIND_UNSUPPORTED" };
+  }
   const prisma = input.prisma ?? defaultPrisma;
   const version = await prisma.redactionVersion.findFirst({
     where: { id: input.versionId, teamId: input.teamId },
