@@ -49,6 +49,13 @@ import {
   cancelSupersededSubscriptionAtProvider,
   type SupersededCanceller,
 } from "./base-subscription-supersession.service.js";
+import {
+  SUPERSESSION_ROW_SELECT,
+  classifySupersededDuplicate,
+  classifySupersededDuplicateLocally,
+  defaultSupersessionProviderReader,
+  type SupersessionProviderReader,
+} from "./superseded-duplicate.service.js";
 
 /**
  * The add-on status a provider subscription status implies.
@@ -379,35 +386,53 @@ export async function syncPlanForSubscription(params: {
 /** Minutes after a failed attempt, indexed by attempts made; then daily, for ever. */
 export const SUPERSESSION_RETRY_MINUTES = [5, 30, 120, 720] as const;
 
+/** NEW-RG-02-1 — a row held for review is re-classified (reads only) daily. */
+export const SUPERSESSION_REVIEW_RECHECK_MINUTES = 24 * 60;
+
+/** The states the sweep step selects. REVIEW_REQUIRED is re-read, never cancelled unless it becomes conclusive. */
+export const SUPERSESSION_RETRY_STATES = ["PENDING", "RETRY_SCHEDULED", "MANUAL_INTERVENTION", "REVIEW_REQUIRED"] as const;
+
 /**
  * BILLING REMEDIATION (2026-10-30, AUD-12) — keep asking the provider to stop
  * every superseded duplicate it has not confirmed stopping. A duplicate bills
  * the customer every period, so this never gives up: after the fast schedule it
  * is MANUAL_INTERVENTION, still retried daily, and the review item stays open.
  * The state column is the lease: only one worker's compare-and-set matches.
+ *
+ * NEW-RG-02-1 (owner decision H, 2026-11-21) — this is the sweep's ONE provider
+ * mutation outside BILLING_AUTO_PLAN_LOWERING / BILLING_AUTO_ADDON_CANCELLATION,
+ * a narrowly documented duplicate-charge prevention exception and not a
+ * general permission. Each retry first classifies the row
+ * (`classifySupersededDuplicate`, superseded-duplicate.service.ts): only a
+ * conclusive duplicate whose retained subscription is the same account's and
+ * workspace's base plan, ACTIVE and not ending, as the provider itself confirms,
+ * is cancelled — and only its own reference. Ambiguous ownership, missing
+ * provider facts or an uncertain classification records
+ * DUPLICATE_BASE_SUBSCRIPTION_UNCONFIRMED and asks the provider for nothing.
+ * It never lowers an entitlement, refunds, or touches the retained
+ * subscription. The release preview lists every candidate
+ * (RETRY_SUPERSEDED_DUPLICATE_CANCEL).
  */
 export async function retrySupersededCancellations(input: {
   limit?: number;
   now?: Date;
   cancel?: SupersededCanceller;
-} = {}): Promise<{ attempted: number; confirmed: number }> {
+  /** Provider READS for the classification; tests inject a fake. */
+  readProvider?: SupersessionProviderReader;
+} = {}): Promise<{ attempted: number; confirmed: number; heldForReview: number }> {
   const now = input.now ?? new Date();
   const cancel = input.cancel ?? cancelSupersededSubscriptionAtProvider;
+  const readProvider = input.readProvider ?? defaultSupersessionProviderReader();
   const due = await prisma.subscription.findMany({
     where: {
       supersededBySubscriptionId: { not: null },
-      supersessionCancelState: { in: ["PENDING", "RETRY_SCHEDULED", "MANUAL_INTERVENTION"] },
+      supersessionCancelState: { in: [...SUPERSESSION_RETRY_STATES] },
       supersessionCancelNextRetryAtUtc: { lte: now },
     },
     orderBy: { supersessionCancelNextRetryAtUtc: "asc" },
     take: input.limit ?? 20,
     select: {
-      id: true,
-      userId: true,
-      provider: true,
-      providerSubId: true,
-      plan: true,
-      status: true,
+      ...SUPERSESSION_ROW_SELECT,
       supersessionCancelState: true,
       supersessionCancelAttemptCount: true,
       supersessionCancelNextRetryAtUtc: true,
@@ -415,6 +440,7 @@ export async function retrySupersededCancellations(input: {
   });
   let attempted = 0;
   let confirmed = 0;
+  let heldForReview = 0;
   for (const row of due) {
     const attemptCount = row.supersessionCancelAttemptCount + 1;
     const delay = SUPERSESSION_RETRY_MINUTES[attemptCount - 1] ?? 24 * 60;
@@ -439,8 +465,77 @@ export async function retrySupersededCancellations(input: {
       confirmed += 1;
       continue;
     }
+    // NEW-RG-02-1 (decision H) — the provider cancel is retried only for a
+    // conclusive duplicate with a valid retained subscription. Anything less
+    // is a review item and NO provider mutation; it is re-classified daily.
+    const retained = await prisma.subscription.findUnique({
+      where: { id: row.supersededBySubscriptionId! },
+      select: SUPERSESSION_ROW_SELECT,
+    });
+    const classification = await classifySupersededDuplicate(row, retained, readProvider);
+    if (classification.kind === "REVIEW") {
+      await prisma.subscription.update({
+        where: { id: row.id },
+        data: {
+          supersessionCancelState: "REVIEW_REQUIRED",
+          // A review pass is not a cancel attempt.
+          supersessionCancelAttemptCount: row.supersessionCancelAttemptCount,
+          supersessionCancelNextRetryAtUtc: new Date(now.getTime() + SUPERSESSION_REVIEW_RECHECK_MINUTES * 60_000),
+        },
+      });
+      await recordBillingReviewItem({
+        userId: row.userId,
+        provider: row.provider,
+        providerResourceId: row.providerSubId,
+        product: "PLAN",
+        reason: "DUPLICATE_BASE_SUBSCRIPTION_UNCONFIRMED",
+        providerAction: "NONE",
+        refundReviewRequired: true,
+        detail: {
+          why: classification.reason,
+          retainedSubscriptionId: classification.retainedSubscriptionId,
+          supersededPlan: row.plan,
+          lastCheckedAtUtc: now.toISOString(),
+        },
+      });
+      heldForReview += 1;
+      continue;
+    }
+    if (classification.duplicateAlreadyEnded) {
+      // Idempotent: the provider already stopped it; nothing is asked of it.
+      await upsertSubscription({
+        userId: row.userId,
+        provider: row.provider,
+        providerSubId: row.providerSubId,
+        status: prismaPkg.SubscriptionStatus.CANCELED,
+        plan: row.plan,
+        observedAtUtc: classification.observedAtUtc,
+      }).catch(() => undefined);
+      await prisma.subscription.update({
+        where: { id: row.id },
+        data: { supersessionCancelState: "CONFIRMED", supersessionCancelNextRetryAtUtc: null },
+      });
+      await recordBillingReviewItem({
+        userId: row.userId,
+        provider: row.provider,
+        providerResourceId: row.providerSubId,
+        product: "PLAN",
+        reason: "DUPLICATE_BASE_SUBSCRIPTION",
+        providerAction: "CANCELED_AT_PROVIDER",
+        refundReviewRequired: true,
+        detail: {
+          supersededPlan: row.plan,
+          keptSubscriptionId: classification.retainedSubscriptionId,
+          exception: "DUPLICATE_CHARGE_PREVENTION",
+          confirmedBy: "PROVIDER_READ",
+        },
+      });
+      confirmed += 1;
+      continue;
+    }
     let result: Awaited<ReturnType<SupersededCanceller>>;
     try {
+      // Only the duplicate's own reference; the retained one is never asked.
       result = await cancel(row.provider, row.providerSubId);
     } catch {
       result = { canceled: false, observedAtUtc: null };
@@ -451,6 +546,21 @@ export async function retrySupersededCancellations(input: {
         data: {
           supersessionCancelState:
             attemptCount > SUPERSESSION_RETRY_MINUTES.length ? "MANUAL_INTERVENTION" : "RETRY_SCHEDULED",
+        },
+      });
+      await recordBillingReviewItem({
+        userId: row.userId,
+        provider: row.provider,
+        providerResourceId: row.providerSubId,
+        product: "PLAN",
+        reason: "DUPLICATE_BASE_SUBSCRIPTION",
+        providerAction: "CANCEL_FAILED",
+        refundReviewRequired: true,
+        detail: {
+          supersededPlan: row.plan,
+          keptSubscriptionId: classification.retainedSubscriptionId,
+          exception: "DUPLICATE_CHARGE_PREVENTION",
+          retriedAttempts: attemptCount,
         },
       });
       continue;
@@ -475,11 +585,95 @@ export async function retrySupersededCancellations(input: {
       reason: "DUPLICATE_BASE_SUBSCRIPTION",
       providerAction: "CANCELED_AT_PROVIDER",
       refundReviewRequired: true,
-      detail: { supersededPlan: row.plan, retriedAttempts: attemptCount },
+      detail: {
+        supersededPlan: row.plan,
+        retriedAttempts: attemptCount,
+        keptSubscriptionId: classification.retainedSubscriptionId,
+        exception: "DUPLICATE_CHARGE_PREVENTION",
+      },
     });
     confirmed += 1;
   }
-  return { attempted, confirmed };
+  return { attempted, confirmed, heldForReview };
+}
+
+/**
+ * NEW-RG-02-1 — the release preview's enumeration of the sweep step above: the
+ * rows `retrySupersededCancellations` would select (due at `now`), each with
+ * the classification it would act on. Without a reader only the local half is
+ * decided ("provider confirmation required"); with one, the same provider READS
+ * the step makes. Never mutates anything.
+ */
+export async function supersededDuplicateCandidates(
+  now: Date,
+  readProvider?: SupersessionProviderReader,
+): Promise<
+  Array<{
+    subscriptionId: string;
+    provider: prismaPkg.PaymentProvider;
+    state: string | null;
+    attempts: number;
+    nextRetryAtUtc: Date | null;
+    retainedSubscriptionId: string | null;
+    outcome: "CANCEL_AT_PROVIDER" | "CONFIRM_ALREADY_ENDED" | "CONFIRM_LOCALLY_CANCELED" | "REVIEW_NO_PROVIDER_CALL";
+    reviewReason: string | null;
+    providerConfirmed: boolean;
+  }>
+> {
+  const rows = await prisma.subscription.findMany({
+    where: {
+      supersededBySubscriptionId: { not: null },
+      supersessionCancelState: { in: [...SUPERSESSION_RETRY_STATES] },
+      supersessionCancelNextRetryAtUtc: { lte: now },
+    },
+    orderBy: { supersessionCancelNextRetryAtUtc: "asc" },
+    select: {
+      ...SUPERSESSION_ROW_SELECT,
+      supersessionCancelState: true,
+      supersessionCancelAttemptCount: true,
+      supersessionCancelNextRetryAtUtc: true,
+    },
+  });
+  const out = [];
+  for (const row of rows) {
+    const base = {
+      subscriptionId: row.id,
+      provider: row.provider,
+      state: row.supersessionCancelState,
+      attempts: row.supersessionCancelAttemptCount,
+      nextRetryAtUtc: row.supersessionCancelNextRetryAtUtc,
+    };
+    if (row.status === prismaPkg.SubscriptionStatus.CANCELED) {
+      out.push({ ...base, retainedSubscriptionId: row.supersededBySubscriptionId, outcome: "CONFIRM_LOCALLY_CANCELED" as const, reviewReason: null, providerConfirmed: false });
+      continue;
+    }
+    const retained = await prisma.subscription.findUnique({
+      where: { id: row.supersededBySubscriptionId! },
+      select: SUPERSESSION_ROW_SELECT,
+    });
+    if (!readProvider) {
+      const local = classifySupersededDuplicateLocally(row, retained);
+      out.push(
+        local.kind === "REVIEW"
+          ? { ...base, retainedSubscriptionId: local.retainedSubscriptionId, outcome: "REVIEW_NO_PROVIDER_CALL" as const, reviewReason: local.reason, providerConfirmed: false }
+          : { ...base, retainedSubscriptionId: local.retainedSubscriptionId, outcome: "CANCEL_AT_PROVIDER" as const, reviewReason: null, providerConfirmed: false },
+      );
+      continue;
+    }
+    const c = await classifySupersededDuplicate(row, retained, readProvider);
+    out.push(
+      c.kind === "REVIEW"
+        ? { ...base, retainedSubscriptionId: c.retainedSubscriptionId, outcome: "REVIEW_NO_PROVIDER_CALL" as const, reviewReason: c.reason, providerConfirmed: false }
+        : {
+            ...base,
+            retainedSubscriptionId: c.retainedSubscriptionId,
+            outcome: c.duplicateAlreadyEnded ? ("CONFIRM_ALREADY_ENDED" as const) : ("CANCEL_AT_PROVIDER" as const),
+            reviewReason: null,
+            providerConfirmed: true,
+          },
+    );
+  }
+  return out;
 }
 
 /**

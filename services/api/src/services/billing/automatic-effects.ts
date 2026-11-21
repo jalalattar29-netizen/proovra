@@ -11,6 +11,13 @@
  * held is visible rather than silent. It covers the SWEEP only: a provider webhook
  * still lands a provider's own fact, and a customer's own cancellation, an agreed
  * downgrade and an ended grant still record their obligations.
+ *
+ * NEW-RG-02-1 (owner decision H) — the ONE sweep provider mutation neither
+ * switch holds: retrying the cancel of a CONCLUSIVE superseded duplicate base
+ * subscription (`retrySupersededCancellations`, rules in
+ * superseded-duplicate.service.ts). A narrow duplicate-charge prevention
+ * exception, listed by the preview; it is not a permission to lower a plan or
+ * cancel an add-on, and nothing here reads it.
  */
 import { PLAN_RANK } from "@proovra/shared-billing";
 
