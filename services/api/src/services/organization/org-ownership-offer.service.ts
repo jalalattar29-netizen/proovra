@@ -237,11 +237,24 @@ export async function acceptOrganizationOwnershipOffer(input: {
       throw new OrganizationOwnershipOfferError(409, "ownership_offer_not_pending", "This ownership offer is no longer open");
     }
     if (offer.expiresAtUtc.getTime() <= Date.now()) {
+      // Returned, not thrown: a throw here would roll the EXPIRED write back.
       await tx.organizationOwnershipOffer.updateMany({
         where: { id: offer.id, status: "PENDING" },
         data: { status: "EXPIRED", decidedAtUtc: new Date() },
       });
-      throw new OrganizationOwnershipOfferError(410, "ownership_offer_expired", "This ownership offer has expired");
+      return { kind: "expired" as const };
+    }
+
+    // Both membership rows are locked before they are judged, so a concurrent
+    // status transition (a SCIM suspension, an administrator's suspension or
+    // removal) either commits first and is seen here, or waits for this
+    // acceptance to commit. The role writes below are also guarded on ACTIVE.
+    const parties = await tx.organizationMembership.findMany({
+      where: { organizationId, userId: { in: [offer.fromUserId, actorUserId] } },
+      select: { id: true },
+    });
+    if (parties.length > 0) {
+      await tx.$queryRaw`SELECT "id" FROM "organization_memberships" WHERE "id" = ANY(${parties.map((m) => m.id)}::uuid[]) FOR UPDATE`;
     }
 
     // The offerer's authority, now. An offer is the owner's act; someone who
@@ -276,11 +289,13 @@ export async function acceptOrganizationOwnershipOffer(input: {
       organizationMembershipId: target.membership.id,
       role: "ORG_OWNER",
       actorUserId,
+      requireActive: true,
     });
     await updateOrganizationMembershipRole(tx as never, {
       organizationMembershipId: owner.id,
       role: "ORG_ADMIN",
       actorUserId,
+      requireActive: true,
     });
     await tx.organizationOwnershipOffer.update({
       where: { id: offer.id },
@@ -343,8 +358,11 @@ export async function acceptOrganizationOwnershipOffer(input: {
       },
     };
   }).then((r) => {
-    // The SUPERSEDED write must commit, so the refusal is raised after the
-    // transaction rather than inside it (which would roll it back).
+    // The SUPERSEDED / EXPIRED writes must commit, so the refusal is raised
+    // after the transaction rather than inside it (which would roll it back).
+    if (r.kind === "expired") {
+      throw new OrganizationOwnershipOfferError(410, "ownership_offer_expired", "This ownership offer has expired");
+    }
     if (r.kind === "offerer_not_owner") {
       throw new OrganizationOwnershipOfferError(
         409,
@@ -353,6 +371,12 @@ export async function acceptOrganizationOwnershipOffer(input: {
       );
     }
     return r.value;
+  }).catch((err: unknown) => {
+    // The guarded role write found a membership that is no longer ACTIVE.
+    if ((err as Error | null)?.name === "OrgMembershipNotActiveError") {
+      throw new OrganizationOwnershipOfferError(409, "OWNER_TARGET_NOT_ACTIVE", "Only an active member can become the owner.");
+    }
+    throw err;
   });
 }
 

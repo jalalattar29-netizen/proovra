@@ -1363,6 +1363,16 @@ export async function demoteGroupMappedRoleOnArchive(
 // audit. Keeping a second, unguarded writer beside it would only be waiting for
 // the next caller to find it.
 
+/** The guard of a role write that must land only on an ACTIVE membership. */
+const ROLE_WRITE_REQUIRES_ACTIVE: Prisma.OrganizationMembershipWhereInput = { status: "ACTIVE" };
+
+export class OrgMembershipNotActiveError extends Error {
+  constructor(readonly organizationMembershipId: string) {
+    super("The organization membership is not ACTIVE");
+    this.name = "OrgMembershipNotActiveError";
+  }
+}
+
 /** Manual (org-admin) governance role change with provenance. */
 export async function updateOrganizationMembershipRole(
   tx: TxClient,
@@ -1371,12 +1381,30 @@ export async function updateOrganizationMembershipRole(
     role: string;
     actorUserId?: string | null;
     source?: MembershipGrantSourceValue;
+    /**
+     * NEW-RG-26-4 review — write the role only while the membership is ACTIVE
+     * (an ownership acceptance must never land ORG_OWNER on a membership a
+     * concurrent transition just suspended or revoked). Throws
+     * OrgMembershipNotActiveError when the row is not ACTIVE, rolling the
+     * caller's transaction back.
+     */
+    requireActive?: boolean;
   },
 ): Promise<void> {
-  await tx.organizationMembership.update({
-    where: { id: input.organizationMembershipId },
-    data: { role: input.role as never },
-  });
+  if (input.requireActive) {
+    const moved = await tx.organizationMembership.updateMany({
+      // A predicate, not a status write: the status itself only ever moves
+      // through the ARCH-004 orchestrator.
+      where: { id: input.organizationMembershipId, ...ROLE_WRITE_REQUIRES_ACTIVE },
+      data: { role: input.role as never },
+    });
+    if (moved.count !== 1) throw new OrgMembershipNotActiveError(input.organizationMembershipId);
+  } else {
+    await tx.organizationMembership.update({
+      where: { id: input.organizationMembershipId },
+      data: { role: input.role as never },
+    });
+  }
   await recordMembershipGrant(tx, {
     organizationMembershipId: input.organizationMembershipId,
     source: input.source ?? "MANUAL",

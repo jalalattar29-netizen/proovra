@@ -829,19 +829,24 @@ export async function renewExternalReviewGrant(
  * NEW-RG-07-4 / NEW-RG-26-3 (owner decision F) — THE PORTAL / EXTERNAL-REVIEW
  * INVITATION'S INVITER, JUDGED AT ACCEPTANCE.
  *
- * An unaccepted (INVITED) portal invitation delegates the issuer's authority
- * to an outsider. It is accepted only while the issuer still holds an
- * authority that issues one in the grant's workspace, by THE canonical member
- * decision (`evaluateMemberAccessWithSnapshot`: membership status, access
- * window, workspace and organization lifecycle, role and capability grants):
+ * An unaccepted (INVITED) grant delegates the issuer's authority to an
+ * outsider. It is accepted only while the issuer still holds THE authority that
+ * issues THAT KIND of grant in its workspace, by THE canonical member decision
+ * (`evaluateMemberAccessWithSnapshot`: membership status, access window,
+ * workspace and organization lifecycle, role and capability grants):
  *
- *   - `review.assign` at the administrative tier (OWNER / ADMIN), which is
- *     what POST /v1/external-review/invitations and its resend require; or
- *   - `governance.exchange.decide`, which is what accepting a cross-org
- *     review requires — that acceptance issues the portal invitation of the
- *     review (`acceptCrossOrgReview`); or
- *   - `governance.legal_hold.manage`, which is what the plain grant route
- *     (POST /v1/external-review/grants) requires.
+ *   - a PLAIN grant (no reviewer-role sidecar; POST /v1/external-review/grants)
+ *     answers to `governance.legal_hold.manage`, the permission that route
+ *     requires;
+ *   - a PORTAL INVITATION (it has an ExternalReviewerRoleAssignment) answers
+ *     to `review.assign` at the administrative tier (OWNER / ADMIN), which is
+ *     what POST /v1/external-review/invitations and its resend / send-email /
+ *     reveal require. `governance.legal_hold.manage` does NOT issue one, so it
+ *     does not keep one acceptable (review note on the first pass);
+ *   - a portal invitation issued by a CROSS-ORG acceptance (linked from
+ *     crossOrgReviewGrant.externalReviewGrantId) answers to
+ *     `governance.exchange.decide`, what that acceptance requires, or to the
+ *     portal tier above (an operator's resend records them as its issuer).
  *
  * Enforced in THE state machine (`transitionExternalReviewGrant`, INVITED ->
  * ACTIVE), so every acceptance path answers it: the portal token exchange,
@@ -861,41 +866,33 @@ export async function externalReviewInviterAuthorized(
   grant: { id: string; teamId: string; invitedByUserId: string },
 ): Promise<boolean> {
   try {
-    const assign = await evaluateMemberAccessWithSnapshot(
-      {
-        teamId: grant.teamId,
-        userId: grant.invitedByUserId,
-        permission: "review.assign",
-        resourceKind: "external_review_grant",
-        resourceId: grant.id,
-      },
-      prisma,
-    );
+    const holds = (permission: "review.assign" | "governance.exchange.decide" | "governance.legal_hold.manage") =>
+      evaluateMemberAccessWithSnapshot(
+        {
+          teamId: grant.teamId,
+          userId: grant.invitedByUserId,
+          permission,
+          resourceKind: "external_review_grant",
+          resourceId: grant.id,
+        },
+        prisma,
+      );
+    const portal = await prisma.externalReviewerRoleAssignment.findUnique({
+      where: { id: grant.id },
+      select: { id: true },
+    });
+    if (!portal) return (await holds("governance.legal_hold.manage")).decision.allowed;
+
+    const assign = await holds("review.assign");
     if (assign.decision.allowed && (assign.snapshot?.role === "OWNER" || assign.snapshot?.role === "ADMIN")) {
       return true;
     }
-    const exchange = await evaluateMemberAccessWithSnapshot(
-      {
-        teamId: grant.teamId,
-        userId: grant.invitedByUserId,
-        permission: "governance.exchange.decide",
-        resourceKind: "external_review_grant",
-        resourceId: grant.id,
-      },
-      prisma,
-    );
-    if (exchange.decision.allowed) return true;
-    const plain = await evaluateMemberAccessWithSnapshot(
-      {
-        teamId: grant.teamId,
-        userId: grant.invitedByUserId,
-        permission: "governance.legal_hold.manage",
-        resourceKind: "external_review_grant",
-        resourceId: grant.id,
-      },
-      prisma,
-    );
-    return plain.decision.allowed;
+    const crossOrg = await prisma.crossOrgReviewGrant.findFirst({
+      where: { externalReviewGrantId: grant.id },
+      select: { id: true },
+    });
+    if (!crossOrg) return false;
+    return (await holds("governance.exchange.decide")).decision.allowed;
   } catch {
     return false;
   }
