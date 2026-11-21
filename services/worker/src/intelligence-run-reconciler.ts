@@ -34,6 +34,7 @@ import {
   releaseExpiredDerivedAssetStorageReservations,
 } from "@proovra/shared-runtime";
 
+import { reconcileDerivedAssetStorageIntents, s3DerivedObjectStore } from "./derived-storage-intent.js";
 import { workspaceSemanticEgressAllowed } from "./embedding-egress-gate.js";
 import { logger } from "./logger.js";
 import { prisma } from "./db.js";
@@ -161,6 +162,13 @@ export type IntelligenceRunReconcileResult = {
    * removed. See {@link releaseExpiredDerivedAssetStorageReservations}.
    */
   derivedReservationsReleased: number;
+  /**
+   * FINAL-VERIFY-2 closure — OPEN derived write intents whose holders can no
+   * longer write, judged against the store this tick (resolved: proven absent,
+   * deleted or adopted; kept: still OPEN and still counted).
+   */
+  derivedIntentsResolved: number;
+  derivedIntentsKept: number;
   durationMs: number;
   error?: string;
 };
@@ -183,6 +191,8 @@ export async function runIntelligenceRunReconciler(
     derivedAssetsCollapsed: 0,
     derivedAssetsAbandoned: 0,
     derivedReservationsReleased: 0,
+    derivedIntentsResolved: 0,
+    derivedIntentsKept: 0,
     durationMs: 0,
   };
 
@@ -347,6 +357,26 @@ export async function runIntelligenceRunReconciler(
       logger.warn(
         { err: err instanceof Error ? err.message.slice(0, 200) : "unknown" },
         "worker.intelligence_run.derived_reservation_release_unavailable",
+      );
+    }
+
+    // ---- 6. Derived write intents (FINAL-VERIFY-2 closure) ----------------
+    //
+    // An OPEN intent keeps its bytes counted whatever its reservation's age;
+    // this is what resolves it, by listing the store after every holder's
+    // write window closed (multipart parts aborted, unreferenced versions
+    // deleted when allowed or adopted on their own rows). Fail-isolated like
+    // steps 4 and 5; an intent that cannot be judged stays OPEN and counted.
+    try {
+      const { s3 } = await import("./storage.js");
+      const intents = await reconcileDerivedAssetStorageIntents({ store: s3DerivedObjectStore(s3 as never), limit: batchSize });
+      result.derivedIntentsResolved = intents.resolved;
+      result.derivedIntentsKept = intents.kept;
+    } catch (err) {
+      result.failed += 1;
+      logger.warn(
+        { err: err instanceof Error ? err.message.slice(0, 200) : "unknown" },
+        "worker.intelligence_run.derived_intent_reconcile_unavailable",
       );
     }
 

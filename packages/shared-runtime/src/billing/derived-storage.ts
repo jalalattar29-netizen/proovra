@@ -193,20 +193,51 @@ export function derivedAssetReservationLiveSince(now: Date): Date {
  * database clock (the clock that stamped and renewed the reservation).
  */
 export async function sumLiveDerivedAssetStorageReservationBytes(
-  prisma: Pick<PrismaClient, "evidencePartDerivedAsset"> & MaybeQueryRaw,
+  prisma: Pick<PrismaClient, "evidencePartDerivedAsset"> &
+    Partial<Pick<PrismaClient, "derivedAssetStorageIntent">> &
+    MaybeQueryRaw,
   input: { teamId: string | null; now?: Date },
 ): Promise<bigint> {
   if (!input.teamId) return 0n;
   const now = input.now ?? (await databaseNow(prisma)) ?? new Date();
-  const agg = await prisma.evidencePartDerivedAsset.aggregate({
-    where: {
-      teamId: input.teamId,
-      storageReservedBytes: { not: null },
-      storageReservedAtUtc: { gt: derivedAssetReservationLiveSince(now) },
-    },
-    _sum: { storageReservedBytes: true },
-  });
+  const [agg, intents] = await Promise.all([
+    prisma.evidencePartDerivedAsset.aggregate({
+      where: {
+        teamId: input.teamId,
+        storageReservedBytes: { not: null },
+        storageReservedAtUtc: { gt: derivedAssetReservationLiveSince(now) },
+        // FINAL-VERIFY-2 closure — a reservation that belongs to an intent is
+        // counted through that intent (below), never twice.
+        storageReservationToken: null,
+      },
+      _sum: { storageReservedBytes: true },
+    }),
+    sumOpenDerivedAssetStorageIntentBytes(prisma, input.teamId),
+  ]);
   const raw = agg?._sum?.storageReservedBytes ?? 0;
+  const rows = typeof raw === "bigint" ? raw : BigInt(Math.max(0, Math.trunc(Number(raw))));
+  return rows + intents;
+}
+
+/**
+ * FINAL-VERIFY-2 closure — bytes held by OPEN derived write intents of this
+ * workspace Team. An OPEN intent counts WHATEVER the age of its reservation:
+ * expiry, replacement or release of the reservation never frees bytes that a
+ * declared write may have stored. Only proof (settle, delete, adopt, absence
+ * after every write window closed) resolves it.
+ */
+export async function sumOpenDerivedAssetStorageIntentBytes(
+  prisma: Partial<Pick<PrismaClient, "derivedAssetStorageIntent">>,
+  teamId: string | null,
+): Promise<bigint> {
+  if (!teamId) return 0n;
+  // A client without the delegate (a narrow unit-test double) has no intents.
+  if (typeof prisma.derivedAssetStorageIntent?.aggregate !== "function") return 0n;
+  const agg = await prisma.derivedAssetStorageIntent.aggregate({
+    where: { teamId, state: "OPEN" },
+    _sum: { reservedBytes: true },
+  });
+  const raw = agg?._sum?.reservedBytes ?? 0;
   return typeof raw === "bigint" ? raw : BigInt(Math.max(0, Math.trunc(Number(raw))));
 }
 
@@ -246,7 +277,67 @@ export async function writeDerivedAssetStorageReservationTx(
   key: DerivedAssetReservationKey,
   bytes: bigint,
 ): Promise<Date> {
-  const rows = (await tx.$queryRaw`
+  return (await writeDerivedAssetStorageReservationHeldTx(tx, key, bytes, null)).reservedAtUtc;
+}
+
+/**
+ * FINAL-VERIFY-2 closure — the object a holder declares it will write. Every
+ * worker producer knows its (content-addressed) key before it reserves.
+ */
+export type DerivedAssetWriteTarget = {
+  bucket: string;
+  key: string;
+  derivedSha256?: string | null;
+  contentType?: string | null;
+};
+
+/**
+ * FINAL-VERIFY-2 closure — `writeDerivedAssetStorageReservationTx` for a
+ * holder that DECLARES its write target: the same statement also writes the
+ * attempt's durable intent (`derived_asset_storage_intents`, OPEN, the same
+ * database stamp) and names it on the row (`storage_reservation_token`). The
+ * intent exists before any byte is sent and outlives the reservation: it is
+ * what keeps possibly-stored bytes counted when the settle, the fallback, the
+ * upload's answer or the database fails. Without a target the reservation is
+ * the plain M676 one (no intent, counted by the row while live).
+ */
+export async function writeDerivedAssetStorageReservationHeldTx(
+  tx: Pick<Prisma.TransactionClient, "$queryRaw">,
+  key: DerivedAssetReservationKey,
+  bytes: bigint,
+  target: DerivedAssetWriteTarget | null,
+): Promise<{ reservedAtUtc: Date; intentId: string | null }> {
+  const rows = (
+    target
+      ? await tx.$queryRaw`
+    WITH intent AS (
+      INSERT INTO "derived_asset_storage_intents" (
+        "team_id", "evidence_id", "evidence_part_id", "asset_kind", "variant_key",
+        "reserved_bytes", "storage_bucket", "storage_key", "derived_sha256", "content_type",
+        "holder_stamp_utc"
+      ) VALUES (
+        ${key.teamId}::uuid, ${key.evidenceId}::uuid, ${key.evidencePartId}::uuid,
+        ${key.assetKind}::varchar, ${key.variantKey}::varchar,
+        ${bytes}::bigint, ${target.bucket}::varchar, ${target.key}::varchar,
+        ${target.derivedSha256 ?? null}::varchar, ${target.contentType?.slice(0, 80) ?? null}::varchar,
+        date_trunc('milliseconds', clock_timestamp())
+      )
+      RETURNING "id", "holder_stamp_utc"
+    )
+    INSERT INTO "evidence_part_derived_assets" (
+      "team_id", "evidence_id", "evidence_part_id", "asset_kind", "variant_key",
+      "status", "storage_reserved_bytes", "storage_reserved_at_utc", "storage_reservation_token", "updated_at_utc"
+    )
+    SELECT ${key.teamId}::uuid, ${key.evidenceId}::uuid, ${key.evidencePartId}::uuid,
+           ${key.assetKind}::varchar, ${key.variantKey}::varchar,
+           'PROCESSING', ${bytes}::bigint, i."holder_stamp_utc", i."id", NOW()
+      FROM intent i
+    ON CONFLICT ("team_id", "evidence_part_id", "asset_kind", "variant_key") DO UPDATE
+      SET "storage_reserved_bytes" = EXCLUDED."storage_reserved_bytes",
+          "storage_reserved_at_utc" = EXCLUDED."storage_reserved_at_utc",
+          "storage_reservation_token" = EXCLUDED."storage_reservation_token"
+    RETURNING "storage_reserved_at_utc" AS "reservedAtUtc", "storage_reservation_token"::text AS "intentId"`
+      : await tx.$queryRaw`
     INSERT INTO "evidence_part_derived_assets" (
       "team_id", "evidence_id", "evidence_part_id", "asset_kind", "variant_key",
       "status", "storage_reserved_bytes", "storage_reserved_at_utc", "updated_at_utc"
@@ -257,11 +348,15 @@ export async function writeDerivedAssetStorageReservationTx(
     )
     ON CONFLICT ("team_id", "evidence_part_id", "asset_kind", "variant_key") DO UPDATE
       SET "storage_reserved_bytes" = EXCLUDED."storage_reserved_bytes",
-          "storage_reserved_at_utc" = EXCLUDED."storage_reserved_at_utc"
-    RETURNING "storage_reserved_at_utc" AS "reservedAtUtc"`) as Array<{ reservedAtUtc: Date }>;
+          "storage_reserved_at_utc" = EXCLUDED."storage_reserved_at_utc",
+          "storage_reservation_token" = NULL
+    RETURNING "storage_reserved_at_utc" AS "reservedAtUtc", NULL::text AS "intentId"`
+  ) as Array<{ reservedAtUtc: Date; intentId: string | null }>;
   const stamp = rows[0]?.reservedAtUtc;
   if (!(stamp instanceof Date)) throw new Error("derived_storage_reservation_not_written");
-  return stamp;
+  const intentId = rows[0]?.intentId ?? null;
+  if (target && !intentId) throw new Error("derived_storage_intent_not_written");
+  return { reservedAtUtc: stamp, intentId };
 }
 
 /**
@@ -278,17 +373,33 @@ export async function renewDerivedAssetStorageReservation(
   heldSince: Date,
 ): Promise<Date | null> {
   const ttlSeconds = DERIVED_ASSET_STORAGE_RESERVATION_TTL_MS / 1000;
+  // FINAL-VERIFY-2 closure — the holder's intent is renewed in the same
+  // statement (its stamp bounds the holder's write window for the
+  // reconciler), and a reservation whose intent is no longer OPEN is never
+  // renewed.
   const rows = (await prisma.$queryRaw`
-    UPDATE "evidence_part_derived_assets"
-       SET "storage_reserved_at_utc" = date_trunc('milliseconds', clock_timestamp())
-     WHERE "team_id" = ${key.teamId}::uuid
-       AND "evidence_part_id" = ${key.evidencePartId}::uuid
-       AND "asset_kind" = ${key.assetKind}::varchar
-       AND "variant_key" = ${key.variantKey}::varchar
-       AND "storage_reserved_bytes" IS NOT NULL
-       AND "storage_reserved_at_utc" = ${heldSince}::timestamptz
-       AND "storage_reserved_at_utc" > clock_timestamp() - make_interval(secs => ${ttlSeconds}::double precision)
-    RETURNING "storage_reserved_at_utc" AS "reservedAtUtc"`) as Array<{ reservedAtUtc: Date }>;
+    WITH renewed AS (
+      UPDATE "evidence_part_derived_assets" d
+         SET "storage_reserved_at_utc" = date_trunc('milliseconds', clock_timestamp())
+       WHERE d."team_id" = ${key.teamId}::uuid
+         AND d."evidence_part_id" = ${key.evidencePartId}::uuid
+         AND d."asset_kind" = ${key.assetKind}::varchar
+         AND d."variant_key" = ${key.variantKey}::varchar
+         AND d."storage_reserved_bytes" IS NOT NULL
+         AND d."storage_reserved_at_utc" = ${heldSince}::timestamptz
+         AND d."storage_reserved_at_utc" > clock_timestamp() - make_interval(secs => ${ttlSeconds}::double precision)
+         AND (d."storage_reservation_token" IS NULL OR EXISTS (
+               SELECT 1 FROM "derived_asset_storage_intents" i
+                WHERE i."id" = d."storage_reservation_token" AND i."state" = 'OPEN'))
+      RETURNING d."storage_reserved_at_utc", d."storage_reservation_token"
+    ), intent AS (
+      UPDATE "derived_asset_storage_intents" i
+         SET "holder_stamp_utc" = r."storage_reserved_at_utc"
+        FROM renewed r
+       WHERE i."id" = r."storage_reservation_token" AND i."state" = 'OPEN'
+      RETURNING i."id"
+    )
+    SELECT r."storage_reserved_at_utc" AS "reservedAtUtc" FROM renewed r`) as Array<{ reservedAtUtc: Date }>;
   const stamp = rows[0]?.reservedAtUtc;
   return stamp instanceof Date ? stamp : null;
 }
@@ -361,4 +472,149 @@ export async function releaseExpiredDerivedAssetStorageReservations(
     data: { storageReservedBytes: null, storageReservedAtUtc: null },
   });
   return placeholders.count + cleared.count;
+}
+
+// =============================================================================
+// FINAL-VERIFY-2 closure — DURABLE WRITE INTENTS AND THEIR RECONCILIATION
+// =============================================================================
+//
+// A reservation stops counting at its TTL; bytes a write may have stored must
+// not. Every worker producer declares its write target when it reserves
+// (`writeDerivedAssetStorageReservationHeldTx`), which writes an OPEN intent
+// in the same statement. The intent is counted by both meters until one of:
+//   SETTLED  — the canonical row recorded the object in the same transaction
+//              (fenced on the live reservation and on the intent still OPEN);
+//   RELEASED — the holder never started a write;
+//   DELETED  — the holder's own version was removed, proven by listing;
+//   ADOPTED  — the stored version(s) are counted on their own retained rows,
+//              in the same transaction that resolves the intent;
+//   ABSENT   — after every holder's write window on that key had closed, the
+//              reconciler aborted incomplete multipart uploads and listed the
+//              key: nothing unreferenced is stored.
+// Resolution is conditional on `state = 'OPEN'` (and on the reconciler's own
+// lease token): exactly one resolver wins, so a stalled holder whose intent
+// was reconciled cannot settle afterwards, and vice versa.
+
+/**
+ * How long after a holder's last reservation stamp has expired the
+ * reconciler waits before it judges the key by listing. Every holder write is
+ * aborted DERIVED_ASSET_RESERVATION_SAFETY_MARGIN_MS before its reservation
+ * would lapse and the settle is bounded by the database to the reservation's
+ * end; the grace covers a request whose body was fully sent just before its
+ * abort and that the store commits a moment later.
+ */
+export const DERIVED_ASSET_INTENT_RECONCILE_GRACE_MS = 5 * 60 * 1000;
+
+/** Terminal intent states (anything but OPEN). */
+export type DerivedAssetIntentResolution = "SETTLED" | "RELEASED" | "DELETED" | "ADOPTED" | "ABSENT";
+
+/**
+ * Resolve OPEN intents, conditionally: only rows still OPEN (and, for the
+ * reconciler, still leased to `reconcileToken`) are touched. Returns how many
+ * were resolved; a caller that needs all of them treats fewer as a lost fence.
+ */
+export async function resolveDerivedAssetStorageIntentsTx(
+  tx: Pick<Prisma.TransactionClient, "$queryRaw">,
+  input: {
+    intentIds: string[];
+    state: DerivedAssetIntentResolution;
+    resolution: string;
+    resolvedBytes?: bigint | number | null;
+    resolvedAssetId?: string | null;
+    reconcileToken?: string | null;
+  },
+): Promise<number> {
+  if (input.intentIds.length === 0) return 0;
+  const bytes = input.resolvedBytes == null ? null : BigInt(input.resolvedBytes);
+  const rows = (await tx.$queryRaw`
+    UPDATE "derived_asset_storage_intents"
+       SET "state" = ${input.state}::varchar,
+           "resolution" = ${input.resolution.slice(0, 200)}::varchar,
+           "resolved_bytes" = ${bytes}::bigint,
+           "resolved_asset_id" = ${input.resolvedAssetId ?? null}::uuid,
+           "resolved_at_utc" = clock_timestamp(),
+           "reconcile_lease_until" = NULL
+     WHERE "id" = ANY(${input.intentIds}::uuid[])
+       AND "state" = 'OPEN'
+       AND (${input.reconcileToken ?? null}::uuid IS NULL OR "reconcile_token" = ${input.reconcileToken ?? null}::uuid)
+    RETURNING "id"`) as Array<{ id: string }>;
+  return rows.length;
+}
+
+/** An OPEN intent as the reconciler sees it. */
+export type ReconcilableDerivedAssetStorageIntent = {
+  id: string;
+  teamId: string;
+  evidenceId: string;
+  evidencePartId: string;
+  assetKind: string;
+  variantKey: string;
+  reservedBytes: bigint;
+  storageBucket: string;
+  storageKey: string;
+  derivedSha256: string | null;
+  contentType: string | null;
+};
+
+/**
+ * CLAIM intents the reconciler may judge: OPEN, the holder's last stamp older
+ * than the TTL plus `graceMs` (database clock), and NO other OPEN intent on
+ * the same object key whose holder could still be writing or that another
+ * reconciler holds. Claims are serialized (one advisory lock for the claim
+ * statement) and leased to `token` until `leaseMs` from now; the resolution is
+ * fenced on that token.
+ */
+export async function claimReconcilableDerivedAssetStorageIntents(
+  prisma: Pick<PrismaClient, "$transaction">,
+  input: { token: string; limit: number; leaseMs: number; graceMs?: number },
+): Promise<ReconcilableDerivedAssetStorageIntent[]> {
+  const staleSeconds = (DERIVED_ASSET_STORAGE_RESERVATION_TTL_MS + (input.graceMs ?? DERIVED_ASSET_INTENT_RECONCILE_GRACE_MS)) / 1000;
+  const leaseSeconds = Math.max(1, input.leaseMs / 1000);
+  const limit = Math.max(1, Math.min(500, Math.trunc(input.limit)));
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('derived-asset-storage-intent-claim'))`;
+    const rows = (await tx.$queryRaw`
+      WITH eligible AS (
+        SELECT i."id"
+          FROM "derived_asset_storage_intents" i
+         WHERE i."state" = 'OPEN'
+           AND i."holder_stamp_utc" <= clock_timestamp() - make_interval(secs => ${staleSeconds}::double precision)
+           AND (i."reconcile_lease_until" IS NULL OR i."reconcile_lease_until" < clock_timestamp())
+           AND NOT EXISTS (
+             SELECT 1 FROM "derived_asset_storage_intents" o
+              WHERE o."storage_bucket" = i."storage_bucket"
+                AND o."storage_key" = i."storage_key"
+                AND o."state" = 'OPEN'
+                AND o."id" <> i."id"
+                AND (o."holder_stamp_utc" > clock_timestamp() - make_interval(secs => ${staleSeconds}::double precision)
+                     OR o."reconcile_lease_until" >= clock_timestamp()))
+         ORDER BY i."holder_stamp_utc" ASC
+         LIMIT ${limit}
+         FOR UPDATE SKIP LOCKED
+      )
+      UPDATE "derived_asset_storage_intents" t
+         SET "reconcile_token" = ${input.token}::uuid,
+             "reconcile_lease_until" = clock_timestamp() + make_interval(secs => ${leaseSeconds}::double precision),
+             "reconcile_attempts" = t."reconcile_attempts" + 1
+        FROM eligible e
+       WHERE t."id" = e."id"
+      RETURNING t."id"::text AS "id", t."team_id"::text AS "teamId", t."evidence_id"::text AS "evidenceId",
+                t."evidence_part_id"::text AS "evidencePartId", t."asset_kind" AS "assetKind",
+                t."variant_key" AS "variantKey", t."reserved_bytes" AS "reservedBytes",
+                t."storage_bucket" AS "storageBucket", t."storage_key" AS "storageKey",
+                t."derived_sha256" AS "derivedSha256", t."content_type" AS "contentType"`) as ReconcilableDerivedAssetStorageIntent[];
+    return rows.map((r) => ({ ...r, reservedBytes: BigInt(r.reservedBytes as unknown as bigint) }));
+  });
+}
+
+/** Record why a claimed intent could not be resolved this tick (it stays OPEN, still counted). */
+export async function noteDerivedAssetStorageIntentReconcileError(
+  prisma: Pick<PrismaClient, "$executeRaw">,
+  input: { intentIds: string[]; token: string; error: string },
+): Promise<void> {
+  if (input.intentIds.length === 0) return;
+  await prisma.$executeRaw`
+    UPDATE "derived_asset_storage_intents"
+       SET "last_reconcile_error" = ${input.error.slice(0, 200)}::varchar
+     WHERE "id" = ANY(${input.intentIds}::uuid[]) AND "state" = 'OPEN' AND "reconcile_token" = ${input.token}::uuid`;
 }

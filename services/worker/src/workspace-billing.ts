@@ -29,11 +29,13 @@ import {
   sumExchangePackageStorageBytes,
   sumLiveArtifactStorageReservationBytes,
   clearOwnDerivedAssetStorageReservationTx,
-  writeDerivedAssetStorageReservationTx,
+  writeDerivedAssetStorageReservationHeldTx,
+  resolveDerivedAssetStorageIntentsTx,
   releaseDerivedAssetStorageReservation,
   renewDerivedAssetStorageReservation,
   derivedAssetReservationWriteDeadline,
   type DerivedAssetReservationKey,
+  type DerivedAssetWriteTarget,
 } from "@proovra/shared-runtime";
 
 /**
@@ -990,6 +992,12 @@ export type DerivedArtifactReservationHold = {
   key: DerivedAssetReservationKey;
   reservedAtUtc: Date;
   writeDeadlineAt: number;
+  /**
+   * FINAL-VERIFY-2 closure — the durable intent of this attempt's declared
+   * write (null: a plain reservation with no declared target). While OPEN it
+   * keeps the bytes counted whatever happens to the reservation.
+   */
+  intentId?: string | null;
 };
 
 /**
@@ -1001,6 +1009,12 @@ export async function reserveDerivedArtifactStorage(params: {
   evidenceId: string;
   incomingBytes: bigint | number;
   reservation: Omit<DerivedAssetReservationKey, "evidenceId">;
+  /**
+   * FINAL-VERIFY-2 closure — the object the producer will write. Declared, it
+   * gets a durable intent in the reservation's own statement, before any byte
+   * is sent (every worker producer declares it).
+   */
+  target?: DerivedAssetWriteTarget;
 }): Promise<
   | { allowed: true; hold: DerivedArtifactReservationHold }
   | { allowed: false; reason: "storage_limit" | "evidence_not_found" }
@@ -1024,13 +1038,19 @@ export async function renewDerivedArtifactReservation(
   const sentAt = Date.now();
   const stamp = await renewDerivedAssetStorageReservation(prisma, hold.key, hold.reservedAtUtc);
   if (!stamp) return null;
-  return { key: hold.key, reservedAtUtc: stamp, writeDeadlineAt: derivedAssetReservationWriteDeadline(sentAt) };
+  return {
+    key: hold.key,
+    reservedAtUtc: stamp,
+    writeDeadlineAt: derivedAssetReservationWriteDeadline(sentAt),
+    intentId: hold.intentId ?? null,
+  };
 }
 
 async function admitDerivedArtifact(params: {
   evidenceId: string;
   incomingBytes: bigint | number;
   reservation?: Omit<DerivedAssetReservationKey, "evidenceId">;
+  target?: DerivedAssetWriteTarget;
 }): Promise<
   | { allowed: true; hold: DerivedArtifactReservationHold | null }
   | { allowed: false; reason: "storage_limit" | "evidence_not_found" }
@@ -1051,17 +1071,24 @@ async function admitDerivedArtifact(params: {
   try {
     // M676 follow-up — the write deadline is measured from BEFORE the stamp.
     const sentAt = Date.now();
-    const reservedAtUtc = await prisma.$transaction(async (tx) => {
+    const held = await prisma.$transaction(async (tx) => {
       await lockWorkspaceCapacityTx(tx, scope);
       if (key) await clearOwnDerivedAssetStorageReservationTx(tx, key);
       await assertWorkspaceStorageAvailable({ scope, incomingBytes: bytes, usageOptions: { client: tx } });
-      return key ? await writeDerivedAssetStorageReservationTx(tx, key, bytes) : null;
+      // FINAL-VERIFY-2 closure — a declared target gets its durable intent in
+      // the same statement as the reservation.
+      return key ? await writeDerivedAssetStorageReservationHeldTx(tx, key, bytes, params.target ?? null) : null;
     }, ARTIFACT_STORAGE_RESERVATION_TRANSACTION);
     return {
       allowed: true,
       hold:
-        key && reservedAtUtc
-          ? { key, reservedAtUtc, writeDeadlineAt: derivedAssetReservationWriteDeadline(sentAt) }
+        key && held
+          ? {
+              key,
+              reservedAtUtc: held.reservedAtUtc,
+              writeDeadlineAt: derivedAssetReservationWriteDeadline(sentAt),
+              intentId: held.intentId,
+            }
           : null,
     };
   } catch (err) {
@@ -1087,6 +1114,23 @@ export async function releaseDerivedArtifactReservation(
   heldSince?: Date | null,
 ): Promise<void> {
   await releaseDerivedAssetStorageReservation(prisma, key, heldSince ?? null).catch(() => undefined);
+}
+
+/**
+ * FINAL-VERIFY-2 closure — a holder that NEVER STARTED a write gives back its
+ * reservation (fenced on its stamp) and resolves its intent RELEASED. Only for
+ * a holder that sent no byte: once a write started, the intent leaves OPEN
+ * only by settle, proven deletion, adoption or reconciliation. Best effort: an
+ * unresolved intent keeps counting until the reconciler judges it.
+ */
+export async function releaseUnwrittenDerivedArtifactHold(hold: DerivedArtifactReservationHold): Promise<void> {
+  await releaseDerivedArtifactReservation(hold.key, hold.reservedAtUtc);
+  if (!hold.intentId) return;
+  await resolveDerivedAssetStorageIntentsTx(prisma, {
+    intentIds: [hold.intentId],
+    state: "RELEASED",
+    resolution: "write_never_started",
+  }).catch(() => undefined);
 }
 
 export type ExchangeBuildAdmission =

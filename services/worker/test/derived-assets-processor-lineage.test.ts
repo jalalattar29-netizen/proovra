@@ -61,6 +61,11 @@ vi.mock("../src/workspace-billing.js", () => ({
   releaseDerivedArtifactReservation: vi.fn(async (key: Record<string, unknown>) => {
     s.released.push(key);
   }),
+  // FINAL-VERIFY-2 closure — a holder that never started a write gives back
+  // its reservation (and its intent, when it holds one).
+  releaseUnwrittenDerivedArtifactHold: vi.fn(async (hold: { key: Record<string, unknown> }) => {
+    s.released.push(hold.key);
+  }),
 }));
 
 vi.mock("../src/canonical-job.js", () => ({
@@ -186,6 +191,13 @@ describe("derived-assets processor — storage admission (WS-SCHED PRO-W1-05)", 
           assetKind: "low_res_proxy",
           variantKey: "default",
         },
+        // FINAL-VERIFY-2 closure — the declared write target (its durable intent).
+        target: {
+          bucket: "b",
+          key: s.puts[0],
+          derivedSha256: sha(Buffer.from("webm-proxy-bytes")),
+          contentType: "video/webm",
+        },
       },
     ]);
     // Settled by its own COMPLETED write (which clears the reservation): no
@@ -241,6 +253,8 @@ describe("derived-assets processor — the reservation is renewed, fenced and ne
     expect(s.puts).toEqual([]);
     expect(s.writes.every((w) => w.status !== "COMPLETED")).toBe(true);
     expect(s.writes.at(-1)).toMatchObject({ status: "FAILED", lastError: "storage_reservation_lost_before_put" });
+    // FINAL-VERIFY-2 closure — nothing was written: the hold (and its intent) is given back.
+    expect(s.released).toEqual([KEY()]);
   });
 
   it("a reservation lost before the settle: the written object is not recorded as uploaded; it is deleted, then the row is FAILED", async () => {
