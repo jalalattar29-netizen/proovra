@@ -470,6 +470,9 @@ describe("restricted-case reach matrix (live PostgreSQL)", () => {
       expect((await get(`/v1/search/relationships/${hiddenId}?${teamQ()}`, listed)).body).toContain(RELATION_NOTE);
     });
 
+    // EP-1066 (closure phase 2) — POST /v1/search/relationships is a typed 410
+    // tombstone now; the closed-end refusal is proven on the canonical link
+    // route the clients use, and neither writes a link.
     it("the search link route refuses a closed end and writes nothing", async () => {
       const before = await prisma.evidenceRelationship.count({ where: { teamId: A().teamId } });
       const r = await post(`/v1/search/relationships`, offAdmin, {
@@ -478,7 +481,16 @@ describe("restricted-case reach matrix (live PostgreSQL)", () => {
         targetEvidenceId: sharedId,
         relationshipType: "SUPPORTS",
       });
-      expect(r.statusCode, r.body).toBe(409);
+      expect(r.statusCode, r.body).toBe(410);
+      expect(r.json()).toMatchObject({
+        error: { code: "SEARCH_RELATIONSHIP_CREATE_RETIRED" },
+        canonical: "/v1/evidence/{evidenceId}/relationships",
+      });
+      const canonical = await post(`/v1/evidence/${visibleId}/relationships`, offAdmin, {
+        targetEvidenceId: sharedId,
+        relationshipType: "SUPPORTS",
+      });
+      expect(canonical.statusCode, canonical.body).toBe(404);
       expect(await prisma.evidenceRelationship.count({ where: { teamId: A().teamId } })).toBe(before);
     });
 

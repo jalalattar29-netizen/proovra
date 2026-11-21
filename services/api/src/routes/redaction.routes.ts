@@ -121,7 +121,6 @@ import { readRedactionPagePreview } from "../services/redaction/redaction-page-p
 import { evidenceClosedTo, hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
 import {
   getRedactionDetectionPolicy,
-  setRedactionDetectionPolicy,
 } from "../services/redaction/redaction-policy.service.js";
 import {
   archivePolicy,
@@ -199,15 +198,6 @@ const BulkDecisionsBody = z.object({
     )
     .min(1)
     .max(REDACTION_BULK_DECISION_MAX_ROWS),
-});
-
-// Phase 3A Closure — workspace detection-policy edit
-const PolicyPatchBody = z.object({
-  providers: z
-    .record(z.enum(REDACTION_DETECTION_PROVIDERS), z.boolean())
-    .optional(),
-  kinds: z.record(z.string(), z.boolean()).optional(),
-  description: z.string().max(600).nullable().optional(),
 });
 
 // Phase 3A Elite Closure — versioned policy CRUD
@@ -1347,28 +1337,28 @@ export async function redactionRoutes(app: FastifyInstance) {
     },
   );
 
+  // (RETIRED) PATCH /v1/redaction/policy — typed 410 (closure phase 2, EP-0934).
+  //
+  // Proven obsolete (owner decision K, PRO-CENZ-01): the legacy unversioned
+  // policy write, a back-compat shim over the versioned store. The product
+  // writes policies through POST /v1/redaction/policies and the version
+  // transitions (web redaction/policy/page.tsx). No first-party client ever
+  // sent it: git log -S'"/v1/redaction/policy"' over apps/web and apps/mobile
+  // finds no commit, apps/extension has no redaction surface, and no worker or
+  // script calls it. Authentication is kept; nothing is read or written. The
+  // GET read of the effective policy is unchanged.
   app.patch(
     "/v1/redaction/policy",
     { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await resolveWorkspace(req, reply);
-      if (!ctx) return reply;
-      if (!(await gate(reply, ctx, "redaction.administer"))) return reply;
-      const body = PolicyPatchBody.parse(req.body);
-      const policy = await setRedactionDetectionPolicy({
-        teamId: ctx.teamId,
-        actorUserId: ctx.userId,
-        providers: body.providers,
-        kinds: body.kinds as never,
-        description: body.description ?? undefined,
-      });
-      // PRO-R3-08 — the change is a version awaiting a second administrator's
-      // approval (202), or nothing was written (409); never a 200 "applied".
-      if (!policy.pendingPolicyVersionId) {
-        return reply.code(409).send({ denial: "POLICY_REJECTED" as RedactionDenialReason, policy });
-      }
-      return reply.code(202).send({ policy });
-    },
+    async (_req: FastifyRequest, reply: FastifyReply) =>
+      reply.code(410).send({
+        error: {
+          code: "REDACTION_POLICY_PATCH_RETIRED",
+          message:
+            "Redaction policies are written as versions: POST /v1/redaction/policies, then the version transitions. Nothing was changed.",
+        },
+        canonical: "/v1/redaction/policies",
+      }),
   );
 
   // ---------------------------------------------------------------------------

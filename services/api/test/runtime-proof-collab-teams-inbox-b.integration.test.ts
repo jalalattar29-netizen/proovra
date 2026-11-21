@@ -262,10 +262,13 @@ describe("K5-B — external review, exchange, organizations (live PostgreSQL 16)
   // ===========================================================================
 
   describe("external review", () => {
-    it("POST /v1/external-review/invitations — owner issues an EVIDENCE-scoped invitation under step-up; a MEMBER is refused NOT_PERMITTED", async () => {
+    // Closure phase 2 (EP-0425, DEC-01) — the single-issue route is a typed 410
+    // tombstone; the same invitation is issued through the one issuing path,
+    // /bulk, with one row, and every property this case proved still holds.
+    it("POST /v1/external-review/invitations is retired (410, nothing issued); /bulk issues the same EVIDENCE-scoped invitation under step-up; a MEMBER is refused", async () => {
       const a = h.fixtures.teamA;
       const email = `k5-reviewer-${tag()}@outside.test`;
-      const body = {
+      const single = {
         reviewerEmail: email,
         reviewerDisplayName: "K5 Reviewer",
         organization: "Outside Counsel LLP",
@@ -275,10 +278,49 @@ describe("K5-B — external review, exchange, organizations (live PostgreSQL 16)
         scope: { kind: "EVIDENCE", evidenceId: a.evidenceId },
         expiresAtUtc: inTwoDays(),
       };
+      // The retired route: every caller, the owner with a valid step-up
+      // included, is answered 410 naming /bulk, and nothing is issued.
+      const tombstoneChallenge = await stepUp({
+        token: a.ownerToken,
+        userId: a.ownerUserId,
+        teamId: a.teamId,
+        purpose: "EXTERNAL_REVIEW_GRANT_ISSUE",
+        resourceKind: "external_review_grant",
+        resourceId: a.evidenceId,
+      });
+      for (const [token, headers] of [
+        [a.memberToken, {}],
+        [a.ownerToken, {}],
+        [a.ownerToken, { [STEP]: tombstoneChallenge }],
+      ] as const) {
+        const retired = await call({
+          method: "POST",
+          url: "/v1/external-review/invitations",
+          token,
+          payload: single,
+          headers: headers as Record<string, string>,
+        });
+        expect(retired.statusCode, retired.body).toBe(410);
+        expect(retired.json()).toMatchObject({
+          error: { code: "EXTERNAL_REVIEW_SINGLE_INVITATION_RETIRED" },
+          canonical: "/v1/external-review/invitations/bulk",
+        });
+        expect(retired.body).not.toMatch(/[a-f0-9]{64}/);
+      }
+      expect(await grantRows(a.teamId, email)).toHaveLength(0);
+
+      const body = {
+        expiresAtUtc: inTwoDays(),
+        defaultRole: "EXTERNAL_REVIEWER",
+        defaultWatermarkPolicy: "ALWAYS",
+        defaultMfaRequired: false,
+        defaultScope: { kind: "EVIDENCE", evidenceId: a.evidenceId },
+        rows: [{ inviteEmail: email, displayName: "K5 Reviewer", organization: "Outside Counsel LLP" }],
+      };
 
       const member = await call({
         method: "POST",
-        url: "/v1/external-review/invitations",
+        url: "/v1/external-review/invitations/bulk",
         token: a.memberToken,
         payload: body,
       });
@@ -293,7 +335,7 @@ describe("K5-B — external review, exchange, organizations (live PostgreSQL 16)
 
       const noStepUp = await call({
         method: "POST",
-        url: "/v1/external-review/invitations",
+        url: "/v1/external-review/invitations/bulk",
         token: a.ownerToken,
         payload: body,
       });
@@ -306,20 +348,21 @@ describe("K5-B — external review, exchange, organizations (live PostgreSQL 16)
         userId: a.ownerUserId,
         teamId: a.teamId,
         purpose: "EXTERNAL_REVIEW_GRANT_ISSUE",
-        resourceKind: "external_review_grant",
-        resourceId: a.evidenceId,
+        resourceKind: "external_review_grant_bulk",
       });
       const res = await call({
         method: "POST",
-        url: "/v1/external-review/invitations",
+        url: "/v1/external-review/invitations/bulk",
         token: a.ownerToken,
         payload: body,
         headers: { [STEP]: challengeId },
       });
       expect(res.statusCode, res.body).toBe(201);
-      const out = res.json() as { grantId: string; role: string; rawToken: string };
-      expect(out.role).toBe("EXTERNAL_REVIEWER");
-      expect(out.rawToken).toMatch(/^[a-f0-9]{64}$/);
+      const issuedRow = (res.json() as { rows: Array<{ grantId: string | null; outcome: string }> }).rows[0]!;
+      expect(issuedRow.outcome).toBe("INVITED");
+      const out = { grantId: issuedRow.grantId as string };
+      // The one issuing path never hands the bearer token to the issuer.
+      expect(res.body).not.toMatch(/[a-f0-9]{64}/);
 
       const [grant] = await grantRows(a.teamId, email);
       expect(grant).toMatchObject({
@@ -360,16 +403,17 @@ describe("K5-B — external review, exchange, organizations (live PostgreSQL 16)
       // The challenge is single-use.
       const replay = await call({
         method: "POST",
-        url: "/v1/external-review/invitations",
+        url: "/v1/external-review/invitations/bulk",
         token: a.ownerToken,
-        payload: { ...body, reviewerEmail: `replay-${email}` },
+        payload: { ...body, rows: [{ inviteEmail: `replay-${email}` }] },
         headers: { [STEP]: challengeId },
       });
       expect(replay.statusCode).toBe(401);
       expect(await grantRows(a.teamId, `replay-${email}`)).toHaveLength(0);
     });
 
-    it("POST /v1/external-review/invitations — a grant cannot be scoped to ANOTHER tenant's evidence", async () => {
+    // Closure phase 2 (EP-0425) — proven on the one issuing path, /bulk.
+    it("POST /v1/external-review/invitations/bulk — a grant cannot be scoped to ANOTHER tenant's evidence", async () => {
       const a = h.fixtures.teamA;
       const b = h.fixtures.teamB;
       const email = `k5-crosstenant-${tag()}@outside.test`;
@@ -378,25 +422,25 @@ describe("K5-B — external review, exchange, organizations (live PostgreSQL 16)
         userId: a.ownerUserId,
         teamId: a.teamId,
         purpose: "EXTERNAL_REVIEW_GRANT_ISSUE",
-        resourceKind: "external_review_grant",
-        resourceId: b.evidenceId,
+        resourceKind: "external_review_grant_bulk",
       });
       const res = await call({
         method: "POST",
-        url: "/v1/external-review/invitations",
+        url: "/v1/external-review/invitations/bulk",
         token: a.ownerToken,
         payload: {
-          reviewerEmail: email,
-          role: "EXTERNAL_REVIEWER",
-          scope: { kind: "EVIDENCE", evidenceId: b.evidenceId },
           expiresAtUtc: inTwoDays(),
+          defaultRole: "EXTERNAL_REVIEWER",
+          defaultScope: { kind: "EVIDENCE", evidenceId: b.evidenceId },
+          rows: [{ inviteEmail: email }],
         },
         headers: { [STEP]: challengeId },
       });
-      // Refused before any row is written, with the same bounded denial a
-      // missing scope target receives (nothing about tenant B is revealed).
-      expect(res.statusCode, res.body).toBe(409);
-      expect(res.json()).toEqual({ denial: "POLICY_REJECTED" });
+      // Refused per row before any grant is written, with the same bounded
+      // denial a missing scope target receives (nothing about tenant B leaks).
+      expect(res.statusCode, res.body).toBe(201);
+      const row = (res.json() as { rows: Array<{ outcome: string; grantId: string | null; denial: string | null }> }).rows[0]!;
+      expect(row).toMatchObject({ outcome: "POLICY_DENIED", grantId: null, denial: "POLICY_REJECTED" });
       expect(await grantRows(a.teamId, email)).toHaveLength(0);
       expect(await prisma.externalReviewerRoleAssignment.count({ where: { inviteEmail: email } })).toBe(0);
     });

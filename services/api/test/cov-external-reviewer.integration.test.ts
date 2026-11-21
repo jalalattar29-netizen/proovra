@@ -29,6 +29,7 @@ describe("external reviewer through the real invitation flow (live PostgreSQL + 
   let prisma: Prisma;
   let kit: CoverageKit;
   let stepUp: ReturnType<typeof createStepUpCeremony>;
+  let invitations: typeof import("../src/services/external-review/portal-invitation.service.js");
   let a: Customer;
   let b: Customer;
   let member: Person;
@@ -57,30 +58,30 @@ describe("external reviewer through the real invitation flow (live PostgreSQL + 
     return (await prisma.evidenceReviewWorkflow.findUniqueOrThrow({ where: { evidenceId } })).id;
   }
 
+  // Closure phase 2 (EP-0425, DEC-01) — the single-issue ROUTE is a typed 410
+  // tombstone (proven below). The reviewer flows under test need the raw token
+  // the reviewer receives, which the one issuing path (/bulk) only emails, so
+  // the fixture issues through the SAME issuer the retired route called after
+  // its gates (issueInvitation: subject reach, grant, role row, activity, audit).
   async function invite(c: Customer, scope: Record<string, unknown>, over: Record<string, unknown> = {}) {
-    const header = await stepUp.approvedHeader({
-      token: c.owner.token,
-      userId: c.owner.userId,
-      teamId: c.workspaceId,
-      purpose: "EXTERNAL_REVIEW_GRANT_ISSUE",
-      resourceKind: "external_review_grant",
-      resourceId: (scope.evidenceId ?? scope.caseId ?? scope.packageId) as string,
-    });
     const reviewerEmail = `reviewer-${kit.tag()}@test.proovra.local`;
-    const res = await kit.call(
-      "POST",
-      "/v1/external-review/invitations",
-      { token: c.owner.token },
-      { reviewerEmail, role: "EXTERNAL_REVIEWER", scope, expiresAtUtc: days(7), ...over },
-      header,
-    );
+    const res = await invitations.issueInvitation({
+      prisma: prisma as never,
+      teamId: c.workspaceId,
+      invitedByUserId: c.owner.userId,
+      reviewerEmail,
+      role: "EXTERNAL_REVIEWER",
+      scope: scope as never,
+      expiresAtUtc: days(7),
+      ...over,
+    } as never);
     return { res, reviewerEmail };
   }
 
   async function invited(c: Customer, scope: Record<string, unknown>, over: Record<string, unknown> = {}) {
     const { res, reviewerEmail } = await invite(c, scope, over);
-    expect(res.statusCode, res.body).toBe(201);
-    return { grantId: res.json().grantId as string, rawToken: res.json().rawToken as string, reviewerEmail };
+    if (!res.ok) throw new Error(`invitation refused: ${res.denial}`);
+    return { grantId: res.grantId, rawToken: res.rawToken, reviewerEmail };
   }
 
   /** A record with a published disclosure package, at a real object. */
@@ -141,6 +142,7 @@ describe("external reviewer through the real invitation flow (live PostgreSQL + 
     prisma = (await import("../src/db.js")).prisma as unknown as Prisma;
     kit = await coverageKit(h);
     stepUp = createStepUpCeremony({ prisma, inject: h.app.inject.bind(h.app) as never });
+    invitations = await import("../src/services/external-review/portal-invitation.service.js");
     const customers = await customerKit(h, prisma);
     a = await customers.customer();
     b = await customers.customer();
@@ -159,25 +161,60 @@ describe("external reviewer through the real invitation flow (live PostgreSQL + 
   }, 300_000);
 
   describe("issuing the invitation", () => {
+    // Closure phase 2 (EP-0425, DEC-01) — the single-issue route is retired:
+    // it issues nothing for anyone, the owner with a valid step-up included.
+    // The member / no-step-up / foreign-record refusals are proven on the one
+    // issuing path, /bulk.
     it("a member without the tier, and no step-up, issue nothing; a foreign record is refused", async () => {
       const before = await prisma.externalReviewGrant.count({ where: { teamId: a.workspaceId } });
-      const asMember = await kit.call("POST", "/v1/external-review/invitations", member, {
+      const single = {
         reviewerEmail: "x@test.proovra.local",
         role: "EXTERNAL_REVIEWER",
         scope: { kind: "EVIDENCE", evidenceId: evidence },
         expiresAtUtc: days(7),
+      };
+      const singleHeader = await stepUp.approvedHeader({
+        token: a.owner.token,
+        userId: a.owner.userId,
+        teamId: a.workspaceId,
+        purpose: "EXTERNAL_REVIEW_GRANT_ISSUE",
+        resourceKind: "external_review_grant",
+        resourceId: evidence,
       });
+      for (const [who, headers] of [
+        [member, undefined],
+        [owner(), undefined],
+        [owner(), singleHeader],
+      ] as const) {
+        const retired = await kit.call("POST", "/v1/external-review/invitations", who, single, headers);
+        expect(retired.statusCode, retired.body).toBe(410);
+        expect(retired.json()).toMatchObject({
+          error: { code: "EXTERNAL_REVIEW_SINGLE_INVITATION_RETIRED" },
+          canonical: "/v1/external-review/invitations/bulk",
+        });
+      }
+
+      const bulk = (evidenceId: string) => ({
+        expiresAtUtc: days(7),
+        defaultRole: "EXTERNAL_REVIEWER",
+        defaultScope: { kind: "EVIDENCE", evidenceId },
+        rows: [{ inviteEmail: `x-${kit.tag()}@test.proovra.local` }],
+      });
+      const asMember = await kit.call("POST", "/v1/external-review/invitations/bulk", member, bulk(evidence));
       expect(asMember.statusCode, asMember.body).toBe(403);
-      const noStepUp = await kit.call("POST", "/v1/external-review/invitations", owner(), {
-        reviewerEmail: "x@test.proovra.local",
-        role: "EXTERNAL_REVIEWER",
-        scope: { kind: "EVIDENCE", evidenceId: evidence },
-        expiresAtUtc: days(7),
-      });
+      const noStepUp = await kit.call("POST", "/v1/external-review/invitations/bulk", owner(), bulk(evidence));
       expect(noStepUp.statusCode, noStepUp.body).toBe(401);
       const foreign = await prisma.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: foreignWorkflow } });
-      const { res } = await invite(a, { kind: "EVIDENCE", evidenceId: foreign.evidenceId });
-      expect(res.statusCode, res.body).toBe(409);
+      const bulkHeader = await stepUp.approvedHeader({
+        token: a.owner.token,
+        userId: a.owner.userId,
+        teamId: a.workspaceId,
+        purpose: "EXTERNAL_REVIEW_GRANT_ISSUE",
+        resourceKind: "external_review_grant_bulk",
+      });
+      const foreignRes = await kit.call("POST", "/v1/external-review/invitations/bulk", owner(), bulk(foreign.evidenceId), bulkHeader);
+      expect(foreignRes.statusCode, foreignRes.body).toBe(201);
+      expect(foreignRes.json().rows[0]).toMatchObject({ outcome: "POLICY_DENIED", grantId: null });
       expect(await prisma.externalReviewGrant.count({ where: { teamId: a.workspaceId } })).toBe(before);
     });
 
@@ -199,15 +236,23 @@ describe("external reviewer through the real invitation flow (live PostgreSQL + 
 
     it("delivery and reveal: the email goes to the reviewer, and reveal retires the token it replaces", async () => {
       const g = await invited(a, { kind: "EVIDENCE", evidenceId: evidence });
-      const sent = await kit.call("POST", `/v1/external-review/invitations/${g.grantId}/send-email`, owner(), {});
+      // Closure phase 2 (EP-0446) — send-email is a typed 410 tombstone that
+      // sends nothing; the delivery route is /resend (the console control).
+      const retired = await kit.call("POST", `/v1/external-review/invitations/${g.grantId}/send-email`, owner(), {});
+      expect(retired.statusCode, retired.body).toBe(410);
+      expect(retired.json().error.code).toBe("EXTERNAL_REVIEW_SEND_EMAIL_RETIRED");
+      const silent = await kit.call("GET", `/v1/external-review/invitations/${g.grantId}/delivery`, owner());
+      expect(silent.json().deliveries).toHaveLength(0);
+      const sent = await kit.call("POST", `/v1/external-review/invitations/${g.grantId}/resend`, owner(), {});
       expect(sent.statusCode, sent.body).toBe(200);
       const delivery = await kit.call("GET", `/v1/external-review/invitations/${g.grantId}/delivery`, owner());
       expect(delivery.statusCode, delivery.body).toBe(200);
       expect(delivery.json().deliveries[0]).toMatchObject({ recipientEmail: g.reviewerEmail });
 
       // Another tenant's owner cannot deliver or reveal it.
-      const foreignSend = await kit.call("POST", `/v1/external-review/invitations/${g.grantId}/send-email`, { token: b.owner.token }, {});
-      expect(foreignSend.statusCode, foreignSend.body).toBe(404);
+      const foreignSend = await kit.call("POST", `/v1/external-review/invitations/${g.grantId}/resend`, { token: b.owner.token }, {});
+      expect(foreignSend.statusCode, foreignSend.body).toBe(409);
+      expect(foreignSend.json()).toEqual({ denial: "INVITE_NOT_FOUND" });
 
       const reason = "The reviewer never received the mail.";
       const header = await stepUp.approvedHeader({

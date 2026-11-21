@@ -9,6 +9,8 @@
  *   issue    POST /v1/external-review/invitations/bulk   (one row; e-mails the reviewer)
  *   inspect  GET  /v1/external-review/invitations/:id/feedback
  *   revoke   POST /v1/external-review/invitations/:id/revoke
+ *   renew    POST /v1/external-review/grants/:id/renew   (EP-0450; offered only where
+ *            the list projects viewerCanRenew; step-up; audited)
  *
  * Role, reach, the plan entitlement, step-up and the grant lifecycle are all
  * decided by those routes; this panel shows what they answer. The plan flag
@@ -31,6 +33,11 @@ import { usePlanFeature } from "../../lib/platform-context/useServerProjectionGa
 import { AppListbox } from "../app-primitives/AppListbox";
 import { StepUpModal, useStepUpAction } from "../identity-security/StepUpModal";
 import { useConfirmAction } from "../ui/ConfirmActionModal";
+import {
+  EXTERNAL_REVIEW_RENEW_DAYS,
+  externalReviewRenewRefusal,
+  renewExternalReviewGrant,
+} from "../../lib/api/external-review-renew";
 
 export type ExternalReviewSubject =
   | { kind: "EVIDENCE"; evidenceId: string }
@@ -44,6 +51,8 @@ type GrantRow = {
   expiresAtUtc: string;
   acceptedAtUtc: string | null;
   lastAccessedAtUtc: string | null;
+  /** EP-0450 — the API's answer: this viewer could renew this grant now. */
+  viewerCanRenew?: boolean;
 };
 
 type Feedback = {
@@ -165,6 +174,30 @@ export function ExternalReviewSubjectPanel({
       await load();
     },
     [confirm, load],
+  );
+
+  // EP-0450 — the explicit, audited renewal, as owner share links renew: one
+  // confirmed click for a stated period, a fresh step-up, the route's refusals said.
+  const onRenew = useCallback(
+    async (g: GrantRow) => {
+      if (!teamId) return;
+      const ok = await confirm({
+        title: `Renew access for ${EXTERNAL_REVIEW_RENEW_DAYS} days?`,
+        description: `${g.reviewerEmail} keeps access, which now ends ${EXTERNAL_REVIEW_RENEW_DAYS} days from today. The renewal is recorded in the workspace audit log.`,
+        confirmLabel: `Renew for ${EXTERNAL_REVIEW_RENEW_DAYS} days`,
+      });
+      if (!ok) return;
+      setNotice(null);
+      try {
+        await stepUp.runStepUpAction((headers) => renewExternalReviewGrant(teamId, g.id, headers));
+        setNotice({ tone: "ok", text: `Access renewed for ${g.reviewerEmail}.` });
+      } catch (err) {
+        if ((err as { code?: string })?.code === "STEP_UP_CANCEL") return;
+        setNotice({ tone: "warn", text: externalReviewRenewRefusal(err) });
+      }
+      await load();
+    },
+    [confirm, load, stepUp, teamId],
   );
 
   const onInspect = useCallback(
@@ -299,6 +332,11 @@ export function ExternalReviewSubjectPanel({
                 <button type="button" className="ui-link" onClick={() => void onInspect(g)} aria-expanded={openId === g.id}>
                   {openId === g.id ? "Hide feedback" : "Reviewer feedback"}
                 </button>
+                {g.viewerCanRenew === true ? (
+                  <button type="button" className="ui-link" onClick={() => void onRenew(g)} data-external-review-renew={g.id}>
+                    Renew
+                  </button>
+                ) : null}
                 {LIVE_STATES.has(g.state) ? (
                   <button type="button" className="ui-link" onClick={() => void onRevoke(g)} data-external-review-revoke={g.id}>
                     Revoke

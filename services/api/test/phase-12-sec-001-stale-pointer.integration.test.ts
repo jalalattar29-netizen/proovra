@@ -204,6 +204,8 @@ describe("SEC-001 — stale currentWorkspaceId cannot authorize", () => {
   // SIDE EFFECT — the irreversible half of the finding.
   // ---------------------------------------------------------------------------
 
+  // Closure phase 2 (EP-0446) — send-email is retired to a typed 410; the
+  // delivery route a stale pointer could abuse is now /resend, proven here.
   it("SEND-EMAIL: a non-member cannot cause any outbound delivery", async () => {
     await setMembership(victimAdminUserId, {
       status: "REVOKED",
@@ -216,11 +218,18 @@ describe("SEC-001 — stale currentWorkspaceId cannot authorize", () => {
 
     const res = await h.app.inject({
       method: "POST",
-      url: "/v1/external-review/invitations/00000000-0000-4000-8000-000000000001/send-email",
+      url: "/v1/external-review/invitations/00000000-0000-4000-8000-000000000001/resend",
       headers: { ...auth(victimAdminToken), "content-type": "application/json" },
       payload: {},
     });
     expect([403, 404]).toContain(res.statusCode);
+    const retired = await h.app.inject({
+      method: "POST",
+      url: "/v1/external-review/invitations/00000000-0000-4000-8000-000000000001/send-email",
+      headers: { ...auth(victimAdminToken), "content-type": "application/json" },
+      payload: {},
+    });
+    expect(retired.statusCode).toBe(410);
 
     // THE PROOF THAT MATTERS: no durable delivery intent was created. A
     // delivery row is minted BEFORE the provider call, so its absence proves
@@ -245,8 +254,13 @@ describe("SEC-001 — stale currentWorkspaceId cannot authorize", () => {
       // than mail the attacker's string.
       payload: { rawToken: "attacker-chosen-token-value-000000" },
     });
-    expect(res.statusCode).toBe(404);
+    // Closure phase 2 (EP-0446) — the route is a typed 410 tombstone: it reads
+    // nothing and sends nothing, whatever the body carries.
+    const deliveriesBefore = await prisma.externalReviewInvitationDelivery.count({ where: { teamId: workspaceId } });
+    expect(res.statusCode).toBe(410);
+    expect(res.json().error.code).toBe("EXTERNAL_REVIEW_SEND_EMAIL_RETIRED");
     expect(res.body).not.toContain("attacker-chosen-token-value");
+    expect(await prisma.externalReviewInvitationDelivery.count({ where: { teamId: workspaceId } })).toBe(deliveriesBefore);
   });
 
   // ---------------------------------------------------------------------------

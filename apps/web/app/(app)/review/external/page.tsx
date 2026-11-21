@@ -48,6 +48,11 @@ import {
   useStepUpAction,
 } from "../../../../components/identity-security/StepUpModal";
 import { apiFetch } from "../../../../lib/api";
+import {
+  EXTERNAL_REVIEW_RENEW_DAYS,
+  externalReviewRenewRefusal,
+  renewExternalReviewGrant,
+} from "../../../../lib/api/external-review-renew";
 import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
 import { notifyApiError } from "../../../../lib/feedback/notify";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
@@ -222,6 +227,8 @@ type InvitationRow = {
   ssoBoundAtUtc: string | null;
   mfaSatisfiedAtUtc: string | null;
   latestDelivery: LatestDelivery | null;
+  /** EP-0450 — the API's answer: this viewer could renew this grant now. */
+  viewerCanRenew?: boolean;
 };
 
 type ActivityRow = {
@@ -608,6 +615,7 @@ function ExternalReviewManagementConsole() {
               row={selectedRow}
               caps={caps}
               stepUp={stepUp}
+              teamId={teamId}
               onClose={() => setSelected(null)}
               onChanged={(text) => {
                 setBanner({ tone: "ok", text });
@@ -803,6 +811,7 @@ function InvitationDetailDrawer({
   row,
   caps,
   stepUp,
+  teamId,
   onClose,
   onChanged,
   onRefuse,
@@ -812,6 +821,8 @@ function InvitationDetailDrawer({
   row: InvitationRow;
   caps: ExternalReviewCapabilities;
   stepUp: ReturnType<typeof useStepUpAction>;
+  /** EP-0450 — the workspace the renew route is asked in. */
+  teamId: string | null;
   onClose: () => void;
   onChanged: (msg: string) => void;
   onRefuse: (msg: string) => void;
@@ -950,6 +961,25 @@ function InvitationDetailDrawer({
     }
   }, [caps.canResend, row.grantId, row.inviteEmail, onChanged, onRefuse]);
 
+  // EP-0450 — the explicit, audited renewal: offered only where the list
+  // projects viewerCanRenew for this row; confirmed, stepped-up, refusals said.
+  const onRenew = useCallback(async () => {
+    if (!teamId || row.viewerCanRenew !== true) return;
+    const ok = await confirmAction({
+      title: `Renew access for ${EXTERNAL_REVIEW_RENEW_DAYS} days?`,
+      description: `${row.inviteEmail} keeps access, which now ends ${EXTERNAL_REVIEW_RENEW_DAYS} days from today. The renewal is recorded in the workspace audit log.`,
+      confirmLabel: `Renew for ${EXTERNAL_REVIEW_RENEW_DAYS} days`,
+    });
+    if (!ok) return;
+    try {
+      await stepUp.runStepUpAction((headers) => renewExternalReviewGrant(teamId, row.grantId, headers));
+      onChanged(`Renewed access for ${row.inviteEmail} for ${EXTERNAL_REVIEW_RENEW_DAYS} days.`);
+    } catch (err) {
+      if ((err as { code?: string } | null)?.code === "STEP_UP_CANCEL") return;
+      onNotice("warn", externalReviewRenewRefusal(err));
+    }
+  }, [teamId, row.viewerCanRenew, row.inviteEmail, row.grantId, confirmAction, stepUp, onChanged, onNotice]);
+
   const onRevoke = useCallback(async () => {
     if (!caps.canRevoke) {
       onRefuse("NOT_PERMITTED");
@@ -1071,6 +1101,16 @@ function InvitationDetailDrawer({
         >
           Resend invitation email
         </button>
+        {row.viewerCanRenew === true ? (
+          <button
+            type="button"
+            data-invitation-renew={row.grantId}
+            onClick={() => void onRenew()}
+            style={subtleActionStyle}
+          >
+            Renew access
+          </button>
+        ) : null}
         <button
           type="button"
           data-invitation-revoke={row.grantId}

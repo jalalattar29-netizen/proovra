@@ -344,13 +344,11 @@ describe("Phase 12 SEC-001 — external-portal admin gates (canonical primitive)
 
   /** Every management route: canonical primitive + ADMIN/OWNER tier floor. */
   const MANAGEMENT_ROUTES: ReadonlyArray<["post" | "get", string]> = [
-    ["post", "/v1/external-review/invitations"],
     ["post", "/v1/external-review/invitations/:id/revoke"],
     ["post", "/v1/external-review/invitations/bulk"],
     ["post", "/v1/external-review/invitations/bulk/revoke"],
     ["post", "/v1/external-review/invitations/:id/resend"],
     ["post", "/v1/external-review/invitations/:id/sessions/revoke"],
-    ["post", "/v1/external-review/invitations/:id/send-email"],
   ];
 
   it.each(MANAGEMENT_ROUTES)(
@@ -364,6 +362,16 @@ describe("Phase 12 SEC-001 — external-portal admin gates (canonical primitive)
       expect(block).toMatch(/denyNoPermission\(reply\)/);
     },
   );
+
+  // Closure phase 2 (EP-0425, DEC-01) — the single-issue route left the
+  // management list: it is a typed 410 tombstone that reads and writes
+  // nothing (bulk is the one issuing path, gated above).
+  it("POST /v1/external-review/invitations is a tombstone: no data, no issue, a typed 410", () => {
+    const block = blockFor("post", "/v1/external-review/invitations");
+    expect(block).toMatch(/reply\.code\(410\)/);
+    expect(block).toMatch(/"EXTERNAL_REVIEW_SINGLE_INVITATION_RETIRED"/);
+    expect(block).not.toMatch(/prisma\.|issueInvitation\(|rawToken/);
+  });
 
   it("reveal-token keeps the strongest tier: OWNER-only break-glass", () => {
     const block = blockFor(
@@ -412,11 +420,13 @@ describe("Phase 12 SEC-001 — external-portal admin gates (canonical primitive)
       "post",
       "/v1/external-review/invitations/:id/send-email",
     );
-    // The request schema must not carry a token field at all, and the handler
-    // must delegate to the server-owned delivery authority, which mints a
-    // successor token itself and persists only its hash.
+    // Closure phase 2 (EP-0446) — send-email is a typed 410 tombstone: no
+    // token field, no delivery, no data. Re-delivery is /resend (a management
+    // route above, gated on the canonical primitive + tier).
     expect(block).not.toMatch(/rawToken:\s*z\.string\(\)/);
-    expect(block).toMatch(/deliverInvitationEmail\(/);
+    expect(block).toMatch(/reply\.code\(410\)/);
+    expect(block).toMatch(/"EXTERNAL_REVIEW_SEND_EMAIL_RETIRED"/);
+    expect(block).not.toMatch(/deliverInvitationEmail\(|prisma\./);
   });
 });
 

@@ -510,25 +510,24 @@
     },
     {
       "routeId": "PATCH /v1/evidence-requests/:id",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "DRAFT edit has no control; the detail page only reads and runs status actions",
-      "evidence": "reg services/api/src/routes/evidence-requests.routes.ts:622 app.patch(\"/v1/evidence-requests/:id\", { preHandler: requireAuth }) (comment :620 \"PATCH (DRAFT only)\"); apps/web/app/(app)/evidence-requests/[id]/page.tsx:137 apiFetch(`/v1/evidence-requests/${encodeURIComponent(requestId)}`) with no method (GET), :157 /needs-more-info, :186/:233/:287 deliverables+responses POSTs; apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:555 POST \"/v1/evidence-requests\" create only",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "PRODUCT_CONNECTED",
+      "reason": "A product consumer exists: the DRAFT edit control (EP-0343).",
+      "evidence": "CONSUMER: apps/web/components/evidence-requests/EditDraftRequestDialog.tsx (PATCH), offered from apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx (DRAFT rows) and apps/web/app/(app)/evidence-requests/[id]/page.tsx (managers, DRAFT). Acceptance: apps/web/__tests__/render/evidence-request-edit-draft.render.test.tsx; API refusals in services/api/test/runtime-proof-evidence-capture-b.integration.test.ts. See docs/architecture/caller-less-routes.md (closure phase 2, branch closure2/ui). PRIOR DISPOSITION (MISSING_PRODUCT_UI_POST_RELEASE, reviewed 2026-08-16): DRAFT edit has no control; the detail page only reads and runs status actions",
+      "reviewedAtUtc": "2026-11-21"
     },
     {
       "routeId": "PATCH /v1/evidence/:id/relationships/:relationshipId",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "relationship edit has no control; product only creates and deletes relationships",
-      "evidence": "reg services/api/src/routes/evidence.routes.ts:8098 app.patch(\"/v1/evidence/:id/relationships/:relationshipId\", { preHandler: requireAuth }); apps/web/app/(app)/evidence/[id]/page.tsx:482 method \"POST\", :514 method \"DELETE\"; apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx:31 only surfaces DELETE",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "PRODUCT_CONNECTED",
+      "reason": "A product consumer exists: the relationship edit control (EP-0389).",
+      "evidence": "CONSUMER: apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx (Edit relationship, beside Remove), wired from _tabs/EvidenceReviewTab.tsx. Acceptance: apps/web/__tests__/render/evidence-relationship-edit.render.test.tsx; services/api/test/closure2-ui-caller-less.integration.test.ts (allowed + refused), case-reach-matrix. See docs/architecture/caller-less-routes.md (closure phase 2, branch closure2/ui). PRIOR DISPOSITION (MISSING_PRODUCT_UI_POST_RELEASE, reviewed 2026-08-16): relationship edit has no control; product only creates and deletes relationships",
+      "reviewedAtUtc": "2026-11-21"
     },
     {
       "routeId": "PATCH /v1/redaction/policy",
       "disposition": "COMPATIBILITY_TOMBSTONE",
-      "reason": "Legacy unversioned policy write; handler calls the service that is documented as a back-compat shim over the versioned store.",
-      "evidence": "reg services/api/src/routes/redaction.routes.ts:1206 app.patch(\"/v1/redaction/policy\") calling setRedactionDetectionPolicy (redaction.routes.ts:1214). Deprecation: services/api/src/services/redaction/redaction-policy.service.ts:18-20 \"`setRedactionDetectionPolicy` becomes a back-compat shim\". Replacement product-connected at apps/web/app/(app)/redaction/policy/page.tsx:155 apiFetch(\"/v1/redaction/policies\", POST), :207 `/v1/redaction/policy-versions/${versionId}/transition`, :232 `/v1/redaction/policies/${selectedPolicyId}/assignments`. | replacement detail: POST /v1/redaction/policies + POST /v1/redaction/policy-versions/:id/transition + POST /v1/redaction/policies/:id/assignments",
-      "reviewedAtUtc": "2026-08-16",
-      "replacement": "POST /v1/redaction/policies"
+      "reason": "retired to a typed 410 naming what replaced it; kept so a stale client is told rather than 404-ed",
+      "evidence": "EP-0934. reg services/api/src/routes/redaction.routes.ts app.patch(\"/v1/redaction/policy\") replies 410 REDACTION_POLICY_PATCH_RETIRED with canonical /v1/redaction/policies; requireAuth only, no read or write. The versioned policy routes are the product path (web redaction/policy/page.tsx). git log -S'\"/v1/redaction/policy\"' over apps/web and apps/mobile finds no commit. Pinned by closure2-ui-caller-less and ws-shell-caller-less-authz. See docs/architecture/caller-less-routes.md (closure phase 2, branch closure2/ui). PRIOR DISPOSITION (COMPATIBILITY_TOMBSTONE, reviewed 2026-08-16): Legacy unversioned policy write; handler calls the service that is documented as a back-compat shim over the versioned store.",
+      "reviewedAtUtc": "2026-11-21"
     },
     {
       "routeId": "PATCH /v1/workflow/templates/:id",
@@ -687,26 +686,24 @@
     },
     {
       "routeId": "POST /v1/external-review/grants/:id/revoke",
-      "disposition": "SUPERSEDED_REMOVE",
-      "reason": "duplicate of the canonical route the product calls (ledger DUPLICATE_ENDPOINT); no UI owed",
-      "evidence": "reg services/api/src/routes/external-review.routes.ts:237 app.post(\"/v1/external-review/grants/:id/revoke\"). DECISION (reviewed 2026-09-17): finalDisposition=DUPLICATE_ENDPOINT; J triage DUPLICATE_ENDPOINT (external review grants (legacy)); consumer: POST /v1/external-review/invitations/:id/revoke (apps/web/app/(app)/review/external/page.tsx). J triage (DUPLICATE_ENDPOINT): services/api/src/routes/external-review.routes.ts:277 transitions the grant to REVOKED; canonical POST /v1/external-review/invitations/:id/revoke (external-portal.routes.ts:526, revokeInvitation, also writes GRANT_REVOKED activity, handles invitation-less grants: portal-invitation.service.ts:157-197 … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): primitive grant revoke has no control; product revokes through the invitations layer.",
-      "reviewedAtUtc": "2026-09-17",
-      "replacement": "POST /v1/external-review/invitations/:id/revoke"
+      "disposition": "INTENTIONALLY_API_ONLY",
+      "reason": "The revoke counterpart of the kept grant primitive (POST /v1/external-review/grants, EP-0447): same addressing (teamId body) and authority (governance.legal_hold.manage); protective, never plan-gated.",
+      "evidence": "EP-0449. Kept, not retired: an API client that issues through the primitive grant route revokes through this one; the invitation revoke (/invitations/:id/revoke) asks a different authority (review.assign + administrative tier, current workspace). Sunset: retired together with EP-0447 if the primitive grant family is ever retired. Tests: ws-shell-caller-less-authz \"EP-0449 grant revoke…\", tenant-reach-a2-round3, cov-token-gated-routes. See docs/architecture/caller-less-routes.md (closure phase 2, branch closure2/ui). PRIOR DISPOSITION (SUPERSEDED_REMOVE, reviewed 2026-09-17): duplicate of the canonical route the product calls (ledger DUPLICATE_ENDPOINT); no UI owed",
+      "reviewedAtUtc": "2026-11-21"
     },
     {
       "routeId": "POST /v1/external-review/invitations",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "single-issue invitation has no control; the console issues through the bulk route",
-      "evidence": "reg services/api/src/routes/external-portal.routes.ts:455 app.post(\"/v1/external-review/invitations\", { preHandler: requireAuth }); apps/web/app/(app)/review/external/page.tsx:257 apiFetch(\"/v1/external-review/invitations\", { method: \"GET\" }) — list only; :1328 apiFetch(\"/v1/external-review/invitations/bulk\", { method: \"POST\" }) is the issue path; services/api/src/routes/external-portal.routes.ts:561-566 \"Bulk issuance can never be a WEAKER gate than the single-issue path\"",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (DEC-01: one issuing path, /bulk); kept so a stale client is told rather than 404-ed",
+      "evidence": "EP-0425. reg services/api/src/routes/external-portal.routes.ts app.post(\"/v1/external-review/invitations\") replies 410 EXTERNAL_REVIEW_SINGLE_INVITATION_RETIRED with canonical /v1/external-review/invitations/bulk; requireAuth only. DEC-01 (briefs/RULES-AND-DECISIONS.md and closure/OWNER-DECISIONS) settles one issuing path; console page.tsx and ExternalReviewSubjectPanel.tsx issue through /bulk. It returned the raw bearer token to any administrative-tier caller, where the only product reveal (reveal-token) is OWNER-only break-glass. No web/native/extension caller ever (git log -S\"external-review/invitations\" over apps/mobile and apps/extension: none). GET /v1/external-review/invitations (the list) is unchanged. Pinned by closure2-ui-caller-less, cov-external-reviewer, runtime-proof-collab-teams-inbox-b, phase-3-external-review-grant-step-up, phase-rw-rbac-hardening. See docs/architecture/caller-less-routes.md (closure phase 2, branch closure2/ui). PRIOR DISPOSITION (MISSING_PRODUCT_UI_POST_RELEASE, reviewed 2026-08-16): single-issue invitation has no control; the console issues through the bulk route",
+      "reviewedAtUtc": "2026-11-21"
     },
     {
       "routeId": "POST /v1/external-review/invitations/:id/send-email",
-      "disposition": "SUPERSEDED_REMOVE",
-      "reason": "duplicate of the canonical route the product calls (ledger DUPLICATE_ENDPOINT); no UI owed",
-      "evidence": "reg services/api/src/routes/external-portal.routes.ts:1202 app.post(\"/v1/external-review/invitations/:id/send-email\", { preHandler: requireAuth }). DECISION (reviewed 2026-09-17): finalDisposition=DUPLICATE_ENDPOINT; J triage DUPLICATE_ENDPOINT (external review console); consumer: POST /v1/external-review/invitations/:id/resend (apps/web/app/(app)/review/external/page.tsx). J triage (DUPLICATE_ENDPOINT): services/api/src/routes/external-portal.routes.ts:1211-1260 and the canonical /resend (:722) both call deliverInvitationEmail (portal-bulk-invitations.service.ts:497-522); first send happens in bulk issue (:250-280). The console uses Resend (apps/web/app/(app)/review/external/page.tsx:774). No web/m … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): operator first-send has no control; the console uses the resend route.",
-      "reviewedAtUtc": "2026-09-17",
-      "replacement": "POST /v1/external-review/invitations/:id/resend"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it; kept so a stale client is told rather than 404-ed",
+      "evidence": "EP-0446. reg services/api/src/routes/external-portal.routes.ts replies 410 EXTERNAL_REVIEW_SEND_EMAIL_RETIRED with canonical /v1/external-review/invitations/{id}/resend; requireAuth only, nothing read, written or sent. It mailed invitations issued by the retired single-issue route; /bulk emails on issue and /resend (console) re-delivers with the same server-side token rotation. No first-party client ever called it. Pinned by closure2-ui-caller-less, cov-external-reviewer, phase-12-sec-001-stale-pointer, phase-12-sec-001-completion, tenant-reach-a2-round3, phase-rw-rbac-hardening. See docs/architecture/caller-less-routes.md (closure phase 2, branch closure2/ui). PRIOR DISPOSITION (SUPERSEDED_REMOVE, reviewed 2026-09-17): duplicate of the canonical route the product calls (ledger DUPLICATE_ENDPOINT); no UI owed",
+      "reviewedAtUtc": "2026-11-21"
     },
     {
       "routeId": "POST /v1/governance/case-legal-holds",
@@ -749,11 +746,10 @@
     },
     {
       "routeId": "POST /v1/identity-security/sessions/revoke",
-      "disposition": "SUPERSEDED_REMOVE",
-      "reason": "duplicate of the canonical route the product calls (ledger DUPLICATE_ENDPOINT); no UI owed",
-      "evidence": "reg services/api/src/routes/identity-security.routes.ts:311 app.post(\"/v1/identity-security/sessions/revoke\", { preHandler: requireAuth }) with body { teamId, userId, sessionIdHash }. DECISION (reviewed 2026-09-17): finalDisposition=DUPLICATE_ENDPOINT; J triage DUPLICATE_ENDPOINT (identity sessions); consumer: POST /v1/admin/identity/sessions/:id/revoke (apps/web/app/(app)/security-center/identity/sessions/_sections/ActiveSessionsSection.tsx). J triage (DUPLICATE_ENDPOINT): services/api/src/routes/identity-security.routes.ts:298 revokes by raw 64-char sessionIdHash, which no admin read exposes (GET /v1/identity-security/sessions :345 lists revocations only). Canonical: POST /v1/admin/identity/sessions/:id/revoke (services/api/src/routes/admin-identity.routes.ts:870), w … No product consumer (canonical consumer analysis). Previous manifest reason (reviewed 2026-08-16): granular admin session revoke has no control; the security center revokes all sessions for a user.",
-      "reviewedAtUtc": "2026-09-17",
-      "replacement": "POST /v1/admin/identity/sessions/:id/revoke"
+      "disposition": "ADMIN_OPERATOR",
+      "reason": "Enterprise workspace security-operator tooling (docs/runbooks/suspicious-login-burst.md step 2); API-only by design; kept.",
+      "evidence": "EP-0538. Authority: identity.access_review.action (OWNER/ADMIN only; MEMBER/REVIEWER, CONTRIBUTOR, VIEWER do not hold it), the Enterprise sessionGovernance entitlement, the target must be a revocation target of the workspace AND an identity the Organization governs (DEC-08), and a step-up (CONTRIBUTOR_SESSION_REVOKE, bound to the session) for anyone else's session (decision C); one's own current session is a sign-out. The admin console route POST /v1/admin/identity/sessions/:id/revoke addresses by inventory id; this one addresses by session hash, which is what a security event carries, so the runbook step is real and not superseded. Tests: services/api/test/free-audit-g2-identity.integration.test.ts (NEW-RG08-2 block: allowed with step-up, refused without, DEC-08, cross-workspace) and closure2-ui-caller-less (MEMBER and VIEWER 403, another tenant 404, nothing ends). See docs/architecture/caller-less-routes.md (closure phase 2, branch closure2/ui). PRIOR DISPOSITION (SUPERSEDED_REMOVE, reviewed 2026-09-17): duplicate of the canonical route the product calls (ledger DUPLICATE_ENDPOINT); no UI owed",
+      "reviewedAtUtc": "2026-11-21"
     },
     {
       "routeId": "POST /v1/intelligence/evidence/:evidenceId/run/bytes",
@@ -865,13 +861,10 @@
     },
     {
       "routeId": "POST /v1/search/relationships",
-      "disposition": "SUPERSEDED_REMOVE",
-      "reason": "duplicate of the canonical route the product calls (ledger DUPLICATE_ENDPOINT); no UI owed",
-      "evidence": "DECISION (reviewed 2026-09-17): finalDisposition=DUPLICATE_ENDPOINT; J triage DUPLICATE_ENDPOINT (search relationships); consumer: POST /v1/evidence/:id/relationships (apps/web/app/(app)/evidence/[id]/page.tsx). J triage (DUPLICATE_ENDPOINT): services/api/src/routes/search.routes.ts:556-608 writes evidenceRelationship via createRelationship (services/api/src/services/search/evidence-search.service.ts:1092-1110). Canonical POST /v1/evidence/:id/relationships (services/api/src/routes/evidence.routes.ts:8267-8300, createEvidenceRelationship … Acceptance: services/api/test/phase24-search.test.ts > uses requireAuth on every Phase 24 route. Previous manifest reason (reviewed 2026-08-17): no product contract to build, but the repository's own behavioural suite pins the registration.",
-      "reviewedAtUtc": "2026-09-17",
-      "revalidatedVerdict": "DEAD_CONFIRMED",
-      "revalidationConfidence": "HIGH",
-      "replacement": "POST /v1/evidence/:id/relationships"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it; kept so a stale client is told rather than 404-ed",
+      "evidence": "EP-1066. reg services/api/src/routes/search.routes.ts app.post(\"/v1/search/relationships\") replies 410 SEARCH_RELATIONSHIP_CREATE_RETIRED with canonical /v1/evidence/{evidenceId}/relationships; requireAuth only, no read or write. Duplicate of POST /v1/evidence/:id/relationships (web EvidenceRelationshipDialog.tsx, native capture-links.ts). No shipped client ever called it: git log -S over apps/mobile and apps/extension finds only the GET read. Pinned by services/api/test/closure2-ui-caller-less.integration.test.ts, ws-shell-caller-less-authz, case-reach-matrix. See docs/architecture/caller-less-routes.md (closure phase 2, branch closure2/ui). PRIOR DISPOSITION (SUPERSEDED_REMOVE, reviewed 2026-09-17): duplicate of the canonical route the product calls (ledger DUPLICATE_ENDPOINT); no UI owed",
+      "reviewedAtUtc": "2026-11-21"
     },
     {
       "routeId": "POST /v1/support-access/start",

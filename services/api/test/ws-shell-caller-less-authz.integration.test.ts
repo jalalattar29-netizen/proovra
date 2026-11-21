@@ -205,9 +205,10 @@ describe("PRO-CENZ-01 — kept caller-less write routes refuse the wrong actor (
     expect(row.lastDownloadedAtUtc).toBeNull();
   });
 
-  it("EP-0934 PATCH /v1/redaction/policy: a member, a viewer and another tenant write no policy version; the owner submits one", async () => {
-    // The route acts on the request's workspace, named by the header the web
-    // client sends (x-proovra-workspace-id).
+  // Closure phase 2 — EP-0934 is retired to a typed 410 tombstone (the
+  // legacy unversioned policy write). Every caller, the owner included, is
+  // answered 410 with the canonical versioned route; no version is written.
+  it("EP-0934 PATCH /v1/redaction/policy (retired): a member, a viewer, another tenant and the owner get the typed 410; no policy version is written", async () => {
     const patch = (token: string) =>
       h.app.inject({
         method: "PATCH",
@@ -226,40 +227,46 @@ describe("PRO-CENZ-01 — kept caller-less write routes refuse the wrong actor (
       });
     const versions = () => prisma.redactionPolicyAudit.count({ where: { teamId: A().teamId } as never });
     const before = await versions();
-    for (const token of [A().memberToken, A().viewerToken]) {
-      const refused = await patch(token);
-      expect(refused.statusCode, refused.body).toBe(403);
+    for (const token of [A().memberToken, A().viewerToken, B().ownerToken, A().ownerToken]) {
+      const r = await patch(token);
+      expect(r.statusCode, r.body).toBe(410);
+      expect(r.json()).toMatchObject({
+        error: { code: "REDACTION_POLICY_PATCH_RETIRED" },
+        canonical: "/v1/redaction/policies",
+      });
     }
-    // Another tenant naming this workspace: concealed as missing.
-    const foreign = await patch(B().ownerToken);
-    expect(foreign.statusCode, foreign.body).toBe(404);
     expect(await versions()).toBe(before);
-
-    const ok = await patch(A().ownerToken);
-    expect([202, 409], ok.body).toContain(ok.statusCode);
-    if (ok.statusCode === 202) expect(await versions()).toBeGreaterThan(before);
+    const anonymous = await h.app.inject({ method: "PATCH", url: "/v1/redaction/policy", payload: {} });
+    expect(anonymous.statusCode).toBe(401);
   });
 
-  it("EP-1066 POST /v1/search/relationships: a non-operator, another tenant and a cross-tenant pair write no link; the operator links", async () => {
+  // Closure phase 2 — EP-1066 is retired to a typed 410 tombstone (it duplicated
+  // POST /v1/evidence/:id/relationships). Its contract is now: every caller,
+  // the operator included, is answered 410 with the canonical route, and no
+  // link is written for anyone.
+  it("EP-1066 POST /v1/search/relationships (retired): every caller, the operator included, gets the typed 410 and no link is written", async () => {
     const src = await makeEvidence(A().teamId, A().ownerUserId);
     const tgt = await makeEvidence(A().teamId, A().ownerUserId);
     const links = () =>
       prisma.evidenceRelationship.count({ where: { sourceEvidenceId: src, targetEvidenceId: tgt } as never });
     const body = (teamId: string) => ({ teamId, sourceEvidenceId: src, targetEvidenceId: tgt, relationshipType: "RELATED" });
 
-    const member = await call("POST", "/v1/search/relationships", A().memberToken, body(A().teamId));
-    expect(member.statusCode, member.body).toBe(403);
-    expect(member.json().error.reason).toBe("operator_required");
-    const foreignHere = await call("POST", "/v1/search/relationships", B().ownerToken, body(A().teamId));
-    expect(foreignHere.statusCode, foreignHere.body).toBe(404);
-    // Another tenant's operator, in its own workspace, naming these records.
-    const foreignOwn = await call("POST", "/v1/search/relationships", B().ownerToken, body(B().teamId));
-    expect(foreignOwn.statusCode, foreignOwn.body).toBe(409);
+    for (const [token, teamId] of [
+      [A().memberToken, A().teamId],
+      [B().ownerToken, A().teamId],
+      [B().ownerToken, B().teamId],
+      [A().ownerToken, A().teamId],
+    ] as const) {
+      const r = await call("POST", "/v1/search/relationships", token, body(teamId));
+      expect(r.statusCode, r.body).toBe(410);
+      expect(r.json()).toMatchObject({
+        error: { code: "SEARCH_RELATIONSHIP_CREATE_RETIRED" },
+        canonical: "/v1/evidence/{evidenceId}/relationships",
+      });
+    }
     expect(await links()).toBe(0);
-
-    const ok = await call("POST", "/v1/search/relationships", A().ownerToken, body(A().teamId));
-    expect(ok.statusCode, ok.body).toBe(201);
-    expect(await links()).toBe(1);
+    const anonymous = await h.app.inject({ method: "POST", url: "/v1/search/relationships", payload: body(A().teamId) });
+    expect(anonymous.statusCode).toBe(401);
   });
 
   it("EP-1067 POST /v1/search/reindex/evidence/:id: a non-operator, another tenant and a cross-tenant record index nothing; the operator reindexes", async () => {
