@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "28109845be5def0ab38aefdd121fdaa3c0cf3d91b45445ac9901f0a76bb48335",
+  "capabilityRouteInventoryHash": "704fe9cc370d037ba22c2a92c77a6ce28de5c5df5ef8062bf042265df98cb6c2",
   "totals": {
-    "routes": 1260,
+    "routes": 1262,
     "routesWithAnyTestCaller": 59,
     "testOnlyRoutes": 8,
     "testCallSites": 151,
@@ -128,6 +128,12 @@
     },
     {
       "routeId": "DELETE /v1/evidence/:id/legal-notes/:noteId",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "DELETE /v1/evidence/:id/owner-destruction-approval",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -5145,6 +5151,12 @@
       ]
     },
     {
+      "routeId": "POST /v1/evidence/:id/owner-destruction-approval",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/evidence/:id/parts",
       "testCallerCount": 1,
       "testOnly": false,
@@ -7707,5 +7719,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "200f2fc7a967d19a22d3c95a6f694f942321e4143e05588adf89717e151840d0"
+  "contentHash": "c30f9e4a9622e0b252758d243d4f2acb35e09041ea1f9e0dc01afb1e5e0e097e"
 }

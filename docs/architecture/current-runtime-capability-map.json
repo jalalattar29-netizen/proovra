@@ -4,20 +4,20 @@
   "generator": "services/api/scripts/generate-runtime-capability-map.mjs",
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
-  "routeInventoryHash": "28109845be5def0ab38aefdd121fdaa3c0cf3d91b45445ac9901f0a76bb48335",
+  "routeInventoryHash": "704fe9cc370d037ba22c2a92c77a6ce28de5c5df5ef8062bf042265df98cb6c2",
   "consumerInventoryHash": "addc7c3e3c30f9d526a7dd7fff0aa5d5ad70db12fe0de2c1971da43651c36f9c",
   "dispositionsHash": "4634dbb508d1b01f04e7988b8009af560f2bce0bd1af8e3f9c1c55ed205704a9",
   "totals": {
-    "RegisteredRoutes": 1260,
-    "ProductionRegisteredRoutes": 1259,
+    "RegisteredRoutes": 1262,
+    "ProductionRegisteredRoutes": 1261,
     "DevelopmentOnlyRoutes": 1,
     "ProductConsumedRoutes": 1035,
     "NonProductDispositionedRoutes": 199,
-    "UndisposedRoutes": 25,
+    "UndisposedRoutes": 27,
     "ConservationIdentityHolds": true,
     "ProductConsumerRoutes": 1035,
     "MachineOnlyConsumerRoutes": 7,
-    "NoConsumerRoutes": 218,
+    "NoConsumerRoutes": 220,
     "AuthorizationUnresolved": 0,
     "PublicUnguardedRoutes": 43,
     "DynamicUnresolvedRouteRegistrations": 0,
@@ -56,15 +56,15 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 26
     },
-    "TerminalWriters": 1696,
-    "ReachableSensitiveMutations": 1666,
-    "ClassifiedSensitiveMutations": 1666,
+    "TerminalWriters": 1701,
+    "ReachableSensitiveMutations": 1669,
+    "ClassifiedSensitiveMutations": 1669,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
-    "NonRequestWriters": 30,
+    "NonRequestWriters": 32,
     "ModuleScopedAttributionWriters": 0,
-    "DeadUnreachableWriters": 8,
-    "DeadUnreachableWritersPending": 8,
+    "DeadUnreachableWriters": 10,
+    "DeadUnreachableWritersPending": 10,
     "PreservedPlannedWriters": 0,
     "PortAttributedWriters": 0,
     "AuthorizationAfterMutation": 0,
@@ -77,10 +77,10 @@
       "WORKSPACE": 86,
       "WORKSPACE_MEMBERSHIP_INVITATION": 69,
       "CASE": 95,
-      "EVIDENCE_CUSTODY_FINALIZATION": 393,
+      "EVIDENCE_CUSTODY_FINALIZATION": 396,
       "LEGAL_HOLD_RETENTION_DELETION": 63,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 107,
-      "BILLING_SUBSCRIPTION_SEAT": 117,
+      "BILLING_SUBSCRIPTION_SEAT": 119,
       "SSO_OIDC_SCIM_PROVISIONING": 67,
       "AUTOMATION_QUEUE_WEBHOOK": 133,
       "REPORT_EXPORT_REDACTION": 80,
@@ -96,11 +96,11 @@
       "SEED": 0,
       "INJECTED_PORT_IMPLEMENTATION": 0,
       "PRESERVED_PLANNED_WRITER": 0,
-      "DEAD_UNREACHABLE_WRITER": 8
+      "DEAD_UNREACHABLE_WRITER": 10
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1481,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1484,
       "JOB_ATTRIBUTED_REACHABLE": 173,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 11,
@@ -109,7 +109,7 @@
       "TEST_OR_BUILD_ONLY": 0,
       "PRESERVED_PLANNED_WRITER": 0,
       "PORT_ATTRIBUTED_REACHABLE": 0,
-      "DEAD_UNREACHABLE": 8,
+      "DEAD_UNREACHABLE": 10,
       "UNRESOLVED": 0
     },
     "WriterBucketOverlaps": 0,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 12369,
-      "UNRESOLVED_IDENTIFIER": 1803
+      "METHOD_ON_VALUE": 12379,
+      "UNRESOLVED_IDENTIFIER": 1807
     },
     "MutationFixpointRounds": 11,
     "MutationClosurePass": false,
@@ -133,7 +133,7 @@
     "PreservationEntriesUnmatched": 0,
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
-      "UNDISPOSED": 25,
+      "UNDISPOSED": 27,
       "PRODUCT_CONNECTED": 1040,
       "EXTERNAL_API": 19,
       "MACHINE_OR_CRON": 22,
@@ -146,13 +146,13 @@
       "MISSING_PRODUCT_UI_POST_RELEASE": 26
     },
     "MandateDispositionConservationHolds": true,
-    "TenantBindingResolved": 1258,
+    "TenantBindingResolved": 1260,
     "TenantBindingUnresolved": 0,
     "byDataScope": {
       "PUBLIC_DATA": 37,
       "GLOBAL_USER_SELF": 56,
       "PLATFORM_GLOBAL": 52,
-      "WORKSPACE_SCOPED": 710,
+      "WORKSPACE_SCOPED": 712,
       "ORGANIZATION_SCOPED": 136,
       "MULTI_TENANT_PLATFORM_ADMIN": 143,
       "TOKEN_SCOPED": 39,
@@ -161,11 +161,11 @@
       "NO_DATA_ACCESS": 57
     },
     "TenantUnboundInsertRoutes": 0,
-    "OrganizationRoutesMeasured": 1016,
+    "OrganizationRoutesMeasured": 1017,
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
-    "ClassifiedSecurityRoutes": 1258,
+    "ClassifiedSecurityRoutes": 1260,
     "UnclassifiedSecurityRoutes": 0,
     "DevelopmentGatedRoutes": 1,
     "SecurityFamilyConservationHolds": true,
@@ -179,8 +179,8 @@
         "tagged": 27
       },
       "SESSION_AUTHENTICATED": {
-        "primary": 419,
-        "tagged": 419
+        "primary": 421,
+        "tagged": 421
       },
       "WORKSPACE_AUTHORIZED": {
         "primary": 397,
@@ -240,9 +240,9 @@
       }
     }
   },
-  "totalRoutes": 1260,
+  "totalRoutes": 1262,
   "classificationCounts": {
-    "BACKEND_ONLY_UNWIRED": 25,
+    "BACKEND_ONLY_UNWIRED": 27,
     "COMPATIBILITY_TEMPORARY": 15,
     "INTERNAL_REQUIRED": 185,
     "TARGET_COMPLETE": 1035
@@ -251,14 +251,14 @@
     "BEHAVIORALLY_PROVEN": 405,
     "BEHAVIORAL_SERVICE_ONLY": 18,
     "STRUCTURALLY_CONNECTED_ONLY": 516,
-    "UNPROVEN": 321
+    "UNPROVEN": 323
   },
   "verticalCounts": {
     "ENTERPRISE_IDENTITY_SECURITY": 181,
     "EVIDENCE_OPERATIONS": 279,
     "OPERATIONS_AUTOMATION": 1,
     "OPERATIONS_INTELLIGENCE": 126,
-    "PLATFORM_CORE": 533,
+    "PLATFORM_CORE": 535,
     "TRUST_ADMINISTRATION": 140
   },
   "capabilities": [
@@ -489,6 +489,18 @@
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
+    },
+    {
+      "capabilityId": "DELETE:/v1/evidence/:id/owner-destruction-approval",
+      "vertical": "PLATFORM_CORE",
+      "method": "DELETE",
+      "route": "/v1/evidence/:id/owner-destruction-approval",
+      "registeringFile": "services/api/src/routes/evidence-retention-verification.routes.ts",
+      "productConsumer": null,
+      "machineConsumer": null,
+      "authorization": "AUTHENTICATED",
+      "classification": "BACKEND_ONLY_UNWIRED",
+      "evidenceLevel": "UNPROVEN"
     },
     {
       "capabilityId": "DELETE:/v1/evidence/:id/relationships/:relationshipId",
@@ -10319,6 +10331,18 @@
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
     {
+      "capabilityId": "POST:/v1/evidence/:id/owner-destruction-approval",
+      "vertical": "PLATFORM_CORE",
+      "method": "POST",
+      "route": "/v1/evidence/:id/owner-destruction-approval",
+      "registeringFile": "services/api/src/routes/evidence-retention-verification.routes.ts",
+      "productConsumer": null,
+      "machineConsumer": null,
+      "authorization": "AUTHENTICATED",
+      "classification": "BACKEND_ONLY_UNWIRED",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
       "capabilityId": "POST:/v1/evidence/:id/parts",
       "vertical": "EVIDENCE_OPERATIONS",
       "method": "POST",
@@ -15498,6 +15522,7 @@
         "DELETE /v1/evidence/:id/annotations/:annotationId",
         "DELETE /v1/evidence/:id/comments/:commentId",
         "DELETE /v1/evidence/:id/legal-notes/:noteId",
+        "DELETE /v1/evidence/:id/owner-destruction-approval",
         "DELETE /v1/evidence/:id/relationships/:relationshipId",
         "DELETE /v1/evidence/saved-views/:id",
         "DELETE /v1/external-intake/:token/sessions/:sid/parts/:partId",
@@ -16192,6 +16217,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -21199,6 +21225,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -22325,6 +22352,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -23476,6 +23504,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -24627,6 +24656,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -25753,6 +25783,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -26904,6 +26935,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -28030,6 +28062,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -30824,8 +30857,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence-retention-verification.routes.ts#evidence.update@560",
-      "terminalLocation": "services/api/src/routes/evidence-retention-verification.routes.ts:560",
+      "writerId": "services/api/src/routes/evidence-retention-verification.routes.ts#evidence.update@649",
+      "terminalLocation": "services/api/src/routes/evidence-retention-verification.routes.ts:649",
       "file": "services/api/src/routes/evidence-retention-verification.routes.ts",
       "enclosingDeclaration": "changeAccess",
       "kind": "DATABASE",
@@ -30858,8 +30891,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence-retention-verification.routes.ts#evidenceArchiveRestoreRequest.create@249",
-      "terminalLocation": "services/api/src/routes/evidence-retention-verification.routes.ts:249",
+      "writerId": "services/api/src/routes/evidence-retention-verification.routes.ts#evidenceArchiveRestoreRequest.create@281",
+      "terminalLocation": "services/api/src/routes/evidence-retention-verification.routes.ts:281",
       "file": "services/api/src/routes/evidence-retention-verification.routes.ts",
       "enclosingDeclaration": "evidenceRetentionVerificationRoutes",
       "kind": "DATABASE",
@@ -38815,6 +38848,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -39990,6 +40024,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -41165,6 +41200,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -44955,6 +44991,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -45809,8 +45846,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/billing-review.service.ts#billingReviewItem.createMany@177",
-      "terminalLocation": "services/api/src/services/billing/billing-review.service.ts:177",
+      "writerId": "services/api/src/services/billing/billing-review.service.ts#billingReviewItem.createMany@183",
+      "terminalLocation": "services/api/src/services/billing/billing-review.service.ts:183",
       "file": "services/api/src/services/billing/billing-review.service.ts",
       "enclosingDeclaration": "recordBillingReviewItem",
       "kind": "DATABASE",
@@ -45858,8 +45895,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/billing-review.service.ts#billingReviewItem.update@197",
-      "terminalLocation": "services/api/src/services/billing/billing-review.service.ts:197",
+      "writerId": "services/api/src/services/billing/billing-review.service.ts#billingReviewItem.update@203",
+      "terminalLocation": "services/api/src/services/billing/billing-review.service.ts:203",
       "file": "services/api/src/services/billing/billing-review.service.ts",
       "enclosingDeclaration": "recordBillingReviewItem",
       "kind": "DATABASE",
@@ -49094,8 +49131,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@231",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:231",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@238",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:238",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "syncPlanForSubscription",
       "kind": "DATABASE",
@@ -49135,8 +49172,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@435",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:435",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@461",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:461",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "retrySupersededCancellations",
       "kind": "DATABASE",
@@ -49165,8 +49202,8 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@449",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:449",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@477",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:477",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "retrySupersededCancellations",
       "kind": "DATABASE",
@@ -49195,8 +49232,8 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@466",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:466",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@514",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:514",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "retrySupersededCancellations",
       "kind": "DATABASE",
@@ -49225,8 +49262,68 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.updateMany@421",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:421",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@544",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:544",
+      "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
+      "enclosingDeclaration": "retrySupersededCancellations",
+      "kind": "DATABASE",
+      "target": "subscription",
+      "mutationKind": "update",
+      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      },
+      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
+    },
+    {
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@576",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:576",
+      "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
+      "enclosingDeclaration": "retrySupersededCancellations",
+      "kind": "DATABASE",
+      "target": "subscription",
+      "mutationKind": "update",
+      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      },
+      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
+    },
+    {
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.updateMany@447",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:447",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "retrySupersededCancellations",
       "kind": "DATABASE",
@@ -49255,8 +49352,8 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.updateMany@515",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:515",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.updateMany@709",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:709",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "supersede",
       "kind": "DATABASE",
@@ -57458,6 +57555,105 @@
       }
     },
     {
+      "writerId": "services/api/src/services/evidence/owner-destruction-approval.service.ts#evidenceOwnerDestructionApproval.create@96",
+      "terminalLocation": "services/api/src/services/evidence/owner-destruction-approval.service.ts:96",
+      "file": "services/api/src/services/evidence/owner-destruction-approval.service.ts",
+      "enclosingDeclaration": "approveOwnRecordDestruction",
+      "kind": "DATABASE",
+      "target": "evidenceOwnerDestructionApproval",
+      "mutationKind": "create",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/evidence/:id/owner-destruction-approval"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/evidence-retention-verification.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "RESOURCE_OWNER_COLUMN",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/evidence/owner-destruction-approval.service.ts#evidenceOwnerDestructionApproval.update@86",
+      "terminalLocation": "services/api/src/services/evidence/owner-destruction-approval.service.ts:86",
+      "file": "services/api/src/services/evidence/owner-destruction-approval.service.ts",
+      "enclosingDeclaration": "approveOwnRecordDestruction",
+      "kind": "DATABASE",
+      "target": "evidenceOwnerDestructionApproval",
+      "mutationKind": "update",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/evidence/:id/owner-destruction-approval"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/evidence-retention-verification.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "RESOURCE_OWNER_COLUMN",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/evidence/owner-destruction-approval.service.ts#evidenceOwnerDestructionApproval.updateMany@128",
+      "terminalLocation": "services/api/src/services/evidence/owner-destruction-approval.service.ts:128",
+      "file": "services/api/src/services/evidence/owner-destruction-approval.service.ts",
+      "enclosingDeclaration": "withdrawOwnRecordDestructionApproval",
+      "kind": "DATABASE",
+      "target": "evidenceOwnerDestructionApproval",
+      "mutationKind": "updateMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "DELETE /v1/evidence/:id/owner-destruction-approval"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/evidence-retention-verification.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "RESOURCE_OWNER_COLUMN",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
       "writerId": "services/api/src/services/exchange/chain-transfer.service.ts#chainTransfer.create@229",
       "terminalLocation": "services/api/src/services/exchange/chain-transfer.service.ts:229",
       "file": "services/api/src/services/exchange/chain-transfer.service.ts",
@@ -60889,6 +61085,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -62639,6 +62836,7 @@
         "POST /v1/cases/:id/siu-export",
         "POST /v1/cases/:id/siu-profile/reveal-pii",
         "POST /v1/collaboration-teams/:teamId/archive",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/verification-access/reinstate",
         "POST /v1/evidence/:id/verification-access/withdraw",
         "POST /v1/evidence/:id/verify-links",
@@ -62790,7 +62988,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY+RESOURCE_OWNER_COLUMN",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -62909,6 +63107,7 @@
         "POST /v1/cases/:id/siu-export",
         "POST /v1/cases/:id/siu-profile/reveal-pii",
         "POST /v1/collaboration-teams/:teamId/archive",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/verification-access/reinstate",
         "POST /v1/evidence/:id/verification-access/withdraw",
         "POST /v1/evidence/:id/verify-links",
@@ -63060,7 +63259,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY+RESOURCE_OWNER_COLUMN",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -73237,6 +73436,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -74353,6 +74553,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -75469,6 +75670,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -76595,6 +76797,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -77720,6 +77923,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -78836,6 +79040,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -79961,6 +80166,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -81077,6 +81283,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -82193,6 +82400,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -83319,6 +83527,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -84835,6 +85044,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -85952,6 +86162,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -87069,6 +87280,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -88186,6 +88398,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -89303,6 +89516,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -90420,6 +90634,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -91537,6 +91752,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -92654,6 +92870,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -102999,6 +103216,7 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/legal-notes",
         "POST /v1/evidence/:id/lock",
+        "POST /v1/evidence/:id/owner-destruction-approval",
         "POST /v1/evidence/:id/parts",
         "POST /v1/evidence/:id/relationships",
         "POST /v1/evidence/:id/reports/regenerate",
@@ -114759,6 +114977,55 @@
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "DELETE /v1/evidence/:id/owner-destruction-approval",
+      "method": "DELETE",
+      "path": "/v1/evidence/:id/owner-destruction-approval",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:367",
+      "authorizationClass": "AUTHENTICATED",
+      "authorizationEvidence": [
+        "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
+      ],
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [],
+      "nonProductConsumers": [],
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
+      "replacement": null,
+      "result": "UNDISPOSED",
+      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "AUTHENTICATED",
+      "authorizationAuthority": "AUTHENTICATED",
+      "dataScope": "WORKSPACE_SCOPED",
+      "tenantType": "WORKSPACE",
+      "tenantBindingAuthority": "resource-owner-identity",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "adminAuditLog",
+        "evidence",
+        "user"
+      ],
+      "modelsWritten": [
+        "adminAuditLog",
+        "evidenceOwnerDestructionApproval"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/services/evidence/owner-destruction-approval.service.ts: an owner column is compared against the session-bound actor (`ownerUserId === actorUserId`) and the mismatch is refused (services/api/src/routes/evidence-retention-verification.routes.ts)",
+        "services/api/src/services/evidence/owner-destruction-approval.service.ts: evidence.findUnique — no tenant or self predicate"
+      ],
+      "tenantIdSource": "RESOURCE_OWNER_COLUMN",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refuses with 404",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
     },
@@ -128646,7 +128913,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/archive-restore",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:289",
+      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:378",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -130297,7 +130564,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-access",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:318",
+      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:407",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -130822,7 +131089,7 @@
       "method": "GET",
       "path": "/v1/evidence/retention-archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:127",
+      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:159",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -175316,7 +175583,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/archive-restore",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:218",
+      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:250",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -175945,6 +176212,69 @@
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "POST /v1/evidence/:id/owner-destruction-approval",
+      "method": "POST",
+      "path": "/v1/evidence/:id/owner-destruction-approval",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:328",
+      "authorizationClass": "AUTHENTICATED",
+      "authorizationEvidence": [
+        "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
+      ],
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [],
+      "nonProductConsumers": [],
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
+      "replacement": null,
+      "result": "UNDISPOSED",
+      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "AUTHENTICATED",
+      "authorizationAuthority": "AUTHENTICATED",
+      "dataScope": "WORKSPACE_SCOPED",
+      "tenantType": "WORKSPACE",
+      "tenantBindingAuthority": "resource-owner-identity",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "adminAuditLog",
+        "authenticatedSession",
+        "evidence",
+        "evidenceOwnerDestructionApproval",
+        "externalIdentityMapping",
+        "mfaFactor",
+        "organizationSecurityPolicy",
+        "riskSignal",
+        "ssoConnection",
+        "stepUpChallenge",
+        "team",
+        "user"
+      ],
+      "modelsWritten": [
+        "adminAuditLog",
+        "evidenceOwnerDestructionApproval",
+        "securityEvent",
+        "stepUpChallenge"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/routes/evidence-retention-verification.routes.ts: an owner column is compared against the session-bound actor (`ownerUserId === actorUserId`) and the mismatch is refused (services/api/src/routes/evidence-retention-verification.routes.ts)",
+        "services/api/src/routes/evidence-retention-verification.routes.ts: evidence.findUnique — no tenant or self predicate",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
+        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
+        "services/api/src/services/evidence/owner-destruction-approval.service.ts: evidence.findUnique — no tenant or self predicate"
+      ],
+      "tenantIdSource": "RESOURCE_OWNER_COLUMN",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
     },
@@ -176615,7 +176945,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/verification-access/reinstate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:606",
+      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:695",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -176690,7 +177020,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/verification-access/withdraw",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:605",
+      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:694",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -181135,6 +181465,7 @@
         "evidenceExchangePackage",
         "evidenceLegalHold",
         "evidenceLifecycleEvent",
+        "evidenceOwnerDestructionApproval",
         "evidencePart",
         "evidencePartDerivedAsset",
         "evidenceRetentionPolicy",
@@ -189610,6 +189941,7 @@
         "evidenceEntity",
         "evidenceExchangePackage",
         "evidenceLegalHold",
+        "evidenceOwnerDestructionApproval",
         "evidencePart",
         "evidencePartDerivedAsset",
         "evidenceRetentionPolicy",
@@ -208255,7 +208587,7 @@
       "method": "PUT",
       "path": "/v1/evidence/:id/verification-disclosure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:382",
+      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:471",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
