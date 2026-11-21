@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 12687,
+      "METHOD_ON_VALUE": 12688,
       "UNRESOLVED_IDENTIFIER": 1850
     },
     "MutationFixpointRounds": 11,
@@ -109129,8 +109129,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/capture-reaper.ts#evidence.updateMany@750",
-      "terminalLocation": "services/worker/src/capture-reaper.ts:750",
+      "writerId": "services/worker/src/capture-reaper.ts#evidence.updateMany@767",
+      "terminalLocation": "services/worker/src/capture-reaper.ts:767",
       "file": "services/worker/src/capture-reaper.ts",
       "enclosingDeclaration": "removeReleasedReservationObjects",
       "kind": "DATABASE",
@@ -109197,8 +109197,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/capture-reaper.ts#OBJECT_STORAGE.deleteObject@729",
-      "terminalLocation": "services/worker/src/capture-reaper.ts:729",
+      "writerId": "services/worker/src/capture-reaper.ts#OBJECT_STORAGE.deleteObject@748",
+      "terminalLocation": "services/worker/src/capture-reaper.ts:748",
       "file": "services/worker/src/capture-reaper.ts",
       "enclosingDeclaration": "removeReleasedReservationObjects",
       "kind": "EXTERNAL",
