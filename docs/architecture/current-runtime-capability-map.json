@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "28109845be5def0ab38aefdd121fdaa3c0cf3d91b45445ac9901f0a76bb48335",
-  "consumerInventoryHash": "addc7c3e3c30f9d526a7dd7fff0aa5d5ad70db12fe0de2c1971da43651c36f9c",
+  "consumerInventoryHash": "18ce4117a8a6a06d4eb85d5deb27802fb2a8796c5b7785f8de5fcd792cf43cff",
   "dispositionsHash": "4634dbb508d1b01f04e7988b8009af560f2bce0bd1af8e3f9c1c55ed205704a9",
   "totals": {
     "RegisteredRoutes": 1260,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 12369,
+      "METHOD_ON_VALUE": 12370,
       "UNRESOLVED_IDENTIFIER": 1803
     },
     "MutationFixpointRounds": 11,
@@ -5632,7 +5632,7 @@
       "method": "GET",
       "route": "/v1/platform/context",
       "registeringFile": "services/api/src/routes/platform-context.routes.ts",
-      "productConsumer": "apps/mobile/src/product/platform-context.ts:133",
+      "productConsumer": "apps/mobile/src/product/platform-context.ts:134",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -13240,7 +13240,7 @@
       "method": "POST",
       "route": "/v1/org-invites/accept",
       "registeringFile": "services/api/src/routes/organizations.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/org-invite/[token].tsx:123",
+      "productConsumer": "apps/mobile/app/(stack)/org-invite/[token].tsx:122",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -13252,7 +13252,7 @@
       "method": "POST",
       "route": "/v1/org-invites/lookup",
       "registeringFile": "services/api/src/routes/organizations.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/org-invite/[token].tsx:97",
+      "productConsumer": "apps/mobile/app/(stack)/org-invite/[token].tsx:96",
       "machineConsumer": null,
       "authorization": "PUBLIC_UNGUARDED",
       "classification": "TARGET_COMPLETE",
@@ -145328,7 +145328,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/product/platform-context.ts",
-          "line": 133,
+          "line": 134,
           "caller": "sharedPlatformContextRequest",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -145370,7 +145370,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/product/platform-context.ts:133 (sharedPlatformContextRequest, MOBILE); apps/web/lib/platform-context/PlatformContextProvider.tsx:470 (PlatformContextProvider, WEB); apps/web/lib/platform-context/PlatformContextProvider.tsx:598 (onSessionEnded, WEB)",
+      "dispositionEvidence": "apps/mobile/src/product/platform-context.ts:134 (sharedPlatformContextRequest, MOBILE); apps/web/lib/platform-context/PlatformContextProvider.tsx:470 (PlatformContextProvider, WEB); apps/web/lib/platform-context/PlatformContextProvider.tsx:598 (onSessionEnded, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -175972,7 +175972,7 @@
         },
         {
           "file": "apps/web/app/(app)/capture/_hooks/legacy-part-upload.ts",
-          "line": 129,
+          "line": 133,
           "caller": "postPart",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -175990,7 +175990,7 @@
       ],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:318 (uploadDirectCaptureItem, MOBILE); apps/web/app/(app)/capture/_hooks/legacy-part-upload.ts:129 (postPart, WEB)",
+      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:318 (uploadDirectCaptureItem, MOBILE); apps/web/app/(app)/capture/_hooks/legacy-part-upload.ts:133 (postPart, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -194600,7 +194600,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/org-invite/[token].tsx",
-          "line": 123,
+          "line": 122,
           "caller": "OrgInviteAcceptScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -194618,7 +194618,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/org-invite/[token].tsx:123 (OrgInviteAcceptScreen, MOBILE); apps/web/app/(app)/org-invites/[token]/accept/page.tsx:153 (OrgInviteAcceptPageInner, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/org-invite/[token].tsx:122 (OrgInviteAcceptScreen, MOBILE); apps/web/app/(app)/org-invites/[token]/accept/page.tsx:153 (OrgInviteAcceptPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -194689,7 +194689,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/org-invite/[token].tsx",
-          "line": 97,
+          "line": 96,
           "caller": "OrgInviteAcceptScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -194707,7 +194707,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/org-invite/[token].tsx:97 (OrgInviteAcceptScreen, MOBILE); apps/web/app/(app)/org-invites/[token]/accept/page.tsx:120 (OrgInviteAcceptPageInner, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/org-invite/[token].tsx:96 (OrgInviteAcceptScreen, MOBILE); apps/web/app/(app)/org-invites/[token]/accept/page.tsx:120 (OrgInviteAcceptPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -196614,14 +196614,6 @@
           "viaResolution": false
         },
         {
-          "file": "apps/mobile/app/(stack)/org-invite/[token].tsx",
-          "line": 158,
-          "caller": "openWorkspace",
-          "class": "MOBILE",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        },
-        {
           "file": "apps/mobile/app/(stack)/spaces.tsx",
           "line": 126,
           "caller": "SpacesScreen",
@@ -196654,6 +196646,14 @@
           "viaResolution": false
         },
         {
+          "file": "apps/mobile/src/product/platform-context.ts",
+          "line": 338,
+          "caller": "switchToWorkspace",
+          "class": "MOBILE",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        },
+        {
           "file": "apps/mobile/src/ui/workspace-invite.tsx",
           "line": 124,
           "caller": "WorkspaceInvite",
@@ -196673,7 +196673,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/invite/[token].tsx:97 (CollaborationInviteScreen, MOBILE); apps/mobile/app/(stack)/org-invite/[token].tsx:158 (openWorkspace, MOBILE); apps/mobile/app/(stack)/spaces.tsx:126 (SpacesScreen, MOBILE)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/invite/[token].tsx:97 (CollaborationInviteScreen, MOBILE); apps/mobile/app/(stack)/spaces.tsx:126 (SpacesScreen, MOBILE); apps/mobile/app/(tabs)/notifications.tsx:230 (switchToItemWorkspace, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
