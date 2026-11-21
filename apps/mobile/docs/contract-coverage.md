@@ -23,7 +23,7 @@ had none. The fixtures agreed, because they were written from the same guess.
 
 ## Coverage
 
-**180 bindings — OK 180, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
+**182 bindings — OK 182, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
 
 A binding is one place the app hands a fetched response to a parser. The
 route column is the handler in `services/api/src/routes` that answers that
@@ -45,8 +45,10 @@ top level of it.
 | OK | `parseIntakeTemplates` | `GET /v1/capture/intake-templates` | templates | templates |
 | OK | `parseEligibleCases` | `GET /v1/cases` | hasMore, items, nextCursor | items |
 | OK | `parseAttachCandidates` | `GET /v1/cases/:id/available-evidence` | items | items |
+| OK | `parseOlderCaseNotesPage` | `GET /v1/cases/:id/comments` | comments, hasMore, nextCursor | comments, nextCursor |
 | OK | `parseCaseEvidenceRows` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | sections |
 | OK | `parseCaseNotes` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | sections |
+| OK | `parseCaseNotesCursor` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | length, sections |
 | OK | `parseCaseAssignments` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | assignments |
 | OK | `parseCaseViewer` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | disabledReasons, userId, viewer |
 | OK | `parseCaseDeliverableRows` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | sections |

@@ -256,7 +256,7 @@ test("PRO-K1-07: the workspace cursor is read; absent or empty means no older pa
 });
 
 test("PRO-K1-07: the older-notes path encodes the case and the opaque cursor", () => {
-  assert.equal(mod.caseOlderNotesPath("c 1", "a+b/c="), "/v1/cases/c%201/comments?cursor=a%2Bb%2Fc%3D");
+  assert.equal(mod.buildCaseOlderNotesPath("c 1", "a+b/c="), "/v1/cases/c%201/comments?cursor=a%2Bb%2Fc%3D");
 });
 
 test("PRO-K1-07: an older page is parsed like the workspace notes and appended without repeats", () => {

@@ -26,7 +26,7 @@ import {
   parseCaseNotesCursor,
   parseOlderCaseNotesPage,
   appendOlderCaseNotes,
-  caseOlderNotesPath,
+  buildCaseOlderNotesPath,
   parseCaseViewer,
   resolveMemberName,
   summariseCaseDeliverables,
@@ -606,7 +606,7 @@ export default function CaseDetailScreen() {
     setOlderNotesBusy(true);
     setOlderNotesError(null);
     try {
-      const page = parseOlderCaseNotesPage(await apiFetch(caseOlderNotesPath(String(id), notesCursor)));
+      const page = parseOlderCaseNotesPage(await apiFetch(buildCaseOlderNotesPath(String(id), notesCursor)));
       setNotes((shown) => appendOlderCaseNotes(shown, page.notes));
       setNotesCursor(page.nextCursor);
     } catch (err) {

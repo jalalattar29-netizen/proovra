@@ -65,7 +65,7 @@ export function parseCaseNotesCursor(envelope: unknown): string | null {
 }
 
 /** GET /v1/cases/:id/comments?cursor= — the older notes route. */
-export function caseOlderNotesPath(caseId: string, cursor: string): string {
+export function buildCaseOlderNotesPath(caseId: string, cursor: string): string {
   return `/v1/cases/${encodeURIComponent(caseId)}/comments?cursor=${encodeURIComponent(cursor)}`;
 }
 
