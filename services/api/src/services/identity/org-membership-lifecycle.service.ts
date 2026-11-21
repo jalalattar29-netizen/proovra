@@ -83,6 +83,25 @@ export async function liveOrganizationOwnerCountTx(
   });
 }
 
+/**
+ * Closure 2 review L-2 — PROV-011: does this person own a live (open,
+ * non-personal) workspace of the Organization? Suspending or removing them
+ * would pause the workspace's only owner, so the manual suspension / removal
+ * routes refuse it (OWNERSHIP_TRANSFER_REQUIRED, organizations.routes.ts
+ * `ownsLiveOrganizationWorkspaceTx`) and the directory (SCIM) deactivation now
+ * refuses it the same way, under the owners' lock.
+ */
+export async function ownsLiveOrganizationWorkspaceTx(
+  tx: Pick<PrismaClient, "team">,
+  organizationId: string,
+  userId: string,
+): Promise<boolean> {
+  const owned = await tx.team.count({
+    where: { organizationId, isPersonal: false, closedAtUtc: null, ownerUserId: userId },
+  });
+  return owned > 0;
+}
+
 export const ORG_MEMBERSHIP_STATUSES = ["ACTIVE", "SUSPENDED", "REVOKED"] as const;
 export type OrgMembershipStatus = (typeof ORG_MEMBERSHIP_STATUSES)[number];
 

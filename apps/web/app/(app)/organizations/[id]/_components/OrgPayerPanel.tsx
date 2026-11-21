@@ -24,7 +24,7 @@ type PayerProjection = {
   billingOwner: { userId: string; displayName: string | null; membership: "OWNER" | "MEMBER" | "SUSPENDED" | "LEFT" } | null;
   contractOwnerUserId: string | null;
   viewerIsPayer: boolean;
-  state: "PAYER_IS_OWNER" | "PAYER_IS_MEMBER_NOT_OWNER" | "PAYER_LEFT_ORGANIZATION" | "NO_PAYER";
+  state: "PAYER_IS_OWNER" | "PAYER_IS_MEMBER_NOT_OWNER" | "PAYER_LEFT_ORGANIZATION" | "NO_PAYER" | "VIEWER_OWN_AGREEMENTS_ONLY";
   agreements: Array<{
     kind: "SUBSCRIPTION" | "STORAGE_ADDON" | "CHECKOUT_ATTEMPT";
     id: string;
@@ -45,6 +45,7 @@ const STATE_COPY: Record<PayerProjection["state"], string> = {
   PAYER_LEFT_ORGANIZATION:
     "The person who pays for this organization has left it. They are still billed until they cancel or a handover is arranged.",
   NO_PAYER: "No billing owner is recorded for this organization. Contact your account manager.",
+  VIEWER_OWN_AGREEMENTS_ONLY: "These are the subscriptions in this organization that bill you.",
 };
 
 const GUIDANCE_COPY: Record<string, string> = {

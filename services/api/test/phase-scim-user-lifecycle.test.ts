@@ -195,6 +195,11 @@ function makeFake() {
         organizationId: TEAM_ORG[where.id] ?? null,
         organization: null,
       }),
+      // Closure 2 review L-2 — SCIM asks whether the person OWNS a live
+      // workspace (Team.ownerUserId). This fixture models no workspace owner
+      // row, so the answer is 0 (the real-database case is covered in
+      // sem-scim-owner-continuity.integration.test.ts).
+      count: async () => 0,
     },
     organizationDomain: {
       findMany: async ({ where }: { where: { domain: string } }) =>

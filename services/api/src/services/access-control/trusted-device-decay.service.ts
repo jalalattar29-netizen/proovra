@@ -39,7 +39,16 @@ export const TRUST_DECAY_SWEEP_BATCH_DEFAULT = 200;
 /** The decay level at which a device is quarantined on the way up. */
 export const TRUST_DECAY_QUARANTINE_AT = 70;
 
-export type TrustDecayAction = "NONE" | "REVOKE" | "QUARANTINE" | "DECAY";
+export type TrustDecayAction = "NONE" | "REVOKE" | "QUARANTINE" | "RELEASE_QUARANTINE" | "DECAY";
+
+/** Review L-4 — reasons written by the sweep (bounded, operator-readable). */
+export const TRUST_DECAY_REASON = {
+  RAISED: "Trust decayed by stale-device sweep.",
+  RECOMPUTED: "Trust decay recomputed from last-seen time.",
+  QUARANTINED: "High decay — quarantined pending review.",
+  QUARANTINE_RELEASED: "Quarantine released: decay recomputed from last-seen time is below 70.",
+  REVOKED: "Stale device auto-invalidated by decay sweep.",
+} as const;
 
 export type TrustDecayDecision = {
   action: TrustDecayAction;
@@ -58,7 +67,7 @@ export type TrustDecayDecision = {
  * how many times the sweep has already run.
  */
 export function decideTrustDecay(
-  device: { lastSeenAtUtc: Date; trustScoreDecay: number },
+  device: { lastSeenAtUtc: Date; trustScoreDecay: number; quarantinedAtUtc?: Date | null },
   now: Date,
   staleDays: number = TRUST_DECAY_STALE_DAYS,
 ): TrustDecayDecision {
@@ -68,9 +77,17 @@ export function decideTrustDecay(
   let action: TrustDecayAction;
   // At the revoke level the device is revoked even if a stored value already
   // says 100 (an ACTIVE row never should; a stale row must not escape).
+  //
+  // Review L-4 — quarantine is a STATE the same rule decides, not an event on
+  // the way up: a device whose recomputed decay is below 70 is released from a
+  // decay quarantine (including one the old per-run formula produced — the
+  // decay sweep is the only writer of a trusted device's quarantinedAtUtc), and
+  // one at 70 or more that is not quarantined is quarantined.
+  const quarantinedNow = device.quarantinedAtUtc != null;
   if (toDecay >= TRUST_DECAY_DEFAULT_MAX) action = "REVOKE";
+  else if (quarantinedNow && toDecay < TRUST_DECAY_QUARANTINE_AT) action = "RELEASE_QUARANTINE";
+  else if (!quarantinedNow && toDecay >= TRUST_DECAY_QUARANTINE_AT) action = "QUARANTINE";
   else if (toDecay === fromDecay) action = "NONE";
-  else if (toDecay >= TRUST_DECAY_QUARANTINE_AT && fromDecay < TRUST_DECAY_QUARANTINE_AT) action = "QUARANTINE";
   else action = "DECAY";
   return { action, fromDecay, toDecay, revokesAtUtc };
 }
@@ -84,6 +101,8 @@ export type TrustDecaySweepResult = {
   decayed: number;
   autoInvalidated: number;
   quarantined: number;
+  /** Review L-4 — decay quarantines released because the recomputed decay is below 70. */
+  quarantineReleased: number;
 };
 
 export async function sweepTrustedDeviceDecay(
@@ -111,9 +130,11 @@ export async function sweepTrustedDeviceDecay(
       userId: true,
       lastSeenAtUtc: true,
       trustScoreDecay: true,
+      quarantinedAtUtc: true,
     },
   });
   let decayed = 0;
+  let quarantineReleased = 0;
   let autoInvalidated = 0;
   let quarantined = 0;
   for (const d of devices) {
@@ -129,7 +150,7 @@ export async function sweepTrustedDeviceDecay(
           revokedAtUtc: now,
           revokedReason: "TRUST_DECAY_AUTO_INVALIDATED",
           trustScoreDecay: TRUST_DECAY_DEFAULT_MAX,
-          decayReason: "Stale device auto-invalidated by decay sweep.",
+          decayReason: TRUST_DECAY_REASON.REVOKED,
         },
       });
       autoInvalidated += 1;
@@ -150,20 +171,31 @@ export async function sweepTrustedDeviceDecay(
         data: {
           trustScoreDecay: next,
           quarantinedAtUtc: now,
-          decayReason: "High decay — quarantined pending review.",
+          decayReason: TRUST_DECAY_REASON.QUARANTINED,
         },
       });
       quarantined += 1;
+      bump("trusted_device_decay_total");
+    } else if (decision.action === "RELEASE_QUARANTINE") {
+      await client.trustedDevice.update({
+        where: { id: d.id },
+        data: {
+          trustScoreDecay: next,
+          quarantinedAtUtc: null,
+          decayReason: TRUST_DECAY_REASON.QUARANTINE_RELEASED,
+        },
+      });
+      quarantineReleased += 1;
       bump("trusted_device_decay_total");
     } else {
       await client.trustedDevice.update({
         where: { id: d.id },
         data: {
           trustScoreDecay: next,
-          decayReason:
-            next < d.trustScoreDecay
-              ? "Trust decay lowered: the device was seen again."
-              : "Trust decayed by stale-device sweep.",
+          // Review L-4 — a lowered value is a RECOMPUTATION from last-seen time
+          // (it may be a residue of the old per-run formula, not a device seen
+          // again); the sweep cannot tell, so it says only what it did.
+          decayReason: next < d.trustScoreDecay ? TRUST_DECAY_REASON.RECOMPUTED : TRUST_DECAY_REASON.RAISED,
         },
       });
       bump("trusted_device_decay_total");
@@ -191,5 +223,6 @@ export async function sweepTrustedDeviceDecay(
     decayed,
     autoInvalidated,
     quarantined,
+    quarantineReleased,
   };
 }

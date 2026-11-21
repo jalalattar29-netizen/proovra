@@ -187,6 +187,40 @@ describe("sem item 2 — the payer after an organization ownership transfer", ()
     expect((ok.json() as { payer: Payer }).payer.viewerIsPayer).toBe(false);
   });
 
+  it("review M-1: a plain member who pays for one add-on sees only their own agreement — no billing owner, no contract owner, nobody else's subscription", async () => {
+    const o = await organization();
+    const alice = await member(o, "ORG_MEMBER");
+    const addon = await prisma.workspaceStorageAddon.create({
+      data: {
+        teamId: o.workspaceId,
+        ownerUserId: alice.userId,
+        addonKey: "TEAM_100_GB",
+        extraStorageBytes: BigInt(10 * 1024 ** 3),
+        status: "ACTIVE",
+        billingCycle: "MONTHLY",
+        externalSubscriptionId: `sub_addon_${randomUUID().slice(0, 10)}`,
+        currentPeriodEnd: new Date(Date.now() + 10 * 86_400_000),
+      } as never,
+      select: { id: true },
+    });
+    const res = await payerOf(o, alice);
+    expect(res.statusCode, res.body).toBe(200);
+    const body = res.json() as { payer: Payer; scope?: string };
+    expect(body.payer.billingOwner).toBeNull();
+    expect(body.payer.contractOwnerUserId).toBeNull();
+    expect(body.payer.state).toBe("VIEWER_OWN_AGREEMENTS_ONLY");
+    expect(body.payer.guidance).not.toContain("PAYER_UNCHANGED_BY_OWNERSHIP_TRANSFER");
+    expect(body.payer.agreements.map((a) => a.id)).toEqual([addon.id]);
+    expect(body.payer.agreements[0]).toMatchObject({ payerIsViewer: true });
+    expect(res.body).not.toContain(o.owner.userId);
+    expect(res.body).not.toContain(o.subscriptionId);
+    expect(body.payer.guidance).not.toContain("VIEWER_CANNOT_CANCEL_PAYER_AGREEMENT");
+    expect(body.scope).toBe("own");
+    // The owner (a billing role) still reads the whole projection, both agreements.
+    const full = (await payerOf(o, o.owner).then((r) => r.json())) as { payer: Payer };
+    expect(full.payer.agreements.map((a) => a.id).sort()).toEqual([addon.id, o.subscriptionId].sort());
+  });
+
   it("the new owner has no hidden liability and cannot cancel the former owner's agreement", async () => {
     const o = await organization();
     const recipient = await member(o, "ORG_ADMIN");

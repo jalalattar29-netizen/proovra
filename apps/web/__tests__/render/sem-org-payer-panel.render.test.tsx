@@ -157,6 +157,39 @@ describe("closure 2 sem item 2 — Payment agreement panel", () => {
     expect(q("[data-org-payer-billing-owner]")?.textContent).toMatch(/has left the organization/);
   });
 
+  it("review M-1: a paying member outside the billing roles sees only their own agreement and no billing owner", async () => {
+    reply = {
+      status: 200,
+      body: {
+        scope: "own",
+        ...projection({
+          state: "VIEWER_OWN_AGREEMENTS_ONLY",
+          billingOwner: null,
+          contractOwnerUserId: null,
+          viewerIsPayer: true,
+          agreements: [
+            {
+              kind: "STORAGE_ADDON",
+              id: "addon-1",
+              state: "RENEWING",
+              endsAtUtc: "2026-12-01T00:00:00.000Z",
+              payerUserId: NEW_OWNER,
+              payerDisplayName: "Alice",
+              payerIsViewer: true,
+              payerIsBillingOwner: false,
+            },
+          ],
+          guidance: ["PAYER_CANCELS_IN_OWN_BILLING", "CLOSURE_WAITS_FOR_AGREEMENTS_TO_END"],
+        }),
+      },
+    };
+    await mount(NEW_OWNER);
+    expect(q("[data-org-payer-state-copy]")?.textContent).toMatch(/subscriptions in this organization that bill you/);
+    expect(q("[data-org-payer-billing-owner]")).toBeNull();
+    expect(q('[data-org-payer-agreement="addon-1"]')?.textContent).toMatch(/Storage add-on billed to You/);
+    expect(document.body.textContent).not.toContain("Olive Former");
+  });
+
   it("a viewer the API refuses sees nothing", async () => {
     reply = { status: 403, body: { error: { code: "forbidden" } } };
     await mount(NEW_OWNER);

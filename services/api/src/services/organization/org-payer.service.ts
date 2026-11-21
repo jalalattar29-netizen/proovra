@@ -43,7 +43,13 @@ export type OrgPayerState =
   /** The person billed has left the organization (or was removed). */
   | "PAYER_LEFT_ORGANIZATION"
   /** No billing owner is recorded. */
-  | "NO_PAYER";
+  | "NO_PAYER"
+  /**
+   * Review M-1 — a paying member outside the billing roles who is not the
+   * billing owner: only their own agreements are shown; the organization's
+   * payer situation is not theirs to read.
+   */
+  | "VIEWER_OWN_AGREEMENTS_ONLY";
 
 export type OrgPayerGuidance =
   /** Ownership moved; payment liability did not (decision E). */
@@ -198,6 +204,38 @@ export async function resolveOrganizationPayerProjection(
     agreements,
     closure: { renewing, stopping, blockedByAgreements: agreements.length > 0 },
     guidance: [...new Set(guidance)],
+  };
+}
+
+/**
+ * Closure 2 review M-1 — what a viewer OUTSIDE the organization's billing roles
+ * (a plain member who pays for something here) may read: only the agreements
+ * that bill THEM, the billing-owner / contract-owner facts only when they are
+ * that person, and the closure counts of their own agreements. Never another
+ * person's id, name, membership or subscription.
+ */
+export function narrowPayerProjectionToOwnAgreements(
+  projection: OrgPayerProjection,
+  viewerUserId: string,
+): OrgPayerProjection {
+  const agreements = projection.agreements.filter((a) => a.payerIsViewer);
+  const renewing = agreements.filter((a) => a.state === "RENEWING").length;
+  const isBillingOwner = projection.billingOwner?.userId === viewerUserId;
+  const guidance = projection.guidance.filter(
+    (g) =>
+      g !== "VIEWER_CANNOT_CANCEL_PAYER_AGREEMENT" &&
+      (agreements.length > 0 || g !== "CLOSURE_WAITS_FOR_AGREEMENTS_TO_END") &&
+      // The organization's payer story belongs to the billing owner and the billing roles.
+      (isBillingOwner || (g !== "PAYER_UNCHANGED_BY_OWNERSHIP_TRANSFER" && g !== "HANDOVER_VIA_ACCOUNT_MANAGER")),
+  );
+  return {
+    ...projection,
+    state: isBillingOwner ? projection.state : "VIEWER_OWN_AGREEMENTS_ONLY",
+    billingOwner: isBillingOwner ? projection.billingOwner : null,
+    contractOwnerUserId: projection.contractOwnerUserId === viewerUserId ? viewerUserId : null,
+    agreements,
+    closure: { renewing, stopping: agreements.length - renewing, blockedByAgreements: agreements.length > 0 },
+    guidance,
   };
 }
 

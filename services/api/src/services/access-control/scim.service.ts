@@ -59,6 +59,7 @@ import {
 import {
   liveOrganizationOwnerCountTx,
   lockOrganizationOwnersTx,
+  ownsLiveOrganizationWorkspaceTx,
   restoreOrganizationMembership,
   suspendOrganizationMembership,
 } from "../identity/org-membership-lifecycle.service.js";
@@ -92,6 +93,13 @@ import {
 export const EXISTING_ACCOUNT_CONSENT_DETAIL = "existing_account_requires_user_consent";
 /** Closure 2 ("sem" item 1) — the SCIM error detail for a refused deactivation of the last live owner. */
 export const SCIM_LAST_OWNER_DETAIL = "last_active_organization_owner";
+/**
+ * Closure 2 review L-2 — the SCIM error detail when the person owns a live
+ * workspace of the Organization: the same code the manual suspension answers.
+ */
+export const SCIM_WORKSPACE_OWNER_DETAIL = "OWNERSHIP_TRANSFER_REQUIRED";
+
+export type ScimDeactivationRefusal = "last_owner" | "workspace_owner";
 import { withSeatClaimRetry } from "../billing/workspace-seats.service.js";
 import { isAccountClosed } from "../identity/account-closed.js";
 import { ipInRanges } from "./ip-ranges.js";
@@ -1350,31 +1358,32 @@ export async function scimListUsers(
  * mutation. It is advisory only — `scimDeactivateUser` decides again under the
  * owners' lock, which is what makes the rule race-safe.
  */
-export async function scimDeactivationHitsLastOwner(
+export async function scimDeactivationRefusal(
   ctx: ScimCreateUserContext,
   userId: string,
   client: PrismaClient = defaultPrisma,
-): Promise<boolean> {
+): Promise<ScimDeactivationRefusal | null> {
   const team = await client.team.findUnique({ where: { id: ctx.teamId }, select: { organizationId: true } });
-  if (!team) return false;
+  if (!team) return null;
+  // Outside the directory's reach the route answers 404 as it always has;
+  // never reveal that an unmanaged person is an owner.
+  if (!(await isWithinDirectoryReach({ organizationId: ctx.organizationId, userId, includeEnded: true }, client))) {
+    return null;
+  }
   const own = await client.organizationMembership.findFirst({
     where: { organizationId: team.organizationId, userId, status: "ACTIVE", role: "ORG_OWNER" },
     select: { id: true },
   });
-  if (!own) return false;
-  // Outside the directory's reach the route answers 404 as it always has;
-  // never reveal that an unmanaged person is an owner.
-  if (!(await isWithinDirectoryReach({ organizationId: ctx.organizationId, userId, includeEnded: true }, client))) {
-    return false;
-  }
-  return (await liveOrganizationOwnerCountTx(client, team.organizationId)) <= 1;
+  if (own && (await liveOrganizationOwnerCountTx(client, team.organizationId)) <= 1) return "last_owner";
+  if (await ownsLiveOrganizationWorkspaceTx(client, team.organizationId, userId)) return "workspace_owner";
+  return null;
 }
 
 export async function scimDeactivateUser(
   ctx: ScimCreateUserContext,
   userId: string,
   client: PrismaClient = defaultPrisma,
-): Promise<{ ok: boolean; lastOwnerProtected?: true }> {
+): Promise<{ ok: boolean; lastOwnerProtected?: true; workspaceOwnerProtected?: true }> {
   /*
    * Members audit DOM-13 — a directory identity is the ORGANIZATION's, so a
    * directory deactivation ends its access in EVERY workspace of the
@@ -1501,6 +1510,20 @@ export async function scimDeactivateUser(
       const liveOwners = await liveOrganizationOwnerCountTx(txc, team.organizationId);
       if (liveOwners <= 1) return { kind: "last_owner" as const };
     }
+    /*
+     * Closure 2 review L-2 — PROV-011, as the manual suspension applies it: a
+     * person who owns a live workspace of the Organization is not suspended by
+     * a directory push either. Suspending them would leave that workspace's
+     * OWNER membership live under a suspended governance membership (a
+     * directory push never suspends a workspace OWNER), keep their managed
+     * binding, and differ from what an administrator is allowed to do. Refused
+     * under the same lock with the manual route's code; nothing is written.
+     * The workspace ownership moves first (workspace ownership offer), then
+     * the directory push succeeds.
+     */
+    if (team && (await ownsLiveOrganizationWorkspaceTx(txc, team.organizationId, userId))) {
+      return { kind: "workspace_owner" as const };
+    }
     if (team && orgMembership) {
       await suspendOrganizationMembership({
         prisma: txc as never,
@@ -1545,13 +1568,13 @@ export async function scimDeactivateUser(
     return { kind: "done" as const, changedAnything };
   });
 
-  if (outcome.kind === "last_owner") {
-    // The refusal is on the tenant audit trail (outcome "denied", reason
-    // LAST_ACTIVE_ORGANIZATION_OWNER) — the record an operator reads.
+  if (outcome.kind === "last_owner" || outcome.kind === "workspace_owner") {
+    // The refusal is on the tenant audit trail (outcome "denied") — the record
+    // an operator reads.
     await emitTenantAudit({
       action: "scim.user.deactivate",
       outcome: "denied",
-      denialReason: "LAST_ACTIVE_ORGANIZATION_OWNER",
+      denialReason: outcome.kind === "last_owner" ? "LAST_ACTIVE_ORGANIZATION_OWNER" : "WORKSPACE_OWNERSHIP_TRANSFER_REQUIRED",
       sourceApp: "SCIM",
       actorUserId: null,
       serviceActor: "scim_service",
@@ -1560,7 +1583,9 @@ export async function scimDeactivateUser(
       resourceId: userId,
       metadata: {},
     }, client);
-    return { ok: false, lastOwnerProtected: true };
+    return outcome.kind === "last_owner"
+      ? { ok: false, lastOwnerProtected: true }
+      : { ok: false, workspaceOwnerProtected: true };
   }
   const changed = outcome.changedAnything;
 
