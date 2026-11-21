@@ -138,6 +138,8 @@ export async function syncPlanForSubscription(params: {
   providerScheduleId?: string | null;
   /** Injected by tests; production cancels through the real provider client. */
   cancelSupersededAtProvider?: SupersededCanceller;
+  /** NEW-RG-02-1 — provider READS for the duplicate classification; tests inject a fake. */
+  readSupersededProvider?: SupersessionProviderReader;
   /** The sweep, while automatic lowering is off: record the fact, keep the entitlement. */
   holdPlanLowering?: boolean;
 }): Promise<SyncPlanOutcome> {
@@ -268,7 +270,9 @@ export async function syncPlanForSubscription(params: {
         providerSubId: params.providerSubId,
         plan: params.plan,
         keptSubscriptionId: otherLive.id,
+        duplicateSubscriptionId: subscription.id,
         cancel: params.cancelSupersededAtProvider ?? cancelSupersededSubscriptionAtProvider,
+        readProvider: params.readSupersededProvider ?? defaultSupersessionProviderReader(),
       });
       return {
         outcome: "SUPERSEDED",
@@ -688,13 +692,58 @@ async function supersede(input: {
   providerSubId: string;
   plan: prismaPkg.PlanType;
   keptSubscriptionId: string;
+  duplicateSubscriptionId: string;
   cancel: SupersededCanceller;
+  readProvider: SupersessionProviderReader;
 }): Promise<boolean> {
+  // NEW-RG-02-1 (decision H) — the FIRST attempt obeys the same rule as the
+  // retry: only a conclusive duplicate whose retained subscription is valid and
+  // provider-confirmed (never PAST_DUE) is cancelled. Anything else is review
+  // with no provider call; the retry step re-reads it daily. The duplicate
+  // still grants nothing either way (it is already marked superseded).
+  const [duplicate, retained] = await Promise.all([
+    prisma.subscription.findUnique({ where: { id: input.duplicateSubscriptionId }, select: SUPERSESSION_ROW_SELECT }),
+    prisma.subscription.findUnique({ where: { id: input.keptSubscriptionId }, select: SUPERSESSION_ROW_SELECT }),
+  ]);
+  const classification = duplicate
+    ? await classifySupersededDuplicate(duplicate, retained, input.readProvider)
+    : ({ kind: "REVIEW", reason: "NOT_SUPERSEDED", retainedSubscriptionId: input.keptSubscriptionId } as const);
+  if (classification.kind === "REVIEW") {
+    await prisma.subscription.updateMany({
+      where: { provider: input.provider, providerSubId: input.providerSubId },
+      data: {
+        supersessionCancelState: "REVIEW_REQUIRED",
+        supersessionCancelAttemptCount: 0,
+        supersessionCancelNextRetryAtUtc: new Date(Date.now() + SUPERSESSION_REVIEW_RECHECK_MINUTES * 60_000),
+      },
+    });
+    await recordBillingReviewItem({
+      userId: input.userId,
+      provider: input.provider,
+      providerResourceId: input.providerSubId,
+      product: "PLAN",
+      reason: "DUPLICATE_BASE_SUBSCRIPTION_UNCONFIRMED",
+      providerAction: "NONE",
+      refundReviewRequired: true,
+      detail: {
+        why: classification.reason,
+        retainedSubscriptionId: classification.retainedSubscriptionId,
+        supersededPlan: input.plan,
+        firstAttempt: true,
+      },
+    });
+    return false;
+  }
   let result: Awaited<ReturnType<SupersededCanceller>>;
-  try {
-    result = await input.cancel(input.provider, input.providerSubId);
-  } catch {
-    result = { canceled: false, observedAtUtc: null };
+  if (classification.duplicateAlreadyEnded) {
+    // Idempotent: the provider already stopped it; nothing is asked of it.
+    result = { canceled: true, observedAtUtc: classification.observedAtUtc };
+  } else {
+    try {
+      result = await input.cancel(input.provider, input.providerSubId);
+    } catch {
+      result = { canceled: false, observedAtUtc: null };
+    }
   }
   if (result.canceled) {
     await upsertSubscription({
@@ -728,6 +777,7 @@ async function supersede(input: {
     detail: {
       keptSubscriptionId: input.keptSubscriptionId,
       supersededPlan: input.plan,
+      exception: "DUPLICATE_CHARGE_PREVENTION",
     },
   });
   return result.canceled;
