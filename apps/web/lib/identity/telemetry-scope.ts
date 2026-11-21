@@ -24,3 +24,16 @@ export function readTelemetryScope(body: unknown): TelemetryScope {
 export function telemetryOffersRevoke(scope: TelemetryScope): boolean {
   return scope !== "self";
 }
+
+/**
+ * Closure 2 ("sem" item 3) — "Remove trust" on a TRUSTED-DEVICE list is offered
+ * on every list, a "self" one included: the device's own person may remove
+ * trust from their own device without the administrator permission or an extra
+ * factor, and a "self" list holds only the caller's own devices. Another
+ * member's device (team / legacy lists) is the administrator's, and the server
+ * asks for the rank rule and a step-up; sessions keep `telemetryOffersRevoke`.
+ */
+export function trustedDeviceOffersRemoveTrust(scope: TelemetryScope): boolean {
+  void scope;
+  return true;
+}

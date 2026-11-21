@@ -122,6 +122,7 @@ import {
   requestUa,
   requireSecurityActor,
 } from "./identity-security-shared.js";
+import { assertActorOutranksMfaTarget } from "../services/security/mfa-admin-lifecycle.service.js";
 
 const TeamIdQuery = z.object({ teamId: z.string().uuid() });
 
@@ -746,8 +747,63 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
       const body = z
         .object({ teamId: z.string().uuid(), reason: z.string().min(1).max(400).optional() })
         .parse(req.body ?? {});
-      const actor = await requireSecurityActor(req, reply, body.teamId, "identity.access_review.action");
+      /*
+       * Closure 2 ("sem" item 3) — WHOSE device decides the authority.
+       *
+       * Before: `identity.access_review.action` alone revoked ANY member's
+       * trusted device in the workspace, with no step-up and no rank rule —
+       * while the bulk reset of one member's devices
+       * (/v1/identity/mfa-admin/trusted-devices/:teamId/:userId/reset) asks for
+       * the scope check, the rank rule and a step-up. And the device's own
+       * person could not revoke it unless they also administered identity.
+       *
+       * Now:
+       *  - SELF: the device's own person, any member of the workspace (the
+       *    `identity.member.read` gate the device list already uses, which
+       *    shows them exactly these devices), revokes it WITHOUT a step-up.
+       *    Revoking one's own trust only takes a convenience away — the next
+       *    sign-in on that device is challenged again — the same reasoning as
+       *    an ordinary sign-out needing no extra factor (decision C).
+       *  - ANOTHER person's device: `identity.access_review.action`, the
+       *    members rank rule (an ADMIN never revokes the OWNER's device), and
+       *    a step-up bound to THAT device, purpose MFA_TRUSTED_DEVICE_RESET
+       *    (the purpose of the bulk sibling: "clearing a member's remembered
+       *    devices"). A caller who may not administer identity gets the same
+       *    404 as a device that does not exist (their list never shows it).
+       *    Refusals spend no step-up.
+       */
+      const actor = await requireSecurityActor(req, reply, body.teamId, "identity.member.read");
       if (!actor) return;
+      const device = await prisma.trustedDevice.findFirst({
+        where: { id, teamId: body.teamId },
+        select: { id: true, userId: true },
+      });
+      if (!device) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
+      if (device.userId !== actor.userId) {
+        if (!(await administersWorkspaceIdentity(body.teamId, actor.userId))) {
+          return reply.code(404).send({ error: { code: "not_found" } });
+        }
+        const rankRefusal = await assertActorOutranksMfaTarget({
+          teamId: body.teamId,
+          actorUserId: actor.userId,
+          targetUserId: device.userId,
+        });
+        if (rankRefusal) {
+          return reply.code(403).send({ error: { code: "permission_denied", reason: rankRefusal } });
+        }
+        const gate = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: body.teamId,
+          userId: actor.userId,
+          purpose: "MFA_TRUSTED_DEVICE_RESET",
+          resourceKind: "trusted_device",
+          resourceId: device.id,
+        });
+        if (gate.sent) return;
+      }
       const row = await revokeTrustedDevice({
         teamId: body.teamId,
         deviceId: id,

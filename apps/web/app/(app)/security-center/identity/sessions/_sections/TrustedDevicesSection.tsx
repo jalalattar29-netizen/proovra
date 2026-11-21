@@ -19,6 +19,13 @@
  *   never holding their device. To clear another member's trusted devices,
  *   use "Reset trusted devices" in the Security Center.
  *
+ * WHO MAY REMOVE TRUST (closure 2, "sem" item 3 — the server decides it)
+ *   - Your OWN device: any member, no extra factor (it only takes a
+ *     convenience away), so a "self" list offers "Remove trust" too.
+ *   - ANOTHER member's device: an identity administrator who outranks them,
+ *     with a step-up bound to that device; the server asks for it (401
+ *     STEP_UP_REQUIRED) and the step-up modal answers it.
+ *
  * The projection carries UA / network PREVIEWS only; the device id hash and
  * the IP hash are never returned by the server.
  */
@@ -30,6 +37,7 @@ import { describeClient } from "../../../../../../lib/ui/describeClient";
 import { apiFetch } from "../../../../../../lib/api";
 import { notifyApiError } from "../../../../../../lib/feedback/notify";
 import { useTeamId, useTenantGuard } from "../../../../../../lib/platform-context";
+import { useOptionalPlatformContext } from "../../../../../../lib/platform-context/PlatformContextProvider";
 import { useToast } from "../../../../../../components/ui";
 import { Badge } from "../../../../../../components/ui/Badge";
 import { Button } from "../../../../../../components/ui/Button";
@@ -61,7 +69,7 @@ import { formatCellDateTime } from "../../../../../../lib/date";
 import { shortId } from "../../_sections/identity-admin-shared";
 import {
   readTelemetryScope,
-  telemetryOffersRevoke,
+  trustedDeviceOffersRemoveTrust,
   type TelemetryScope,
 } from "../../../../../../lib/identity/telemetry-scope";
 
@@ -83,6 +91,7 @@ export function TrustedDevicesSection() {
   const { addToast } = useToast();
   const { confirm } = useConfirmAction();
   const stepUp = useStepUpAction({ teamId });
+  const viewerUserId = useOptionalPlatformContext()?.envelope?.user?.id ?? null;
 
   const [state, setState] = useState<SectionState<TrustedDevice[]>>({
     kind: "loading",
@@ -90,7 +99,8 @@ export function TrustedDevicesSection() {
   const [ttlDays, setTtlDays] = useState(30);
   const [busy, setBusy] = useState<string | null>(null);
   // B1-F-003 — a read-only role reads only its own devices (`scope: "self"`);
-  // trusting and removing trust both need the administrator permission.
+  // trusting needs the administrator permission; removing trust from one's
+  // OWN device does not (closure 2, "sem" item 3).
   const [scope, setScope] = useState<TelemetryScope>("legacy");
 
   const load = useCallback(async () => {
@@ -160,10 +170,12 @@ export function TrustedDevicesSection() {
   const revokeDevice = useCallback(
     async (device: TrustedDevice) => {
       if (!teamId) return;
+      const own = scope === "self" || device.userId === viewerUserId;
       const ok = await confirm({
-        title: "Stop trusting this device?",
-        description:
-          "The member using this device will be asked for their second factor again the next time the policy requires one.",
+        title: own ? "Stop trusting your device?" : "Stop trusting this device?",
+        description: own
+          ? "You will be asked for your second factor again on that device the next time the policy requires one."
+          : "The member using this device will be asked for their second factor again the next time the policy requires one. You will confirm with your own second factor first.",
         confirmLabel: "Remove trust",
         tone: "danger",
         testId: `trusted-device-revoke-${device.id}`,
@@ -172,19 +184,29 @@ export function TrustedDevicesSection() {
       const captured = stamp();
       setBusy(`revoke-${device.id}`);
       try {
-        await apiFetch(
-          `/v1/identity-security/devices/${encodeURIComponent(device.id)}/revoke`,
-          {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ teamId, reason: "Operator removed device trust" }),
-          },
+        // Another member's device needs the operator's step-up (the server
+        // answers 401 STEP_UP_REQUIRED and the modal retries once); one's own
+        // device is removed straight away.
+        await stepUp.runStepUpAction(async (headers) =>
+          apiFetch(
+            `/v1/identity-security/devices/${encodeURIComponent(device.id)}/revoke`,
+            {
+              method: "POST",
+              headers: { "content-type": "application/json", ...(headers ?? {}) },
+              body: JSON.stringify({
+                teamId,
+                reason: own ? "Member removed trust from their own device" : "Operator removed device trust",
+              }),
+            },
+          ),
         );
         if (isStale(captured)) return;
         addToast("Device trust removed.", "success");
         await load();
       } catch (err) {
         if (isStale(captured)) return;
+        const code = ((err as { code?: string }).code ?? "").toUpperCase();
+        if (code === "STEP_UP_CANCEL") return;
         notifyApiError(addToast, err, {
           message: "We couldn't remove trust from that device.",
         });
@@ -192,7 +214,7 @@ export function TrustedDevicesSection() {
         setBusy(null);
       }
     },
-    [teamId, confirm, stamp, isStale, addToast, load],
+    [teamId, scope, viewerUserId, confirm, stepUp, stamp, isStale, addToast, load],
   );
 
   const description =
@@ -287,7 +309,7 @@ export function TrustedDevicesSection() {
       title={selfScope ? "Your trusted devices" : "Trusted devices"}
       description={
         selfScope
-          ? "Your own trusted devices in this workspace. Workspace owners and admins manage every member's devices."
+          ? "Your own trusted devices in this workspace. You can remove trust from any of them. Workspace owners and admins manage every member's devices."
           : description
       }
       data-trusted-devices-section
@@ -353,7 +375,7 @@ export function TrustedDevicesSection() {
           )
         }
         rowActions={(d) =>
-          d.status === "ACTIVE" && telemetryOffersRevoke(scope) ? (
+          d.status === "ACTIVE" && trustedDeviceOffersRemoveTrust(scope) ? (
             <Button
               variant="destructive"
               size="sm"

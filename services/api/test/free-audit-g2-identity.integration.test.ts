@@ -1595,6 +1595,7 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
       const selfServe = await person("g2-wssched-prev-self", { role: "MEMBER" });
       const idleGoverned = await session(A().teamId, governed.userId, { deviceIdHash: createHash("sha256").update(randomUUID()).digest("hex") });
       const idleSelfServe = await session(A().teamId, selfServe.userId);
+      const deviceLastSeen = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const device = await prisma.trustedDevice.create({
         data: {
           teamId: A().teamId,
@@ -1603,7 +1604,7 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
           uaPreview: "ws-sched-preview",
           ipPreview: "203.0.113.0/24",
           trustedUntilUtc: future(),
-          lastSeenAtUtc: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+          lastSeenAtUtc: deviceLastSeen,
         } as never,
         select: { id: true, trustScoreDecay: true },
       });
@@ -1647,11 +1648,18 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
         );
         expect(forTeam.some((i) => "sessionId" in i && i.sessionId === idleSelfServe.id)).toBe(false);
         expect(preview.totals.idleSessionsExcludedSelfServe).toBeGreaterThanOrEqual(1);
-        // 30 days unseen, 14 stale: +32 per run, so revoked on the 4th run (15 minutes in).
+        // Closure 2 ("sem" 3c): decay is ABSOLUTE. 30 days unseen, 14 stale ->
+        // 32, and the device reaches 100 at 64 days unseen, i.e. 34 days from
+        // now: 34 × 288 = 9792 five-minute intervals, so the 9793rd run. (It
+        // used to compound +32 per run and be revoked on the 4th run, 15
+        // minutes in.)
+        const item = forTeam.find((i) => "deviceId" in i && i.deviceId === device.id) as
+          | { sweepsUntilRevoked: number; minutesUntilRevoked: number; revokesAtUtc: string }
+          | undefined;
         expect(forTeam).toContainEqual(
-          expect.objectContaining({ action: "DECAY_DEVICE", deviceId: device.id, fromDecay: 0, toDecay: 32, sweepsUntilRevoked: 4, minutesUntilRevoked: 15 }),
+          expect.objectContaining({ action: "DECAY_DEVICE", deviceId: device.id, fromDecay: 0, toDecay: 32, sweepsUntilRevoked: 9793, minutesUntilRevoked: 48960 }),
         );
-        expect(preview.totals.devicesRevokedWithin24h).toBeGreaterThanOrEqual(1);
+        expect(new Date(item!.revokesAtUtc).getTime()).toBe(deviceLastSeen.getTime() + 64 * 86_400_000);
         // Nothing was written: not a score, a quarantine, a revocation, a decay or a cursor.
         expect(await snapshot()).toEqual(before);
         expect(await prisma.workerSweepCursor.findMany({ where: { key: "identity_runtime_reconcile_teams" } })).toEqual(cursorBefore);

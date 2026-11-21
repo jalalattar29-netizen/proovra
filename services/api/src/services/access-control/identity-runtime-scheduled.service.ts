@@ -40,10 +40,8 @@
  */
 import type { PrismaClient } from "@prisma/client";
 import {
-  TRUST_DECAY_DEFAULT_MAX,
   TRUST_DECAY_STALE_DAYS,
   computeSuspiciousSessionRisk,
-  computeTrustDecay,
   isSessionStale,
   sessionRiskLevel,
 } from "@proovra/shared";
@@ -61,7 +59,11 @@ import {
 import { collectSessionRiskSignals } from "./suspicious-session.service.js";
 import { sweepQuarantineReleases } from "./session-quarantine.service.js";
 import { sweepStaleCallbackAttempts } from "./sso-hardening.service.js";
-import { sweepTrustedDeviceDecay } from "./trusted-device-decay.service.js";
+import {
+  TRUST_DECAY_SWEEP_BATCH_DEFAULT,
+  decideTrustDecay,
+  sweepTrustedDeviceDecay,
+} from "./trusted-device-decay.service.js";
 
 export const IDENTITY_RUNTIME_TEAM_SWEEP_CURSOR = "identity_runtime_reconcile_teams";
 export const IDENTITY_RUNTIME_SWEEP_MAX_TEAMS_DEFAULT = 200;
@@ -202,7 +204,7 @@ export async function runScheduledIdentityRuntimeSweep(
       totals.escalatedToQuarantine += risk.escalatedToQuarantine;
 
       if (enforcement) {
-        const decay = await sweepTrustedDeviceDecay({ teamId }, client);
+        const decay = await sweepTrustedDeviceDecay({ teamId, now }, client);
         totals.devicesDecayed += decay.decayed;
         totals.devicesAutoInvalidated += decay.autoInvalidated;
       }
@@ -280,12 +282,14 @@ export type IdentityRuntimeEnforcementPreviewItem =
       fromDecay: number;
       toDecay: number;
       /**
-       * Decay is cumulative per sweep: each run adds the stale penalty again.
-       * At the scheduled cadence this is how many runs, and minutes, until
-       * the device is auto-invalidated (null: it never is at today's age).
+       * Closure 2 ("sem" 3c): decay is absolute (last seen + the clock), so
+       * the revoke instant is fixed by when the device was last seen, not by
+       * the cadence. These are the scheduled runs, and minutes, until the first
+       * run at or after that instant (1 / 0: the next run revokes).
        */
-      sweepsUntilRevoked: number | null;
-      minutesUntilRevoked: number | null;
+      sweepsUntilRevoked: number;
+      minutesUntilRevoked: number;
+      revokesAtUtc: string;
     }
   | {
       action: "REVOKE_IDLE_SESSION";
@@ -306,6 +310,8 @@ export type IdentityRuntimeEnforcementPreview = {
     devicesToQuarantineFirstSweep: number;
     devicesToDecayFirstSweep: number;
     devicesRevokedWithin24h: number;
+    /** Devices past the per-run batch (TRUST_DECAY_SWEEP_BATCH_DEFAULT): not reached by the next run. */
+    devicesBeyondFirstSweepBatch: number;
     idleSessionsToRevoke: number;
     /** Stale sessions in a workspace with an idle policy that DEC-08 keeps. */
     idleSessionsExcludedSelfServe: number;
@@ -328,6 +334,7 @@ export async function previewScheduledIdentityRuntimeEnforcement(
     devicesToQuarantineFirstSweep: 0,
     devicesToDecayFirstSweep: 0,
     devicesRevokedWithin24h: 0,
+    devicesBeyondFirstSweepBatch: 0,
     idleSessionsToRevoke: 0,
     idleSessionsExcludedSelfServe: 0,
     workspacesWithIdlePolicy: 0,
@@ -400,28 +407,25 @@ export async function previewScheduledIdentityRuntimeEnforcement(
       orderBy: { id: "asc" },
       select: { id: true, lastSeenAtUtc: true, trustScoreDecay: true },
     });
-    for (const d of devices) {
-      const next = computeTrustDecay({
-        lastSeenAtUtc: d.lastSeenAtUtc,
-        currentDecay: d.trustScoreDecay,
-        nowUtc: now,
-        staleDays: TRUST_DECAY_STALE_DAYS,
-      });
-      if (next === d.trustScoreDecay) continue;
-      const step = next - d.trustScoreDecay;
+    const intervalMs = IDENTITY_RUNTIME_SCHEDULED_INTERVAL_MINUTES * 60_000;
+    for (const [index, d] of devices.entries()) {
+      // The sweep's own decision function — the same computation executes.
+      const decision = decideTrustDecay(d, now, TRUST_DECAY_STALE_DAYS);
+      if (decision.action === "NONE") continue;
+      if (index >= TRUST_DECAY_SWEEP_BATCH_DEFAULT) {
+        totals.devicesBeyondFirstSweepBatch += 1;
+        continue;
+      }
+      const next = decision.toDecay;
+      const untilMs = decision.revokesAtUtc.getTime() - now.getTime();
       const sweepsUntilRevoked =
-        next >= TRUST_DECAY_DEFAULT_MAX
-          ? 1
-          : step > 0
-            ? 1 + Math.ceil((TRUST_DECAY_DEFAULT_MAX - next) / step)
-            : null;
-      const minutesUntilRevoked =
-        sweepsUntilRevoked === null ? null : (sweepsUntilRevoked - 1) * IDENTITY_RUNTIME_SCHEDULED_INTERVAL_MINUTES;
-      if (sweepsUntilRevoked !== null && sweepsUntilRevoked <= sweepsPerDay) totals.devicesRevokedWithin24h += 1;
+        decision.action === "REVOKE" || untilMs <= 0 ? 1 : 1 + Math.ceil(untilMs / intervalMs);
+      const minutesUntilRevoked = (sweepsUntilRevoked - 1) * IDENTITY_RUNTIME_SCHEDULED_INTERVAL_MINUTES;
+      if (sweepsUntilRevoked <= sweepsPerDay) totals.devicesRevokedWithin24h += 1;
       const action =
-        next >= TRUST_DECAY_DEFAULT_MAX
+        decision.action === "REVOKE"
           ? "REVOKE_DEVICE"
-          : next >= 70 && d.trustScoreDecay < 70
+          : decision.action === "QUARANTINE"
             ? "QUARANTINE_DEVICE"
             : "DECAY_DEVICE";
       if (action === "REVOKE_DEVICE") totals.devicesToRevokeFirstSweep += 1;
@@ -435,6 +439,7 @@ export async function previewScheduledIdentityRuntimeEnforcement(
         toDecay: next,
         sweepsUntilRevoked,
         minutesUntilRevoked,
+        revokesAtUtc: decision.revokesAtUtc.toISOString(),
       });
     }
 
