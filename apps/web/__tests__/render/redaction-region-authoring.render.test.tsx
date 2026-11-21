@@ -165,8 +165,8 @@ describe("PRO-R3-18 — authoring without a mouse drag", () => {
  * WEB-OLD-API-COMPAT — the image editor never places a region over an image
  * the operator cannot see: while the image is loading, when the evidence read
  * releases none, or when the image fails, drawing and the coordinate form are
- * DISABLED with a notice. The video editor shows no frame at all, so its
- * free-hand drawing is disabled the same way.
+ * DISABLED with a notice. The video panel offers no drawing at all (video
+ * regions are not a supported capability).
  */
 async function tryBlindImageAuthoring(canvas: HTMLElement) {
   await act(async () => {
@@ -267,23 +267,34 @@ describe("WEB-OLD-API-COMPAT — no image region without the image in view", () 
     });
   });
 
-  it("video: no frame is shown, so drawing is disabled with a notice and nothing is sent", async () => {
+  /**
+   * Closure 2026-11-21 — video-region authoring is not a product capability
+   * (FUTURE_NOT_SHIPPING: no frame preview, no renderer, video copy refused).
+   * The panel offers no drawing surface and no frame-range / method / tracking
+   * controls, says what is supported, and sends nothing whatever is clicked.
+   */
+  it("video: no drawing surface or region controls; the notice states the image/PDF-only contract; nothing is sent", async () => {
     handler = () => ({ status: 201, body: { regionId: "r1" } });
-    render(<VideoRedactionViewer evidenceId="e1" versionId="v1" versionLocked={false} onChanged={() => {}} />);
-    const canvas = document.querySelector("[data-redaction-video-canvas]") as HTMLElement;
-    canvas.getBoundingClientRect = () =>
-      ({ left: 0, top: 0, width: 100, height: 100, right: 100, bottom: 100, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
-    expect(canvas.getAttribute("data-redaction-authoring")).toBe("disabled");
-    expect(blocked()?.textContent).toMatch(/no video frame is shown/);
+    render(<VideoRedactionViewer />);
+    const panel = document.querySelector("[data-redaction-video-viewer]") as HTMLElement;
+    expect(panel).not.toBeNull();
+    expect(panel.getAttribute("data-redaction-authoring")).toBe("disabled");
+    expect(document.querySelector("[data-redaction-video-canvas]")).toBeNull();
+    expect(panel.querySelectorAll("input, select, textarea, button, [role=listbox], [role=combobox]")).toHaveLength(0);
+    expect(blocked()?.getAttribute("data-redaction-authoring-blocked")).toBe("unsupported");
+    expect(blocked()?.textContent).toMatch(/image and PDF records only/);
+    expect(blocked()?.textContent).toMatch(/no redacted video copy is produced/);
+    expect(panel.textContent).not.toMatch(/drag to draw|frame-by-frame|Blur|Pixelate/i);
     await act(async () => {
-      fireEvent.mouseDown(canvas, { clientX: 10, clientY: 10 });
+      fireEvent.mouseDown(panel, { clientX: 10, clientY: 10 });
     });
     await act(async () => {
-      fireEvent.mouseMove(canvas, { clientX: 60, clientY: 60 });
+      fireEvent.mouseMove(panel, { clientX: 60, clientY: 60 });
     });
     await act(async () => {
-      fireEvent.mouseUp(canvas, { clientX: 60, clientY: 60 });
+      fireEvent.mouseUp(panel, { clientX: 60, clientY: 60 });
     });
     expect(regionPosts()).toHaveLength(0);
+    expect(calls).toHaveLength(0);
   });
 });

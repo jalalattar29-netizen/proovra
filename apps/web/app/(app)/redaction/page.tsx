@@ -422,6 +422,19 @@ function RedactionOpenForm({
         Open project
       </Button>
       </div>
+      {artifactKind === "VIDEO" || artifactKind === "AUDIO" ? (
+        // Product contract: regions are drawn and a redacted copy is produced
+        // for image and PDF records only (video/audio: UNSUPPORTED_REDACTION_MEDIA).
+        <p
+          role="note"
+          data-redaction-open-media-unsupported
+          style={{ margin: "8px 0 0", fontSize: 12, color: "var(--status-warn-fg, #92400e)" }}
+        >
+          Redaction regions are drawn and a redacted copy is produced for image and PDF records
+          only. A {artifactKind === "VIDEO" ? "video" : "audio"} project holds review decisions,
+          but no region can be drawn and no redacted copy is produced.
+        </p>
+      ) : null}
     </Card>
   );
 }

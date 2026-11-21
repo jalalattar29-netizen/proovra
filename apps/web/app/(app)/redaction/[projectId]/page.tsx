@@ -7,7 +7,8 @@
  *
  *   * Project header with state + artifact kind + provenance link
  *   * Version history panel (newest → oldest, with state chips)
- *   * Per-version: region viewer (image / PDF / video), detection
+ *   * Per-version: region viewer (image / PDF; video and audio show a
+ *     "regions are not supported" notice), detection
  *     review panel, approval panel
  *   * Activity timeline
  *
@@ -621,12 +622,7 @@ function VersionWorkspace({
         />
       ) : project.artifactKind === "VIDEO" ? (
         <>
-          <VideoRedactionViewer
-            evidenceId={project.evidenceId}
-            versionId={version.id}
-            versionLocked={locked}
-            onChanged={onChanged}
-          />
+          <VideoRedactionViewer />
           <VideoReviewWorkspace
             evidenceId={project.evidenceId}
             versionId={version.id}
@@ -645,9 +641,9 @@ function VersionWorkspace({
             fontSize: 13,
           }}
         >
-          Audio redaction uses time-range regions only. Add them through
-          the API as time-range regions (region kind{" "}
-          <code data-identifier>AUDIO_RANGE_MS</code>).
+          Audio regions are not supported. Redaction regions are drawn and
+          blacked out on image and PDF records only; for an audio record no
+          redacted copy is produced, and the original audio is never modified.
         </div>
       )}
 

@@ -1,141 +1,28 @@
 "use client";
 
 /**
- * PROOVRA Phase 3A — Video redaction viewer.
+ * PROOVRA — video record notice in the redaction editor.
  *
- * Bounded timeline-aware region authoring for VIDEO redaction.
- * Operators select a frame range (startFrame..endFrame) and draw
- * a normalized bbox; the region is persisted as `VIDEO_FRAME_BBOX`
- * with the matching method.
+ * Product contract (PRO-R3-04 / WEB-OLD-API-COMPAT-1, closure 2026-11-21):
+ * redaction REGIONS are authored and burned for IMAGE and PDF records only.
+ * Video (and audio) redaction is FUTURE_NOT_SHIPPING: no frame preview is
+ * served to this editor, no renderer burns a video region, and the API refuses
+ * a redacted copy for video with UNSUPPORTED_REDACTION_MEDIA and a frame-range
+ * region with REGION_KIND_UNSUPPORTED.
  *
- * Hard rules:
- *   * The viewer never holds the original video bytes — it only
- *     authors the bounded geometry the worker pipeline will mask.
- *   * `trackingId` is optional and bounded — it lets the worker
- *     pipeline keep continuity across frames when a future
- *     tracker is wired in.
- *   * WEB-OLD-API-COMPAT — the frame below never shows the video (no
- *     frame preview exists), so free-hand drawing on it is DISABLED: a
- *     region is never placed over a frame the operator cannot see.
+ * So this panel offers NO drawing surface and no frame-range / method /
+ * tracking controls: a region is never placed over a frame the operator cannot
+ * see (no "blind drawing"), and nothing here suggests a masked video will be
+ * produced. Do not reintroduce authoring here without a real frame preview, a
+ * renderer, and a product decision that video regions are supported.
  */
 
-import { regionAddFailureMessage } from "../../lib/redaction/refusal";
-import { AppListbox } from "../app-primitives/AppListbox";
-import { useCallback, useRef, useState } from "react";
-
-import { apiFetch } from "../../lib/api";
-
-/**
- * WEB-OLD-API-COMPAT — no API version serves a video frame preview to this
- * editor. Flip only together with a real frame under the canvas.
- */
-const VIDEO_FRAME_PREVIEW_AVAILABLE: boolean = false;
-
-export function VideoRedactionViewer({
-  evidenceId,
-  versionId,
-  versionLocked,
-  onChanged,
-}: {
-  evidenceId: string;
-  versionId: string;
-  versionLocked: boolean;
-  onChanged: () => void;
-}) {
-  const [startFrame, setStartFrame] = useState<number>(0);
-  const [endFrame, setEndFrame] = useState<number>(30);
-  const [method, setMethod] = useState<"BLUR" | "PIXELATE" | "BLACKOUT">(
-    "BLUR",
-  );
-  const [trackingId, setTrackingId] = useState<string>("");
-  const [drag, setDrag] = useState<null | {
-    startX: number;
-    startY: number;
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-  }>(null);
-  const [addError, setAddError] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-
-  void evidenceId;
-
-  // No frame preview is shown, so drawing is never enabled here.
-  const canAuthor = VIDEO_FRAME_PREVIEW_AVAILABLE && !versionLocked;
-
-  const onMouseDown = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!canAuthor) return;
-      const rect = e.currentTarget.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width;
-      const y = (e.clientY - rect.top) / rect.height;
-      setDrag({ startX: x, startY: y, x, y, w: 0, h: 0 });
-    },
-    [canAuthor],
-  );
-  const onMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!drag || !canAuthor) return;
-      const rect = e.currentTarget.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width;
-      const y = (e.clientY - rect.top) / rect.height;
-      const w = Math.abs(x - drag.startX);
-      const h = Math.abs(y - drag.startY);
-      const minX = Math.min(x, drag.startX);
-      const minY = Math.min(y, drag.startY);
-      setDrag({ ...drag, x: minX, y: minY, w, h });
-    },
-    [drag, canAuthor],
-  );
-  const onMouseUp = useCallback(async () => {
-    if (!drag || !canAuthor) {
-      setDrag(null);
-      return;
-    }
-    if (endFrame < startFrame) return;
-    const bbox = {
-      x: Math.max(0, Math.min(1, drag.x)),
-      y: Math.max(0, Math.min(1, drag.y)),
-      width: Math.max(0.005, Math.min(1 - drag.x, drag.w)),
-      height: Math.max(0.005, Math.min(1 - drag.y, drag.h)),
-    };
-    setDrag(null);
-    try {
-      await apiFetch(`/v1/redaction/versions/${versionId}/regions`, {
-        method: "POST",
-        body: JSON.stringify({
-          kind: "VIDEO_FRAME_BBOX",
-          method,
-          geometry: {
-            startFrame,
-            endFrame,
-            bbox,
-            ...(trackingId.trim() ? { trackingId: trackingId.trim() } : {}),
-          },
-        }),
-      });
-      setAddError(null);
-      onChanged();
-    } catch (err) {
-      // B5B-F-200 — a refused region (VERSION_LOCKED from another tab, NOT_PERMITTED)
-      // used to vanish silently.
-      setAddError(regionAddFailureMessage(err));
-    }
-  }, [
-    canAuthor,
-    drag,
-    endFrame,
-    method,
-    onChanged,
-    startFrame,
-    trackingId,
-    versionId,
-  ]);
-
+export function VideoRedactionViewer() {
   return (
     <section
       data-redaction-video-viewer
+      data-redaction-authoring="disabled"
+      aria-labelledby="redaction-video-viewer-title"
       style={{
         background: "#fff",
         border: "1px solid rgba(15, 23, 42, 0.08)",
@@ -143,157 +30,22 @@ export function VideoRedactionViewer({
         padding: 10,
       }}
     >
-      <header
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          marginBottom: 8,
-          flexWrap: "wrap",
-        }}
+      <strong id="redaction-video-viewer-title" style={{ fontSize: 13 }}>
+        Video regions are not supported
+      </strong>
+      <p
+        role="note"
+        data-redaction-authoring-blocked="unsupported"
+        style={{ margin: "6px 0 0", fontSize: 12, color: "var(--status-warn-fg, #92400e)" }}
       >
-        <strong style={{ fontSize: 13 }}>Video redaction</strong>
-        <label style={{ fontSize: 11, color: "#475569", marginLeft: 12 }}>
-          Start frame
-          <input
-            data-redaction-video-start-frame
-            type="number"
-            min={0}
-            value={startFrame}
-            onChange={(e) => setStartFrame(Number(e.target.value))}
-            disabled={versionLocked}
-            style={frameInputStyle}
-          />
-        </label>
-        <label style={{ fontSize: 11, color: "#475569" }}>
-          End frame
-          <input
-            data-redaction-video-end-frame
-            type="number"
-            min={0}
-            value={endFrame}
-            onChange={(e) => setEndFrame(Number(e.target.value))}
-            disabled={versionLocked}
-            style={frameInputStyle}
-          />
-        </label>
-        <label style={{ fontSize: 11, color: "#475569" }}>
-          Tracking id (optional)
-          <input
-            data-redaction-video-tracking-id
-            value={trackingId}
-            onChange={(e) => setTrackingId(e.target.value)}
-            disabled={versionLocked}
-            style={{
-              ...frameInputStyle,
-              width: 90,
-            }}
-          />
-        </label>
-        <span style={{ flex: 1 }} />
-        <label style={{ fontSize: 11, color: "#475569" }}>
-          Method&nbsp;
-          <AppListbox
-            value={method}
-            options={[
-              { value: "BLUR", label: "Blur" },
-              { value: "PIXELATE", label: "Pixelate" },
-              { value: "BLACKOUT", label: "Blackout" },
-            ]}
-            onChange={(next) => setMethod(
-                            next as "BLUR" | "PIXELATE" | "BLACKOUT",
-                          )}
-            disabled={versionLocked}
-            triggerProps={{ "data-redaction-video-method": "" }}
-          />
-        </label>
-      </header>
-
-      <div
-        ref={containerRef}
-        data-redaction-video-canvas
-        data-redaction-authoring={canAuthor ? "enabled" : "disabled"}
-        aria-disabled={canAuthor ? undefined : true}
-        onMouseDown={onMouseDown}
-        onMouseMove={onMouseMove}
-        onMouseUp={onMouseUp}
-        style={{
-          position: "relative",
-          width: "100%",
-          aspectRatio: "16 / 9",
-          background:
-            "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)",
-          color: "#cbd5e1",
-          borderRadius: 8,
-          overflow: "hidden",
-          cursor: canAuthor ? "crosshair" : "not-allowed",
-        }}
-      >
-        <span
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 12,
-          }}
-        >
-          {canAuthor ? "Frame preview · drag to draw a per-frame region" : "No video frame is shown here"}
-          {" "}· range&nbsp;
-          {startFrame}..{endFrame}
-        </span>
-        {drag ? (
-          <div
-            data-redaction-video-active-rect
-            style={{
-              position: "absolute",
-              left: `${drag.x * 100}%`,
-              top: `${drag.y * 100}%`,
-              width: `${drag.w * 100}%`,
-              height: `${drag.h * 100}%`,
-              border: "2px solid #fafafa",
-              background: "rgba(250, 250, 250, 0.18)",
-            }}
-          />
-        ) : null}
-      </div>
-
-      <small
-        style={{
-          display: "block",
-          marginTop: 6,
-          color: "#475569",
-          fontSize: 11,
-        }}
-      >
-        Regions are recorded across the selected frames. A redacted video
-        copy cannot be produced yet; the original video is never modified.
+        Redaction regions are drawn and blacked out on image and PDF records only. For a video
+        record no region can be drawn and no redacted video copy is produced. The original video is
+        never modified.
+      </p>
+      <small style={{ display: "block", marginTop: 6, color: "#475569", fontSize: 11 }}>
+        Track and frame decisions in the review workspace below are a review record only; they do
+        not produce a redacted copy.
       </small>
-      {!versionLocked && !canAuthor ? (
-        <p
-          role="note"
-          data-redaction-authoring-blocked="unavailable"
-          style={{ margin: "8px 0 0", fontSize: 12, color: "var(--status-warn-fg, #92400e)" }}
-        >
-          Regions cannot be drawn here: no video frame is shown, and a region is never placed
-          without the frame in view.
-        </p>
-      ) : null}
-      {addError ? (
-        <p role="alert" data-redaction-region-add-error style={{ color: "var(--status-risk-fg, #991b1b)", fontSize: 12.5, margin: "8px 0 0" }}>
-          {addError}
-        </p>
-      ) : null}
     </section>
   );
 }
-
-const frameInputStyle = {
-  marginLeft: 4,
-  width: 60,
-  padding: "3px 6px",
-  borderRadius: 6,
-  border: "1px solid #cbd5e1",
-  fontSize: 11,
-};

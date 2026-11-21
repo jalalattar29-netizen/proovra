@@ -100,6 +100,42 @@ describe("B5B-F-200 — projects page", () => {
     expect(banner.textContent).not.toContain("POLICY_REJECTED");
     expect(banner.textContent).toMatch(/not permitted/i);
   });
+
+  it("closure 2026-11-21 — choosing Video or Audio says regions and a redacted copy are image/PDF only; Image/PDF show no such note", async () => {
+    handler = (_m, path) => {
+      if (path === "/v1/redaction/projects") return { status: 200, body: { projects: [] } };
+      if (path === "/v1/redaction/workspace/summary") {
+        return { status: 200, body: { summary: { pendingDecisionCount: 0, awaitingApprovalCount: 0, approvedPendingDerivativeCount: 0, publishedCount: 0, rejectedCount: 0 } } };
+      }
+      return { status: 200, body: { providers: [] } };
+    };
+    render(<RedactionProjectsPage />);
+    const note = () => document.querySelector<HTMLElement>("[data-redaction-open-media-unsupported]");
+    const trigger = await waitFor(() => {
+      const el = document.querySelector<HTMLElement>("[data-redaction-open-artifact]");
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    expect(note()).toBeNull();
+    const choose = async (label: string) => {
+      fireEvent.click(trigger);
+      const option = await waitFor(() => {
+        const o = Array.from(document.querySelectorAll("[role='option']")).find((el) => el.textContent?.trim() === label);
+        expect(o, `option "${label}"`).toBeTruthy();
+        return o as HTMLElement;
+      });
+      await act(async () => {
+        fireEvent.click(option);
+      });
+    };
+    await choose("Video");
+    expect(note()?.textContent).toMatch(/image and PDF records only/);
+    expect(note()?.textContent).toMatch(/video project holds review decisions, but no region can be drawn and no redacted copy is produced/);
+    await choose("Audio");
+    expect(note()?.textContent).toMatch(/audio project/);
+    await choose("PDF");
+    expect(note()).toBeNull();
+  });
 });
 
 describe("B5B-F-200 — a refused region is said", () => {
