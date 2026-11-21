@@ -100,9 +100,17 @@ docker compose --env-file /opt/proovra/app/.env \
   is recorded.
 - `pg-backup-offhost` copies the directory to `BACKUP_S3_URI` with its own
   credentials (`BACKUP_AWS_ACCESS_KEY_ID`, `BACKUP_AWS_SECRET_ACCESS_KEY`,
-  `BACKUP_AWS_REGION`, `BACKUP_S3_ENDPOINT_URL`), confirms the newest dump arrived,
-  and leaves the result for the next cycle to record. Use a bucket outside the
-  evidence bucket's account or region. Retention there is that bucket's lifecycle.
+  `BACKUP_AWS_REGION`, `BACKUP_S3_ENDPOINT_URL`). After each copy it verifies the
+  newest backup at the destination: the dump, its `.sha256`, `.counts` and `.schema`
+  are all there, each with its local size, and the remote `.sha256` equals the local
+  one. It leaves the result for the next cycle to record. It never deletes
+  remotely, so retention there is the bucket's lifecycle. The destination (a
+  dedicated bucket and credential, separate from the evidence bucket) and its
+  retention are set up by the owner: `docs/operations/offhost-backup-and-pitr.md`.
+- `pg-backup-offhost-verify.sh` proves the off-host copy restores: it downloads the
+  newest off-host dump, checks its SHA-256 against the uploaded `.sha256`, the local
+  record and `platform_backup_records`, and restores the retrieved copy with
+  `pg-restore-drill-local.sh` (see "Proving the off-host copy restores" below).
 - The image is `pgvector/pgvector:pg17`, pinned by digest
   (`sha256:b513c48566e4777cd3370451400000c78eda6a08131d68f4c31d4a76f27bd8fd`).
   Production runs managed PostgreSQL 17 (17.12 on 2026-11-21). The image used to be
@@ -121,7 +129,8 @@ docker compose --env-file /opt/proovra/app/.env \
 | `not_configured` | `DATABASE_URL` is unset |
 
 A provider's point-in-time recovery, where available, remains the finer-grained
-option. `DATABASE_BACKUP_LAST_VERIFIED_AT` and `DATABASE_RESTORE_TESTED_AT` remain
+option. Production's database is Neon-managed PostgreSQL 17; how the owner checks
+its restore window is in `docs/operations/offhost-backup-and-pitr.md`. `DATABASE_BACKUP_LAST_VERIFIED_AT` and `DATABASE_RESTORE_TESTED_AT` remain
 the operator's statement about backups this process cannot see.
 
 **Proved locally** by `services/api/test/pg-backup-restore-drill.integration.test.ts`
@@ -143,11 +152,14 @@ host):
 - restore and verify: 120 s;
 - amcheck: 22 s over 1952 indexes.
 
-**Alerting.** A missing or failed backup is pushed by the outage watchdog
-(`DATABASE_BACKUP_MISSING`, below). It fires when no successful backup is recorded
-within `OPS_WATCHDOG_BACKUP_STALE_HOURS` (default 13), or when the newest backup
-run FAILED. The release deploy also warns when the `pg-backup` container is
-missing, and when it is restarting.
+**Alerting.** A missing or failed backup is pushed by the outage watchdog (below),
+for each kind of record on its own: `DATABASE_BACKUP_MISSING` (no success within
+`OPS_WATCHDOG_BACKUP_STALE_HOURS`, default 13), `BACKUP_OFFHOST_COPY_MISSING`
+(`OPS_WATCHDOG_OFFHOST_STALE_HOURS`, default 26) and `RESTORE_DRILL_MISSING`
+(`OPS_WATCHDOG_DRILL_STALE_HOURS`, default 192), and whenever the newest record of
+that kind FAILED. Until 2026-11-21 only `DATABASE_BACKUP` rows were read, so a
+failed off-host copy or drill raised nothing. The release deploy also warns when the
+`pg-backup` container is missing, and when it is restarting.
 
 ### Outage alerting — **[configured; the receiver is external]**
 
@@ -168,21 +180,77 @@ through the existing `dispatchOpsAlert` path.
 | `QUEUE_BACKLOG_STALLED` | a work queue's oldest waiting job is older than the limit, or it holds more waiting jobs than the ceiling | 30 min / 1000 |
 | `RECONCILIATION_RUNS_MISSING` | the newest worker-scheduled `governance_reconciliation_runs` row is older than the limit | 60 min |
 | `DATABASE_BACKUP_MISSING` | no successful backup within the window, or the newest backup FAILED | 13 h |
+| `BACKUP_OFFHOST_COPY_MISSING` | no successful off-host copy within the window, or the newest one FAILED | 26 h |
+| `RESTORE_DRILL_MISSING` | no successful restore drill within the window, or the newest one FAILED | 192 h |
+| `HOST_DISK_LOW` | a measured filesystem is more than the limit used, or has less free than the floor (CRITICAL at 95 % or under 1 GB) | 85 % / 4096 MB |
+| `MONITORING_SOURCE_UNREADABLE` | a source above (Redis, worker leases, queues, reconciliation runs, backup records, disk) could not be read for longer than the hold | 10 min |
 
 - An alert is sent when a signal starts, again every `OPS_WATCHDOG_REMINDER_MINUTES`
   (default 60) while it lasts, and once more as `Resolved:` when it clears. The
   watchdog keeps its state in Redis, so a replica that takes over does not
   re-announce an ongoing alert.
+- **Unreadable is not healthy.** A signal whose source could not be read is carried
+  forward: never resolved, never re-announced. The source itself alerts
+  (`MONITORING_SOURCE_UNREADABLE`) once it stays unreadable past the hold.
+- **Delivery.** A start, reminder or `Resolved:` notice the receiver does not accept
+  is retried on the next tick, so a transient receiver failure loses nothing and a
+  recovery is announced exactly once (a refused recovery is given up after 12
+  ticks, logged as `ops_watchdog.resolve_abandoned`).
+- **Disk.** The watchdog measures `OPS_WATCHDOG_DISK_PATHS` (default `/`) with
+  `statfs`, as `df` computes the percentage. In the API container `/` is the
+  overlay on Docker's data disk; on the production host that is the same disk as
+  `/opt/proovra/backups/postgres` (check with `df -h /var/lib/docker
+  /opt/proovra/backups/postgres`). `off` turns the detector off.
 - Settings, all optional: `OPS_WATCHDOG_ENABLED` (`false` turns it off),
   `OPS_WATCHDOG_EXPECTED_WORKERS` (0 turns off the liveness detector),
-  `OPS_WATCHDOG_BACKUP_EXPECTED` (`false` where backups are deliberately elsewhere),
-  and the thresholds named in the service.
+  `OPS_WATCHDOG_BACKUP_EXPECTED` (`false` where backups are deliberately elsewhere;
+  it turns off all three backup detectors), `OPS_WATCHDOG_OFFHOST_EXPECTED`,
+  `OPS_WATCHDOG_DRILL_EXPECTED`, `OPS_WATCHDOG_DISK_PATHS`,
+  `OPS_WATCHDOG_DISK_MAX_USED_PERCENT`, `OPS_WATCHDOG_DISK_MIN_FREE_MB`,
+  `OPS_WATCHDOG_UNREADABLE_HOLD_MINUTES`, and the thresholds named in the service.
 - **Dependency:** the only transport is a webhook, `OPS_ALERT_WEBHOOK_URL`, read by
-  the API from `/opt/proovra/app/.env`. It can point at PagerDuty, a Slack incoming
-  webhook, or an ops endpoint. If it is unset, alerts are not delivered. Each one is
-  then logged at WARN as `ops_watchdog.alert_undelivered`.
-- **Not covered:** an API that is itself down. Use an uptime monitor outside the
-  host, on `https://api.proovra.com/readyz`.
+  the API from `/opt/proovra/app/.env`. The body follows the receiver: a Discord
+  webhook gets `content` (mentions disabled), a Slack webhook gets `text`, anything
+  else the JSON envelope (`OPS_ALERT_WEBHOOK_FORMAT` overrides). If it is unset,
+  alerts are not delivered. Each one is then logged at WARN as
+  `ops_watchdog.alert_undelivered`.
+- **Delivery proof.** Inside the running API container,
+  `node dist/scripts/ops-alert-delivery-test.js` sends a labelled
+  `[PROOVRA SYNTHETIC TEST] … no action needed` alert and its recovery through the
+  watchdog's own transport. For Discord it creates each with `?wait=true` and reads
+  it back with `GET /webhooks/<id>/<token>/messages/<id>`. It prints the host, the
+  message ids and the statuses only.
+- **Not covered:** an API, Docker or host that is itself down. The external uptime
+  check below covers that.
+
+### External uptime check — **[configured; needs one repository secret]**
+
+`.github/workflows/uptime.yml` runs every 10 minutes on GitHub's runners, outside
+the production host, and runs `scripts/ops/uptime-probe.mjs`:
+
+| Probe | Passes when |
+|---|---|
+| `https://api.proovra.com/health` | 200 with `ok: true` and `db: "up"` |
+| `https://api.proovra.com/readyz` | 200 (database, Redis and evidence storage ready) |
+| `https://www.proovra.com/api/health` | 200 |
+
+- Each probe gets 3 attempts, 20 s apart, so one blip does not page.
+- On the first failing run it posts one `[PROOVRA UPTIME] DOWN` message to the
+  repository secret `OPS_ALERT_WEBHOOK_URL`. When a later run passes it posts one
+  `RECOVERED` message. A failure that persists is not re-posted, and the run stays
+  red. If the previous run cannot be read, a failure is posted anyway, and a pass
+  posts no recovery.
+- Without the secret, every run fails with an explicit error, so the missing
+  destination is visible.
+- It runs only on a schedule or by hand, in its own concurrency group. It is never
+  part of a push or pull request, so it cannot block a merge or another workflow.
+- **Detects:** the host, Docker, Caddy, TLS, DNS or the API process being down or
+  unreachable from the internet; the API answering but not ready (database, Redis,
+  storage); the web front end down.
+- **Does not detect:** worker, queue, reconciliation, backup or disk problems while
+  the API is up (the in-process watchdog covers those); a backup's freshness (no
+  public endpoint states it, by design); slow responses under 15 s; anything
+  between two runs (GitHub may delay a scheduled run by several minutes).
 
 ### Signing keys — **[not in repo]**
 
@@ -276,6 +344,48 @@ image provides: 0.8.7 in the pinned pg17 image, against 0.8.0 on production. Che
 it with `SELECT extversion FROM pg_extension WHERE extname = 'vector'`. Restoring
 into a managed server gives that server's version. Row counts, the schema
 fingerprint and amcheck do not depend on it.
+
+### The same, scripted, with an authenticated smoke
+
+`scripts/ops/pg-restore-drill-smoke.sh` runs steps 1, 2, 4 and 5 above and then
+signs in. A synthetic user is inserted into the restored copy only. It signs in
+through `POST /v1/auth/email/login`, `/v1/auth/me` answers 200 for that user, and
+401 without a session and with a tampered token.
+
+```bash
+API_IMAGE=ghcr.io/<owner>/proovra-api:<the running sha tag> \
+  bash scripts/ops/pg-restore-drill-smoke.sh          # newest dump by default
+bash scripts/ops/pg-restore-drill-smoke.sh cleanup    # leftovers of an interrupted run
+```
+
+- Every resource is named `proovra-drill2-<role>-<run>` and labelled
+  `proovra.drill2=1`. The run removes exactly its own resources when it exits.
+  `cleanup` removes only resources that carry both the prefix and the label.
+- It refuses to start the API unless the API's `DATABASE_URL` names this run's
+  drill container. It checks this before the start and in the started container. A
+  `DATABASE_URL` or `DIRECT_URL` in the shell that names another server is refused.
+- The API gets dummy configuration only (no `--env-file`, `PROOVRA_TEST_STACK=1`,
+  recording email, its maintenance sweep and watchdog off). `/health` must report the
+  isolation facts: no env file, no live credential name.
+- Bounds: memory 768m (database), 768m (API), 256m (MinIO), 64m (Redis); 1 CPU each.
+  It checks first that Docker's data root has 4 × the dump plus 2 GB free.
+
+### Proving the off-host copy restores
+
+```bash
+C="docker compose --env-file /opt/proovra/app/.env -f infra/docker/docker-compose.prod.yml --profile backup"
+$C run --rm --no-deps --entrypoint bash pg-backup-offhost /ops/pg-backup-offhost-verify.sh fetch
+$C run --rm --no-deps --entrypoint bash pg-backup /ops/pg-backup-offhost-verify.sh drill
+```
+
+- `fetch` (aws-cli image) downloads the newest off-host dump and its artifacts into
+  `/opt/proovra/backups/postgres/.offhost-verify`. It requires the SHA-256 to match
+  the uploaded `.sha256`, and the local `.sha256` while the dump is still retained.
+- `drill` (pg17 image) checks the SHA-256 again and against
+  `platform_backup_records` (a read-only SELECT). It restores the retrieved copy in
+  a throwaway server and requires exact counts and schema. It then removes the
+  scratch directory.
+- Disk: the dump plus the drill's about 3.5 GB.
 
 ## Restore procedure
 
