@@ -34,7 +34,7 @@ import {
   releaseExpiredDerivedAssetStorageReservations,
 } from "@proovra/shared-runtime";
 
-import { reconcileDerivedAssetStorageIntents, type DerivedObjectStore } from "./derived-storage-intent.js";
+import { reconcileDerivedAssetStorageIntents, s3DerivedObjectStore, type DerivedObjectStore } from "./derived-storage-intent.js";
 import { workspaceSemanticEgressAllowed } from "./embedding-egress-gate.js";
 import { logger } from "./logger.js";
 import { prisma } from "./db.js";
@@ -122,6 +122,15 @@ export type IntelligenceRunReconcileOptions = {
    */
   derivedObjectStore?: () => Promise<DerivedObjectStore>;
 };
+
+/**
+ * FINAL-VERIFY-2 closure — the scheduler's store for step 6: the worker's S3
+ * client, loaded only when the scheduler's tick asks for it.
+ */
+export async function defaultDerivedObjectStore(): Promise<DerivedObjectStore> {
+  const { s3 } = await import("./storage.js");
+  return s3DerivedObjectStore(s3 as never);
+}
 
 export type IntelligenceRunReconcileResult = {
   ok: boolean;

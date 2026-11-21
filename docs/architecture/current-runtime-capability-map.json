@@ -57,14 +57,14 @@
       "MISSING_PRODUCT_UI_POST_RELEASE": 26
     },
     "TerminalWriters": 1698,
-    "ReachableSensitiveMutations": 1668,
-    "ClassifiedSensitiveMutations": 1668,
+    "ReachableSensitiveMutations": 1666,
+    "ClassifiedSensitiveMutations": 1666,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
-    "NonRequestWriters": 30,
+    "NonRequestWriters": 32,
     "ModuleScopedAttributionWriters": 0,
-    "DeadUnreachableWriters": 8,
-    "DeadUnreachableWritersPending": 8,
+    "DeadUnreachableWriters": 10,
+    "DeadUnreachableWritersPending": 10,
     "PreservedPlannedWriters": 0,
     "PortAttributedWriters": 0,
     "AuthorizationAfterMutation": 0,
@@ -96,12 +96,12 @@
       "SEED": 0,
       "INJECTED_PORT_IMPLEMENTATION": 0,
       "PRESERVED_PLANNED_WRITER": 0,
-      "DEAD_UNREACHABLE_WRITER": 8
+      "DEAD_UNREACHABLE_WRITER": 10
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
       "ROUTE_ATTRIBUTED_REACHABLE": 1481,
-      "JOB_ATTRIBUTED_REACHABLE": 175,
+      "JOB_ATTRIBUTED_REACHABLE": 173,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 11,
       "STARTUP_OR_SCHEDULED": 23,
@@ -109,7 +109,7 @@
       "TEST_OR_BUILD_ONLY": 0,
       "PRESERVED_PLANNED_WRITER": 0,
       "PORT_ATTRIBUTED_REACHABLE": 0,
-      "DEAD_UNREACHABLE": 8,
+      "DEAD_UNREACHABLE": 10,
       "UNRESOLVED": 0
     },
     "WriterBucketOverlaps": 0,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 12405,
+      "METHOD_ON_VALUE": 12412,
       "UNRESOLVED_IDENTIFIER": 1809
     },
     "MutationFixpointRounds": 11,
@@ -108646,8 +108646,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/derived-storage-intent.ts#OBJECT_STORAGE.AbortMultipartUploadCommand@386",
-      "terminalLocation": "services/worker/src/derived-storage-intent.ts:386",
+      "writerId": "services/worker/src/derived-storage-intent.ts#OBJECT_STORAGE.AbortMultipartUploadCommand@398",
+      "terminalLocation": "services/worker/src/derived-storage-intent.ts:398",
       "file": "services/worker/src/derived-storage-intent.ts",
       "enclosingDeclaration": "s3DerivedObjectStore",
       "kind": "EXTERNAL",
@@ -108656,14 +108656,9 @@
       "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
       "insideTransaction": false,
       "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/intelligence-run-reconciler.ts#runIntelligenceRunReconciler"
-      ],
+      "entryJobs": [],
       "entryModules": [],
-      "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1202#runIntelligenceRunReconciler",
-        "SCHEDULE services/worker/src/index.ts:1213#startIntelligenceRunReconcilerScheduler"
-      ],
+      "entrySchedules": [],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
         "authorizationBeforeMutation": "NOT_APPLICABLE",
@@ -108677,11 +108672,12 @@
         "retrySemantics": "NOT_APPLICABLE",
         "payloadVersionAuthority": "NOT_APPLICABLE",
         "canonicalOrLegacy": "UNREGISTERED"
-      }
+      },
+      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/worker/src/derived-storage-intent.ts#OBJECT_STORAGE.DeleteObjectCommand@351",
-      "terminalLocation": "services/worker/src/derived-storage-intent.ts:351",
+      "writerId": "services/worker/src/derived-storage-intent.ts#OBJECT_STORAGE.DeleteObjectCommand@361",
+      "terminalLocation": "services/worker/src/derived-storage-intent.ts:361",
       "file": "services/worker/src/derived-storage-intent.ts",
       "enclosingDeclaration": "s3DerivedObjectStore",
       "kind": "EXTERNAL",
@@ -108690,14 +108686,9 @@
       "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
       "insideTransaction": false,
       "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/intelligence-run-reconciler.ts#runIntelligenceRunReconciler"
-      ],
+      "entryJobs": [],
       "entryModules": [],
-      "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1202#runIntelligenceRunReconciler",
-        "SCHEDULE services/worker/src/index.ts:1213#startIntelligenceRunReconcilerScheduler"
-      ],
+      "entrySchedules": [],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
         "authorizationBeforeMutation": "NOT_APPLICABLE",
@@ -108711,7 +108702,8 @@
         "retrySemantics": "NOT_APPLICABLE",
         "payloadVersionAuthority": "NOT_APPLICABLE",
         "canonicalOrLegacy": "UNREGISTERED"
-      }
+      },
+      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
       "writerId": "services/worker/src/exchange-package-builder.ts#evidenceExchangePackage.updateMany@1139",
@@ -110665,8 +110657,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/intelligence-run-reconciler.ts#evidencePartDerivedAsset.updateMany@648",
-      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:648",
+      "writerId": "services/worker/src/intelligence-run-reconciler.ts#evidencePartDerivedAsset.updateMany@665",
+      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:665",
       "file": "services/worker/src/intelligence-run-reconciler.ts",
       "enclosingDeclaration": "reconcileStrandedDerivedAssets",
       "kind": "DATABASE",
@@ -110700,8 +110692,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/intelligence-run-reconciler.ts#evidencePartDerivedAsset.updateMany@677",
-      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:677",
+      "writerId": "services/worker/src/intelligence-run-reconciler.ts#evidencePartDerivedAsset.updateMany@694",
+      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:694",
       "file": "services/worker/src/intelligence-run-reconciler.ts",
       "enclosingDeclaration": "reconcileStrandedDerivedAssets",
       "kind": "DATABASE",
@@ -110735,8 +110727,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/intelligence-run-reconciler.ts#evidencePartDerivedAsset.updateMany@697",
-      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:697",
+      "writerId": "services/worker/src/intelligence-run-reconciler.ts#evidencePartDerivedAsset.updateMany@714",
+      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:714",
       "file": "services/worker/src/intelligence-run-reconciler.ts",
       "enclosingDeclaration": "reconcileStrandedDerivedAssets",
       "kind": "DATABASE",
@@ -110770,8 +110762,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/intelligence-run-reconciler.ts#media_intelligence_runs.$queryRawUnsafe@507",
-      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:507",
+      "writerId": "services/worker/src/intelligence-run-reconciler.ts#media_intelligence_runs.$queryRawUnsafe@524",
+      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:524",
       "file": "services/worker/src/intelligence-run-reconciler.ts",
       "enclosingDeclaration": "settleAbandonedPendingRuns",
       "kind": "RAW_SQL",
@@ -110804,8 +110796,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/intelligence-run-reconciler.ts#mediaIntelligenceRun.updateMany@220",
-      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:220",
+      "writerId": "services/worker/src/intelligence-run-reconciler.ts#mediaIntelligenceRun.updateMany@235",
+      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:235",
       "file": "services/worker/src/intelligence-run-reconciler.ts",
       "enclosingDeclaration": "runIntelligenceRunReconciler",
       "kind": "DATABASE",
@@ -110838,8 +110830,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/intelligence-run-reconciler.ts#mediaIntelligenceRun.updateMany@232",
-      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:232",
+      "writerId": "services/worker/src/intelligence-run-reconciler.ts#mediaIntelligenceRun.updateMany@247",
+      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:247",
       "file": "services/worker/src/intelligence-run-reconciler.ts",
       "enclosingDeclaration": "runIntelligenceRunReconciler",
       "kind": "DATABASE",
