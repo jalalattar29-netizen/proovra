@@ -194,7 +194,7 @@ describe("WS-ORG — identity and membership roots (live PostgreSQL 16)", () => 
     expect(await prisma.externalIdentityMapping.count({ where: { userId: victim.userId } })).toBe(0);
   });
 
-  it("PRO-A2-02 — a legacy admin-made link on a self-serve account no longer resolves for sign-in or IdP step-up; owner-consent evidence keeps it", async () => {
+  it("PRO-A2-02 — a legacy admin-made link on a self-serve account no longer resolves for sign-in or IdP step-up; since owner decision A not even a subject-bound grant keeps it", async () => {
     const org = await fx.seedOrganizationTenant(deps);
     const victim = await orgMember(org, "a202-legacy");
     const subject = `legacy-${randomUUID()}`;
@@ -242,7 +242,10 @@ describe("WS-ORG — identity and membership roots (live PostgreSQL 16)", () => 
       }),
     ).toBeNull();
 
-    // The consent flow's grant naming THIS provider and subject is the evidence.
+    // The grant the consent flow writes, naming THIS provider and subject, is
+    // provenance only since owner decision A: only the owner's live consent
+    // row (written by the approval flow; pro-a2-02-consent-lifecycle) is
+    // consent, so this pre-column link stays refused.
     await prisma.membershipGrant.create({
       data: {
         teamMemberId: victim.teamMemberId,
@@ -261,7 +264,8 @@ describe("WS-ORG — identity and membership roots (live PostgreSQL 16)", () => 
         provider: "GENERIC_OIDC",
         externalSubjectId: subject,
       }),
-    ).toBe(victim.userId);
+    ).toBeNull();
+    expect(await prisma.identityLinkConsent.count({ where: { userId: victim.userId } })).toBe(0);
   });
 
   // ---------------------------------------------------------------------------
@@ -539,7 +543,7 @@ describe("WS-ORG — identity and membership roots (live PostgreSQL 16)", () => 
     const mUnknown = await mk(unknown.userId);
     const mUnbound = await mk(unbound.userId);
     const mAdmin = await mk(adminMade.userId);
-    // Subject-bound consent evidence for this link.
+    // A subject-bound consent grant from before owner decision A.
     await grant(consented.teamMemberId, boundRef(mConsent.externalSubjectId));
     // A pre-rule grant: provider and connection only.
     await grant(unbound.teamMemberId, `org-link:GENERIC_OIDC:${randomUUID()}`);
@@ -562,7 +566,7 @@ describe("WS-ORG — identity and membership roots (live PostgreSQL 16)", () => 
     const dry = await legacy.remediateAdminManualIdentityLinks(prisma as never);
     expect(dry.dryRun).toBe(true);
     const mine = dry.affected.filter((a) => a.organizationId === org.organizationId);
-    expect(mine.find((a) => a.mappingId === mConsent.id)?.evidence).toBe("OWNER_CONSENT_EVIDENCE");
+    expect(mine.find((a) => a.mappingId === mConsent.id)?.evidence).toBe("BOUND_CONSENT_GRANT");
     expect(mine.find((a) => a.mappingId === mUnknown.id)?.evidence).toBe("NO_EVIDENCE");
     expect(mine.find((a) => a.mappingId === mUnbound.id)?.evidence).toBe("UNBOUND_CONSENT_GRANT");
     expect(mine.find((a) => a.mappingId === mAdmin.id)?.evidence).toBe("ADMIN_MANUAL_EVIDENCE");
@@ -571,7 +575,10 @@ describe("WS-ORG — identity and membership roots (live PostgreSQL 16)", () => 
     expect((await row(mAdmin.id)).unlinkedAtUtc).toBeNull();
 
     await legacy.remediateAdminManualIdentityLinks(prisma as never, { apply: true });
-    expect((await row(mConsent.id)).linkSource).toBe("OWNER_CONSENT");
+    // Owner decision A: no repair command manufactures consent — a bound grant
+    // is reported, never stamped, and no consent row is written.
+    expect((await row(mConsent.id)).linkSource).toBeNull();
+    expect(await prisma.identityLinkConsent.count({ where: { userId: consented.userId } })).toBe(0);
     const untouched = await row(mUnknown.id);
     expect(untouched.unlinkedAtUtc).toBeNull();
     expect(untouched.linkSource).toBeNull();

@@ -815,6 +815,14 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
     "a derived reservation counts only while younger than the run lease",
     "20281122000000_derived_asset_storage_reservation",
   ),
+  // PRO-A2-02 (owner decision A) — every reader of a self-serve Organization
+  // IdP link (OIDC / SAML sign-in, IdP step-up, SCIM reach) reads the owner's
+  // consent row; without the table every such link is refused.
+  newTable(
+    "identity_link_consents",
+    "every self-serve Organization IdP link is honoured only on a live owner consent row here",
+    "20281123010000_identity_link_consents",
+  ),
 ]);
 
 /**
@@ -967,10 +975,10 @@ function uniqueIndexProbe(table, index, partial = false) {
 
 /**
  * The suppliers whose `newColumn`/`newTable` probes are derived from their ids:
- * the 0376721d9 release (20281121*) and the release after it (20281122*, M676
- * first).
+ * the 0376721d9 release (20281121*), the release after it (20281122*, M676
+ * first) and the closure migrations (20281123*, PRO-A2-02 first).
  */
-const DERIVED_PROBE_SUPPLIER = /^2028112[12]\d{6}_/;
+const DERIVED_PROBE_SUPPLIER = /^2028112[123]\d{6}_/;
 
 /**
  * The catalog probes, one per requirement id.

@@ -567,6 +567,8 @@ export async function judgeIdpStepUpEvidence(
     organizationId: evidence.organizationId,
     provider: evidence.provider,
     externalSubjectId: evidence.externalSubjectId,
+    // PRO-A2-02 — owner consent is bound to the connection the owner approved.
+    connectionId: evidence.connectionId,
   });
   if (!linkedUserId || linkedUserId !== challenge.initiatedByUserId) {
     return { ok: false, reason: "IDP_SUBJECT_MISMATCH" };

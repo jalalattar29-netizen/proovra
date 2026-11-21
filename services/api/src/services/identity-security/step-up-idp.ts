@@ -99,7 +99,7 @@ export async function userLinkedToConnection(
  */
 export async function resolveLinkedUserForSubject(
   client: PrismaClient,
-  input: { organizationId: string; provider: string; externalSubjectId: string },
+  input: { organizationId: string; provider: string; externalSubjectId: string; connectionId?: string | null },
 ): Promise<string | null> {
   if (input.provider === SCIM_PROVIDER) return null;
   const mapping = await client.externalIdentityMapping.findUnique({
@@ -123,6 +123,7 @@ export async function resolveLinkedUserForSubject(
       provider: input.provider,
       externalSubjectId: input.externalSubjectId,
       linkSource: mapping.linkSource,
+      connectionId: input.connectionId ?? null,
     },
     client,
   );

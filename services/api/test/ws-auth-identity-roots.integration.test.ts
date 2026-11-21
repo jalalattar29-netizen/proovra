@@ -57,6 +57,7 @@ describe("WS-AUTH identity roots (live PostgreSQL)", () => {
   let fx: typeof import("./point7/product-fixtures.js");
   let rbac: typeof import("../src/services/identity/rbac.service.js");
   let scim: typeof import("../src/services/access-control/scim.service.js");
+  let consentFlow: typeof import("../src/services/identity/organization-link-consent.service.js");
   let recovery: typeof import("../src/services/security/mfa-recovery-request.service.js");
   let resetLimits: () => Promise<void>;
   let deps: FixtureDeps;
@@ -181,6 +182,7 @@ describe("WS-AUTH identity roots (live PostgreSQL)", () => {
     fx = await import("./point7/product-fixtures.js");
     rbac = await import("../src/services/identity/rbac.service.js");
     scim = await import("../src/services/access-control/scim.service.js");
+    consentFlow = await import("../src/services/identity/organization-link-consent.service.js");
     recovery = await import("../src/services/security/mfa-recovery-request.service.js");
     ({ __resetLoginMfaRateLimiterForTests: resetLimits } = await import("../src/routes/auth.routes.js"));
     deps = {
@@ -483,11 +485,23 @@ describe("WS-AUTH identity roots (live PostgreSQL)", () => {
       const o = await fx.seedOrganizationTenant(deps, { memberCount: 1 });
       const m = o.members[0]!;
       await makeSelfServe(m.userId);
-      await prisma.externalIdentityMapping.create({
-        // Integration: PRO-A2-02 (WS-ORG) — the directory acts on a self-serve
-        // account's link only when the account's owner consented to it.
-        data: { teamId: o.workspaceId, organizationId: o.organizationId, userId: m.userId, provider: "GENERIC_SCIM", externalSubjectId: `ext-${randomUUID()}`, linkSource: "OWNER_CONSENT" },
+      // Integration: PRO-A2-02 (WS-ORG; owner decision A) — the directory acts
+      // on a self-serve account only through a link its owner approved (the
+      // approval flow is the only consent writer), through the Organization's
+      // sign-in connection.
+      const conn = await prisma.ssoConnection.create({
+        data: { teamId: o.workspaceId, organizationId: o.organizationId, provider: "GENERIC_OIDC", displayName: "OIDC", status: "ACTIVE", allowedEmailDomains: [], jitDefaultRole: "MEMBER", createdByUserId: o.owner.userId } as never,
+        select: { id: true },
       });
+      const owner = await prisma.user.findUniqueOrThrow({ where: { id: m.userId }, select: { email: true } });
+      const approved = await consentFlow.approveOrganizationLink(
+        {
+          userId: m.userId,
+          pending: { connectionId: conn.id, organizationId: o.organizationId, teamId: o.workspaceId, provider: "GENERIC_OIDC", protocol: "OIDC", subject: `ext-${randomUUID()}`, email: owner.email!, displayName: null, userId: m.userId, role: "MEMBER", organizationName: null, organizationRestrictsPersonalSpace: false },
+        },
+        prisma as never,
+      );
+      expect(approved.kind).toBe("ok");
       const ctx = { teamId: o.workspaceId, organizationId: o.organizationId, tokenId: randomUUID(), baseUrl: "https://scim.test" };
       expect(await scim.scimDeactivateUser(ctx as never, m.userId)).toEqual({ ok: true });
       expect((await prisma.teamMember.findFirstOrThrow({ where: { teamId: o.workspaceId, userId: m.userId } })).status).toBe("SUSPENDED");

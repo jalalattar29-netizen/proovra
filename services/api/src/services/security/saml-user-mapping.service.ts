@@ -443,6 +443,8 @@ export async function handleSamlAssertion(
         provider: String(provider),
         externalSubjectId: externalMapping.externalSubjectId,
         linkSource: (externalMapping as { linkSource?: string | null }).linkSource,
+        // Owner consent is bound to the connection the owner approved.
+        connectionId,
       },
       client,
     );

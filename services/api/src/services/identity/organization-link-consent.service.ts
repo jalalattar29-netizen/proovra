@@ -38,7 +38,11 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { getSecret } from "../../config/runtime-secrets.js";
 import { isProovraProductionRequest } from "../../http/cors-origin-policy.js";
 import { withSeatClaimRetry } from "../billing/workspace-seats.service.js";
-import { organizationLinkConsentRef } from "../security/enterprise-account-linking.service.js";
+import {
+  holdsActiveOrganizationMembership,
+  organizationLinkConsentRef,
+  organizationLinkSubjectDigest,
+} from "../security/enterprise-account-linking.service.js";
 import { isAccountClosed } from "./account-closed.js";
 import { provisionMembership } from "./membership-provisioning.service.js";
 
@@ -206,9 +210,17 @@ export type OrganizationLinkOutcome =
   /** The IdP subject is already linked to a different account. */
   | { kind: "identity_linked_elsewhere" }
   | { kind: "seat_limit_reached" }
-  | { kind: "seat_contention" };
+  | { kind: "seat_contention" }
+  /**
+   * PRO-A2-02 (decision A) — the person is not an active member of the
+   * Organization (suspended, removed, left, expired). A consent recorded now
+   * would come alive on a later reactivation without a fresh approval, so the
+   * whole approval is rolled back: nothing is written.
+   */
+  | { kind: "membership_inactive" };
 
 class LinkedElsewhereError extends Error {}
+class MembershipInactiveError extends Error {}
 
 /**
  * Approve a pending organization link for the SIGNED-IN owner. The caller has
@@ -240,7 +252,7 @@ export async function approveOrganizationLink(
       status: true,
       teamId: true,
       provider: true,
-      team: { select: { organizationId: true, closedAtUtc: true, organization: { select: { status: true } } } },
+      team: { select: { organizationId: true, closedAtUtc: true, organization: { select: { status: true, name: true } } } },
     },
   });
   if (
@@ -270,7 +282,9 @@ export async function approveOrganizationLink(
           select: { id: true, userId: true, unlinkedAtUtc: true },
         });
         if (existing && existing.userId !== userId) throw new LinkedElsewhereError();
+        let mappingId: string;
         if (existing) {
+          mappingId = existing.id;
           alreadyLinked = existing.unlinkedAtUtc === null;
           // The owner re-approves a link that was ended (re-link it), or
           // confirms one that exists: either way it now carries the owner's
@@ -282,7 +296,7 @@ export async function approveOrganizationLink(
               : { unlinkedAtUtc: null, externalEmail: pending.email, linkSource: "OWNER_CONSENT" },
           });
         } else {
-          await tx.externalIdentityMapping.create({
+          const created = await tx.externalIdentityMapping.create({
             data: {
               teamId: pending.teamId,
               organizationId: pending.organizationId,
@@ -293,7 +307,9 @@ export async function approveOrganizationLink(
               externalEmail: pending.email,
               linkSource: "OWNER_CONSENT",
             },
+            select: { id: true },
           });
+          mappingId = created.id;
         }
         // An ordinary membership — the same grant a JIT sign-in makes. A
         // suspended or removed membership stays as an administrator left it.
@@ -313,9 +329,44 @@ export async function approveOrganizationLink(
           accessReason: `Account owner approved ${pending.protocol} organization link`,
           preserveExistingStatus: true,
         });
+        // PRO-A2-02 (decision A) — consent is recorded only for an ACTIVE
+        // member: approval never revives a suspended, removed or expired
+        // membership, and a consent written beside one would come alive on its
+        // reactivation without a fresh approval.
+        if (!(await holdsActiveOrganizationMembership({ userId, organizationId: pending.organizationId }, tx as never))) {
+          throw new MembershipInactiveError();
+        }
+        // THE consent record: bound to this Organization, connection, provider
+        // and subject. An earlier live consent for the same link is ended as
+        // SUPERSEDED (history is kept). Membership triggers end it later.
+        const subjectDigest = organizationLinkSubjectDigest(pending.subject);
+        const now = new Date();
+        await tx.identityLinkConsent.updateMany({
+          where: {
+            organizationId: pending.organizationId,
+            userId,
+            provider: pending.provider,
+            subjectDigest,
+            endedAtUtc: null,
+          },
+          data: { endedAtUtc: now, endReason: "SUPERSEDED", endedByUserId: userId },
+        });
+        await tx.identityLinkConsent.create({
+          data: {
+            organizationId: pending.organizationId,
+            userId,
+            provider: pending.provider,
+            subjectDigest,
+            connectionId: pending.connectionId,
+            externalIdentityMappingId: mappingId,
+            organizationName: conn.team?.organization?.name?.slice(0, 200) ?? null,
+            approvedAtUtc: now,
+          },
+        });
       }),
     );
   } catch (err) {
+    if (err instanceof MembershipInactiveError) return { kind: "membership_inactive" };
     if (err instanceof LinkedElsewhereError) return { kind: "identity_linked_elsewhere" };
     if ((err as { code?: string })?.code === "P2002") return { kind: "identity_linked_elsewhere" };
     const code = (err as { code?: string })?.code;
@@ -329,4 +380,80 @@ export async function approveOrganizationLink(
     teamId: pending.teamId,
     alreadyLinked,
   };
+}
+
+// -----------------------------------------------------------------------------
+// PRO-A2-02 (owner decision A) — THE OWNER SEES AND WITHDRAWS THEIR CONSENT.
+//
+// Both are account-tier and bound to the signed-in owner's own user id: there
+// is no parameter naming another person, so an Organization administrator (or
+// anybody else) can neither read nor end someone else's consent through them.
+// Withdrawal ENDS the live consent rows (ended_at_utc, end_reason WITHDRAWN,
+// ended_by_user_id = the owner); nothing is deleted, the Organization's mapping
+// row is kept as history and simply no longer honoured, the membership is not
+// touched, and no session is ended (DEC-08).
+// -----------------------------------------------------------------------------
+
+export type OrganizationLinkConsentView = {
+  id: string;
+  organizationId: string;
+  organizationName: string | null;
+  provider: string;
+  connectionId: string;
+  approvedAtUtc: string;
+  endedAtUtc: string | null;
+  endReason: string | null;
+};
+
+const CONSENT_LIST_LIMIT = 50;
+
+/** The signed-in owner's consents (live first, then the most recent ended ones). */
+export async function listOrganizationLinkConsents(
+  userId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<OrganizationLinkConsentView[]> {
+  const rows = await client.identityLinkConsent.findMany({
+    where: { userId },
+    orderBy: [{ approvedAtUtc: "desc" }],
+    take: CONSENT_LIST_LIMIT,
+    select: {
+      id: true,
+      organizationId: true,
+      provider: true,
+      connectionId: true,
+      organizationName: true,
+      approvedAtUtc: true,
+      endedAtUtc: true,
+      endReason: true,
+    },
+  });
+  // The name recorded at approval: this account-tier read touches no
+  // Organization row.
+  const views = rows.map((r) => ({
+    id: r.id,
+    organizationId: r.organizationId,
+    organizationName: r.organizationName,
+    provider: r.provider,
+    connectionId: r.connectionId,
+    approvedAtUtc: r.approvedAtUtc.toISOString(),
+    endedAtUtc: r.endedAtUtc ? r.endedAtUtc.toISOString() : null,
+    endReason: r.endReason,
+  }));
+  // Live consents first; order otherwise kept (newest approval first).
+  return [...views.filter((v) => v.endedAtUtc === null), ...views.filter((v) => v.endedAtUtc !== null)];
+}
+
+/**
+ * The owner withdraws every live IdP-link consent they gave `organizationId`.
+ * Returns how many were ended (0: there was none of THEIRS to withdraw).
+ */
+export async function withdrawOrganizationLinkConsent(
+  input: { userId: string; organizationId: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<{ withdrawn: number }> {
+  const r = await client.identityLinkConsent.updateMany({
+    where: { userId: input.userId, organizationId: input.organizationId, endedAtUtc: null },
+    data: { endedAtUtc: new Date(), endReason: "WITHDRAWN", endedByUserId: input.userId },
+  });
+  return { withdrawn: r.count };
 }

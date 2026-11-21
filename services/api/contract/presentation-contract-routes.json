@@ -1,6 +1,6 @@
 {
   "contractVersion": 1,
-  "routeEpoch": 2,
+  "routeEpoch": 3,
   "routes": [
     "DELETE /v1/admin/identity/scim/groups/projections/:id",
     "DELETE /v1/auth/saml/:connectionId/certificate-next",
@@ -300,6 +300,7 @@
     "GET /v1/identity/external-mappings",
     "GET /v1/identity/links",
     "GET /v1/identity/links/organization",
+    "GET /v1/identity/links/organization-consents",
     "GET /v1/identity/members",
     "GET /v1/identity/mfa-admin/digest-preferences",
     "GET /v1/identity/mfa-admin/digest-preferences/preview",
@@ -894,6 +895,7 @@
     "POST /v1/identity/links/apple",
     "POST /v1/identity/links/google",
     "POST /v1/identity/links/organization",
+    "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
     "POST /v1/identity/members/:id/capabilities",
     "POST /v1/identity/members/:id/delegated-admin",
     "POST /v1/identity/members/:id/restore",

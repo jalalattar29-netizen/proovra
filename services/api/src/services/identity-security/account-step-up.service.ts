@@ -81,6 +81,9 @@ export type AccountStepUpAction =
   // Lifecycle Phase 3 — connected accounts / login methods.
   | "login_method_link"
   | "login_method_unlink"
+  // PRO-A2-02 (owner decision A) — the self-serve owner withdraws an
+  // Organization IdP-link consent.
+  | "organization_link_withdraw"
   | "password_add"
   // Lifecycle Phase 4 — personal account data export.
   | "data_export_request"

@@ -12,8 +12,9 @@
  *   a pre-column link + a consent grant naming no subject  → refused, no session
  *     (the owner approved subject S1; an administrator then linked S2)
  *   a pre-column link + a grant naming ANOTHER subject     → refused
- *   a pre-column link + a grant naming THIS subject        → signs in
- *   an owner-consented link, active member (control)       → signs in
+ *   a pre-column link + a grant naming THIS subject        → refused since owner
+ *     decision A (a grant is not consent); the owner's approval → signs in
+ *   an owner-approved link, active member (control)        → signs in
  *   the same link after the person left the Organization   → refused; the link
  *     is not unlinked and nobody is signed out
  *   SCIM PATCH / DELETE for a pre-column administrator link→ 404, nothing changed
@@ -104,6 +105,7 @@ describe("PRO-A2-02 — a stored organization link is honoured only on current, 
   let saml: typeof import("../src/services/security/saml-user-mapping.service.js");
   let linking: typeof import("../src/services/security/enterprise-account-linking.service.js");
   let stepUpIdp: typeof import("../src/services/identity-security/step-up-idp.js");
+  let consentFlow: typeof import("../src/services/identity/organization-link-consent.service.js");
   let deps: FixtureDeps;
   const idp = new LocalIdp();
   const originalLoopback = process.env.AUTOMATION_WEBHOOK_ALLOW_LOOPBACK;
@@ -113,6 +115,7 @@ describe("PRO-A2-02 — a stored organization link is honoured only on current, 
   let domain: string;
   let scimToken: string;
   let connectionId: string;
+  let samlConnectionId: string;
 
   const bearer = (t: string) => ({ authorization: `Bearer ${t}` });
   const scimCall = (method: string, url: string, payload?: unknown) =>
@@ -162,6 +165,48 @@ describe("PRO-A2-02 — a stored organization link is honoured only on current, 
       } as never,
       select: { id: true },
     });
+
+  /**
+   * The owner approves the link (owner decision A: the approval flow is the
+   * only consent writer) — the mapping it writes or confirms is returned.
+   */
+  async function ownerApproves(
+    person: { id: string; email: string },
+    provider: "GENERIC_OIDC" | "GENERIC_SAML",
+    subject: string,
+  ) {
+    const outcome = await consentFlow.approveOrganizationLink(
+      {
+        userId: person.id,
+        pending: {
+          connectionId: provider === "GENERIC_OIDC" ? connectionId : samlConnectionId,
+          organizationId: org.organizationId,
+          teamId: org.workspaceId,
+          provider,
+          protocol: provider === "GENERIC_OIDC" ? "OIDC" : "SAML",
+          subject,
+          email: person.email,
+          displayName: null,
+          userId: person.id,
+          role: "MEMBER",
+          organizationName: null,
+          organizationRestrictsPersonalSpace: false,
+        },
+      },
+      prisma as never,
+    );
+    expect(outcome.kind).toBe("ok");
+    return prisma.externalIdentityMapping.findUniqueOrThrow({
+      where: {
+        organizationId_provider_externalSubjectId: {
+          organizationId: org.organizationId,
+          provider,
+          externalSubjectId: subject,
+        },
+      },
+      select: { id: true },
+    });
+  }
 
   const consentGrant = (teamMemberId: string, externalRef: string) =>
     prisma.membershipGrant.create({
@@ -231,7 +276,7 @@ describe("PRO-A2-02 — a stored organization link is honoured only on current, 
     saml.handleSamlAssertion(
       {
         teamId: org.workspaceId,
-        connectionId: randomUUID(),
+        connectionId: samlConnectionId,
         provider: "GENERIC_SAML",
         assertion: samlAssertion(email, nameId),
         attributeMapping: null,
@@ -270,6 +315,7 @@ describe("PRO-A2-02 — a stored organization link is honoured only on current, 
     saml = await import("../src/services/security/saml-user-mapping.service.js");
     linking = await import("../src/services/security/enterprise-account-linking.service.js");
     stepUpIdp = await import("../src/services/identity-security/step-up-idp.js");
+    consentFlow = await import("../src/services/identity/organization-link-consent.service.js");
     deps = {
       prisma: prisma as never,
       tag: `wsla-${Date.now().toString(36)}`,
@@ -314,6 +360,23 @@ describe("PRO-A2-02 — a stored organization link is honoured only on current, 
       nextStatus: "ACTIVE",
       actorUserId: org.owner.userId,
     });
+    // The Organization's SAML connection (the ACS mapping authority is called
+    // with its id; an owner approval re-validates it).
+    samlConnectionId = (
+      await prisma.ssoConnection.create({
+        data: {
+          teamId: org.workspaceId,
+          organizationId: org.organizationId,
+          provider: "GENERIC_SAML",
+          displayName: "Local SAML",
+          status: "ACTIVE",
+          allowedEmailDomains: [domain],
+          jitDefaultRole: "MEMBER",
+          createdByUserId: org.owner.userId,
+        } as never,
+        select: { id: true },
+      })
+    ).id;
   }, 300_000);
 
   afterAll(async () => {
@@ -340,7 +403,7 @@ describe("PRO-A2-02 — a stored organization link is honoured only on current, 
     await expectOidcRefused(victim.id, subject, victim.email, "sso_account_link_requires_consent");
   });
 
-  it("OIDC: a pre-column link is refused on a consent grant that names no subject or another subject, and honoured on one that names it", async () => {
+  it("OIDC: a pre-column link is refused on a consent grant that names no subject, another subject or even this subject; the owner's approval signs in", async () => {
     const victim = await selfServeMember("oidc-legacy");
     // The owner once approved subject S1 (pre-rule evidence: provider and
     // connection only); an administrator then unlinked S1 and linked S2.
@@ -357,11 +420,15 @@ describe("PRO-A2-02 — a stored organization link is honoured only on current, 
     );
     await expectOidcRefused(victim.id, s2, victim.email, "sso_account_link_requires_consent");
 
-    // Evidence bound to THIS provider and THIS subject is the owner's consent.
+    // Owner decision A: even a grant bound to THIS provider and subject is not
+    // consent (it cannot tell whether the person left, was suspended or
+    // rejoined since); only the owner's approval is.
     await consentGrant(
       victim.teamMemberId,
       linking.organizationLinkConsentRef({ provider: "GENERIC_OIDC", connectionId, externalSubjectId: s2 }),
     );
+    await expectOidcRefused(victim.id, s2, victim.email, "sso_account_link_requires_consent");
+    await ownerApproves(victim, "GENERIC_OIDC", s2);
     const ok = await oidcSignIn(s2, victim.email);
     expect(ok.location).toBe("https://web.example.test/home");
     expect(ok.session).toBeTruthy();
@@ -370,7 +437,7 @@ describe("PRO-A2-02 — a stored organization link is honoured only on current, 
   it("OIDC: an owner-consented link signs in while the person is an active member, and is refused once they left — not unlinked, nobody signed out", async () => {
     const person = await selfServeMember("oidc-leave");
     const subject = `consented-${randomUUID()}`;
-    const mapping = await link(person.id, "GENERIC_OIDC", subject, "OWNER_CONSENT");
+    const mapping = await ownerApproves(person, "GENERIC_OIDC", subject);
 
     const ok = await oidcSignIn(subject, person.email);
     expect(ok.location).toBe("https://web.example.test/home");
@@ -429,7 +496,7 @@ describe("PRO-A2-02 — a stored organization link is honoured only on current, 
   it("SAML: an owner-consented link signs in while the person is an active member, and is refused once they left", async () => {
     const person = await selfServeMember("saml-leave");
     const subject = `saml-consented-${randomUUID()}`;
-    const mapping = await link(person.id, "GENERIC_SAML", subject, "OWNER_CONSENT");
+    const mapping = await ownerApproves(person, "GENERIC_SAML", subject);
 
     const ok = await samlSignIn(person.email, subject);
     expect(ok.userId).toBe(person.id);
@@ -472,7 +539,7 @@ describe("PRO-A2-02 — a stored organization link is honoured only on current, 
 
     // Control: the owner consented to this subject and is an active member.
     const consented = await selfServeMember("scim-consented");
-    await link(consented.id, "GENERIC_OIDC", `scim-ok-${randomUUID()}`, "OWNER_CONSENT");
+    await ownerApproves(consented, "GENERIC_OIDC", `scim-ok-${randomUUID()}`);
     const allowed = await scimCall("PATCH", `/v2/scim/Users/${consented.id}`, {
       schemas: [PATCH],
       Operations: [{ op: "replace", path: "userType", value: "VIEWER" }],
