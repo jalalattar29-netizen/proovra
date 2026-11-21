@@ -288,6 +288,15 @@ export type DerivedStoredVersion = {
   sizeBytes: number;
   legalHold: boolean;
   retainUntil: Date | null;
+  /** When the store created this version (null: unknown, treated as fresh). */
+  lastModified: Date | null;
+};
+
+/** An incomplete multipart upload of a key. */
+export type DerivedPendingUpload = {
+  uploadId: string;
+  /** When it was initiated (null: unknown, treated as fresh). */
+  initiated: Date | null;
 };
 
 export interface DerivedObjectStore {
@@ -296,7 +305,7 @@ export interface DerivedObjectStore {
   /** Delete one version; false when the store refused it. */
   deleteVersion(target: { bucket: string; key: string; versionId: string }, signal: AbortSignal): Promise<boolean>;
   /** Incomplete multipart uploads of EXACTLY this key. */
-  listMultipartUploads(target: { bucket: string; key: string }, signal: AbortSignal): Promise<string[]>;
+  listMultipartUploads(target: { bucket: string; key: string }, signal: AbortSignal): Promise<DerivedPendingUpload[]>;
   abortMultipartUpload(target: { bucket: string; key: string; uploadId: string }, signal: AbortSignal): Promise<void>;
 }
 
@@ -320,7 +329,7 @@ export function s3DerivedObjectStore(client: S3Sender): DerivedObjectStore {
           }),
           signal,
         )) as {
-          Versions?: Array<{ Key?: string; VersionId?: string; Size?: number }>;
+          Versions?: Array<{ Key?: string; VersionId?: string; Size?: number; LastModified?: Date }>;
           IsTruncated?: boolean;
           NextKeyMarker?: string;
           NextVersionIdMarker?: string;
@@ -337,6 +346,7 @@ export function s3DerivedObjectStore(client: S3Sender): DerivedObjectStore {
             sizeBytes: Number(v.Size ?? 0),
             legalHold: String(head.ObjectLockLegalHoldStatus ?? "").toUpperCase() === "ON",
             retainUntil: head.ObjectLockRetainUntilDate ?? null,
+            lastModified: v.LastModified ?? null,
           });
         }
         if (!res.IsTruncated) return out;
@@ -356,7 +366,7 @@ export function s3DerivedObjectStore(client: S3Sender): DerivedObjectStore {
       }
     },
     async listMultipartUploads({ bucket, key }, signal) {
-      const ids: string[] = [];
+      const ids: DerivedPendingUpload[] = [];
       let keyMarker: string | undefined;
       let uploadIdMarker: string | undefined;
       for (let page = 0; page < 100; page++) {
@@ -369,12 +379,14 @@ export function s3DerivedObjectStore(client: S3Sender): DerivedObjectStore {
           }),
           signal,
         )) as {
-          Uploads?: Array<{ Key?: string; UploadId?: string }>;
+          Uploads?: Array<{ Key?: string; UploadId?: string; Initiated?: Date }>;
           IsTruncated?: boolean;
           NextKeyMarker?: string;
           NextUploadIdMarker?: string;
         };
-        for (const u of res.Uploads ?? []) if (u.Key === key && u.UploadId) ids.push(u.UploadId);
+        for (const u of res.Uploads ?? []) {
+          if (u.Key === key && u.UploadId) ids.push({ uploadId: u.UploadId, initiated: u.Initiated ?? null });
+        }
         if (!res.IsTruncated) return ids;
         if (!res.NextKeyMarker && !res.NextUploadIdMarker) throw new Error("MULTIPART_LISTING_PARTIAL");
         keyMarker = res.NextKeyMarker;
@@ -407,15 +419,22 @@ export const DERIVED_INTENT_RECONCILE_LEASE_MS = 5 * 60 * 1000;
 /**
  * Judge OPEN intents whose holders can no longer write (claimed by
  * `claimReconcilableDerivedAssetStorageIntents`), one object key at a time:
- *   1. abort every incomplete multipart upload of the key (proven by listing
- *      again — parts that may remain keep the intent OPEN);
- *   2. list the key's data versions; a version referenced by a derived row is
- *      counted by it;
- *   3. an unreferenced version is deleted only when neither the record's
+ *   1. snapshot the key (incomplete uploads, data versions), then re-check
+ *      that no OTHER holder holds an OPEN intent on it (a content-addressed
+ *      retry reserving the same key after the claim): if one does, nothing
+ *      is touched;
+ *   2. a row referencing the key with no version (legacy / unversioned)
+ *      may count any version: nothing is deleted or adopted;
+ *   3. an upload or unreferenced version the store created after the
+ *      claimed holders' write windows (or at an unknown time) is not theirs:
+ *      nothing is touched;
+ *   4. the claimed holders' incomplete uploads are aborted (proven by
+ *      listing again);
+ *   5. an unreferenced version is deleted only when neither the record's
  *      legal hold (fail closed) nor the version's own hold / retention stops
  *      it, and the next listing must prove it gone; every other unreferenced
  *      version is ADOPTED on its own retained row with its stored size;
- *   4. one bounded transaction records the adoptions and resolves the key's
+ *   6. one bounded transaction records the adoptions and resolves the key's
  *      claimed intents (fenced on the lease token): ADOPTED, DELETED or ABSENT.
  * Anything that cannot be proven leaves the intents OPEN — still counted.
  */
@@ -479,25 +498,67 @@ async function reconcileKey(input: {
   if (left < 1_000) throw new Error("reconcile_lease_exhausted");
   const signal = AbortSignal.timeout(left);
 
-  // 1. Incomplete multipart uploads (a died upload's parts).
-  for (const uploadId of await store.listMultipartUploads(target, signal)) {
-    await store.abortMultipartUpload({ ...target, uploadId }, signal);
-  }
-  if ((await store.listMultipartUploads(target, signal)).length > 0) throw new Error("multipart_parts_remain");
+  const intentIds = intents.map((i) => i.id);
 
-  // 2. What is stored, and what a row already counts.
+  // 1. One snapshot of the key FIRST (incomplete uploads, data versions), THEN
+  //    the re-check of its holders. A later holder (a content-addressed retry
+  //    of the same job reserves the SAME key) wrote nothing before its
+  //    reservation committed, so anything of its in this snapshot is matched
+  //    by an OPEN intent the re-check sees: the key is left alone this tick.
+  const uploads = await store.listMultipartUploads(target, signal);
   const versions = await store.listVersions(target, signal);
-  const referenced = new Set(
-    (
-      await client.evidencePartDerivedAsset.findMany({
-        where: { storageBucket: target.bucket, storageKey: target.key, storageVersionId: { in: versions.map((v) => v.versionId) } },
-        select: { storageVersionId: true },
-      })
-    ).map((r) => r.storageVersionId),
-  );
+  const otherHolders = await client.derivedAssetStorageIntent.count({
+    where: { storageBucket: target.bucket, storageKey: target.key, state: "OPEN", id: { notIn: intentIds } },
+  });
+  if (otherHolders > 0) throw new Error("fresh_holder_on_key");
+
+  // 2. What a row already counts. A row that references the key with no
+  //    version (a legacy row, or an unversioned store's "null") may count any
+  //    listed version: nothing is deleted or adopted (the key-level guard of
+  //    disposeUnsettledDerivedObject). One stored version and no parts: it is
+  //    the row's, counted, and the intents resolve with no new row; anything
+  //    more stays OPEN (still counted) for an operator.
+  const rows = await client.evidencePartDerivedAsset.findMany({
+    where: { storageBucket: target.bucket, storageKey: target.key },
+    select: { storageVersionId: true },
+  });
+  if (rows.some((r) => r.storageVersionId == null || r.storageVersionId === "null")) {
+    if (versions.length > 1 || uploads.length > 0) throw new Error("key_referenced_without_version");
+    await boundedTransaction(client, Math.min(input.leaseEnd, Date.now() + DERIVED_DISPOSAL_TRANSACTION_MS), async (tx) => {
+      const resolved = await resolveDerivedAssetStorageIntentsTx(tx, {
+        intentIds,
+        state: "ABSENT",
+        resolution: "reconciled_counted_by_key_reference",
+        resolvedBytes: 0,
+        reconcileToken: token,
+      });
+      if (resolved !== intents.length) throw new Error("reconcile_intent_fence_lost");
+    });
+    return "absent";
+  }
+  const referenced = new Set(rows.map((r) => r.storageVersionId));
   const unreferenced = versions.filter((v) => !referenced.has(v.versionId));
 
-  // 3. Delete what may be deleted (record hold fails closed), proven by listing.
+  // 3. Only what the CLAIMED holders could have written is judged: their
+  //    write windows ended by (last stamp + TTL). An upload or an unreferenced
+  //    version the store created later (or at an unknown time) is someone
+  //    else's: the key is left alone, its intents OPEN and counted.
+  const windowEndMs =
+    Math.max(...intents.map((i) => new Date(i.holderStampUtc).getTime())) + DERIVED_ASSET_STORAGE_RESERVATION_TTL_MS;
+  const fresh = (at: Date | null) => at == null || at.getTime() > windowEndMs;
+  if (uploads.some((u) => fresh(u.initiated)) || unreferenced.some((v) => fresh(v.lastModified))) {
+    throw new Error("fresh_activity_on_key");
+  }
+
+  // 4. The claimed holders' incomplete multipart uploads (a died upload's
+  //    parts) are aborted, proven by listing again.
+  for (const u of uploads) await store.abortMultipartUpload({ ...target, uploadId: u.uploadId }, signal);
+  const ours = new Set(uploads.map((u) => u.uploadId));
+  if ((await store.listMultipartUploads(target, signal)).some((u) => ours.has(u.uploadId))) {
+    throw new Error("multipart_parts_remain");
+  }
+
+  // 5. Delete what may be deleted (record hold fails closed), proven by listing.
   let deletedAny = false;
   let toAdopt = unreferenced;
   if (unreferenced.length > 0) {
@@ -519,7 +580,7 @@ async function reconcileKey(input: {
     }
   }
 
-  // 4. Adopt the rest and resolve the key's intents, atomically.
+  // 6. Adopt the rest and resolve the key's intents, atomically.
   const state: DerivedAssetIntentResolution = toAdopt.length > 0 ? "ADOPTED" : deletedAny ? "DELETED" : "ABSENT";
   const reason =
     state === "ADOPTED" ? "reconciled_adopted" : state === "DELETED" ? "reconciled_deleted" : "reconciled_absent";

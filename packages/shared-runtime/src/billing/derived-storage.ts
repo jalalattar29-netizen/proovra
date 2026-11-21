@@ -554,6 +554,12 @@ export type ReconcilableDerivedAssetStorageIntent = {
   storageKey: string;
   derivedSha256: string | null;
   contentType: string | null;
+  /**
+   * The holder's last reservation stamp (database clock). Its write window
+   * ended by holderStampUtc + TTL: anything the store shows as created later
+   * on the same key is NOT this holder's (a content-addressed retry).
+   */
+  holderStampUtc: Date;
 };
 
 /**
@@ -602,12 +608,18 @@ export async function claimReconcilableDerivedAssetStorageIntents(
                 t."evidence_part_id"::text AS "evidencePartId", t."asset_kind" AS "assetKind",
                 t."variant_key" AS "variantKey", t."reserved_bytes" AS "reservedBytes",
                 t."storage_bucket" AS "storageBucket", t."storage_key" AS "storageKey",
-                t."derived_sha256" AS "derivedSha256", t."content_type" AS "contentType"`) as ReconcilableDerivedAssetStorageIntent[];
+                t."derived_sha256" AS "derivedSha256", t."content_type" AS "contentType",
+                t."holder_stamp_utc" AS "holderStampUtc"`) as ReconcilableDerivedAssetStorageIntent[];
     return rows.map((r) => ({ ...r, reservedBytes: BigInt(r.reservedBytes as unknown as bigint) }));
   });
 }
 
-/** Record why a claimed intent could not be resolved this tick (it stays OPEN, still counted). */
+/**
+ * Record why a claimed intent could not be resolved this tick (it stays OPEN,
+ * still counted) and give the lease back, so a later tick judges the key
+ * again as soon as the claim rules allow (never while another holder of the
+ * key is live).
+ */
 export async function noteDerivedAssetStorageIntentReconcileError(
   prisma: Pick<PrismaClient, "$executeRaw">,
   input: { intentIds: string[]; token: string; error: string },
@@ -615,6 +627,7 @@ export async function noteDerivedAssetStorageIntentReconcileError(
   if (input.intentIds.length === 0) return;
   await prisma.$executeRaw`
     UPDATE "derived_asset_storage_intents"
-       SET "last_reconcile_error" = ${input.error.slice(0, 200)}::varchar
+       SET "last_reconcile_error" = ${input.error.slice(0, 200)}::varchar,
+           "reconcile_lease_until" = NULL
      WHERE "id" = ANY(${input.intentIds}::uuid[]) AND "state" = 'OPEN' AND "reconcile_token" = ${input.token}::uuid`;
 }

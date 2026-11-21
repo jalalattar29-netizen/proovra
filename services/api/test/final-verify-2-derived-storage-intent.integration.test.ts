@@ -38,11 +38,14 @@ const MIB = 1024 * 1024;
 // The fake store (versions, lock state, incomplete multipart uploads).
 // ---------------------------------------------------------------------------
 const fake = vi.hoisted(() => {
-  type V = { versionId: string; sizeBytes: number; legalHold: boolean; retainUntil: Date | null };
+  type V = { versionId: string; sizeBytes: number; legalHold: boolean; retainUntil: Date | null; lastModified: Date };
+  type U = { uploadId: string; initiated: Date };
   const id = (k: { bucket: string; key: string }) => `${k.bucket}\u0000${k.key}`;
   let seq = 0;
   const versions = new Map<string, V[]>();
-  const mpus = new Map<string, string[]>();
+  const mpus = new Map<string, U[]>();
+  /** A one-shot hook run when the reconciler first lists a key's uploads (a holder arriving mid-reconcile). */
+  const hooks: { onListUploads: null | (() => Promise<void>) } = { onListUploads: null };
   const locked = (v: V) => v.legalHold || (v.retainUntil != null && v.retainUntil.getTime() > Date.now());
   const check = (signal?: AbortSignal) => {
     if (signal?.aborted) throw new Error("aborted");
@@ -50,17 +53,32 @@ const fake = vi.hoisted(() => {
   return {
     versions,
     mpus,
-    put(bucket: string, key: string, sizeBytes: number, lock: { legalHold?: boolean; retainUntil?: Date } = {}): string {
+    hooks,
+    put(
+      bucket: string,
+      key: string,
+      sizeBytes: number,
+      lock: { legalHold?: boolean; retainUntil?: Date } = {},
+      at: Date = new Date(),
+    ): string {
       const versionId = `v${++seq}`;
       const list = versions.get(id({ bucket, key })) ?? [];
-      list.push({ versionId, sizeBytes, legalHold: lock.legalHold ?? false, retainUntil: lock.retainUntil ?? null });
+      list.push({ versionId, sizeBytes, legalHold: lock.legalHold ?? false, retainUntil: lock.retainUntil ?? null, lastModified: at });
       versions.set(id({ bucket, key }), list);
       return versionId;
     },
-    createMultipart(bucket: string, key: string): string {
+    createMultipart(bucket: string, key: string, at: Date = new Date()): string {
       const uploadId = `u${++seq}`;
-      mpus.set(id({ bucket, key }), [...(mpus.get(id({ bucket, key })) ?? []), uploadId]);
+      mpus.set(id({ bucket, key }), [...(mpus.get(id({ bucket, key })) ?? []), { uploadId, initiated: at }]);
       return uploadId;
+    },
+    /** Everything the store created on this key before `at` moves to `at` (the holder's era, when tests age a holder). */
+    backdate(bucket: string, key: string, at: Date) {
+      for (const v of versions.get(id({ bucket, key })) ?? []) if (v.lastModified > at) v.lastModified = at;
+      for (const u of mpus.get(id({ bucket, key })) ?? []) if (u.initiated > at) u.initiated = at;
+    },
+    completeMultipart(bucket: string, key: string, uploadId: string) {
+      mpus.set(id({ bucket, key }), (mpus.get(id({ bucket, key })) ?? []).filter((u) => u.uploadId !== uploadId));
     },
     /** Bytes stored (data versions) under keys containing any of `needles`. */
     storedBytes(needles: string[]): bigint {
@@ -87,11 +105,16 @@ const fake = vi.hoisted(() => {
       },
       async listMultipartUploads(t: { bucket: string; key: string }, signal: AbortSignal) {
         check(signal);
-        return [...(mpus.get(id(t)) ?? [])];
+        const hook = hooks.onListUploads;
+        if (hook) {
+          hooks.onListUploads = null;
+          await hook();
+        }
+        return (mpus.get(id(t)) ?? []).map((u) => ({ ...u }));
       },
       async abortMultipartUpload(t: { bucket: string; key: string; uploadId: string }, signal: AbortSignal) {
         check(signal);
-        mpus.set(id(t), (mpus.get(id(t)) ?? []).filter((u) => u !== t.uploadId));
+        mpus.set(id(t), (mpus.get(id(t)) ?? []).filter((u) => u.uploadId !== t.uploadId));
       },
     },
     /** The worker's `deleteObjectVersions` (holder disposal), with the version-port semantics. */
@@ -245,6 +268,9 @@ describe("FINAL-VERIFY-2 — derived write intents keep possibly-stored bytes co
   /** Move a holder's clock back: its reservation AND its intent's last stamp (database clock). */
   async function age(hold: { intentId?: string | null; key: { teamId: string; evidencePartId: string; assetKind: string; variantKey: string } }, ms: number) {
     const secs = ms / 1000;
+    const intent = await prisma.derivedAssetStorageIntent.findUniqueOrThrow({ where: { id: hold.intentId! }, select: { storageBucket: true, storageKey: true } });
+    // What this holder wrote, it wrote during its own window.
+    fake.backdate(intent.storageBucket, intent.storageKey, new Date(Date.now() - ms + 1_000));
     await prisma.$executeRaw`UPDATE "derived_asset_storage_intents" SET "holder_stamp_utc" = NOW() - make_interval(secs => ${secs}::double precision) WHERE "id" = ${hold.intentId}::uuid`;
     await prisma.$executeRaw`
       UPDATE "evidence_part_derived_assets" SET "storage_reserved_at_utc" = NOW() - make_interval(secs => ${secs}::double precision)
@@ -312,6 +338,10 @@ describe("FINAL-VERIFY-2 — derived write intents keep possibly-stored bytes co
     }
     expect((await intentOf(hold.intentId)).state).toBe("OPEN");
     expect((await bothHosts(t)).reservedStorageBytes).toBe(BigInt(2 * MIB));
+    // The lease was given back: the next tick judges the key again, and once
+    // the parts can be aborted the key is proven empty.
+    expect(await reconcile()).toMatchObject({ claimed: 1, absent: 1, kept: 0 });
+    expect((await bothHosts(t)).reservedStorageBytes).toBe(0n);
   }, 300_000);
 
   it("a lost upload response: the holder's key-wide delete never resolves the intent; the late-landing version is found and deleted by the reconciler", async () => {
@@ -550,6 +580,7 @@ describe("FINAL-VERIFY-2 — derived write intents keep possibly-stored bytes co
     const hold = await admit(t, rec, 2 * MIB, key);
     const versionId = fake.put(BUCKET, key, 2 * MIB, { legalHold: true });
     // Only the intent is aged (the row's stamp stays live): the intent fence alone must refuse.
+    fake.backdate(BUCKET, key, new Date(Date.now() - ttl() - grace()));
     await prisma.$executeRaw`UPDATE "derived_asset_storage_intents" SET "holder_stamp_utc" = NOW() - make_interval(secs => ${(ttl() + grace() + 1_000) / 1000}::double precision) WHERE "id" = ${hold.intentId}::uuid`;
     expect(await reconcile()).toMatchObject({ claimed: 1, adopted: 1 });
     const settled = await intents.settleDerivedAssetUnderIntent({
@@ -596,6 +627,180 @@ describe("FINAL-VERIFY-2 — derived write intents keep possibly-stored bytes co
     const late2 = await record(t, 0n);
     expect((await reserve(t, late, 2 * MIB, derivedKey(late, "late"))).allowed).toBe(true);
     expect((await reserve(t, late2, 2 * MIB, derivedKey(late2, "late2"))).allowed).toBe(false);
+  }, 300_000);
+
+  // ---------------------------------------------------------------------------
+  // Review findings (closure follow-up): a holder arriving AFTER the claim, and
+  // a row that references the key with no version.
+  // ---------------------------------------------------------------------------
+
+  const completedRecord = (t: PersonalTenant, rec: { evidenceId: string; partId: string }, key: string, versionId: string) => ({
+    teamId: t.personalTeamId,
+    evidenceId: rec.evidenceId,
+    evidencePartId: rec.partId,
+    assetKind: "image_thumbnail" as const,
+    status: "COMPLETED" as const,
+    derivedSha256: "d".repeat(64),
+    sizeBytes: 2 * MIB,
+    storageBucket: BUCKET,
+    storageKey: key,
+    storageVersionId: versionId,
+  });
+
+  it("a retry that reserves the SAME key after the claim (store clock lagging): its upload and in-flight parts are never deleted, adopted or aborted; after it settles the stale version alone is removed", async () => {
+    const { t, baseline } = await tenantWithRoom(BigInt(8 * MIB));
+    const rec = await record(t, 0n);
+    const key = derivedKey(rec, "retry-after-claim");
+    const a = await admit(t, rec, 2 * MIB, key);
+    const vA = fake.put(BUCKET, key, 2 * MIB); // A uploaded, then died before settling
+    await age(a, ttl() + grace() + 1_000);
+
+    let b: Awaited<ReturnType<typeof admit>> | null = null;
+    let vB = "";
+    let bUpload = "";
+    // The store's clock lags the database's: B's objects carry timestamps
+    // inside A's old window, so only the holder re-check can tell them apart.
+    const lagging = new Date(Date.now() - ttl() - grace());
+    fake.hooks.onListUploads = async () => {
+      b = await admit(t, rec, 2 * MIB, key); // the retry: same row, same content-addressed key
+      vB = fake.put(BUCKET, key, 2 * MIB, {}, lagging);
+      bUpload = fake.createMultipart(BUCKET, key, lagging);
+    };
+    expect(await reconcile()).toMatchObject({ claimed: 1, resolved: 0, kept: 1 });
+    const versions = (await fake.store.listVersions({ bucket: BUCKET, key }, new AbortController().signal)).map((v) => v.versionId);
+    expect(versions.sort(), "nothing deleted").toEqual([vA, vB].sort());
+    expect((await fake.store.listMultipartUploads({ bucket: BUCKET, key }, new AbortController().signal)).map((u) => u.uploadId), "B's parts not aborted").toEqual([bUpload]);
+    expect(await prisma.evidencePartDerivedAsset.count({ where: { storageKey: key, status: "FAILED" } }), "nothing adopted").toBe(0);
+    expect((await intentOf(a.intentId)).state).toBe("OPEN");
+
+    // B completes its upload and settles the canonical row for vB.
+    fake.completeMultipart(BUCKET, key, bUpload);
+    expect((await intents.settleDerivedAssetUnderIntent({ hold: b!, record: completedRecord(t, rec, key, vB) })).ok).toBe(true);
+    // Next tick: A alone is judged; vB is referenced, vA is removed.
+    expect(await reconcile()).toMatchObject({ claimed: 1, deleted: 1 });
+    expect((await fake.store.listVersions({ bucket: BUCKET, key }, new AbortController().signal)).map((v) => v.versionId)).toEqual([vB]);
+    await accountingEqualsStored(t, baseline, [rec.evidenceId]);
+  }, 300_000);
+
+  it("a writer WITHOUT an intent (an older image) uploading the same key after the claim: what the store created after the claimed window is never touched", async () => {
+    const { t } = await tenantWithRoom(BigInt(8 * MIB));
+    const rec = await record(t, 0n);
+    const key = derivedKey(rec, "old-image-after-claim");
+    const a = await admit(t, rec, 2 * MIB, key);
+    const vA = fake.put(BUCKET, key, 2 * MIB);
+    await age(a, ttl() + grace() + 1_000);
+    let vB = "";
+    let bUpload = "";
+    fake.hooks.onListUploads = async () => {
+      // An older worker image: a plain reservation (no declared target, no intent).
+      const plain = await workerBilling.reserveDerivedArtifactStorage({
+        evidenceId: rec.evidenceId,
+        incomingBytes: 2 * MIB,
+        reservation: { teamId: t.personalTeamId, evidencePartId: rec.partId, assetKind: "image_thumbnail", variantKey: "default" },
+      });
+      expect(plain.allowed && plain.hold.intentId).toBeNull();
+      vB = fake.put(BUCKET, key, 2 * MIB);
+      bUpload = fake.createMultipart(BUCKET, key);
+    };
+    expect(await reconcile()).toMatchObject({ claimed: 1, resolved: 0, kept: 1 });
+    const versions = (await fake.store.listVersions({ bucket: BUCKET, key }, new AbortController().signal)).map((v) => v.versionId);
+    expect(versions.sort(), "nothing deleted").toEqual([vA, vB].sort());
+    expect((await fake.store.listMultipartUploads({ bucket: BUCKET, key }, new AbortController().signal)).map((u) => u.uploadId)).toEqual([bUpload]);
+    expect(await prisma.evidencePartDerivedAsset.count({ where: { storageKey: key, status: "FAILED" } }), "nothing adopted").toBe(0);
+    expect((await intentOf(a.intentId)).state, "A stays OPEN and counted").toBe("OPEN");
+
+    // The older image settles its row for vB; the next tick removes only A's stale version.
+    fake.completeMultipart(BUCKET, key, bUpload);
+    expect((await runtime.recordDerivedAsset(completedRecord(t, rec, key, vB), prisma as never)).ok).toBe(true);
+    expect(await reconcile()).toMatchObject({ claimed: 1, deleted: 1 });
+    expect((await fake.store.listVersions({ bucket: BUCKET, key }, new AbortController().signal)).map((v) => v.versionId)).toEqual([vB]);
+  }, 300_000);
+
+  async function legacyRow(t: PersonalTenant, rec: { evidenceId: string; partId: string }, key: string, sizeBytes: number, versionId: string | null) {
+    await prisma.$executeRaw`
+      INSERT INTO "evidence_part_derived_assets"
+        ("team_id", "evidence_id", "evidence_part_id", "asset_kind", "status", "derived_sha256", "size_bytes",
+         "storage_bucket", "storage_key", "storage_version_id", "variant_key", "generated_at_utc", "updated_at_utc")
+      VALUES (${t.personalTeamId}::uuid, ${rec.evidenceId}::uuid, ${rec.partId}::uuid, 'image_thumbnail', 'COMPLETED',
+              ${"e".repeat(64)}, ${sizeBytes}, ${BUCKET}, ${key}, ${versionId}, 'legacy-v0', NOW(), NOW())`;
+  }
+
+  it("a row referencing the key with a NULL version counts its object: the reconciler never deletes or adopts it (one version: resolved with no new row; more: kept OPEN)", async () => {
+    const { t, baseline } = await tenantWithRoom(BigInt(8 * MIB));
+    const rec = await record(t, 0n);
+    const key = derivedKey(rec, "legacy-null-version");
+    const vL = fake.put(BUCKET, key, 1 * MIB, {}, new Date(Date.now() - 86_400_000)); // the legacy object
+    await legacyRow(t, rec, key, 1 * MIB, null);
+    const a = await admit(t, rec, 2 * MIB, key); // a dead holder whose PUT never landed
+    await age(a, ttl() + grace() + 1_000);
+    expect(await reconcile()).toMatchObject({ claimed: 1, absent: 1 });
+    expect(await intentOf(a.intentId)).toMatchObject({ state: "ABSENT", resolution: "reconciled_counted_by_key_reference" });
+    expect((await fake.store.listVersions({ bucket: BUCKET, key }, new AbortController().signal)).map((v) => v.versionId), "the live object is kept").toEqual([vL]);
+    expect(await prisma.evidencePartDerivedAsset.count({ where: { storageKey: key } }), "no new row").toBe(1);
+    await accountingEqualsStored(t, baseline, [rec.evidenceId]);
+
+    // A second holder whose version DID land: ambiguous against the NULL-version row, so kept OPEN, nothing touched.
+    const b = await admit(t, rec, 2 * MIB, key);
+    const vB = fake.put(BUCKET, key, 2 * MIB);
+    await age(b, ttl() + grace() + 1_000);
+    expect(await reconcile()).toMatchObject({ claimed: 1, resolved: 0, kept: 1 });
+    expect((await fake.store.listVersions({ bucket: BUCKET, key }, new AbortController().signal)).map((v) => v.versionId).sort()).toEqual([vL, vB].sort());
+    expect((await bothHosts(t)).reservedStorageBytes, "the ambiguous bytes stay counted").toBe(BigInt(2 * MIB));
+    // Once only the row's object remains (an operator removed vB), the intent resolves with no new row.
+    await fake.store.deleteVersion({ bucket: BUCKET, key, versionId: vB }, new AbortController().signal);
+    expect(await reconcile()).toMatchObject({ claimed: 1, absent: 1 });
+    await accountingEqualsStored(t, baseline, [rec.evidenceId]);
+  }, 300_000);
+
+  it("an unversioned store (\"null\" version) referenced by a row: the reconciler and the holder's disposal never delete it", async () => {
+    const { t } = await tenantWithRoom(BigInt(8 * MIB));
+    const rec = await record(t, 0n);
+    const key = derivedKey(rec, "unversioned");
+    // An unversioned store keeps one object per key, version "null", counted by a row.
+    fake.versions.set(`${BUCKET}\u0000${key}`, [
+      { versionId: "null", sizeBytes: 1 * MIB, legalHold: false, retainUntil: null, lastModified: new Date(Date.now() - 86_400_000) },
+    ]);
+    await legacyRow(t, rec, key, 1 * MIB, "null");
+    const hold = await admit(t, rec, 1 * MIB, key);
+    // The holder's settle failed after a PUT that overwrote the key ("null" again).
+    const outcome = await disposal.disposeUnsettledDerivedObject({
+      key: hold.key,
+      heldSince: hold.reservedAtUtc,
+      intentId: hold.intentId,
+      object: { bucket: BUCKET, key, versionId: "null" },
+      written: { derivedSha256: "d".repeat(64), sizeBytes: 1 * MIB, contentType: "image/webp" },
+      reason: "persist_failed:x",
+    });
+    expect(outcome).toBe("already_counted");
+    expect(fake.storedBytes([key]), "not deleted by the holder").toBe(BigInt(1 * MIB));
+    expect((await intentOf(hold.intentId)).state).toBe("ADOPTED");
+
+    // A dead holder on the same key, judged by the reconciler: nothing deleted either.
+    const dead = await admit(t, rec, 1 * MIB, key);
+    await age(dead, ttl() + grace() + 1_000);
+    expect(await reconcile()).toMatchObject({ claimed: 1, absent: 1 });
+    expect(fake.storedBytes([key]), "not deleted by the reconciler").toBe(BigInt(1 * MIB));
+  }, 300_000);
+
+  it("the holder's disposal of a KNOWN real version never deletes it while a row references the key with a NULL version (adopted instead)", async () => {
+    const { t, baseline } = await tenantWithRoom(BigInt(8 * MIB));
+    const rec = await record(t, 0n);
+    const key = derivedKey(rec, "legacy-known-version");
+    fake.put(BUCKET, key, 1 * MIB, {}, new Date(Date.now() - 86_400_000));
+    await legacyRow(t, rec, key, 1 * MIB, null);
+    const hold = await admit(t, rec, 2 * MIB, key);
+    const v = fake.put(BUCKET, key, 2 * MIB);
+    const outcome = await disposal.disposeUnsettledDerivedObject({
+      key: hold.key,
+      heldSince: hold.reservedAtUtc,
+      intentId: hold.intentId,
+      object: { bucket: BUCKET, key, versionId: v },
+      written: { derivedSha256: "d".repeat(64), sizeBytes: 2 * MIB, contentType: "image/webp" },
+      reason: "persist_failed:x",
+    });
+    expect(outcome).toBe("retained");
+    expect(fake.storedBytes([key])).toBe(BigInt(3 * MIB));
+    await accountingEqualsStored(t, baseline, [rec.evidenceId]);
   }, 300_000);
 
   it("a holder that never started a write releases its intent; a reservation without a declared target holds no intent (plain M676 semantics)", async () => {
