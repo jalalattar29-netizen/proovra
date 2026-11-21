@@ -728,9 +728,10 @@ describe("WS-REV — external review and decision integrity (live PostgreSQL)", 
       expect(await prisma.stepUpChallenge.count({ where: { initiatedByUserId: A().ownerUserId, purpose: "REDACTION_PUBLISH", resourceId: versionId } })).toBe(0);
     });
 
-    it("PRO-R3-08: the policy quick toggle submits a version for review; nothing is approved or applied by a system actor", async () => {
+    it("PRO-R3-08 / EP-0934: the retired unversioned policy write is a typed 410; nothing is approved or applied by a system actor", async () => {
       const patchRes = await call("PATCH", `/v1/redaction/policy${q()}`, A().ownerToken, { providers: { MANUAL: true, REGEX_PII: true, POLICY_RULE: true, AWS_REKOGNITION_FACES: false, AWS_REKOGNITION_TEXT: true, AZURE_DOCUMENT_INTELLIGENCE: true, OCR_TEXT_LAYER: true, DEEPGRAM_TRANSCRIPT: true, CUSTOM_PROVIDER: true } });
-      expect([202, 409]).toContain(patchRes.statusCode);
+      expect(patchRes.statusCode, patchRes.body).toBe(410);
+      expect(patchRes.json().error.code).toBe("REDACTION_POLICY_PATCH_RETIRED");
       const nilActor = "00000000-0000-0000-0000-000000000000";
       expect(await prisma.redactionPolicyAudit.count({ where: { teamId: A().teamId, actorUserId: nilActor } as never })).toBe(0);
       const effective = await call("GET", `/v1/redaction/policy/effective${q()}`, A().ownerToken);

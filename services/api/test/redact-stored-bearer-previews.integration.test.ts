@@ -142,7 +142,12 @@ describe("redact-stored-bearer-previews (live PostgreSQL 16)", () => {
     expect(r.json.ids).toEqual(expected);
     expect(r.json.affectedCount).toBe(3);
     expect(r.json.setHash).toBe(setHashOf(expected));
-    expect(r.json.scannedWithIntakePath).toBe(5); // T1 T2 T3 N1 N2 contain "/intake/"
+    // CI runs every suite on one database, so other suites may leave
+    // token-free "/intake/" text behind: the scan count is checked against an
+    // independent count of the same predicate, and must cover this suite's five.
+    const scanned = await prisma.$queryRaw<Array<{ n: bigint }>>`SELECT count(*)::bigint AS n FROM communication_messages WHERE body_preview LIKE '%/intake/%'`;
+    expect(r.json.scannedWithIntakePath).toBe(Number(scanned[0]!.n));
+    expect(r.json.scannedWithIntakePath).toBeGreaterThanOrEqual(5); // T1 T2 T3 N1 N2 contain "/intake/"
     expect(r.json.resendableToClear).toBe(2); // T1, T3
     expect(r.json.notificationDeliveriesMatchingReadOnly).toBe(1); // counted, never written
     expect(r.json.database).toBe(DB());

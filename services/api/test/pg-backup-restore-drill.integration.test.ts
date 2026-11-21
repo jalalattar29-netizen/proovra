@@ -196,7 +196,15 @@ describe("AUD-023 — pg-backup.sh + pg-restore-drill.sh against disposable Post
     } catch {
       /* gone */
     }
-    if (backups) rmSync(backups, { recursive: true, force: true });
+    if (backups) {
+      try {
+        rmSync(backups, { recursive: true, force: true });
+      } catch {
+        // A container may have left files this user cannot remove.
+        spawnSync("docker", ["run", "--rm", "-v", `${backups}:/b`, "--entrypoint", "sh", IMAGE, "-c", "find /b -mindepth 1 -delete"]);
+        rmSync(backups, { recursive: true, force: true });
+      }
+    }
   });
 
   it("backup writes a checksummed dump with snapshot-consistent row counts and a schema fingerprint", () => {
@@ -366,6 +374,12 @@ describe("AUD-023 — pg-backup.sh + pg-restore-drill.sh against disposable Post
         "docker",
         [
           "run", "--rm", "--add-host", "host.docker.internal:host-gateway",
+          // As in runInClientImage: the same user as the drill phase, so the
+          // fetch directory it writes can be read and removed by that phase
+          // (production runs both phases as root; a Linux runner does not).
+          ...(typeof process.getuid === "function" && typeof process.getgid === "function"
+            ? ["--user", `${process.getuid()}:${process.getgid()}`, "-e", "HOME=/tmp"]
+            : []),
           "-v", `${OPS_DIR}:/ops:ro`, "-v", `${dir}:/backups`,
           "-e", `AWS_ACCESS_KEY_ID=${process.env.S3_ACCESS_KEY}`,
           "-e", `AWS_SECRET_ACCESS_KEY=${process.env.S3_SECRET_KEY}`,
