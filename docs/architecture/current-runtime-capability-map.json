@@ -108646,8 +108646,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/derived-storage-intent.ts#OBJECT_STORAGE.AbortMultipartUploadCommand@385",
-      "terminalLocation": "services/worker/src/derived-storage-intent.ts:385",
+      "writerId": "services/worker/src/derived-storage-intent.ts#OBJECT_STORAGE.AbortMultipartUploadCommand@386",
+      "terminalLocation": "services/worker/src/derived-storage-intent.ts:386",
       "file": "services/worker/src/derived-storage-intent.ts",
       "enclosingDeclaration": "s3DerivedObjectStore",
       "kind": "EXTERNAL",
@@ -108680,8 +108680,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/derived-storage-intent.ts#OBJECT_STORAGE.DeleteObjectCommand@350",
-      "terminalLocation": "services/worker/src/derived-storage-intent.ts:350",
+      "writerId": "services/worker/src/derived-storage-intent.ts#OBJECT_STORAGE.DeleteObjectCommand@351",
+      "terminalLocation": "services/worker/src/derived-storage-intent.ts:351",
       "file": "services/worker/src/derived-storage-intent.ts",
       "enclosingDeclaration": "s3DerivedObjectStore",
       "kind": "EXTERNAL",
