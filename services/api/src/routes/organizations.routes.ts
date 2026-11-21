@@ -119,6 +119,7 @@ import {
 } from "../services/organization/org-ownership-offer.service.js";
 // Closure 2 ("sem" item 2) — the organization's payer, explicitly.
 import {
+  narrowPayerProjectionToOwnAgreements,
   payerObligationsOnLeave,
   resolveOrganizationPayerProjection,
 } from "../services/organization/org-payer.service.js";
@@ -2965,8 +2966,9 @@ export async function organizationsRoutes(app: FastifyInstance) {
   //
   // Read by the organization's billing roles (owner, administrator, billing
   // administrator — the roles that see the organization billing account), and
-  // by a member who IS a payer here. Any other member: 403; a non-member: the
-  // uniform 404.
+  // by a member who IS a payer here — who reads ONLY the agreements that bill
+  // them, and the billing-owner / contract-owner facts only when they are that
+  // person (review M-1). Any other member: 403; a non-member: the uniform 404.
   // -------------------------------------------------------------------------
   app.get(
     "/v1/orgs/:id/payer",
@@ -2980,10 +2982,14 @@ export async function organizationsRoutes(app: FastifyInstance) {
         return reply.code(denial.status).send(denial.body);
       }
       const projection = await resolveOrganizationPayerProjection({ organizationId: orgId, viewerUserId: userId });
-      if (!ORG_BILLING_ROLES.includes(access.role) && !projection.viewerIsPayer) {
+      if (ORG_BILLING_ROLES.includes(access.role)) {
+        return reply.code(200).send({ payer: projection });
+      }
+      if (!projection.viewerIsPayer) {
         return reply.code(403).send({ error: { code: "forbidden" } });
       }
-      return reply.code(200).send({ payer: projection });
+      // Review M-1 — a paying member outside the billing roles reads only what bills them.
+      return reply.code(200).send({ payer: narrowPayerProjectionToOwnAgreements(projection, userId), scope: "own" });
     },
   );
 
