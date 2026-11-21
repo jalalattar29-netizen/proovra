@@ -215,8 +215,8 @@
         "UnclassifiedUnreachableProductionModules": 0,
         "ConnectedButUnreachable": 0,
         "RemovedButPresent": 0,
-        "ProductionModules": 1125,
-        "ReachableProductionModules": 1123,
+        "ProductionModules": 1134,
+        "ReachableProductionModules": 1132,
         "UnreachableProductionModules": 2,
         "UnfollowableModuleSpecifiers": 0
       },
