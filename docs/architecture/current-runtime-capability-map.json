@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 26
     },
-    "TerminalWriters": 1696,
-    "ReachableSensitiveMutations": 1666,
-    "ClassifiedSensitiveMutations": 1666,
+    "TerminalWriters": 1698,
+    "ReachableSensitiveMutations": 1668,
+    "ClassifiedSensitiveMutations": 1668,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 30,
@@ -77,7 +77,7 @@
       "WORKSPACE": 86,
       "WORKSPACE_MEMBERSHIP_INVITATION": 69,
       "CASE": 95,
-      "EVIDENCE_CUSTODY_FINALIZATION": 393,
+      "EVIDENCE_CUSTODY_FINALIZATION": 395,
       "LEGAL_HOLD_RETENTION_DELETION": 63,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 107,
       "BILLING_SUBSCRIPTION_SEAT": 117,
@@ -101,7 +101,7 @@
     "MutationConservationHolds": true,
     "byWriterBucket": {
       "ROUTE_ATTRIBUTED_REACHABLE": 1481,
-      "JOB_ATTRIBUTED_REACHABLE": 173,
+      "JOB_ATTRIBUTED_REACHABLE": 175,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 11,
       "STARTUP_OR_SCHEDULED": 23,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 12369,
-      "UNRESOLVED_IDENTIFIER": 1803
+      "METHOD_ON_VALUE": 12405,
+      "UNRESOLVED_IDENTIFIER": 1809
     },
     "MutationFixpointRounds": 11,
     "MutationClosurePass": false,
@@ -16737,8 +16737,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/billing/derived-storage.ts#evidencePartDerivedAsset.deleteMany@312",
-      "terminalLocation": "packages/shared-runtime/src/billing/derived-storage.ts:312",
+      "writerId": "packages/shared-runtime/src/billing/derived-storage.ts#evidencePartDerivedAsset.deleteMany@423",
+      "terminalLocation": "packages/shared-runtime/src/billing/derived-storage.ts:423",
       "file": "packages/shared-runtime/src/billing/derived-storage.ts",
       "enclosingDeclaration": "releaseDerivedAssetStorageReservation",
       "kind": "DATABASE",
@@ -16771,8 +16771,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/billing/derived-storage.ts#evidencePartDerivedAsset.deleteMany@356",
-      "terminalLocation": "packages/shared-runtime/src/billing/derived-storage.ts:356",
+      "writerId": "packages/shared-runtime/src/billing/derived-storage.ts#evidencePartDerivedAsset.deleteMany@467",
+      "terminalLocation": "packages/shared-runtime/src/billing/derived-storage.ts:467",
       "file": "packages/shared-runtime/src/billing/derived-storage.ts",
       "enclosingDeclaration": "releaseExpiredDerivedAssetStorageReservations",
       "kind": "DATABASE",
@@ -16805,8 +16805,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/billing/derived-storage.ts#evidencePartDerivedAsset.updateMany@221",
-      "terminalLocation": "packages/shared-runtime/src/billing/derived-storage.ts:221",
+      "writerId": "packages/shared-runtime/src/billing/derived-storage.ts#evidencePartDerivedAsset.updateMany@252",
+      "terminalLocation": "packages/shared-runtime/src/billing/derived-storage.ts:252",
       "file": "packages/shared-runtime/src/billing/derived-storage.ts",
       "enclosingDeclaration": "clearOwnDerivedAssetStorageReservationTx",
       "kind": "DATABASE",
@@ -16839,8 +16839,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/billing/derived-storage.ts#evidencePartDerivedAsset.updateMany@329",
-      "terminalLocation": "packages/shared-runtime/src/billing/derived-storage.ts:329",
+      "writerId": "packages/shared-runtime/src/billing/derived-storage.ts#evidencePartDerivedAsset.updateMany@440",
+      "terminalLocation": "packages/shared-runtime/src/billing/derived-storage.ts:440",
       "file": "packages/shared-runtime/src/billing/derived-storage.ts",
       "enclosingDeclaration": "releaseDerivedAssetStorageReservation",
       "kind": "DATABASE",
@@ -16873,8 +16873,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/billing/derived-storage.ts#evidencePartDerivedAsset.updateMany@359",
-      "terminalLocation": "packages/shared-runtime/src/billing/derived-storage.ts:359",
+      "writerId": "packages/shared-runtime/src/billing/derived-storage.ts#evidencePartDerivedAsset.updateMany@470",
+      "terminalLocation": "packages/shared-runtime/src/billing/derived-storage.ts:470",
       "file": "packages/shared-runtime/src/billing/derived-storage.ts",
       "enclosingDeclaration": "releaseExpiredDerivedAssetStorageReservations",
       "kind": "DATABASE",
@@ -20025,11 +20025,16 @@
       "entryJobs": [
         "SWEEP services/worker/src/combined-recording/combined-recording.handler.ts#processCombineScreenRecordingJob",
         "SWEEP services/worker/src/derived-assets.processor.ts#processDerivedAssetJob",
+        "SWEEP services/worker/src/derived-storage-intent.ts#reconcileDerivedAssetStorageIntents",
+        "SWEEP services/worker/src/intelligence-run-reconciler.ts#runIntelligenceRunReconciler",
         "SWEEP services/worker/src/media-intelligence.processor.ts#processMediaIntelligenceJob",
         "SWEEP services/worker/src/screen-intelligence.handler.ts#processReconstructScreenJob"
       ],
       "entryModules": [],
-      "entrySchedules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1202#runIntelligenceRunReconciler",
+        "SCHEDULE services/worker/src/index.ts:1213#startIntelligenceRunReconcilerScheduler"
+      ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
         "authorizationBeforeMutation": "NOT_APPLICABLE",
@@ -108641,6 +108646,74 @@
       }
     },
     {
+      "writerId": "services/worker/src/derived-storage-intent.ts#OBJECT_STORAGE.AbortMultipartUploadCommand@385",
+      "terminalLocation": "services/worker/src/derived-storage-intent.ts:385",
+      "file": "services/worker/src/derived-storage-intent.ts",
+      "enclosingDeclaration": "s3DerivedObjectStore",
+      "kind": "EXTERNAL",
+      "target": "OBJECT_STORAGE",
+      "mutationKind": "AbortMultipartUploadCommand",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/intelligence-run-reconciler.ts#runIntelligenceRunReconciler"
+      ],
+      "entryModules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1202#runIntelligenceRunReconciler",
+        "SCHEDULE services/worker/src/index.ts:1213#startIntelligenceRunReconcilerScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/derived-storage-intent.ts#OBJECT_STORAGE.DeleteObjectCommand@350",
+      "terminalLocation": "services/worker/src/derived-storage-intent.ts:350",
+      "file": "services/worker/src/derived-storage-intent.ts",
+      "enclosingDeclaration": "s3DerivedObjectStore",
+      "kind": "EXTERNAL",
+      "target": "OBJECT_STORAGE",
+      "mutationKind": "DeleteObjectCommand",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/intelligence-run-reconciler.ts#runIntelligenceRunReconciler"
+      ],
+      "entryModules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1202#runIntelligenceRunReconciler",
+        "SCHEDULE services/worker/src/index.ts:1213#startIntelligenceRunReconcilerScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
       "writerId": "services/worker/src/exchange-package-builder.ts#evidenceExchangePackage.updateMany@1139",
       "terminalLocation": "services/worker/src/exchange-package-builder.ts:1139",
       "file": "services/worker/src/exchange-package-builder.ts",
@@ -110592,8 +110665,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/intelligence-run-reconciler.ts#evidencePartDerivedAsset.updateMany@618",
-      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:618",
+      "writerId": "services/worker/src/intelligence-run-reconciler.ts#evidencePartDerivedAsset.updateMany@648",
+      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:648",
       "file": "services/worker/src/intelligence-run-reconciler.ts",
       "enclosingDeclaration": "reconcileStrandedDerivedAssets",
       "kind": "DATABASE",
@@ -110627,8 +110700,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/intelligence-run-reconciler.ts#evidencePartDerivedAsset.updateMany@647",
-      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:647",
+      "writerId": "services/worker/src/intelligence-run-reconciler.ts#evidencePartDerivedAsset.updateMany@677",
+      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:677",
       "file": "services/worker/src/intelligence-run-reconciler.ts",
       "enclosingDeclaration": "reconcileStrandedDerivedAssets",
       "kind": "DATABASE",
@@ -110662,8 +110735,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/intelligence-run-reconciler.ts#evidencePartDerivedAsset.updateMany@667",
-      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:667",
+      "writerId": "services/worker/src/intelligence-run-reconciler.ts#evidencePartDerivedAsset.updateMany@697",
+      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:697",
       "file": "services/worker/src/intelligence-run-reconciler.ts",
       "enclosingDeclaration": "reconcileStrandedDerivedAssets",
       "kind": "DATABASE",
@@ -110697,8 +110770,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/intelligence-run-reconciler.ts#media_intelligence_runs.$queryRawUnsafe@477",
-      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:477",
+      "writerId": "services/worker/src/intelligence-run-reconciler.ts#media_intelligence_runs.$queryRawUnsafe@507",
+      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:507",
       "file": "services/worker/src/intelligence-run-reconciler.ts",
       "enclosingDeclaration": "settleAbandonedPendingRuns",
       "kind": "RAW_SQL",
@@ -110731,8 +110804,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/intelligence-run-reconciler.ts#mediaIntelligenceRun.updateMany@210",
-      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:210",
+      "writerId": "services/worker/src/intelligence-run-reconciler.ts#mediaIntelligenceRun.updateMany@220",
+      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:220",
       "file": "services/worker/src/intelligence-run-reconciler.ts",
       "enclosingDeclaration": "runIntelligenceRunReconciler",
       "kind": "DATABASE",
@@ -110765,8 +110838,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/intelligence-run-reconciler.ts#mediaIntelligenceRun.updateMany@222",
-      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:222",
+      "writerId": "services/worker/src/intelligence-run-reconciler.ts#mediaIntelligenceRun.updateMany@232",
+      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:232",
       "file": "services/worker/src/intelligence-run-reconciler.ts",
       "enclosingDeclaration": "runIntelligenceRunReconciler",
       "kind": "DATABASE",
@@ -113192,8 +113265,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/workspace-billing.ts#reportGenerationRequest.updateMany@876",
-      "terminalLocation": "services/worker/src/workspace-billing.ts:876",
+      "writerId": "services/worker/src/workspace-billing.ts#reportGenerationRequest.updateMany@878",
+      "terminalLocation": "services/worker/src/workspace-billing.ts:878",
       "file": "services/worker/src/workspace-billing.ts",
       "enclosingDeclaration": "reserveArtifactStorage",
       "kind": "DATABASE",
@@ -113223,8 +113296,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/workspace-billing.ts#reportGenerationRequest.updateMany@911",
-      "terminalLocation": "services/worker/src/workspace-billing.ts:911",
+      "writerId": "services/worker/src/workspace-billing.ts#reportGenerationRequest.updateMany@913",
+      "terminalLocation": "services/worker/src/workspace-billing.ts:913",
       "file": "services/worker/src/workspace-billing.ts",
       "enclosingDeclaration": "releaseArtifactStorageReservation",
       "kind": "DATABASE",
@@ -113254,8 +113327,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/workspace-billing.ts#reportGenerationRequest.updateMany@934",
-      "terminalLocation": "services/worker/src/workspace-billing.ts:934",
+      "writerId": "services/worker/src/workspace-billing.ts#reportGenerationRequest.updateMany@936",
+      "terminalLocation": "services/worker/src/workspace-billing.ts:936",
       "file": "services/worker/src/workspace-billing.ts",
       "enclosingDeclaration": "settleArtifactStorageReservationTx",
       "kind": "DATABASE",
@@ -120641,6 +120714,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "derivedAssetStorageIntent",
         "enterpriseContract",
         "entitlement",
         "evidence",
@@ -122667,6 +122741,7 @@
         "adminAuditLog",
         "billingReviewItem",
         "collaborationTeam",
+        "derivedAssetStorageIntent",
         "enterpriseContract",
         "entitlement",
         "entitlementUsage",
@@ -122856,6 +122931,7 @@
       "tenantBindingAuthority": "inline-membership-status-check",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "derivedAssetStorageIntent",
         "enterpriseContract",
         "entitlement",
         "evidence",
@@ -128446,6 +128522,7 @@
         "adminAuditLog",
         "caseEvidenceLink",
         "custodyEvent",
+        "derivedAssetStorageIntent",
         "evidence",
         "evidenceAnchor",
         "evidenceCreditLedgerEntry",
@@ -128825,6 +128902,7 @@
       "modelsRead": [
         "caseEvidenceLink",
         "custodyEvent",
+        "derivedAssetStorageIntent",
         "evidence",
         "evidenceCreditLedgerEntry",
         "evidenceExchangePackage",
@@ -130013,6 +130091,7 @@
         "case",
         "caseEvidenceLink",
         "custodyEvent",
+        "derivedAssetStorageIntent",
         "discussionThread",
         "enterpriseContract",
         "entitlement",
@@ -130446,6 +130525,7 @@
         "authenticatedSession",
         "caseEvidenceLink",
         "custodyEvent",
+        "derivedAssetStorageIntent",
         "evidence",
         "evidenceCreditLedgerEntry",
         "evidenceExchangePackage",
@@ -143015,6 +143095,7 @@
       "modelsRead": [
         "caseEvidenceLink",
         "custodyEvent",
+        "derivedAssetStorageIntent",
         "enterpriseContract",
         "entitlement",
         "evidence",
@@ -147147,6 +147228,7 @@
       "modelsRead": [
         "authenticatedSession",
         "custodyEvent",
+        "derivedAssetStorageIntent",
         "entitlementGrant",
         "evidence",
         "evidenceCreditLedgerEntry",
@@ -147998,6 +148080,7 @@
         "authenticatedSession",
         "caseEvidenceLink",
         "custodyEvent",
+        "derivedAssetStorageIntent",
         "enterpriseContract",
         "entitlement",
         "evidence",
@@ -148114,6 +148197,7 @@
         "authenticatedSession",
         "caseEvidenceLink",
         "custodyEvent",
+        "derivedAssetStorageIntent",
         "evidence",
         "evidenceCreditLedgerEntry",
         "evidenceExchangePackage",
@@ -152163,6 +152247,7 @@
         "case",
         "collaborationTeam",
         "collaborationTeamMember",
+        "derivedAssetStorageIntent",
         "enterpriseContract",
         "entitlement",
         "evidence",
@@ -162715,6 +162800,7 @@
         "case",
         "caseEvidenceLink",
         "custodyEvent",
+        "derivedAssetStorageIntent",
         "entitlementUsage",
         "evidence",
         "evidenceCreditLedgerEntry",
@@ -166974,6 +167060,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "derivedAssetStorageIntent",
         "enterpriseContract",
         "entitlement",
         "evidence",
@@ -168525,6 +168612,7 @@
         "case",
         "custodyEvent",
         "departmentMembership",
+        "derivedAssetStorageIntent",
         "entitlementGrant",
         "evidence",
         "evidenceCreditLedgerEntry",
@@ -173590,6 +173678,7 @@
         "case",
         "custodyEvent",
         "departmentMembership",
+        "derivedAssetStorageIntent",
         "enterpriseContract",
         "entitlement",
         "entitlementGrant",
@@ -175729,9 +175818,9 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "captureSession",
-        "case",
         "caseEvidenceLink",
         "custodyEvent",
+        "derivedAssetStorageIntent",
         "enterpriseContract",
         "entitlement",
         "evidence",
@@ -176006,6 +176095,7 @@
         "captureSession",
         "caseEvidenceLink",
         "custodyEvent",
+        "derivedAssetStorageIntent",
         "enterpriseContract",
         "entitlement",
         "evidence",
@@ -176253,6 +176343,7 @@
         "authenticatedSession",
         "caseEvidenceLink",
         "custodyEvent",
+        "derivedAssetStorageIntent",
         "evidence",
         "evidenceCreditLedgerEntry",
         "evidenceExchangePackage",
@@ -198237,6 +198328,7 @@
       "modelsRead": [
         "authenticatedSession",
         "custodyEvent",
+        "derivedAssetStorageIntent",
         "enterpriseContract",
         "entitlement",
         "entitlementGrant",
@@ -206186,6 +206278,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "derivedAssetStorageIntent",
         "enterpriseContract",
         "entitlement",
         "evidence",

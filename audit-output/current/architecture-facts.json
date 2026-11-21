@@ -157,9 +157,9 @@
       "QueueRegistryProblems": 0
     },
     "mutations": {
-      "terminalWriters": 1696,
-      "reachable": 1666,
-      "classified": 1666,
+      "terminalWriters": 1698,
+      "reachable": 1668,
+      "classified": 1668,
       "unclassified": 0,
       "moduleScopedAttribution": 0,
       "nonRequest": 30,
@@ -176,7 +176,7 @@
       "writerConservationHolds": true,
       "byWriterBucket": {
         "ROUTE_ATTRIBUTED_REACHABLE": 1481,
-        "JOB_ATTRIBUTED_REACHABLE": 173,
+        "JOB_ATTRIBUTED_REACHABLE": 175,
         "MODULE_SCOPED_REACHABLE": 0,
         "REGISTERED_CLI": 11,
         "STARTUP_OR_SCHEDULED": 23,
@@ -198,7 +198,7 @@
         "WORKSPACE": 86,
         "WORKSPACE_MEMBERSHIP_INVITATION": 69,
         "CASE": 95,
-        "EVIDENCE_CUSTODY_FINALIZATION": 393,
+        "EVIDENCE_CUSTODY_FINALIZATION": 395,
         "LEGAL_HOLD_RETENTION_DELETION": 63,
         "EXTERNAL_REVIEW_INTAKE_SHARE": 107,
         "BILLING_SUBSCRIPTION_SEAT": 117,
@@ -215,15 +215,15 @@
         "UnclassifiedUnreachableProductionModules": 0,
         "ConnectedButUnreachable": 0,
         "RemovedButPresent": 0,
-        "ProductionModules": 1116,
-        "ReachableProductionModules": 1114,
+        "ProductionModules": 1117,
+        "ReachableProductionModules": 1115,
         "UnreachableProductionModules": 2,
         "UnfollowableModuleSpecifiers": 0
       },
       "problemCount": 0
     },
     "auditGovernance": {
-      "AuditFilesInventoried": 516,
+      "AuditFilesInventoried": 517,
       "AuditFilesUnclassified": 0,
       "AuditArtifactProducersUnknown": 0,
       "AuditArtifactConsumersUnknown": 0,
@@ -272,7 +272,7 @@
       "ProductionRuntimeFilesModifiedByPhase0": 0,
       "ProductBehaviorTestsRemoved": 0,
       "HistoricalMigrationsModifiedByPhase0": 0,
-      "ProductBehaviorTestsInventoried": 423
+      "ProductBehaviorTestsInventoried": 424
     },
     "proofFreshness": {
       "domainProofsRead": 10,
