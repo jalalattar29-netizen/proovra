@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "28109845be5def0ab38aefdd121fdaa3c0cf3d91b45445ac9901f0a76bb48335",
+  "capabilityRouteInventoryHash": "496ff223818e1e6ef7249afcf9b4939d90e922cd4616f5cec5851e4f28121083",
   "totals": {
-    "routes": 1260,
+    "routes": 1262,
     "routesWithAnyTestCaller": 59,
     "testOnlyRoutes": 8,
     "testCallSites": 151,
@@ -1955,6 +1955,12 @@
     },
     {
       "routeId": "GET /v1/identity/links/organization",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/identity/links/organization-consents",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -5819,6 +5825,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/identity/members/:id/capabilities",
       "testCallerCount": 0,
       "testOnly": false,
@@ -7707,5 +7719,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "200f2fc7a967d19a22d3c95a6f694f942321e4143e05588adf89717e151840d0"
+  "contentHash": "82fe081bf7d71e366d1a25aeeb5026a51f114b5b722e0f0dbb951de0e126f478"
 }

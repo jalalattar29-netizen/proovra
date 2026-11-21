@@ -4,18 +4,18 @@
   "generator": "services/api/scripts/generate-runtime-capability-map.mjs",
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
-  "routeInventoryHash": "28109845be5def0ab38aefdd121fdaa3c0cf3d91b45445ac9901f0a76bb48335",
-  "consumerInventoryHash": "addc7c3e3c30f9d526a7dd7fff0aa5d5ad70db12fe0de2c1971da43651c36f9c",
+  "routeInventoryHash": "496ff223818e1e6ef7249afcf9b4939d90e922cd4616f5cec5851e4f28121083",
+  "consumerInventoryHash": "18565752dce3754dbae400bbfadd0a282d28ce40a9dbe7a9ab313bd5e83e01f5",
   "dispositionsHash": "4634dbb508d1b01f04e7988b8009af560f2bce0bd1af8e3f9c1c55ed205704a9",
   "totals": {
-    "RegisteredRoutes": 1260,
-    "ProductionRegisteredRoutes": 1259,
+    "RegisteredRoutes": 1262,
+    "ProductionRegisteredRoutes": 1261,
     "DevelopmentOnlyRoutes": 1,
-    "ProductConsumedRoutes": 1035,
+    "ProductConsumedRoutes": 1037,
     "NonProductDispositionedRoutes": 199,
     "UndisposedRoutes": 25,
     "ConservationIdentityHolds": true,
-    "ProductConsumerRoutes": 1035,
+    "ProductConsumerRoutes": 1037,
     "MachineOnlyConsumerRoutes": 7,
     "NoConsumerRoutes": 218,
     "AuthorizationUnresolved": 0,
@@ -56,12 +56,12 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 26
     },
-    "TerminalWriters": 1696,
-    "ReachableSensitiveMutations": 1666,
-    "ClassifiedSensitiveMutations": 1666,
+    "TerminalWriters": 1698,
+    "ReachableSensitiveMutations": 1669,
+    "ClassifiedSensitiveMutations": 1669,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
-    "NonRequestWriters": 30,
+    "NonRequestWriters": 29,
     "ModuleScopedAttributionWriters": 0,
     "DeadUnreachableWriters": 8,
     "DeadUnreachableWritersPending": 8,
@@ -71,7 +71,7 @@
     "TenantUnboundMutations": 0,
     "UnsafeEffectsInsideTransactions": 0,
     "byFamily": {
-      "ACCOUNT_SESSION_SECURITY": 277,
+      "ACCOUNT_SESSION_SECURITY": 280,
       "ORGANIZATION": 39,
       "ORGANIZATION_MEMBERSHIP": 34,
       "WORKSPACE": 86,
@@ -81,13 +81,13 @@
       "LEGAL_HOLD_RETENTION_DELETION": 63,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 107,
       "BILLING_SUBSCRIPTION_SEAT": 117,
-      "SSO_OIDC_SCIM_PROVISIONING": 67,
+      "SSO_OIDC_SCIM_PROVISIONING": 66,
       "AUTOMATION_QUEUE_WEBHOOK": 133,
       "REPORT_EXPORT_REDACTION": 80,
       "API_KEY_SECRET_OPERATIONAL_ADMIN": 135
     },
     "byNonRequestDisposition": {
-      "REGISTERED_CLI": 11,
+      "REGISTERED_CLI": 10,
       "MIGRATION_ONLY": 0,
       "TEST_ONLY": 0,
       "BUILD_ONLY": 0,
@@ -100,10 +100,10 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1481,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1484,
       "JOB_ATTRIBUTED_REACHABLE": 173,
       "MODULE_SCOPED_REACHABLE": 0,
-      "REGISTERED_CLI": 11,
+      "REGISTERED_CLI": 10,
       "STARTUP_OR_SCHEDULED": 23,
       "MIGRATION_ONLY": 0,
       "TEST_OR_BUILD_ONLY": 0,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 12369,
+      "METHOD_ON_VALUE": 12372,
       "UNRESOLVED_IDENTIFIER": 1803
     },
     "MutationFixpointRounds": 11,
@@ -134,7 +134,7 @@
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
       "UNDISPOSED": 25,
-      "PRODUCT_CONNECTED": 1040,
+      "PRODUCT_CONNECTED": 1042,
       "EXTERNAL_API": 19,
       "MACHINE_OR_CRON": 22,
       "WEBHOOK": 4,
@@ -146,11 +146,11 @@
       "MISSING_PRODUCT_UI_POST_RELEASE": 26
     },
     "MandateDispositionConservationHolds": true,
-    "TenantBindingResolved": 1258,
+    "TenantBindingResolved": 1260,
     "TenantBindingUnresolved": 0,
     "byDataScope": {
       "PUBLIC_DATA": 37,
-      "GLOBAL_USER_SELF": 56,
+      "GLOBAL_USER_SELF": 58,
       "PLATFORM_GLOBAL": 52,
       "WORKSPACE_SCOPED": 710,
       "ORGANIZATION_SCOPED": 136,
@@ -165,7 +165,7 @@
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
-    "ClassifiedSecurityRoutes": 1258,
+    "ClassifiedSecurityRoutes": 1260,
     "UnclassifiedSecurityRoutes": 0,
     "DevelopmentGatedRoutes": 1,
     "SecurityFamilyConservationHolds": true,
@@ -179,8 +179,8 @@
         "tagged": 27
       },
       "SESSION_AUTHENTICATED": {
-        "primary": 419,
-        "tagged": 419
+        "primary": 421,
+        "tagged": 421
       },
       "WORKSPACE_AUTHORIZED": {
         "primary": 397,
@@ -240,25 +240,25 @@
       }
     }
   },
-  "totalRoutes": 1260,
+  "totalRoutes": 1262,
   "classificationCounts": {
     "BACKEND_ONLY_UNWIRED": 25,
     "COMPATIBILITY_TEMPORARY": 15,
     "INTERNAL_REQUIRED": 185,
-    "TARGET_COMPLETE": 1035
+    "TARGET_COMPLETE": 1037
   },
   "evidenceLevelCounts": {
     "BEHAVIORALLY_PROVEN": 405,
     "BEHAVIORAL_SERVICE_ONLY": 18,
     "STRUCTURALLY_CONNECTED_ONLY": 516,
-    "UNPROVEN": 321
+    "UNPROVEN": 323
   },
   "verticalCounts": {
     "ENTERPRISE_IDENTITY_SECURITY": 181,
     "EVIDENCE_OPERATIONS": 279,
     "OPERATIONS_AUTOMATION": 1,
     "OPERATIONS_INTELLIGENCE": 126,
-    "PLATFORM_CORE": 533,
+    "PLATFORM_CORE": 535,
     "TRUST_ADMINISTRATION": 140
   },
   "capabilities": [
@@ -4060,7 +4060,19 @@
       "method": "GET",
       "route": "/v1/identity/links/organization",
       "registeringFile": "services/api/src/routes/identity-links.routes.ts",
-      "productConsumer": "apps/web/components/identity-security/OrganizationLinkConsentPanel.tsx:151",
+      "productConsumer": "apps/web/components/identity-security/OrganizationLinkConsentPanel.tsx:153",
+      "machineConsumer": null,
+      "authorization": "AUTHENTICATED",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "GET:/v1/identity/links/organization-consents",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/identity/links/organization-consents",
+      "registeringFile": "services/api/src/routes/identity-links.routes.ts",
+      "productConsumer": "apps/web/components/identity-security/OrganizationLinkConsentsCard.tsx:133",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11656,7 +11668,19 @@
       "method": "POST",
       "route": "/v1/identity/links/organization",
       "registeringFile": "services/api/src/routes/identity-links.routes.ts",
-      "productConsumer": "apps/web/components/identity-security/OrganizationLinkConsentPanel.tsx:169",
+      "productConsumer": "apps/web/components/identity-security/OrganizationLinkConsentPanel.tsx:171",
+      "machineConsumer": null,
+      "authorization": "AUTHENTICATED",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "POST:/v1/identity/links/organization-consents/:organizationId/withdraw",
+      "vertical": "PLATFORM_CORE",
+      "method": "POST",
+      "route": "/v1/identity/links/organization-consents/:organizationId/withdraw",
+      "registeringFile": "services/api/src/routes/identity-links.routes.ts",
+      "productConsumer": "apps/web/components/identity-security/OrganizationLinkConsentsCard.tsx:153",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -16297,6 +16321,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -21301,6 +21326,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -22427,6 +22453,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -23578,6 +23605,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -24729,6 +24757,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -25855,6 +25884,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -27006,6 +27036,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -28132,6 +28163,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -29343,38 +29375,8 @@
       }
     },
     {
-      "writerId": "services/api/src/commands/remediate-admin-manual-identity-links.ts#externalIdentityMapping.updateMany@166",
-      "terminalLocation": "services/api/src/commands/remediate-admin-manual-identity-links.ts:166",
-      "file": "services/api/src/commands/remediate-admin-manual-identity-links.ts",
-      "enclosingDeclaration": "remediateAdminManualIdentityLinks",
-      "kind": "DATABASE",
-      "target": "externalIdentityMapping",
-      "mutationKind": "updateMany",
-      "primaryFamily": "SSO_OIDC_SCIM_PROVISIONING",
-      "insideTransaction": false,
-      "entryRoutes": [],
-      "entryJobs": [],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      },
-      "nonRequestDisposition": "REGISTERED_CLI"
-    },
-    {
-      "writerId": "services/api/src/commands/remediate-admin-manual-identity-links.ts#externalIdentityMapping.updateMany@175",
-      "terminalLocation": "services/api/src/commands/remediate-admin-manual-identity-links.ts:175",
+      "writerId": "services/api/src/commands/remediate-admin-manual-identity-links.ts#externalIdentityMapping.updateMany@169",
+      "terminalLocation": "services/api/src/commands/remediate-admin-manual-identity-links.ts:169",
       "file": "services/api/src/commands/remediate-admin-manual-identity-links.ts",
       "enclosingDeclaration": "remediateAdminManualIdentityLinks",
       "kind": "DATABASE",
@@ -31888,8 +31890,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-links.routes.ts#user.updateMany@620",
-      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:620",
+      "writerId": "services/api/src/routes/identity-links.routes.ts#user.updateMany@683",
+      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:683",
       "file": "services/api/src/routes/identity-links.routes.ts",
       "enclosingDeclaration": "identityLinksRoutes",
       "kind": "DATABASE",
@@ -31921,8 +31923,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-links.routes.ts#user.updateMany@734",
-      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:734",
+      "writerId": "services/api/src/routes/identity-links.routes.ts#user.updateMany@797",
+      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:797",
       "file": "services/api/src/routes/identity-links.routes.ts",
       "enclosingDeclaration": "identityLinksRoutes",
       "kind": "DATABASE",
@@ -31954,8 +31956,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-links.routes.ts#userIdentityLink.create@265",
-      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:265",
+      "writerId": "services/api/src/routes/identity-links.routes.ts#userIdentityLink.create@274",
+      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:274",
       "file": "services/api/src/routes/identity-links.routes.ts",
       "enclosingDeclaration": "linkProviderIdentity",
       "kind": "DATABASE",
@@ -31988,8 +31990,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-links.routes.ts#userIdentityLink.update@730",
-      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:730",
+      "writerId": "services/api/src/routes/identity-links.routes.ts#userIdentityLink.update@793",
+      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:793",
       "file": "services/api/src/routes/identity-links.routes.ts",
       "enclosingDeclaration": "identityLinksRoutes",
       "kind": "DATABASE",
@@ -32021,8 +32023,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-links.routes.ts#userIdentityLink.updateMany@249",
-      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:249",
+      "writerId": "services/api/src/routes/identity-links.routes.ts#userIdentityLink.updateMany@258",
+      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:258",
       "file": "services/api/src/routes/identity-links.routes.ts",
       "enclosingDeclaration": "linkProviderIdentity",
       "kind": "DATABASE",
@@ -32055,8 +32057,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-links.routes.ts#userIdentityLink.upsert@600",
-      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:600",
+      "writerId": "services/api/src/routes/identity-links.routes.ts#userIdentityLink.upsert@663",
+      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:663",
       "file": "services/api/src/routes/identity-links.routes.ts",
       "enclosingDeclaration": "identityLinksRoutes",
       "kind": "DATABASE",
@@ -37196,8 +37198,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/sso.service.ts#externalIdentityMapping.create@1529",
-      "terminalLocation": "services/api/src/services/access-control/sso.service.ts:1529",
+      "writerId": "services/api/src/services/access-control/sso.service.ts#externalIdentityMapping.create@1531",
+      "terminalLocation": "services/api/src/services/access-control/sso.service.ts:1531",
       "file": "services/api/src/services/access-control/sso.service.ts",
       "enclosingDeclaration": "handleOidcCallback",
       "kind": "DATABASE",
@@ -37262,8 +37264,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/sso.service.ts#ssoConnection.update@1597",
-      "terminalLocation": "services/api/src/services/access-control/sso.service.ts:1597",
+      "writerId": "services/api/src/services/access-control/sso.service.ts#ssoConnection.update@1599",
+      "terminalLocation": "services/api/src/services/access-control/sso.service.ts:1599",
       "file": "services/api/src/services/access-control/sso.service.ts",
       "enclosingDeclaration": "handleOidcCallback",
       "kind": "DATABASE",
@@ -37361,8 +37363,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/sso.service.ts#user.create@1514",
-      "terminalLocation": "services/api/src/services/access-control/sso.service.ts:1514",
+      "writerId": "services/api/src/services/access-control/sso.service.ts#user.create@1516",
+      "terminalLocation": "services/api/src/services/access-control/sso.service.ts:1516",
       "file": "services/api/src/services/access-control/sso.service.ts",
       "enclosingDeclaration": "handleOidcCallback",
       "kind": "DATABASE",
@@ -38917,6 +38919,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -40092,6 +40095,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -41267,6 +41271,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -45057,6 +45062,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -60991,6 +60997,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -65702,8 +65709,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/organization-link-consent.service.ts#externalIdentityMapping.create@285",
-      "terminalLocation": "services/api/src/services/identity/organization-link-consent.service.ts:285",
+      "writerId": "services/api/src/services/identity/organization-link-consent.service.ts#externalIdentityMapping.create@299",
+      "terminalLocation": "services/api/src/services/identity/organization-link-consent.service.ts:299",
       "file": "services/api/src/services/identity/organization-link-consent.service.ts",
       "enclosingDeclaration": "approveOrganizationLink",
       "kind": "DATABASE",
@@ -65735,8 +65742,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/organization-link-consent.service.ts#externalIdentityMapping.update@278",
-      "terminalLocation": "services/api/src/services/identity/organization-link-consent.service.ts:278",
+      "writerId": "services/api/src/services/identity/organization-link-consent.service.ts#externalIdentityMapping.update@292",
+      "terminalLocation": "services/api/src/services/identity/organization-link-consent.service.ts:292",
       "file": "services/api/src/services/identity/organization-link-consent.service.ts",
       "enclosingDeclaration": "approveOrganizationLink",
       "kind": "DATABASE",
@@ -65760,6 +65767,105 @@
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "ENFORCED",
         "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/identity/organization-link-consent.service.ts#identityLinkConsent.create@354",
+      "terminalLocation": "services/api/src/services/identity/organization-link-consent.service.ts:354",
+      "file": "services/api/src/services/identity/organization-link-consent.service.ts",
+      "enclosingDeclaration": "approveOrganizationLink",
+      "kind": "DATABASE",
+      "target": "identityLinkConsent",
+      "mutationKind": "create",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/identity/links/organization"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/identity-links.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/identity/organization-link-consent.service.ts#identityLinkConsent.updateMany@344",
+      "terminalLocation": "services/api/src/services/identity/organization-link-consent.service.ts:344",
+      "file": "services/api/src/services/identity/organization-link-consent.service.ts",
+      "enclosingDeclaration": "approveOrganizationLink",
+      "kind": "DATABASE",
+      "target": "identityLinkConsent",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/identity/links/organization"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/identity-links.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/identity/organization-link-consent.service.ts#identityLinkConsent.updateMany@454",
+      "terminalLocation": "services/api/src/services/identity/organization-link-consent.service.ts:454",
+      "file": "services/api/src/services/identity/organization-link-consent.service.ts",
+      "enclosingDeclaration": "withdrawOrganizationLinkConsent",
+      "kind": "DATABASE",
+      "target": "identityLinkConsent",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/identity-links.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
@@ -73339,6 +73445,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -74455,6 +74562,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -75571,6 +75679,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -76697,6 +76806,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -77822,6 +77932,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -78938,6 +79049,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -80063,6 +80175,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -81179,6 +81292,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -82295,6 +82409,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -83421,6 +83536,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -84937,6 +85053,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -86054,6 +86171,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -87171,6 +87289,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -88288,6 +88407,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -89405,6 +89525,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -90522,6 +90643,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -91639,6 +91761,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -92756,6 +92879,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -101695,6 +101819,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/mfa/challenge/verify",
         "POST /v1/identity/mfa/enroll/start",
         "POST /v1/identity/mfa/recovery-codes/regenerate",
@@ -102254,8 +102379,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/saml-user-mapping.service.ts#externalIdentityMapping.create@693",
-      "terminalLocation": "services/api/src/services/security/saml-user-mapping.service.ts:693",
+      "writerId": "services/api/src/services/security/saml-user-mapping.service.ts#externalIdentityMapping.create@695",
+      "terminalLocation": "services/api/src/services/security/saml-user-mapping.service.ts:695",
       "file": "services/api/src/services/security/saml-user-mapping.service.ts",
       "enclosingDeclaration": "handleSamlAssertion",
       "kind": "DATABASE",
@@ -102320,8 +102445,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/saml-user-mapping.service.ts#user.create@678",
-      "terminalLocation": "services/api/src/services/security/saml-user-mapping.service.ts:678",
+      "writerId": "services/api/src/services/security/saml-user-mapping.service.ts#user.create@680",
+      "terminalLocation": "services/api/src/services/security/saml-user-mapping.service.ts:680",
       "file": "services/api/src/services/security/saml-user-mapping.service.ts",
       "enclosingDeclaration": "handleSamlAssertion",
       "kind": "DATABASE",
@@ -103101,6 +103226,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/organization",
+        "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
         "POST /v1/identity/members/:id/capabilities",
         "POST /v1/identity/members/:id/delegated-admin",
         "POST /v1/identity/members/:id/restore",
@@ -115374,7 +115500,7 @@
       "method": "DELETE",
       "path": "/v1/identity/links/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:662",
+      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:725",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -115393,7 +115519,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 899,
+          "line": 900,
           "caller": "LoginMethodsCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -115403,7 +115529,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:216 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:899 (LoginMethodsCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:216 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:900 (LoginMethodsCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -115469,7 +115595,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1256,
+          "line": 1257,
           "caller": "MfaCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -115477,7 +115603,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1349,
+          "line": 1350,
           "caller": "MfaCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -115487,7 +115613,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:222 (SecuritySettingsScreen, MOBILE); apps/mobile/src/ui/totp-enrolment.tsx:236 (TotpEnrolment, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1256 (MfaCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:222 (SecuritySettingsScreen, MOBILE); apps/mobile/src/ui/totp-enrolment.tsx:236 (TotpEnrolment, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1257 (MfaCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -116983,7 +117109,7 @@
         "evidenceRequest",
         "evidenceReviewWorkflow",
         "externalIdentityMapping",
-        "membershipGrant",
+        "identityLinkConsent",
         "operationalIncident",
         "operationalWorkflow",
         "organization",
@@ -121839,7 +121965,7 @@
         "authenticatedSession",
         "enterpriseContract",
         "externalIdentityMapping",
-        "membershipGrant",
+        "identityLinkConsent",
         "mfaFactor",
         "mfaPendingChallenge",
         "mfaRecoveryCode",
@@ -135375,7 +135501,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 220,
+          "line": 221,
           "caller": "useSecurityData",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -135393,7 +135519,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:127 (SecuritySettingsScreen, MOBILE); apps/mobile/app/(tabs)/settings.tsx:110 (SettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:220 (useSecurityData, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:127 (SecuritySettingsScreen, MOBILE); apps/mobile/app/(tabs)/settings.tsx:110 (SettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:221 (useSecurityData, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -135612,7 +135738,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 2047,
+          "line": 2048,
           "caller": "SecurityEventsCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -135622,7 +135748,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:129 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2047 (SecurityEventsCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:129 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2048 (SecurityEventsCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -136126,7 +136252,7 @@
       "method": "GET",
       "path": "/v1/identity/links",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:332",
+      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:341",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -136153,7 +136279,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 186,
+          "line": 187,
           "caller": "useSecurityData",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -136171,7 +136297,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:125 (SecuritySettingsScreen, MOBILE); apps/mobile/app/(tabs)/settings.tsx:108 (SettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:186 (useSecurityData, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:125 (SecuritySettingsScreen, MOBILE); apps/mobile/app/(tabs)/settings.tsx:108 (SettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:187 (useSecurityData, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -136201,7 +136327,7 @@
       "method": "GET",
       "path": "/v1/identity/links/organization",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:426",
+      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:435",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -136212,7 +136338,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/identity-security/OrganizationLinkConsentPanel.tsx",
-          "line": 151,
+          "line": 153,
           "caller": "OrganizationLinkConsentPanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -136222,7 +136348,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/identity-security/OrganizationLinkConsentPanel.tsx:151 (OrganizationLinkConsentPanel, WEB)",
+      "dispositionEvidence": "apps/web/components/identity-security/OrganizationLinkConsentPanel.tsx:153 (OrganizationLinkConsentPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -136239,6 +136365,56 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [],
       "tenantIdSource": "NONE",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "NONE_OBSERVED",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "GET /v1/identity/links/organization-consents",
+      "method": "GET",
+      "path": "/v1/identity/links/organization-consents",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:536",
+      "authorizationClass": "AUTHENTICATED",
+      "authorizationEvidence": [
+        "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
+      ],
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/components/identity-security/OrganizationLinkConsentsCard.tsx",
+          "line": 133,
+          "caller": "OrganizationLinkConsentsCard",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/components/identity-security/OrganizationLinkConsentsCard.tsx:133 (OrganizationLinkConsentsCard, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "AUTHENTICATED",
+      "authorizationAuthority": "AUTHENTICATED",
+      "dataScope": "GLOBAL_USER_SELF",
+      "tenantType": "NONE",
+      "tenantBindingAuthority": null,
+      "membershipStatusRequirement": null,
+      "modelsRead": [
+        "identityLinkConsent"
+      ],
+      "modelsWritten": [],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [],
+      "tenantIdSource": "AUTHENTICATED_SUBJECT",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "NONE_OBSERVED",
       "tenantStampingInsertSites": [],
@@ -136993,7 +137169,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 201,
+          "line": 202,
           "caller": "useSecurityData",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -137019,7 +137195,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:126 (SecuritySettingsScreen, MOBILE); apps/mobile/app/(tabs)/settings.tsx:109 (SettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:201 (useSecurityData, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:126 (SecuritySettingsScreen, MOBILE); apps/mobile/app/(tabs)/settings.tsx:109 (SettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:202 (useSecurityData, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -159132,6 +159308,7 @@
         "enterpriseContract",
         "entitlement",
         "externalIdentityMapping",
+        "identityLinkConsent",
         "membershipGrant",
         "organization",
         "organizationDomain",
@@ -159224,7 +159401,7 @@
         "evidenceRequest",
         "evidenceReviewWorkflow",
         "externalIdentityMapping",
-        "membershipGrant",
+        "identityLinkConsent",
         "operationalIncident",
         "operationalWorkflow",
         "organization",
@@ -160650,6 +160827,7 @@
         "enterpriseContract",
         "entitlement",
         "externalIdentityMapping",
+        "identityLinkConsent",
         "membershipGrant",
         "mfaFactor",
         "organization",
@@ -164072,7 +164250,7 @@
       "method": "POST",
       "path": "/v1/auth/oauth/nonce",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:301",
+      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:310",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -164452,7 +164630,7 @@
         "authenticatedSession",
         "enterpriseContract",
         "externalIdentityMapping",
-        "membershipGrant",
+        "identityLinkConsent",
         "mfaFactor",
         "mfaPendingChallenge",
         "mfaRecoveryCode",
@@ -182980,7 +183158,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1763,
+          "line": 1764,
           "caller": "ActiveSessionsCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -182990,7 +183168,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:203 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1763 (ActiveSessionsCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:203 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1764 (ActiveSessionsCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -183050,7 +183228,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1717,
+          "line": 1718,
           "caller": "ActiveSessionsCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -183060,7 +183238,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:209 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1717 (ActiveSessionsCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:209 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1718 (ActiveSessionsCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -183245,7 +183423,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 389,
+          "line": 390,
           "caller": "PasswordChangeCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -183255,7 +183433,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:167 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:389 (PasswordChangeCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:167 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:390 (PasswordChangeCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -184518,7 +184696,7 @@
       "method": "POST",
       "path": "/v1/identity/links/apple",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:400",
+      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:409",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -184537,7 +184715,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 737,
+          "line": 738,
           "caller": "LoginMethodsCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -184547,7 +184725,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:258 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:737 (LoginMethodsCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:258 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:738 (LoginMethodsCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -184586,7 +184764,7 @@
       "method": "POST",
       "path": "/v1/identity/links/google",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:389",
+      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:398",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -184605,7 +184783,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 737,
+          "line": 738,
           "caller": "LoginMethodsCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -184615,7 +184793,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:258 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:737 (LoginMethodsCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:258 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:738 (LoginMethodsCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -184654,7 +184832,7 @@
       "method": "POST",
       "path": "/v1/identity/links/organization",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:457",
+      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:466",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -184665,7 +184843,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/identity-security/OrganizationLinkConsentPanel.tsx",
-          "line": 169,
+          "line": 171,
           "caller": "OrganizationLinkConsentPanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -184675,7 +184853,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/identity-security/OrganizationLinkConsentPanel.tsx:169 (OrganizationLinkConsentPanel, WEB)",
+      "dispositionEvidence": "apps/web/components/identity-security/OrganizationLinkConsentPanel.tsx:171 (OrganizationLinkConsentPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -184701,6 +184879,7 @@
       "modelsWritten": [
         "adminAuditLog",
         "externalIdentityMapping",
+        "identityLinkConsent",
         "membershipGrant",
         "mfaFactor",
         "organizationMembership",
@@ -184717,8 +184896,67 @@
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
         "services/api/src/services/identity/organization-link-consent.service.ts: externalIdentityMapping.create",
-        "services/api/src/services/identity/membership-provisioning.service.ts: organizationMembership.create"
+        "services/api/src/services/identity/membership-provisioning.service.ts: organizationMembership.create",
+        "services/api/src/services/identity/organization-link-consent.service.ts: identityLinkConsent.create"
       ],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
+      "method": "POST",
+      "path": "/v1/identity/links/organization-consents/:organizationId/withdraw",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:546",
+      "authorizationClass": "AUTHENTICATED",
+      "authorizationEvidence": [
+        "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
+      ],
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/components/identity-security/OrganizationLinkConsentsCard.tsx",
+          "line": 153,
+          "caller": "OrganizationLinkConsentsCard",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/components/identity-security/OrganizationLinkConsentsCard.tsx:153 (OrganizationLinkConsentsCard, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "AUTHENTICATED",
+      "authorizationAuthority": "AUTHENTICATED",
+      "dataScope": "GLOBAL_USER_SELF",
+      "tenantType": "NONE",
+      "tenantBindingAuthority": null,
+      "membershipStatusRequirement": null,
+      "modelsRead": [
+        "adminAuditLog",
+        "authenticatedSession",
+        "mfaFactor",
+        "user"
+      ],
+      "modelsWritten": [
+        "adminAuditLog",
+        "identityLinkConsent",
+        "mfaFactor",
+        "securityEvent"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [],
+      "tenantIdSource": "AUTHENTICATED_SUBJECT",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refuses with 404",
+      "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
     },
     {
@@ -185981,7 +186219,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1183,
+          "line": 1184,
           "caller": "MfaCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -185999,7 +186237,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:250 (startSignInEnrollment, MOBILE); apps/mobile/src/ui/totp-enrolment.tsx:168 (TotpEnrolment, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1183 (MfaCard, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:250 (startSignInEnrollment, MOBILE); apps/mobile/src/ui/totp-enrolment.tsx:168 (TotpEnrolment, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1184 (MfaCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -186060,7 +186298,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1217,
+          "line": 1218,
           "caller": "MfaCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -186078,7 +186316,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:269 (verifySignInEnrollment, MOBILE); apps/mobile/src/ui/totp-enrolment.tsx:202 (TotpEnrolment, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1217 (MfaCard, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:269 (verifySignInEnrollment, MOBILE); apps/mobile/src/ui/totp-enrolment.tsx:202 (TotpEnrolment, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1218 (MfaCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -186132,7 +186370,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1297,
+          "line": 1298,
           "caller": "MfaCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -186142,7 +186380,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:230 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1297 (MfaCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:230 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1298 (MfaCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -186442,7 +186680,7 @@
       "method": "POST",
       "path": "/v1/identity/password",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:519",
+      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:582",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -186461,7 +186699,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 861,
+          "line": 862,
           "caller": "LoginMethodsCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -186471,7 +186709,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:282 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:861 (LoginMethodsCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:282 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:862 (LoginMethodsCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -207970,6 +208208,7 @@
         "enterpriseContract",
         "entitlement",
         "externalIdentityMapping",
+        "identityLinkConsent",
         "membershipGrant",
         "organization",
         "organizationDomain",
