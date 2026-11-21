@@ -1,0 +1,23 @@
+# JOURNEY 5 — recovery and discard by the rightful account only (after 04).
+# Device-only. Expected: B saw no controls (04); A signs back in and gets the recovery card with
+# Recover and Discard; Discard removes the recording from the device.
+appId: com.jalalattar29.proovra
+env:
+  EMAIL: ${EMAIL_A}
+  PASSWORD: ${PASSWORD_A}
+---
+- launchApp
+- runFlow:
+    when:
+      visible:
+        id: "auth-email"
+    file: subflows/sign-in.yaml
+- openLink: proovra://continuous-capture
+- extendedWaitUntil:
+    visible: "Discard recording"
+    timeout: 30000
+- assertNotVisible: "A recording from another account on this device is waiting for its owner."
+- tapOn: "Discard recording"
+- extendedWaitUntil:
+    visible: "Start Continuous Capture"
+    timeout: 30000

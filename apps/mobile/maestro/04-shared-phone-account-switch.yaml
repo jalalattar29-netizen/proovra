@@ -1,0 +1,30 @@
+# JOURNEY 4 — shared phone: account A leaves a recording, account B signs in (UC-AND-006 / DEC-24).
+# Device-only (real recorder residue). Run 01 first or let this flow create the residue.
+# Expected for B: "A recording from another account on this device is waiting for its owner." —
+# no Discard, no Recover, no review, Start blocked; B cannot open or discard A's recording.
+appId: com.jalalattar29.proovra
+---
+- launchApp:
+    clearState: true
+- runFlow:
+    file: subflows/sign-in.yaml
+    env:
+      EMAIL: ${EMAIL_A}
+      PASSWORD: ${PASSWORD_A}
+- runFlow: subflows/start-continuous-recording.yaml
+- tapOn: "Stop & Review"
+- runFlow: subflows/sign-out.yaml
+- runFlow:
+    file: subflows/sign-in.yaml
+    env:
+      EMAIL: ${EMAIL_B}
+      PASSWORD: ${PASSWORD_B}
+- openLink: proovra://continuous-capture
+- extendedWaitUntil:
+    visible: "A recording from another account on this device is waiting for its owner."
+    timeout: 30000
+- assertVisible: "PROOVRA keeps it for them; you cannot open or discard it. This device holds one screen recording at a time, so a new one cannot start here until that account signs in and finishes or discards it."
+- assertNotVisible: "Discard recording"
+- assertNotVisible: "Recover recording"
+- assertNotVisible: "Review in Capture"
+- runFlow: subflows/sign-out.yaml

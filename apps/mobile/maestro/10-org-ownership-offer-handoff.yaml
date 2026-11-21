@@ -1,0 +1,45 @@
+# JOURNEY 10 — organization ownership-offer handoff (NEW-RG-26-4, owner decision E).
+# Pre-step on the LOCAL API: ORG owner offers ownership to account B
+# (POST /v1/orgs/:id/transfer-ownership with the owner's step-up) -> ORG_ID, OFFER_ID.
+# Expected: link opened signed out -> sign-in -> the organization screen shows THIS organization's offer
+# with the billing-stays sentence; Accept raises the step-up sheet; the password confirms; ownership moves.
+appId: com.jalalattar29.proovra
+env:
+  EMAIL: ${EMAIL_B}
+  PASSWORD: ${PASSWORD_B}
+---
+- launchApp:
+    clearState: true
+- openLink: proovra://organizations/${ORG_ID}?ownershipOffer=${OFFER_ID}
+- extendedWaitUntil:
+    visible:
+      id: "auth-email"
+    timeout: 30000
+- tapOn:
+    id: "auth-email"
+- inputText: ${EMAIL}
+- tapOn:
+    id: "auth-password"
+- inputText: ${PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "auth-signin"
+- extendedWaitUntil:
+    visible:
+      id: "org-ownership-offer"
+    timeout: 30000
+- assertVisible:
+    id: "org-ownership-offer-billing"
+- assertNotVisible:
+    id: "org-ownership-offer-link-notice"
+- tapOn: "Accept ownership"
+- extendedWaitUntil:
+    visible: "Confirm accepting ownership of this organization."
+    timeout: 15000
+- tapOn: "Your password"
+- inputText: ${PASSWORD}
+- tapOn: "Confirm"
+- extendedWaitUntil:
+    visible:
+      id: "org-ownership-offer-status"
+    timeout: 30000

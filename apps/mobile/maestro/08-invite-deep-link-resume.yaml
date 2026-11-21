@@ -1,0 +1,28 @@
+# JOURNEY 8 — a collaboration invitation opened signed out resumes after sign-in (PRO-NA-09).
+# INVITE_TOKEN is a token the LOCAL API minted for EMAIL_B. The custom scheme is used because a
+# debug build is not App-Links verified for www.proovra.com (its keystore is not the release one).
+appId: com.jalalattar29.proovra
+env:
+  EMAIL: ${EMAIL_B}
+  PASSWORD: ${PASSWORD_B}
+---
+- launchApp:
+    clearState: true
+- openLink: proovra://invite/${INVITE_TOKEN}
+- extendedWaitUntil:
+    visible:
+      id: "auth-email"
+    timeout: 30000
+- tapOn:
+    id: "auth-email"
+- inputText: ${EMAIL}
+- tapOn:
+    id: "auth-password"
+- inputText: ${PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "auth-signin"
+- extendedWaitUntil:
+    visible: "Accept invitation"
+    timeout: 30000
+- tapOn: "Accept invitation"

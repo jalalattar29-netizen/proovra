@@ -1,0 +1,33 @@
+# JOURNEY 9 — a record link opened signed out, with new terms owed, resumes to the record after
+# acceptance, in the record's workspace (PRO-NA-04). Pre-step on the LOCAL API: bump a required policy
+# version so the account owes acceptance. EVIDENCE_ID is a record account A can open.
+appId: com.jalalattar29.proovra
+env:
+  EMAIL: ${EMAIL_A}
+  PASSWORD: ${PASSWORD_A}
+---
+- launchApp:
+    clearState: true
+- openLink: proovra://evidence/${EVIDENCE_ID}
+- extendedWaitUntil:
+    visible:
+      id: "auth-email"
+    timeout: 30000
+- tapOn:
+    id: "auth-email"
+- inputText: ${EMAIL}
+- tapOn:
+    id: "auth-password"
+- inputText: ${PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "auth-signin"
+- extendedWaitUntil:
+    visible: "Accept and continue"
+    timeout: 30000
+- tapOn: "Accept and continue"
+- extendedWaitUntil:
+    visible: "Opened in the record's workspace — you are now working there."
+    timeout: 30000
+    optional: true
+- assertNotVisible: "This item is not available."

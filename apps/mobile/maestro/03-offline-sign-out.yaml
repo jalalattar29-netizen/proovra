@@ -1,0 +1,32 @@
+# JOURNEY 3 — offline sign-out (B8-F-001 / review gap 3).
+# Device-only: needs the OS network to go away while a recording runs (setAirplaneMode is Android-only;
+# on iOS toggle airplane mode by hand at the marked step).
+# Expected: sign-out does not complete offline — the person stays signed in, the recorder keeps running;
+# online again, sign-out completes and stops the recorder; the recording stays for account A.
+appId: com.jalalattar29.proovra
+env:
+  EMAIL: ${EMAIL_A}
+  PASSWORD: ${PASSWORD_A}
+---
+- launchApp:
+    clearState: true
+- runFlow: subflows/sign-in.yaml
+- runFlow: subflows/start-continuous-recording.yaml
+- setAirplaneMode: enabled
+- openLink: proovra://settings
+- scrollUntilVisible:
+    element:
+      text: "Sign out"
+    direction: DOWN
+    timeout: 20000
+- tapOn: "Sign out"
+- extendedWaitUntil:
+    visible: "Sign-out did not complete"
+    timeout: 30000
+- tapOn: "Stay signed in"
+- assertNotVisible:
+    id: "auth-email"
+- openLink: proovra://continuous-capture
+- assertVisible: "Continuous capture active"
+- setAirplaneMode: disabled
+- runFlow: subflows/sign-out.yaml

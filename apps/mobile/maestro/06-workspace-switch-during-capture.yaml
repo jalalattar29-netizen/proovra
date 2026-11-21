@@ -1,0 +1,27 @@
+# JOURNEY 6 — switching workspace (B2A-F-22 / PRO-NA-06): blocked while a capture runs, allowed after.
+# Account A is a member of two workspaces; WORKSPACE_2 is the second one's display name.
+# Expected: during capture the switch is refused with "Capture in progress"; the recording stays bound
+# to the workspace it started in; after Stop the switch succeeds and "Working here" moves.
+appId: com.jalalattar29.proovra
+env:
+  EMAIL: ${EMAIL_A}
+  PASSWORD: ${PASSWORD_A}
+---
+- launchApp:
+    clearState: true
+- runFlow: subflows/sign-in.yaml
+- runFlow: subflows/start-continuous-recording.yaml
+- openLink: proovra://spaces
+- tapOn: ${WORKSPACE_2}
+- extendedWaitUntil:
+    visible: "Capture in progress"
+    timeout: 15000
+- assertVisible: "Finish or pause the current capture before switching workspace. It stays in the workspace it was started in."
+- tapOn: "OK"
+- openLink: proovra://continuous-capture
+- tapOn: "Stop & Review"
+- openLink: proovra://spaces
+- tapOn: ${WORKSPACE_2}
+- extendedWaitUntil:
+    visible: "Working here"
+    timeout: 15000

@@ -1,0 +1,27 @@
+# Open Continuous capture, start, accept the Android MediaProjection consent.
+appId: com.jalalattar29.proovra
+---
+- openLink: proovra://continuous-capture
+- extendedWaitUntil:
+    visible: "Start Continuous Capture"
+    timeout: 20000
+- tapOn: "Start Continuous Capture"
+# Android system consent dialog (wording differs by Android version / OEM).
+- runFlow:
+    when:
+      visible: "Start now"
+    commands:
+      - tapOn: "Start now"
+- runFlow:
+    when:
+      visible: "Start"
+    commands:
+      - tapOn: "Start"
+- runFlow:
+    when:
+      visible: "Continue without the notification"
+    commands:
+      - tapOn: "Continue without the notification"
+- extendedWaitUntil:
+    visible: "Continuous capture active"
+    timeout: 30000
