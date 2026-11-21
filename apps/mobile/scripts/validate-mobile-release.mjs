@@ -23,9 +23,11 @@
  *     them at bundle time from whatever env the build sees — eas.json is one
  *     source, the build machine's own environment is another (`eas build
  *     --local`, or a CI step that exports them). The EAS-dashboard
- *     "production" environment variables are a third, readable only with an
- *     Expo token; that check stays a runtime one (`eas env:list --environment
- *     production` must list neither flag).
+ *     "production" environment variables are a third, readable here only with
+ *     an Expo token; they are checked where they are resolved instead: on the
+ *     EAS build worker, by the `eas-build-post-install` hook running this file
+ *     with `--eas-build-env` (easBuildEnvProblems), which refuses the store
+ *     build before anything is bundled.
  *
  * Nothing here reads credentials; the workflow gates those separately.
  */
@@ -66,6 +68,30 @@ export function pickPrivateFlags(env) {
     if (typeof value === "string" && value.trim() !== "") out[flag] = value;
   }
   return out;
+}
+
+/**
+ * B6-F-64 — PURE: the private-distribution flags in the environment of the
+ * machine that is BUILDING the binary right now. On an EAS build worker that
+ * environment is eas.json's profile env PLUS the EAS-dashboard environment
+ * variables of the profile's environment, resolved by EAS itself, which is
+ * exactly what Metro inlines into the JS bundle (externalCheckoutEnabled()).
+ * It runs there through the package.json `eas-build-post-install` hook
+ * (`--eas-build-env`), before any bundling.
+ *
+ * Only a profile eas.json declares `distribution: "internal"` may carry the
+ * flags (preview: private distribution, the only place in-app checkout is
+ * allowed). Every other profile, an unknown one, and a missing
+ * EAS_BUILD_PROFILE are treated as a store build and refused.
+ */
+export function easBuildEnvProblems(eas, env) {
+  const profileName = typeof env?.EAS_BUILD_PROFILE === "string" ? env.EAS_BUILD_PROFILE.trim() : "";
+  const profile = profileName ? eas?.build?.[profileName] : undefined;
+  if (profile && profile.distribution === "internal") return [];
+  const label = profileName ? `EAS build profile "${profileName}"` : "a build with no EAS_BUILD_PROFILE";
+  return Object.keys(pickPrivateFlags(env)).map(
+    (flag) => `${label} is a store build, but its build environment sets the private-distribution flag ${flag}; remove it from the EAS environment (eas env:list) and rebuild`,
+  );
 }
 
 /** PURE — the problems that block a store release; [] means releasable. */
@@ -150,7 +176,17 @@ export function validateMobileRelease(inputs) {
 }
 
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isMain) {
+if (isMain && process.argv.includes("--eas-build-env")) {
+  // B6-F-64 — on the EAS build worker (package.json eas-build-post-install).
+  const eas = JSON.parse(readFileSync(resolve(MOBILE, "eas.json"), "utf8"));
+  const problems = easBuildEnvProblems(eas, process.env);
+  if (problems.length > 0) {
+    for (const p of problems) console.error(`::error::${p}`);
+    console.error("Store build refused: the EAS build environment would enable in-app checkout. Nothing was bundled.");
+    process.exit(1);
+  }
+  console.log(`EAS build environment OK for profile ${process.env.EAS_BUILD_PROFILE ?? "(none)"}: no private-distribution flag reaches a store build.`);
+} else if (isMain) {
   const inputs = readReleaseInputs();
   const problems = validateMobileRelease(inputs);
   if (problems.length > 0) {

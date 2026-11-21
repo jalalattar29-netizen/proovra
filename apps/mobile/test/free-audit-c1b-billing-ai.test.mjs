@@ -4,7 +4,8 @@
  *   B6-F-61  an ending storage add-on says "Ends <date> — not renewing", never "Renews", and offers no Cancel
  *   B6-F-62  a managed payer (BILLING_CANCEL, no purchase capability) is offered add-on Cancel and the way into Manage plan
  *   B6-F-63  store-build copy no longer sends anyone to "Billing on the web"
- *   B6-F-64  the release gate refuses a release ENVIRONMENT that carries the private-distribution flags
+ *   B6-F-64  the release gate refuses a release ENVIRONMENT that carries the private-distribution flags,
+ *            and the EAS worker hook refuses a store build whose resolved EAS environment carries them
  *   B6-F-65  native pricing: 3 records / 250 MB from the catalog, no "0 seats", outputs bounded, binary add-on sizes
  *   B6-F-66  Free's first issued outputs are stated as not counting toward storage
  *   B6-F-67  the "no subscription found" copy makes no promise of no further charges
@@ -17,6 +18,7 @@
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadModule } from "./support/render.mjs";
@@ -102,6 +104,53 @@ test("B6-F-64: a release environment carrying a private-distribution flag is ref
   const flagged = G.validateMobileRelease({ ...inputs, buildEnv: G.pickPrivateFlags({ EXPO_PUBLIC_PRIVATE_BILLING: "enabled", PATH: "x" }) });
   assert.ok(flagged.some((p) => /release environment sets the private-distribution flag EXPO_PUBLIC_PRIVATE_BILLING/.test(p)), flagged.join("\n"));
   assert.deepEqual(G.pickPrivateFlags({ EXPO_PUBLIC_DISTRIBUTION: "  " }), {}, "an empty flag is not a flag");
+});
+
+/** The environment of a build machine: the caller's, without its own private flags, plus `over`. */
+function buildMachineEnv(over) {
+  const env = { ...process.env };
+  for (const flag of G.PRIVATE_DISTRIBUTION_FLAGS) delete env[flag];
+  delete env.EAS_BUILD_PROFILE;
+  return { ...env, ...over };
+}
+const FLAGS_ON = { EXPO_PUBLIC_DISTRIBUTION: "PRIVATE", EXPO_PUBLIC_PRIVATE_BILLING: "enabled" };
+
+test("B6-F-64: the EAS build environment of a store profile may not carry a private-distribution flag", () => {
+  const eas = JSON.parse(readFileSync(resolve(MOBILE, "eas.json"), "utf8"));
+  // production (store) with either flag from the EAS dashboard environment -> refused, per flag.
+  const both = G.easBuildEnvProblems(eas, { EAS_BUILD_PROFILE: "production", ...FLAGS_ON });
+  assert.equal(both.length, 2, both.join("\n"));
+  assert.match(both.join("\n"), /profile "production" is a store build.*EXPO_PUBLIC_DISTRIBUTION/);
+  assert.match(both.join("\n"), /EXPO_PUBLIC_PRIVATE_BILLING/);
+  assert.equal(G.easBuildEnvProblems(eas, { EAS_BUILD_PROFILE: "production", EXPO_PUBLIC_PRIVATE_BILLING: "enabled" }).length, 1);
+  // production without the flags -> allowed; an empty value is not a flag.
+  assert.deepEqual(G.easBuildEnvProblems(eas, { EAS_BUILD_PROFILE: "production" }), []);
+  assert.deepEqual(G.easBuildEnvProblems(eas, { EAS_BUILD_PROFILE: "production", EXPO_PUBLIC_DISTRIBUTION: " " }), []);
+  // preview is internal distribution: it is the one place the flags belong.
+  assert.equal(eas.build.preview.distribution, "internal");
+  assert.deepEqual(G.easBuildEnvProblems(eas, { EAS_BUILD_PROFILE: "preview", ...FLAGS_ON }), []);
+  // an unknown profile or no profile at all is treated as a store build.
+  assert.equal(G.easBuildEnvProblems(eas, { EAS_BUILD_PROFILE: "store-2", ...FLAGS_ON }).length, 2);
+  assert.equal(G.easBuildEnvProblems(eas, { ...FLAGS_ON }).length, 2);
+  // a profile that does not say internal is a store build even if it is not called production.
+  assert.equal(G.easBuildEnvProblems({ build: { beta: { distribution: "store" } } }, { EAS_BUILD_PROFILE: "beta", ...FLAGS_ON }).length, 2);
+});
+
+test("B6-F-64: the EAS worker's eas-build-post-install hook refuses a flagged store build before bundling", () => {
+  const pkg = JSON.parse(readFileSync(resolve(MOBILE, "package.json"), "utf8"));
+  const hook = pkg.scripts["eas-build-post-install"];
+  assert.equal(typeof hook, "string");
+  const parts = hook.split("&&").map((p) => p.trim());
+  const buildDeps = parts.indexOf("pnpm run build:deps");
+  assert.ok(buildDeps >= 0, "the hook still builds the workspace dependencies");
+  // Everything the hook runs BEFORE it builds anything, run as EAS runs it (in apps/mobile).
+  const gate = parts.slice(0, buildDeps).join(" && ");
+  const run = (over) => (gate ? spawnSync(gate, { cwd: MOBILE, shell: true, env: buildMachineEnv(over), encoding: "utf8" }) : { status: 0, stderr: "" });
+  const refused = run({ EAS_BUILD_PROFILE: "production", EXPO_PUBLIC_PRIVATE_BILLING: "enabled" });
+  assert.notEqual(refused.status, 0, "a production EAS build whose environment enables private billing must stop in the hook");
+  assert.match(refused.stderr, /private-distribution flag EXPO_PUBLIC_PRIVATE_BILLING/);
+  assert.equal(run({ EAS_BUILD_PROFILE: "production" }).status, 0, "a clean production environment passes");
+  assert.equal(run({ EAS_BUILD_PROFILE: "preview", ...FLAGS_ON }).status, 0, "the internal preview profile keeps its flags");
 });
 
 test("B6-F-65: the pricing sheet states the served Free allowance and binary add-on sizes", () => {
