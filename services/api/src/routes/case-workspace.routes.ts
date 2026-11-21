@@ -47,6 +47,12 @@ import {
   type ReportsSort,
 } from "../services/reports/reports-aggregator.service.js";
 import { buildMatterWorkspace } from "../services/cases/matter-workspace.service.js";
+import {
+  CASE_NOTES_PAGE_MAX,
+  caseNotesReadFilterForViewer,
+  decodeCaseNotesCursor,
+  listCaseNotesPage,
+} from "../services/cases/case-notes-page.service.js";
 import { refuseCasePlanWrite } from "../services/cases/case-plan-gate.js";
 import { buildMatterQueue } from "../services/cases/matter-queue.service.js";
 import {
@@ -1110,6 +1116,42 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
         if (handleCaseError(reply, err)) return;
         throw err;
       }
+    },
+  );
+
+  // PRO-K1-07 — older case notes, page by page. The same case-access gate as
+  // the matter workspace, and every page goes through the canonical note read
+  // filter (EVID-011), so a note the caller may not read is on no page.
+  const CommentsPageQuery = z.object({
+    cursor: z.string().min(1).max(256).optional(),
+    limit: z.coerce.number().int().min(1).max(CASE_NOTES_PAGE_MAX).optional(),
+  });
+  app.get(
+    "/v1/cases/:id/comments",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = WorkspaceParams.parse(req.params);
+      const q = CommentsPageQuery.parse(req.query ?? {});
+      const member = await requireCaseAccess(req, reply, params.id);
+      if (!member) return;
+      const cursor = q.cursor ? decodeCaseNotesCursor(q.cursor) : null;
+      if (q.cursor && !cursor) {
+        return reply.code(400).send({ error: { code: "invalid_cursor", message: "The notes cursor is not valid." } });
+      }
+      const caseRow = await prisma.case.findUnique({ where: { id: params.id }, select: { ownerUserId: true } });
+      if (!caseRow) return reply.code(404).send({ error: { code: "not_found" } });
+      const filter = await caseNotesReadFilterForViewer({
+        caseId: params.id,
+        caseOwnerUserId: caseRow.ownerUserId,
+        viewerUserId: member.userId,
+        accessRole: member.role,
+      });
+      const page = await listCaseNotesPage({ filter, cursor, limit: q.limit });
+      return reply.code(200).send({
+        comments: page.items,
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+      });
     },
   );
 

@@ -49,7 +49,13 @@ import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail, evaluateAuthorize, sendDenyResponse } from "../middleware/authorize.js";
 import { resendNotificationDelivery } from "../services/notifications/index.js";
 import { intakeLinkPublicUrl } from "../services/intake-link-delivery-dispatcher.service.js";
-import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
+import {
+  resolveRecipientContactDisclosure,
+  revealRecipientContact,
+} from "../services/privacy/recipient-contact-disclosure.js";
+import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
+import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import {
   createEvidenceRequest,
   assignEvidenceRequestReviewer,
@@ -462,6 +468,102 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       if (!ok) return;
       return reply.code(200).send({
         request: await projectRequestForCaller(req, row),
+      });
+    },
+  );
+
+  // ---------------------------------------------------------------------
+  // NEW-RG-19-1 (owner decision G, 2026-11-21) — RECIPIENT CONTACT REVEAL for
+  // a request sent WITHOUT an intake link.
+  //
+  // List and detail mask the recipient's address and number for every reader
+  // (DEC-14). A request that carries an intake link reveals through that
+  // link's route (POST /v1/workflow/intake-links/:id/recipient-contact); one
+  // created without a link had no reveal at all. This is that path, on the
+  // same canonical privacy projection and authority:
+  //   1. the request itself, with record/case reach (404 like a missing one);
+  //   2. `workflow.intake_recipient_contact.reveal` through
+  //      `resolveRecipientContactDisclosure` (403);
+  //   3. a FRESH step-up bound to this request (401 STEP_UP_REQUIRED);
+  //   4. an awaited tenant-audit row (and the sensitive-reveal security event)
+  //      written BEFORE the values leave — never the values themselves.
+  // POST, not GET: a disclosure with a consequence, not a cacheable read.
+  // ---------------------------------------------------------------------
+  app.post(
+    "/v1/evidence-requests/:id/recipient-contact",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      if (sendFeatureDisabled(reply)) return;
+      const { id } = ParamsId.parse(req.params);
+      const row = await getEvidenceRequest(id);
+      if (!row) return reply.code(404).send({ error: { code: "request_not_found" } });
+      const ok = await requireRequestMember(req, reply, row, "evidence.read");
+      if (!ok) return;
+      if (row.intakeLinkId) {
+        // One gate per copy of the contact: the link's own audited route.
+        return reply.code(409).send({
+          error: {
+            code: "REVEAL_VIA_INTAKE_LINK",
+            message: "This request was sent through an intake link; reveal the recipient contact on the intake link.",
+            details: { intakeLinkId: row.intakeLinkId },
+          },
+        });
+      }
+      const disclosure = await resolveRecipientContactDisclosure(req, { teamId: row.teamId });
+      if (disclosure !== "REVEALED") {
+        return reply.code(403).send({
+          error: {
+            code: "FORBIDDEN",
+            message: "You do not have permission to view the full recipient contact for this request.",
+          },
+        });
+      }
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: row.teamId,
+        userId: ok.userId,
+        purpose: "EVIDENCE_REQUEST_CONTACT_REVEAL",
+        resourceKind: "evidence_request",
+        resourceId: row.id,
+      });
+      if (gate.sent) return;
+
+      const revealed = revealRecipientContact(row, disclosure);
+      // Fail closed: a disclosure that cannot be recorded does not happen.
+      await emitTenantAudit({
+        action: "evidence_request.recipient_contact.revealed",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: ok.userId,
+        workspaceId: row.teamId,
+        resourceType: "evidence_request",
+        resourceId: row.id,
+        correlationId: req.id ?? null,
+        metadata: {
+          disclosureType: "evidence_request_recipient_contact",
+          revealedEmail: Boolean(revealed.recipientEmail),
+          revealedPhone: Boolean(revealed.recipientPhone),
+          stepUpMethod: gate.method ?? null,
+        },
+      });
+      safeEmitSecurityEvent({
+        teamId: row.teamId,
+        eventType: "workflow_intake_recipient_contact_revealed",
+        severity: "WARNING",
+        details: {
+          actorUserId: ok.userId,
+          evidenceRequestId: row.id,
+          disclosureType: "evidence_request_recipient_contact",
+          revealedEmail: Boolean(revealed.recipientEmail),
+          revealedPhone: Boolean(revealed.recipientPhone),
+        },
+      });
+      return reply.code(200).send({
+        recipientContact: {
+          recipientEmail: revealed.recipientEmail,
+          recipientPhone: revealed.recipientPhone,
+        },
       });
     },
   );

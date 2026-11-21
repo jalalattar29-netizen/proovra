@@ -54,6 +54,35 @@ export function parseCaseNotes(envelope: unknown): CaseNote[] {
   return out;
 }
 
+/**
+ * PRO-K1-07 — the cursor for the next (older) page of notes, from the matter
+ * workspace (`sections.notes.caseCommentsNextCursor`). Null on the last page
+ * and on an API without the paged notes route.
+ */
+export function parseCaseNotesCursor(envelope: unknown): string | null {
+  const c = obj(obj(obj(envelope)["sections"])["notes"])["caseCommentsNextCursor"];
+  return typeof c === "string" && c.length > 0 ? c : null;
+}
+
+/** GET /v1/cases/:id/comments?cursor= — the older notes route. */
+export function caseOlderNotesPath(caseId: string, cursor: string): string {
+  return `/v1/cases/${encodeURIComponent(caseId)}/comments?cursor=${encodeURIComponent(cursor)}`;
+}
+
+/** The older-notes page `{ comments, nextCursor }`, parsed like the workspace's notes. */
+export function parseOlderCaseNotesPage(body: unknown): { notes: CaseNote[]; nextCursor: string | null } {
+  const b = obj(body);
+  const notes = parseCaseNotes({ sections: { notes: { caseComments: arr(b["comments"]) } } });
+  const next = b["nextCursor"];
+  return { notes, nextCursor: typeof next === "string" && next.length > 0 ? next : null };
+}
+
+/** Appends an older page, never repeating a note already shown. */
+export function appendOlderCaseNotes(shown: readonly CaseNote[], older: readonly CaseNote[]): CaseNote[] {
+  const seen = new Set(shown.map((n) => n.id));
+  return [...shown, ...older.filter((n) => !seen.has(n.id))];
+}
+
 /** Top-level assignments[] → active (not removed) assignments (defensive). */
 export function parseCaseAssignments(envelope: unknown): CaseAssignment[] {
   const items = arr(obj(envelope)["assignments"]);

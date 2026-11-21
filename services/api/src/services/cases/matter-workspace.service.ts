@@ -52,6 +52,7 @@ import {
 } from "./case-risk-engine.service.js";
 import { evidenceVisibleThroughCasesWhere } from "./case-visibility.js";
 import { caseCommentReadFilter, caseCommentVisibilitiesFor } from "./case-lifecycle.service.js";
+import { CASE_NOTES_PAGE_SIZE, listCaseNotesPage } from "./case-notes-page.service.js";
 import {
   getCaseAssignmentRoles,
   resolveCaseDestructiveAccessRole,
@@ -432,6 +433,8 @@ export type MatterWorkspaceEnvelope = {
       /** PRO-K1-07 — additive: the case's comment count and whether `caseComments` is only the newest 25. */
       caseCommentsTotal?: number;
       caseCommentsTruncated?: boolean;
+      /** PRO-K1-07 — additive: cursor for GET /v1/cases/:id/comments (older notes); null on the last page. */
+      caseCommentsNextCursor?: string | null;
     };
     deliverables: {
       status: SectionStatus;
@@ -1875,20 +1878,9 @@ async function runNotes(
   try {
     const [caseComments, unresolvedReviewerComments, unresolvedAnnotations] =
       await Promise.all([
-        prisma.caseComment.findMany({
-          where: commentFilter,
-          orderBy: { createdAt: "desc" },
-          take: 25,
-          select: {
-            id: true,
-            authorUserId: true,
-            body: true,
-            visibility: true,
-            resolvedAtUtc: true,
-            resolvedByUserId: true,
-            createdAt: true,
-          },
-        }),
+        // PRO-K1-07 — the first page of the one paged reader (stable keyset
+        // order); older pages come from GET /v1/cases/:id/comments?cursor=.
+        listCaseNotesPage({ filter: commentFilter, limit: CASE_NOTES_PAGE_SIZE }),
         evidenceIds.length === 0
           ? Promise.resolve([])
           : prisma.evidenceReviewerComment.findMany({
@@ -1912,24 +1904,16 @@ async function runNotes(
               select: { id: true, evidenceId: true, createdAt: true },
             }),
       ]);
-    // PRO-K1-07 — the true comment count when the list is cut at 25.
-    const caseCommentsTotal =
-      caseComments.length < 25
-        ? caseComments.length
-        : await prisma.caseComment.count({ where: commentFilter }).catch(() => caseComments.length);
+    // PRO-K1-07 — the true comment count when the list is cut at a page.
+    const caseCommentsTotal = !caseComments.hasMore
+      ? caseComments.items.length
+      : await prisma.caseComment.count({ where: commentFilter }).catch(() => caseComments.items.length);
     return {
       status: "ok",
       caseCommentsTotal,
-      caseCommentsTruncated: caseCommentsTotal > caseComments.length,
-      caseComments: caseComments.map((c) => ({
-        id: c.id,
-        authorUserId: c.authorUserId,
-        body: c.body,
-        visibility: String(c.visibility),
-        resolvedAtUtc: c.resolvedAtUtc?.toISOString() ?? null,
-        resolvedByUserId: c.resolvedByUserId,
-        createdAt: c.createdAt.toISOString(),
-      })),
+      caseCommentsTruncated: caseCommentsTotal > caseComments.items.length,
+      caseCommentsNextCursor: caseComments.nextCursor,
+      caseComments: caseComments.items,
       unresolvedReviewerComments: unresolvedReviewerComments.map((c) => ({
         id: c.id,
         evidenceId: c.evidenceId,

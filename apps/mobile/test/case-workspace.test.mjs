@@ -246,3 +246,32 @@ test("deleting a case says what happens to the evidence", () => {
   assert.match(mod.DELETE_CASE_CONSEQUENCE, /will not delete preserved evidence/i);
   assert.match(mod.DELETE_CASE_CONSEQUENCE, /Evidence Library/);
 });
+
+/* PRO-K1-07 — older notes, page by page (GET /v1/cases/:id/comments?cursor=). */
+test("PRO-K1-07: the workspace cursor is read; absent or empty means no older page", () => {
+  assert.equal(mod.parseCaseNotesCursor({ sections: { notes: { caseComments: [], caseCommentsNextCursor: "cur-2" } } }), "cur-2");
+  assert.equal(mod.parseCaseNotesCursor({ sections: { notes: { caseComments: [], caseCommentsNextCursor: null } } }), null);
+  assert.equal(mod.parseCaseNotesCursor(envelope), null); // an API without the paged route
+  assert.equal(mod.parseCaseNotesCursor(null), null);
+});
+
+test("PRO-K1-07: the older-notes path encodes the case and the opaque cursor", () => {
+  assert.equal(mod.caseOlderNotesPath("c 1", "a+b/c="), "/v1/cases/c%201/comments?cursor=a%2Bb%2Fc%3D");
+});
+
+test("PRO-K1-07: an older page is parsed like the workspace notes and appended without repeats", () => {
+  const page = mod.parseOlderCaseNotesPage({
+    comments: [
+      { id: "n2", authorUserId: "u2", body: "dup of a shown note", createdAt: "2026-09-19T09:00:00Z", resolvedAtUtc: null },
+      { id: "n9", authorUserId: "u1", body: "Older", createdAt: "2026-09-01T09:00:00Z", resolvedAtUtc: null },
+      { id: 5, body: "bad" },
+    ],
+    nextCursor: "cur-3",
+  });
+  assert.deepEqual(page.notes.map((n) => n.id), ["n2", "n9"]);
+  assert.equal(page.nextCursor, "cur-3");
+  const merged = mod.appendOlderCaseNotes(mod.parseCaseNotes(envelope), page.notes);
+  assert.deepEqual(merged.map((n) => n.id), ["n1", "n2", "n9"]);
+  assert.equal(mod.parseOlderCaseNotesPage({ comments: [], nextCursor: "" }).nextCursor, null);
+  assert.deepEqual(mod.parseOlderCaseNotesPage(undefined), { notes: [], nextCursor: null });
+});

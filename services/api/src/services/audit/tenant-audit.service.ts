@@ -17,6 +17,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { hiddenRecordIdsInWorkspace } from "../access/record-reach.js";
 import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
 import { trackAuditAppend } from "./detached-audit-tracker.js";
 
@@ -570,6 +571,43 @@ function scopeWhere(scope: TenantAuditScope): Prisma.AdminAuditLogWhereInput {
     : { category: "tenant_audit", organizationId: scope.organizationId };
 }
 
+export type TenantAuditHiddenResources = { evidenceIds: string[]; caseIds: string[]; reportIds: string[] };
+
+/**
+ * PRO-BLZ-01 — the resources of ONE workspace closed to this reader by record
+ * reach (`hiddenRecordIdsInWorkspace`, i.e. `case-visibility.ts`), with the
+ * reports of the closed records: exactly the composition `GET /v1/audit/tenant`
+ * performs (phase11-tenant.routes.ts), for the other reach-filtered reader of
+ * tenant-audit rows (NEW-RG-11-3, the organization download-audit export). The
+ * caller must already have established workspace membership.
+ */
+export async function resolveTenantAuditHiddenResources(
+  workspaceId: string,
+  actorUserId: string,
+  db: PrismaClient = defaultPrisma,
+): Promise<TenantAuditHiddenResources> {
+  const hidden = await hiddenRecordIdsInWorkspace(workspaceId, actorUserId, db);
+  const reportIds = hidden.evidenceIds.length
+    ? (await db.report.findMany({ where: { evidenceId: { in: hidden.evidenceIds } }, select: { id: true } })).map((r) => r.id)
+    : [];
+  return { evidenceIds: hidden.evidenceIds, caseIds: hidden.caseIds, reportIds };
+}
+
+/**
+ * PRO-BLZ-01 — the clauses that drop every tenant-audit row about a closed
+ * record, case or report. Empty when nothing is closed or no narrowing applies.
+ */
+export function tenantAuditHiddenResourceClauses(
+  hiddenRes: TenantAuditHiddenResources | null | undefined,
+): Prisma.AdminAuditLogWhereInput[] {
+  if (!hiddenRes) return [];
+  return [
+    ...(hiddenRes.evidenceIds.length ? [{ NOT: { resourceType: "evidence", resourceId: { in: hiddenRes.evidenceIds } } }] : []),
+    ...(hiddenRes.caseIds.length ? [{ NOT: { resourceType: "case", resourceId: { in: hiddenRes.caseIds } } }] : []),
+    ...(hiddenRes.reportIds.length ? [{ NOT: { resourceType: "report", resourceId: { in: hiddenRes.reportIds } } }] : []),
+  ];
+}
+
 export async function queryTenantAudit(
   input: TenantAuditQuery,
   db: PrismaClient = defaultPrisma,
@@ -590,14 +628,7 @@ export async function queryTenantAudit(
       : {}),
   };
 
-  const hiddenRes = input.hiddenResources;
-  const hiddenClauses: Prisma.AdminAuditLogWhereInput[] = hiddenRes
-    ? [
-        ...(hiddenRes.evidenceIds.length ? [{ NOT: { resourceType: "evidence", resourceId: { in: hiddenRes.evidenceIds } } }] : []),
-        ...(hiddenRes.caseIds.length ? [{ NOT: { resourceType: "case", resourceId: { in: hiddenRes.caseIds } } }] : []),
-        ...(hiddenRes.reportIds.length ? [{ NOT: { resourceType: "report", resourceId: { in: hiddenRes.reportIds } } }] : []),
-      ]
-    : [];
+  const hiddenClauses = tenantAuditHiddenResourceClauses(input.hiddenResources);
   if (hiddenClauses.length > 0) where.AND = hiddenClauses;
 
   let cursor: { id: string; createdAt: Date } | null = null;
