@@ -63,6 +63,26 @@ export async function lockOrganizationOwnersTx(
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`org-owners:${organizationId}`}))`;
 }
 
+/**
+ * Owner continuity (closure 2, "sem" item 1) — the number of LIVE organization
+ * owners: ORG_OWNER memberships whose status is ACTIVE. The same count the
+ * manual demotion, removal and suspension routes use for LAST_OWNER_PROTECTED
+ * (organizations.routes.ts), and the one the directory (SCIM) deactivation now
+ * uses before it suspends an owner. Call it ONLY inside a transaction that
+ * already holds `lockOrganizationOwnersTx` for the same Organization: the count
+ * is a fact about several rows, and only the lock makes "count, then suspend"
+ * one decision (two concurrent suspensions of the only two owners serialize,
+ * and the second sees one owner left).
+ */
+export async function liveOrganizationOwnerCountTx(
+  tx: Pick<PrismaClient, "organizationMembership">,
+  organizationId: string,
+): Promise<number> {
+  return tx.organizationMembership.count({
+    where: { organizationId, role: "ORG_OWNER", status: "ACTIVE" },
+  });
+}
+
 export const ORG_MEMBERSHIP_STATUSES = ["ACTIVE", "SUSPENDED", "REVOKED"] as const;
 export type OrgMembershipStatus = (typeof ORG_MEMBERSHIP_STATUSES)[number];
 

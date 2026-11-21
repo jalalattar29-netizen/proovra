@@ -112,6 +112,13 @@ export const RUNBOOK_INDEX: readonly RunbookIndexEntry[] = [
     summary: "Failure modes: FM-OBS-001 (sink throws).",
   },
   {
+    slug: "organization-owner-containment",
+    title: "Organization owner account under suspected misuse",
+    category: "Operator procedures",
+    subsystems: ["identity","organization"],
+    summary: "How an authorized operator contains an organization owner's account that is suspected of being used by someone other than its owner, without taking anything from unrelated self-serve accounts. Not incident-fired: read…",
+  },
+  {
     slug: "ots-degradation",
     title: "OTS / Bitcoin anchor degradation",
     category: "Storage & integrity",

@@ -136,6 +136,7 @@ const CURATION = {
   "workflow-intake-abuse": { category: "Integrations & notifications", subsystems: ["workflow", "intake"] },
 
   "production-diagnostic-handoff": { category: "Operator procedures", subsystems: ["diagnostics", "database"] },
+  "organization-owner-containment": { category: "Operator procedures", subsystems: ["identity", "organization"] },
   "sre-runbooks": { category: "Operator procedures", subsystems: ["sre"] },
 };
 

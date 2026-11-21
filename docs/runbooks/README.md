@@ -38,6 +38,7 @@ add a runbook, add a row here, add a curation entry in
 | [tsa-timestamp-failure](./tsa-timestamp-failure.md) | `Evidence.tsaStatus = FAILED` — the RFC3161 timestamp could not be obtained. There is no retry, by design |
 | [production-diagnostic-handoff](./production-diagnostic-handoff.md) | Operator procedure for running the read-only production diagnostic and destroying its output |
 | [reviewer-sla-breach](./reviewer-sla-breach.md) | A reviewer SLA cycle breached its due time |
+| [organization-owner-containment](./organization-owner-containment.md) | An organization owner's account is suspected of misuse: end sessions, suspend while another owner exists, or the platform-operator path. Not incident-fired |
 | [reviewer-escalation-backlog](./reviewer-escalation-backlog.md) | Escalations accumulating faster than they are cleared |
 | [reviewer-inactivity](./reviewer-inactivity.md) | An assigned reviewer has gone quiet on live work |
 | [reviewer-queue-stuck](./reviewer-queue-stuck.md) | The reviewer queue stopped draining |

@@ -16,7 +16,7 @@
 2. Revoke a single suspicious session: `POST /v1/identity-security/sessions/revoke`.
 3. Revoke all sessions for the actor: `POST /v1/identity-security/sessions/revoke-all`.
 4. Tighten MFA policy: `PUT /v1/identity-security/mfa-policy` (sensitive — requires step-up).
-5. Revoke a trusted device: `POST /v1/identity-security/devices/:id/revoke`.
+5. Revoke a trusted device: `POST /v1/identity-security/devices/:id/revoke`. Another member's device needs `identity.access_review.action`, the members rank rule and a step-up bound to that device (`MFA_TRUSTED_DEVICE_RESET`); a member removes trust from their own device without one.
 
 ## What NOT to do
 - **Do not** delete the actor's `User` row. Suspend or revoke the membership instead (Phase 17 + 19); deletion drops audit chain.
