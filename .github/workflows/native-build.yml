@@ -248,9 +248,12 @@ jobs:
       # the encoder clamp, stable failure codes and settle-once promises
       # (RecorderFailureTest). AUD-004 — the durable ledger: process-death
       # recovery, binding, confirm-then-delete, atomic store (ContinuousLedgerTest).
+      # PRO-NBC-04 — a ledger write the disk refused keeps the previous ledger
+      # (update/replace/bind under a failing atomic store, ContinuousLedgerTest).
       # Every test class under the module's src/test
-      # runs. Refuses a run that executed fewer than the 34 tests or skipped any.
-      - name: JVM unit tests — capture decisions (UC-AND-007, UC-AND-013, AUD-018, AUD-029, AUD-004)
+      # runs. Refuses a run that executed fewer than the 52 tests, skipped any,
+      # or did not run the three PRO-NBC-04 cases by name.
+      - name: JVM unit tests — capture decisions (UC-AND-007, UC-AND-013, AUD-018, AUD-029, AUD-004, PRO-NBC-04)
         working-directory: apps/mobile/android
         env:
           SENTRY_DISABLE_AUTO_UPLOAD: "true"
@@ -269,12 +272,76 @@ jobs:
             const root = path.resolve("../modules/proovra-screen-capture/android/build/test-results/testDebugUnitTest");
             const files = fs.existsSync(root) ? fs.readdirSync(root).filter((f) => /^TEST-.*\.xml$/.test(f)) : [];
             const t = { tests: 0, skipped: 0, failures: 0, errors: 0 };
+            const cases = new Set();
             for (const f of files) {
-              const head = fs.readFileSync(path.join(root, f), "utf8").match(/<testsuite[^>]*>/)?.[0] ?? "";
+              const xml = fs.readFileSync(path.join(root, f), "utf8");
+              const head = xml.match(/<testsuite[^>]*>/)?.[0] ?? "";
               for (const k of Object.keys(t)) t[k] += Number(head.match(new RegExp(` ${k}="(\\d+)"`))?.[1] ?? 0);
+              for (const m of xml.matchAll(/<testcase name="([^"]+)" classname="([^"]+)"/g)) cases.add(`${m[2]}.${m[1]}`);
             }
             console.log("capture decisions JUnit:", JSON.stringify(t), files);
-            if (t.tests < 34) { console.log(`::error::capture-decision unit tests executed ${t.tests} (expected >= 34)`); process.exit(1); }
+            if (t.tests < 52) { console.log(`::error::capture-decision unit tests executed ${t.tests} (expected >= 52)`); process.exit(1); }
+            for (const name of [
+              "aFailedWriteKeepsThePreviousLedgerSoAConfirmedUploadDeletesNothing",
+              "aBindTheDiskRefusedIsNotABind",
+              "aFailedReplaceReturnsFalseAndThePreviousLedgerStaysInForce",
+            ]) {
+              if (!cases.has(`com.proovra.screencapture.ContinuousLedgerTest.${name}`)) { console.log(`::error::PRO-NBC-04 case ${name} did not run`); process.exit(1); }
+            }
             if (t.skipped > 0) { console.log(`::error::capture-decision unit tests SKIPPED ${t.skipped}`); process.exit(1); }
             if (t.failures + t.errors > 0) { console.log("::error::capture-decision unit tests failed"); process.exit(1); }
           '
+
+      # PRO-NBC-04 — the changed native code is in what was COMPILED and
+      # PACKAGED, not only in the Kotlin source text: the module's compiled
+      # classes (javap) carry the boolean replace() and the bind/confirm paths,
+      # the service carries the LEDGER_UNAVAILABLE start refusal, and the debug
+      # APK's dex carries both. The classes, the JUnit results and their
+      # sha256 are uploaded (a DEBUG artifact; store builds come only from
+      # mobile-release.yml).
+      - name: Compiled-code proof — PRO-NBC-04 in the module classes and the debug APK dex
+        working-directory: apps/mobile/android
+        run: |
+          set -euo pipefail
+          cls=$(find ../modules/proovra-screen-capture/android/build -type d -path "*kotlin-classes/debug/com/proovra/screencapture" | head -1)
+          if [ -z "$cls" ]; then echo "::error::compiled Kotlin classes of proovra-screen-capture not found"; exit 1; fi
+          echo "classes: $cls"
+          keeper=$(javap -p -c "$cls/ContinuousLedgerKeeper.class")
+          echo "$keeper" | grep -F "public final synchronized boolean replace(com.proovra.screencapture.ContinuousLedger);" \
+            || { echo "::error::the compiled ContinuousLedgerKeeper.replace does not return boolean"; exit 1; }
+          writes=$(echo "$keeper" | grep -c "LedgerStore.write:(Lcom/proovra/screencapture/ContinuousLedger;)Z" || true)
+          if [ "$writes" -lt 2 ]; then echo "::error::the compiled keeper's update/replace do not consult LedgerStore.write ($writes)"; exit 1; fi
+          companion=$(javap -p "$cls/ContinuousScreenCaptureService\$Companion.class")
+          for sig in "public final boolean bindSession(java.lang.String, java.lang.String, java.lang.String);" \
+                     "public final boolean markSegmentUploaded(java.lang.String, int, java.lang.String, long);"; do
+            echo "$companion" | grep -F "$sig" || { echo "::error::the compiled service companion lacks: $sig"; exit 1; }
+          done
+          javap -p -c "$cls/ContinuousScreenCaptureService.class" | grep -F "String LEDGER_UNAVAILABLE" \
+            || { echo "::error::the LEDGER_UNAVAILABLE start refusal is not in the compiled service"; exit 1; }
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          test -f "$apk" || { echo "::error::$apk was not produced"; exit 1; }
+          dex=$(mktemp -d)
+          unzip -q -o "$apk" 'classes*.dex' -d "$dex"
+          for needle in "Lcom/proovra/screencapture/ContinuousLedgerKeeper;" "LEDGER_UNAVAILABLE"; do
+            hits=$(cat "$dex"/classes*.dex | grep -a -c -F "$needle" || true)
+            if [ "$hits" -lt 1 ]; then echo "::error::the debug APK dex does not contain $needle"; exit 1; fi
+            echo "dex contains $needle"
+          done
+          out="$RUNNER_TEMP/capture-module-proof"
+          mkdir -p "$out/classes" "$out/junit"
+          cp "$cls"/*.class "$out/classes/"
+          cp ../modules/proovra-screen-capture/android/build/test-results/testDebugUnitTest/TEST-*.xml "$out/junit/"
+          ( cd "$out" && sha256sum classes/ContinuousLedgerKeeper.class classes/LedgerStore.class \
+              classes/ContinuousScreenCaptureService.class 'classes/ContinuousScreenCaptureService$Companion.class' > SHA256SUMS )
+          sha256sum "$apk" "$dex"/classes*.dex | sed "s#$dex/##" >> "$out/SHA256SUMS"
+          echo "head_sha=$GITHUB_SHA" >> "$out/SHA256SUMS"
+          cat "$out/SHA256SUMS"
+
+      - name: Upload the compiled capture module proof (debug)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-capture-module-classes-${{ github.run_id }}
+          path: ${{ runner.temp }}/capture-module-proof
+          if-no-files-found: warn
+          retention-days: 14
