@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 12502,
+      "METHOD_ON_VALUE": 12513,
       "UNRESOLVED_IDENTIFIER": 1827
     },
     "MutationFixpointRounds": 11,
@@ -58341,8 +58341,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$executeRawUnsafe@1030",
-      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:1030",
+      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$executeRawUnsafe@1095",
+      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:1095",
       "file": "services/api/src/services/external-review/external-review-grant.service.ts",
       "enclosingDeclaration": "recordExternalReviewAccess",
       "kind": "RAW_SQL",
@@ -58375,79 +58375,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$queryRawUnsafe@1218",
-      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:1218",
-      "file": "services/api/src/services/external-review/external-review-grant.service.ts",
-      "enclosingDeclaration": "rotateExternalReviewGrantToken",
-      "kind": "RAW_SQL",
-      "target": "external_review_grants",
-      "mutationKind": "$queryRawUnsafe",
-      "primaryFamily": "EXTERNAL_REVIEW_INTAKE_SHARE",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/external-review/invitations/:id/resend",
-        "POST /v1/external-review/invitations/:id/reveal-token"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/external-portal.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$queryRawUnsafe@409",
-      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:409",
-      "file": "services/api/src/services/external-review/external-review-grant.service.ts",
-      "enclosingDeclaration": "issueExternalReviewGrantInner",
-      "kind": "RAW_SQL",
-      "target": "external_review_grants",
-      "mutationKind": "$queryRawUnsafe",
-      "primaryFamily": "EXTERNAL_REVIEW_INTAKE_SHARE",
-      "insideTransaction": true,
-      "entryRoutes": [
-        "POST /v1/external-review/grants",
-        "POST /v1/external-review/invitations/bulk",
-        "POST /v1/governance/cross-org-review/:id/accept"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/external-portal.routes.ts",
-        "MODULE services/api/src/routes/external-review.routes.ts",
-        "MODULE services/api/src/routes/trust-and-governance.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$queryRawUnsafe@940",
-      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:940",
+      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$queryRawUnsafe@1005",
+      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:1005",
       "file": "services/api/src/services/external-review/external-review-grant.service.ts",
       "enclosingDeclaration": "transitionExternalReviewGrant",
       "kind": "RAW_SQL",
@@ -58499,8 +58428,79 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#externalReviewGrant.updateMany@803",
-      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:803",
+      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$queryRawUnsafe@1283",
+      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:1283",
+      "file": "services/api/src/services/external-review/external-review-grant.service.ts",
+      "enclosingDeclaration": "rotateExternalReviewGrantToken",
+      "kind": "RAW_SQL",
+      "target": "external_review_grants",
+      "mutationKind": "$queryRawUnsafe",
+      "primaryFamily": "EXTERNAL_REVIEW_INTAKE_SHARE",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/external-review/invitations/:id/resend",
+        "POST /v1/external-review/invitations/:id/reveal-token"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/external-portal.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$queryRawUnsafe@474",
+      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:474",
+      "file": "services/api/src/services/external-review/external-review-grant.service.ts",
+      "enclosingDeclaration": "issueExternalReviewGrantInner",
+      "kind": "RAW_SQL",
+      "target": "external_review_grants",
+      "mutationKind": "$queryRawUnsafe",
+      "primaryFamily": "EXTERNAL_REVIEW_INTAKE_SHARE",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/external-review/grants",
+        "POST /v1/external-review/invitations/bulk",
+        "POST /v1/governance/cross-org-review/:id/accept"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/external-portal.routes.ts",
+        "MODULE services/api/src/routes/external-review.routes.ts",
+        "MODULE services/api/src/routes/trust-and-governance.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#externalReviewGrant.updateMany@868",
+      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:868",
       "file": "services/api/src/services/external-review/external-review-grant.service.ts",
       "enclosingDeclaration": "renewExternalReviewGrant",
       "kind": "DATABASE",
@@ -132423,7 +132423,7 @@
       "method": "GET",
       "path": "/v1/external-review/access/:token/context",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:537",
+      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:535",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "handler body -> handler: reaches the external-review portal grant/session authority (lookupExternalReviewGrantByToken)"
@@ -132478,7 +132478,7 @@
       "method": "GET",
       "path": "/v1/external-review/access/:token/verification-package",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:569",
+      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:567",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "handler body -> handler: reaches the external-review portal grant/session authority (lookupExternalReviewGrantByToken)"
@@ -132546,7 +132546,7 @@
       "method": "GET",
       "path": "/v1/external-review/activity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:608",
+      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:606",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/routes/graph.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -132604,7 +132604,7 @@
       "method": "GET",
       "path": "/v1/external-review/grants",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:304",
+      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:303",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/routes/graph.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -132651,13 +132651,16 @@
         "authenticatedSession",
         "case",
         "caseEvidenceLink",
+        "evidence",
+        "externalReviewGrant",
         "organizationSecurityPolicy",
         "revokedSession",
         "ssoConnection",
         "subscription",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "verificationPackage"
       ],
       "modelsWritten": [],
       "tenantBindingResolved": true,
@@ -132670,7 +132673,8 @@
         "services/api/src/services/access/record-reach.ts: caseEvidenceLink.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate"
+        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -132683,7 +132687,7 @@
       "method": "GET",
       "path": "/v1/external-review/invitations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:497",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:494",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactDisclosure -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -132722,7 +132726,9 @@
         "authenticatedSession",
         "case",
         "caseEvidenceLink",
+        "evidence",
         "externalReviewActivity",
+        "externalReviewGrant",
         "externalReviewInvitationDelivery",
         "externalReviewerRoleAssignment",
         "organizationSecurityPolicy",
@@ -132732,7 +132738,8 @@
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user"
+        "user",
+        "verificationPackage"
       ],
       "modelsWritten": [],
       "tenantBindingResolved": true,
@@ -132745,7 +132752,8 @@
         "services/api/src/services/access/record-reach.ts: caseEvidenceLink.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate"
+        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -132758,7 +132766,7 @@
       "method": "GET",
       "path": "/v1/external-review/invitations/:id/activity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:584",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:583",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -132824,7 +132832,7 @@
       "method": "GET",
       "path": "/v1/external-review/invitations/:id/delivery",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:873",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:872",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactDisclosure -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -132893,7 +132901,7 @@
       "method": "GET",
       "path": "/v1/external-review/invitations/:id/feedback",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:615",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:614",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -146677,7 +146685,7 @@
       "method": "GET",
       "path": "/v1/portal/activity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1254",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1253",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "resolvePortalSession -> services/api/src/routes/external-portal.routes.ts: reaches the external-review portal grant/session authority (resolvePortalSession)"
@@ -146750,7 +146758,7 @@
       "method": "GET",
       "path": "/v1/portal/dashboard",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1002",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1001",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "resolvePortalSession -> services/api/src/routes/external-portal.routes.ts: reaches the external-review portal grant/session authority (resolvePortalSession)"
@@ -146842,7 +146850,7 @@
       "method": "GET",
       "path": "/v1/portal/work/:workflowId/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1044",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1043",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "resolvePortalSession -> services/api/src/routes/external-portal.routes.ts: reaches the external-review portal grant/session authority (resolvePortalSession)"
@@ -146925,7 +146933,7 @@
       "method": "GET",
       "path": "/v1/portal/work/:workflowId/decisions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1132",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1131",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "resolvePortalSession -> services/api/src/routes/external-portal.routes.ts: reaches the external-review portal grant/session authority (resolvePortalSession)"
@@ -147008,7 +147016,7 @@
       "method": "GET",
       "path": "/v1/portal/work/:workflowId/verification-package",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1173",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1172",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "resolvePortalSession -> services/api/src/routes/external-portal.routes.ts: reaches the external-review portal grant/session authority (resolvePortalSession)"
@@ -180321,7 +180329,7 @@
       "method": "POST",
       "path": "/v1/external-review/access/:token",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:472",
+      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:470",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "handler body -> handler: reaches the external-review portal grant/session authority (lookupExternalReviewGrantByToken)"
@@ -180385,7 +180393,7 @@
       "method": "POST",
       "path": "/v1/external-review/grants",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:177",
+      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:176",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/routes/graph.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -180463,7 +180471,7 @@
       "method": "POST",
       "path": "/v1/external-review/grants/:id/renew",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:394",
+      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:392",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/routes/graph.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -180552,7 +180560,7 @@
       "method": "POST",
       "path": "/v1/external-review/grants/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:339",
+      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:337",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/routes/graph.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -180610,7 +180618,7 @@
       "method": "POST",
       "path": "/v1/external-review/invitations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:545",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:544",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -180649,7 +180657,7 @@
       "method": "POST",
       "path": "/v1/external-review/invitations/:id/resend",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:834",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:833",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -180730,7 +180738,7 @@
       "method": "POST",
       "path": "/v1/external-review/invitations/:id/reveal-token",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:772",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:771",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -180812,7 +180820,7 @@
       "method": "POST",
       "path": "/v1/external-review/invitations/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:559",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:558",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -180899,7 +180907,7 @@
       "method": "POST",
       "path": "/v1/external-review/invitations/:id/send-email",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1480",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1479",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -180938,7 +180946,7 @@
       "method": "POST",
       "path": "/v1/external-review/invitations/:id/sessions/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1410",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1409",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -181004,7 +181012,7 @@
       "method": "POST",
       "path": "/v1/external-review/invitations/bulk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:662",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:661",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -181121,7 +181129,7 @@
       "method": "POST",
       "path": "/v1/external-review/invitations/bulk/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:740",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:739",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -198582,7 +198590,7 @@
       "method": "POST",
       "path": "/v1/portal/auth",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:927",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:926",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "handler body -> handler: reaches the external-review portal grant/session authority (establishPortalSession)"
@@ -198663,7 +198671,7 @@
       "method": "POST",
       "path": "/v1/portal/logout",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:980",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:979",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "resolvePortalSession -> services/api/src/routes/external-portal.routes.ts: reaches the external-review portal grant/session authority (resolvePortalSession)"
@@ -198743,7 +198751,7 @@
       "method": "POST",
       "path": "/v1/portal/sso/callback",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1356",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1355",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -198810,7 +198818,7 @@
       "method": "POST",
       "path": "/v1/portal/sso/start/:grantId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1293",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1292",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -198865,7 +198873,7 @@
       "method": "POST",
       "path": "/v1/portal/work/:workflowId/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1075",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1074",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "resolvePortalSession -> services/api/src/routes/external-portal.routes.ts: reaches the external-review portal grant/session authority (resolvePortalSession)"
@@ -198950,7 +198958,7 @@
       "method": "POST",
       "path": "/v1/portal/work/:workflowId/decision",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1102",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1101",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "resolvePortalSession -> services/api/src/routes/external-portal.routes.ts: reaches the external-review portal grant/session authority (resolvePortalSession)"
@@ -199038,7 +199046,7 @@
       "method": "POST",
       "path": "/v1/portal/work/:workflowId/view",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1225",
+      "registrationEvidence": "services/api/src/routes/external-portal.routes.ts:1224",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "resolvePortalSession -> services/api/src/routes/external-portal.routes.ts: reaches the external-review portal grant/session authority (resolvePortalSession)"

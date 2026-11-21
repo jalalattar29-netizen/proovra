@@ -311,6 +311,21 @@ export function externalReviewTargetBelongsToTeam(
  * `invalid_scope` as a foreign or missing one, so the refusal reveals
  * nothing about which restricted records exist.
  */
+// The subject-reach rule, as three `where` builders, so the single check below
+// and the batched one (`externalReviewGrantIdsInReach`, the grant lists'
+// renew projection) are the SAME predicate: a live record (not in the Trash)
+// the actor reaches through its cases, a case the actor may see, or a PUBLISHED
+// package of such a record.
+function evidenceInReachWhere(teamId: string, actorUserId: string) {
+  return { teamId, deletedAt: null, ...evidenceVisibleThroughCasesWhere(actorUserId) };
+}
+function caseInReachWhere(teamId: string, actorUserId: string, idWhere: Record<string, unknown>) {
+  return { AND: [{ ...idWhere, teamId }, caseVisibleToWhere(actorUserId)] };
+}
+function packageInReachWhere(teamId: string, actorUserId: string, idWhere: Record<string, unknown>) {
+  return publishedPackageWhere({ ...idWhere, evidence: evidenceInReachWhere(teamId, actorUserId) } as never);
+}
+
 async function scopeTargetBelongsToTeam(
   client: PrismaClient,
   teamId: string,
@@ -320,34 +335,84 @@ async function scopeTargetBelongsToTeam(
 ): Promise<boolean> {
   if (scopeKind === "EVIDENCE" && ids.evidenceId) {
     const row = await client.evidence.findFirst({
-      where: {
-        id: ids.evidenceId,
-        teamId,
-        deletedAt: null,
-        ...evidenceVisibleThroughCasesWhere(actorUserId),
-      },
+      where: { id: ids.evidenceId, ...evidenceInReachWhere(teamId, actorUserId) },
       select: { id: true },
     });
     return row !== null;
   }
   if (scopeKind === "CASE" && ids.caseId) {
     const row = await client.case.findFirst({
-      where: { AND: [{ id: ids.caseId, teamId }, caseVisibleToWhere(actorUserId)] },
+      where: caseInReachWhere(teamId, actorUserId, { id: ids.caseId }) as never,
       select: { id: true },
     });
     return row !== null;
   }
   if (scopeKind === "PACKAGE" && ids.packageId) {
     const row = await client.verificationPackage.findFirst({
-      where: publishedPackageWhere({
-        id: ids.packageId,
-        evidence: { teamId, deletedAt: null, ...evidenceVisibleThroughCasesWhere(actorUserId) },
-      }),
+      where: packageInReachWhere(teamId, actorUserId, { id: ids.packageId }),
       select: { id: true },
     });
     return row !== null;
   }
   return false;
+}
+
+/**
+ * EP-0450 (closure phase 2, review L-1) — of these grants, the ones whose
+ * subject is within the actor's reach by EXACTLY the rule the renew route
+ * applies (`externalReviewGrantSubjectInReach` → `scopeTargetBelongsToTeam`),
+ * evaluated in three batched reads instead of one per grant.
+ */
+export async function externalReviewGrantIdsInReach(
+  input: { teamId: string; actorUserId: string; grantIds: readonly string[] },
+  client: PrismaClient = defaultPrisma,
+): Promise<Set<string>> {
+  if (input.grantIds.length === 0) return new Set();
+  const rows = await client.externalReviewGrant.findMany({
+    where: { teamId: input.teamId, id: { in: [...input.grantIds] } },
+    select: { id: true, scopeKind: true, evidenceId: true, caseId: true, packageId: true },
+  });
+  const ids = (kind: string, key: "evidenceId" | "caseId" | "packageId") =>
+    [...new Set(rows.filter((r) => r.scopeKind === kind && r[key]).map((r) => r[key] as string))];
+  const evidenceIds = ids("EVIDENCE", "evidenceId");
+  const caseIds = ids("CASE", "caseId");
+  const packageIds = ids("PACKAGE", "packageId");
+  const [ev, cs, pk] = await Promise.all([
+    evidenceIds.length
+      ? client.evidence.findMany({
+          where: { id: { in: evidenceIds }, ...evidenceInReachWhere(input.teamId, input.actorUserId) },
+          select: { id: true },
+        })
+      : [],
+    caseIds.length
+      ? client.case.findMany({
+          where: caseInReachWhere(input.teamId, input.actorUserId, { id: { in: caseIds } }) as never,
+          select: { id: true },
+        })
+      : [],
+    packageIds.length
+      ? client.verificationPackage.findMany({
+          where: packageInReachWhere(input.teamId, input.actorUserId, { id: { in: packageIds } }),
+          select: { id: true },
+        })
+      : [],
+  ]);
+  const okEvidence = new Set(ev.map((r: { id: string }) => r.id));
+  const okCase = new Set(cs.map((r: { id: string }) => r.id));
+  const okPackage = new Set(pk.map((r: { id: string }) => r.id));
+  return new Set(
+    rows
+      .filter((r) =>
+        r.scopeKind === "EVIDENCE"
+          ? okEvidence.has(r.evidenceId as string)
+          : r.scopeKind === "CASE"
+            ? okCase.has(r.caseId as string)
+            : r.scopeKind === "PACKAGE"
+              ? okPackage.has(r.packageId as string)
+              : false,
+      )
+      .map((r) => r.id),
+  );
 }
 
 async function issueExternalReviewGrantInner(

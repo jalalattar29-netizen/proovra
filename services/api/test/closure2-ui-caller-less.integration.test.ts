@@ -187,6 +187,68 @@ describe("closure phase 2 (ui) — caller-less routes with a control, tombstones
       }
     });
 
+    // Review L-1 — the projection applies the renew route's subject-reach rule
+    // and the step-up middleware's quarantine refusal, not only the permission.
+    it("a grant whose record is in the Trash projects no renewal, exactly as the route answers it (404)", async () => {
+      const evidenceId = await makeEvidence(A().teamId, A().ownerUserId);
+      const grantId = await issueGrant(A().teamId, A().ownerUserId, evidenceId);
+      const url = `/v1/external-review/grants?teamId=${A().teamId}&evidenceId=${evidenceId}`;
+      const before = await call("GET", url, A().ownerToken);
+      expect((before.json().grants as Array<{ id: string; viewerCanRenew: boolean }>).find((g) => g.id === grantId)?.viewerCanRenew).toBe(true);
+
+      await prisma.evidence.update({ where: { id: evidenceId }, data: { deletedAt: new Date(), deletedAtUtc: new Date() } as never });
+      const after = await call("GET", url, A().ownerToken);
+      expect(after.statusCode, after.body).toBe(200);
+      const row = (after.json().grants as Array<{ id: string; state: string; viewerCanRenew: boolean }>).find((g) => g.id === grantId);
+      expect(row?.state).toBe("INVITED"); // live and unexpired: only the subject changed
+      expect(row?.viewerCanRenew).toBe(false);
+      const renew = await call("POST", `/v1/external-review/grants/${grantId}/renew`, A().ownerToken, { teamId: A().teamId });
+      expect(renew.statusCode, renew.body).toBe(404);
+      expect(renew.json().error.code).toBe("EXTERNAL_REVIEW_GRANT_NOT_FOUND");
+    });
+
+    it("a quarantined session projects no renewal on either list, exactly as the route answers it (403 session_quarantined)", async () => {
+      const admin = await seedUser(deps, "cl2-quarantine-admin");
+      await prisma.teamMember.create({ data: { teamId: A().teamId, userId: admin.userId, role: "ADMIN", status: "ACTIVE" } as never });
+      await prisma.user.update({ where: { id: admin.userId }, data: { currentWorkspaceId: A().teamId } });
+      const evidenceId = await makeEvidence(A().teamId, A().ownerUserId);
+      const issued = await invitations.issueInvitation({
+        prisma: prisma as never,
+        teamId: A().teamId,
+        invitedByUserId: A().ownerUserId,
+        reviewerEmail: `cl2-q-${randomUUID().slice(0, 8)}@reviewer.example.test`,
+        role: "EXTERNAL_REVIEWER",
+        scope: { kind: "EVIDENCE", evidenceId },
+        expiresAtUtc: new Date(Date.now() + 2 * DAY).toISOString(),
+      } as never);
+      if (!issued.ok) throw new Error(`invitation refused: ${issued.denial}`);
+      const ws = { "x-proovra-workspace-id": A().teamId };
+      const grantsUrl = `/v1/external-review/grants?teamId=${A().teamId}&evidenceId=${evidenceId}`;
+      const fromGrants = async () =>
+        ((await call("GET", grantsUrl, admin.token)).json().grants as Array<{ id: string; viewerCanRenew: boolean }>).find(
+          (g) => g.id === issued.grantId,
+        )?.viewerCanRenew;
+      const fromInvitations = async () =>
+        ((await call("GET", "/v1/external-review/invitations", admin.token, undefined, ws)).json().invitations as Array<{
+          grantId: string;
+          viewerCanRenew: boolean;
+        }>).find((r) => r.grantId === issued.grantId)?.viewerCanRenew;
+
+      expect(await fromGrants()).toBe(true);
+      expect(await fromInvitations()).toBe(true);
+
+      const quarantined = await prisma.authenticatedSession.updateMany({
+        where: { userId: admin.userId, revokedAtUtc: null },
+        data: { quarantinedAtUtc: new Date(), quarantineReleaseAtUtc: new Date(Date.now() + DAY) } as never,
+      });
+      expect(quarantined.count).toBeGreaterThan(0);
+      expect(await fromGrants()).toBe(false);
+      expect(await fromInvitations()).toBe(false);
+      const renew = await call("POST", `/v1/external-review/grants/${issued.grantId}/renew`, admin.token, { teamId: A().teamId });
+      expect(renew.statusCode, renew.body).toBe(403);
+      expect(renew.json().error.code).toBe("session_quarantined");
+    });
+
     it("the console's invitation list carries the same answer: the owner true on a live invitation, a MEMBER false", async () => {
       const evidenceId = await makeEvidence(A().teamId, A().ownerUserId);
       const issued = await invitations.issueInvitation({

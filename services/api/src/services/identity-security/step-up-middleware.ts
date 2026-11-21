@@ -81,6 +81,28 @@ export type RequireStepUpSuccess = {
 const CHALLENGE_ID_SHAPE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * IDENT-019 — the quarantine decision this middleware applies before any
+ * step-up: the request's own session (req.user.sessionIdHash), when it has an
+ * inventory row that is quarantined. Returns that session's id, else null.
+ * Exported so a projection that offers a step-up-gated action (EP-0450's
+ * `viewerCanRenew`) answers with the same rule instead of a copy of it.
+ */
+export async function quarantinedStepUpSessionId(
+  req: unknown,
+  userId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<string | null> {
+  const sessionIdHash = (req as { user?: { sessionIdHash?: string | null } }).user?.sessionIdHash ?? null;
+  if (!sessionIdHash) return null;
+  const session = await client.authenticatedSession.findFirst({
+    where: { userId, sessionIdHash },
+    select: { id: true },
+  });
+  if (!session) return null;
+  return (await isSessionQuarantined({ sessionId: session.id }, client)) ? session.id : null;
+}
+
 export async function requireStepUpForSensitiveAction(
   input: RequireStepUpInput,
   client: PrismaClient = defaultPrisma,
@@ -97,36 +119,29 @@ export async function requireStepUpForSensitiveAction(
    * before any challenge is considered. Same answer as the adaptive gate.
    */
   {
-    const sessionIdHash =
-      (input.req as { user?: { sessionIdHash?: string | null } }).user?.sessionIdHash ?? null;
-    if (sessionIdHash) {
-      const session = await client.authenticatedSession.findFirst({
-        where: { userId: input.userId, sessionIdHash },
-        select: { id: true },
+    const quarantinedSessionId = await quarantinedStepUpSessionId(input.req, input.userId, client);
+    if (quarantinedSessionId) {
+      safeEmitSecurityEvent(
+        {
+          teamId: input.teamId,
+          eventType: "privileged_session_blocked",
+          severity: "WARNING",
+          details: {
+            sessionId: quarantinedSessionId,
+            subjectUserId: input.userId,
+            purpose: input.purpose,
+            reason: "session_quarantined",
+          },
+        },
+        client,
+      );
+      input.reply.code(403).send({
+        error: {
+          code: "session_quarantined",
+          message: "This session is quarantined; privileged actions blocked.",
+        },
       });
-      if (session && (await isSessionQuarantined({ sessionId: session.id }, client))) {
-        safeEmitSecurityEvent(
-          {
-            teamId: input.teamId,
-            eventType: "privileged_session_blocked",
-            severity: "WARNING",
-            details: {
-              sessionId: session.id,
-              subjectUserId: input.userId,
-              purpose: input.purpose,
-              reason: "session_quarantined",
-            },
-          },
-          client,
-        );
-        input.reply.code(403).send({
-          error: {
-            code: "session_quarantined",
-            message: "This session is quarantined; privileged actions blocked.",
-          },
-        });
-        return { sent: true };
-      }
+      return { sent: true };
     }
   }
 

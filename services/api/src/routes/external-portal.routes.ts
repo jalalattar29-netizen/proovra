@@ -102,10 +102,7 @@ import {
   projectRecipientContact,
   resolveRecipientContactDisclosure,
 } from "../services/privacy/recipient-contact-disclosure.js";
-import {
-  externalReviewGrantRenewableNow,
-  viewerHoldsExternalReviewRenewAuthority,
-} from "../services/external-review/external-review-renew-authority.js";
+import { viewerRenewableGrantIds } from "../services/external-review/external-review-renew-authority.js";
 import { hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
 
 // ---------------------------------------------------------------------------
@@ -512,18 +509,20 @@ export async function externalPortalRoutes(app: FastifyInstance) {
       // decision the delivery read applies: masked unless the caller may reveal it.
       const disclosure = await resolveRecipientContactDisclosure(req, { teamId: ctx.workspaceId });
       // EP-0450 — whether THIS viewer could renew each invitation's grant
-      // (POST /v1/external-review/grants/:id/renew: its permission, the
-      // entitlement, and the grant still live); Renew is offered on this only.
-      const mayRenew = await viewerHoldsExternalReviewRenewAuthority(req, ctx.workspaceId);
-      const now = new Date();
+      // (every gate of POST /v1/external-review/grants/:id/renew but the challenge:
+      // permission, subject reach, entitlement, session quarantine, renewability).
+      const renewable = await viewerRenewableGrantIds(
+        req,
+        ctx.workspaceId,
+        rows.map((r) => ({ id: r.grantId, state: r.grantState, expiresAtUtc: r.expiresAtUtc })),
+      );
       return reply.code(200).send({
         invitations: rows.map((r) => {
           const contact = projectRecipientContact({ recipientEmail: r.inviteEmail ?? null, recipientPhone: null }, disclosure);
           return {
             ...r,
             inviteEmail: contact.recipientEmail ?? contact.recipientEmailMasked,
-            viewerCanRenew:
-              mayRenew && externalReviewGrantRenewableNow({ state: r.grantState, expiresAtUtc: r.expiresAtUtc }, now),
+            viewerCanRenew: renewable.has(r.grantId),
           };
         }),
       });
