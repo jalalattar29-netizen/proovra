@@ -718,6 +718,33 @@ t0: Date, staged: boolean) {
     expect(row.releasedObjectsRemovedAtUtc).not.toBeNull();
   }, 240_000);
 
+  it("CLOSURE2 review M-2: an always-failing oldest record does not starve newer released records (the run pages past it)", async () => {
+    const failingId = await reservedRecord();
+    const okId = await reservedRecord();
+    const failingKey = `evidence/${failingId}/parts/000-f.jpg`;
+    const okKey = `evidence/${okId}/parts/000-o.jpg`;
+    await prisma.evidencePart.create({ data: { evidenceId: failingId, partIndex: 0, storageBucket: "ws-cap-test-bucket", storageKey: failingKey } });
+    await prisma.evidencePart.create({ data: { evidenceId: okId, partIndex: 0, storageBucket: "ws-cap-test-bucket", storageKey: okKey } });
+    // The failing record is the OLDEST released one, so an oldest-first batch of 1 always picks it first.
+    await prisma.evidence.update({ where: { id: failingId }, data: { deletedAt: new Date(Date.now() - 600 * MIN), createdAt: new Date(Date.now() - 26 * 60 * MIN) } });
+    await prisma.evidence.update({ where: { id: okId }, data: { deletedAt: new Date(Date.now() - 300 * MIN), createdAt: new Date(Date.now() - 26 * 60 * MIN) } });
+    const listKeys = async () => [] as string[];
+    const deleted: string[] = [];
+    const deleteObject = async (o: { bucket: string; key: string }) => {
+      if (o.key === failingKey) throw new Error("store refuses");
+      deleted.push(o.key);
+      return { deleted: true, deletedVersions: 1, retainedVersions: 0, deleteMarkerOnly: false, failed: 0 };
+    };
+    const r = await reaper.removeReleasedReservationObjects({ deleteObject, listKeys, bucket: "ws-cap-test-bucket", batchSize: 1 });
+    expect(deleted).toContain(okKey);
+    const ok = await prisma.evidence.findUniqueOrThrow({ where: { id: okId }, select: { releasedObjectsRemovedAtUtc: true } });
+    const failing = await prisma.evidence.findUniqueOrThrow({ where: { id: failingId }, select: { releasedObjectsRemovedAtUtc: true } });
+    expect(ok.releasedObjectsRemovedAtUtc).not.toBeNull();
+    expect(failing.releasedObjectsRemovedAtUtc).toBeNull();
+    // The failing record's keys are re-listed next run, not duplicated into the capped carrier.
+    expect(r.pendingObjectDeletes.filter((o) => o.key === failingKey)).toEqual([]);
+  }, 240_000);
+
   function recordingDeleterForTruth() {
     const deleted: string[] = [];
     const deleteObject = async (o: { bucket: string; key: string }) => {

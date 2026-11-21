@@ -692,19 +692,38 @@ export async function removeReleasedReservationObjects(options: {
     pendingObjectDeletes: [],
   };
   const UNSEALED = [prismaPkg.EvidenceStatus.CREATED, prismaPkg.EvidenceStatus.UPLOADING];
-  const records = await prisma.evidence.findMany({
-    where: {
-      status: { in: UNSEALED },
-      deletedAt: { not: null, lt: new Date(now.getTime() - RELEASED_OBJECTS_GRACE_MS) },
-      lifecycleState: "ACTIVE",
-      releasedObjectsRemovedAtUtc: null,
-      // PRO-NB-01 — a record that held staged content waits for the server's 24 h lifetime.
-      AND: [releasedObjectsRemovableWhere(now)],
-    },
-    orderBy: { deletedAt: "asc" },
-    take: batchSize,
-    select: { id: true, storageBucket: true, storageKey: true },
-  });
+  // CLOSURE2 review M-2 — a record whose delete keeps failing stays unstamped
+  // and in scope, so one fixed oldest-first batch would re-select the same
+  // failing records every run and starve newer ones. The run pages past them
+  // with a (deletedAt, id) cursor, up to CAPTURE_REAPER_MAX_PAGES pages.
+  const graceCutoff = new Date(now.getTime() - RELEASED_OBJECTS_GRACE_MS);
+  let cursor: { deletedAt: Date; id: string } | null = null;
+  const records: Array<{ id: string; storageBucket: string | null; storageKey: string | null; deletedAt: Date | null }> = [];
+  for (let page = 0; page < CAPTURE_REAPER_MAX_PAGES; page++) {
+    const pageRows: Array<{ id: string; storageBucket: string | null; storageKey: string | null; deletedAt: Date | null }> =
+      await prisma.evidence.findMany({
+        where: {
+          status: { in: UNSEALED },
+          deletedAt: { not: null, lt: graceCutoff },
+          lifecycleState: "ACTIVE",
+          releasedObjectsRemovedAtUtc: null,
+          // PRO-NB-01 — a record that held staged content waits for the server's 24 h lifetime.
+          AND: [
+            releasedObjectsRemovableWhere(now),
+            ...(cursor
+              ? [{ OR: [{ deletedAt: { gt: cursor.deletedAt } }, { deletedAt: cursor.deletedAt, id: { gt: cursor.id } }] }]
+              : []),
+          ],
+        },
+        orderBy: [{ deletedAt: "asc" }, { id: "asc" }],
+        take: batchSize,
+        select: { id: true, storageBucket: true, storageKey: true, deletedAt: true },
+      });
+    records.push(...pageRows);
+    if (pageRows.length < batchSize) break;
+    const last = pageRows[pageRows.length - 1]!;
+    cursor = { deletedAt: last.deletedAt!, id: last.id };
+  }
   result.scanned = records.length;
   for (const record of records) {
     try {
@@ -732,20 +751,18 @@ export async function removeReleasedReservationObjects(options: {
           if (removal.failed > 0) {
             result.objectDeletesFailed++;
             recordDeletesFailed++;
-            result.pendingObjectDeletes.push(o);
           }
         } catch {
           result.objectDeletesFailed++;
           recordDeletesFailed++;
-          result.pendingObjectDeletes.push(o);
         }
       }
       // CLOSURE2 (2026-11-21) — the stamp says the released objects WERE
       // removed, so a record with any failed delete is not stamped. It stays
-      // in scope and is re-listed on the next run. The carried list
-      // (pendingObjectDeletes) is capped at MAX_PENDING_OBJECT_DELETES, so it
-      // could not be the only memory of a failure: before this, an overflow
-      // left a stamped record whose objects still existed.
+      // in scope and is re-listed on the next run, which is its retry; its keys
+      // are not also pushed into the capped pendingObjectDeletes carrier, which
+      // would only duplicate them on every run (review M-2). Before this, an
+      // overflow of that carrier left a stamped record whose objects still existed.
       if (recordDeletesFailed > 0) continue;
       const stamped = await prisma.evidence.updateMany({
         where: { id: record.id, deletedAt: { not: null }, status: { in: UNSEALED }, releasedObjectsRemovedAtUtc: null },
