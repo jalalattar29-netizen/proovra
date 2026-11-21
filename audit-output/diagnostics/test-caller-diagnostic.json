@@ -5,12 +5,12 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "b82e0dc92f50b2374fb31fa327c638b9914ec8b1d50e21d0a49ca59f153c1396",
+  "capabilityRouteInventoryHash": "b5ce24784f6b6f0f682626bce7a399383d76c0f76601609ca55f11f14030e5e7",
   "totals": {
-    "routes": 1263,
+    "routes": 1271,
     "routesWithAnyTestCaller": 59,
     "testOnlyRoutes": 8,
-    "testCallSites": 151,
+    "testCallSites": 155,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
   "rows": [
@@ -128,6 +128,12 @@
     },
     {
       "routeId": "DELETE /v1/evidence/:id/legal-notes/:noteId",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "DELETE /v1/evidence/:id/owner-destruction-approval",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -1966,6 +1972,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "GET /v1/identity/links/organization-consents",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "GET /v1/identity/members",
       "testCallerCount": 0,
       "testOnly": false,
@@ -2679,6 +2691,12 @@
     },
     {
       "routeId": "GET /v1/orgs/:id/operations/rollup",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/orgs/:id/ownership-offer",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -5163,6 +5181,12 @@
       ]
     },
     {
+      "routeId": "POST /v1/evidence/:id/owner-destruction-approval",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/evidence/:id/parts",
       "testCallerCount": 1,
       "testOnly": false,
@@ -5832,6 +5856,12 @@
     },
     {
       "routeId": "POST /v1/identity/links/organization",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/identity/links/organization-consents/:organizationId/withdraw",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -6730,6 +6760,24 @@
     },
     {
       "routeId": "POST /v1/orgs/:id/members/:memberId/suspend",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/orgs/:id/ownership-offer/:offerId/cancel",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/orgs/:id/ownership-offer/:offerId/decline",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -7725,5 +7773,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "3e2035fb6c00848f435910f3256e7b213f5ea2ea7a737effc318a84393264fc8"
+  "contentHash": "3ed4a30142c24b0f635bedb31826e6a62a68671865e19c132566e3bbff4366fa"
 }

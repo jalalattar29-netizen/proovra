@@ -21,20 +21,20 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | ac94d54f8201f5c4d708ec08902575e91c72eac288e44c3e6b5d7a8dfe990fa7 |
+| engineHash    | 58df9f69250b6aec94c8cc1ebb206bb52f1e8e2afcd3400385912772c3e1079c |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
 
 | counter                       | value |
 | ----------------------------- | ----- |
-| registeredRoutes              | 1260  |
+| registeredRoutes              | 1271  |
 | developmentOnlyRoutes         | 1     |
-| productConsumerRoutes         | 1035  |
+| productConsumerRoutes         | 1043  |
 | machineOnlyConsumerRoutes     | 7     |
-| noConsumerRoutes              | 218   |
-| dispositionedNonProductRoutes | 199   |
-| undisposedRoutes              | 25    |
+| noConsumerRoutes              | 221   |
+| dispositionedNonProductRoutes | 198   |
+| undisposedRoutes              | 29    |
 | authorizationUnresolved       | 0     |
 | publicUnguardedRoutes         | 43    |
 
@@ -73,7 +73,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 
 | counter                                    | value |
 | ------------------------------------------ | ----- |
-| AuditFilesInventoried                      | 517   |
+| AuditFilesInventoried                      | 525   |
 | AuditFilesUnclassified                     | 0     |
 | AuditArtifactProducersUnknown              | 0     |
 | AuditArtifactConsumersUnknown              | 0     |
@@ -122,7 +122,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
 | HistoricalMigrationsModifiedByPhase0       | 0     |
-| ProductBehaviorTestsInventoried            | 424   |
+| ProductBehaviorTestsInventoried            | 432   |
 
 ### Report roles
 
@@ -169,5 +169,5 @@ _(none — the instrument is sound)_
 
 ### Product closure
 
-- UNWIRED EXECUTABLE WRITERS: 8 terminal writers have zero entrypoints (PRESERVED_PLANNED_WRITER + DEAD_UNREACHABLE)
-- ArchitectureBacklog: UndisposedRoutes = 25 — registered routes with no reviewed product disposition (NON-BLOCKING, no security or completeness credit)
+- UNWIRED EXECUTABLE WRITERS: 10 terminal writers have zero entrypoints (PRESERVED_PLANNED_WRITER + DEAD_UNREACHABLE)
+- ArchitectureBacklog: UndisposedRoutes = 29 — registered routes with no reviewed product disposition (NON-BLOCKING, no security or completeness credit)
