@@ -332,9 +332,13 @@ services:
   # docs/runbooks/disaster-recovery.md.
   pg-backup:
     profiles: ["backup"]
-    # The image the integration database uses: a dump of a pgvector schema restores
-    # only where the extension exists, and the drill runs its own server here.
-    image: pgvector/pgvector:pg16
+    # A dump of a pgvector schema restores only where the extension exists, and
+    # the drill runs its own server here, so this is a pgvector image. Its major
+    # version must be >= the production server's: pg_dump refuses a newer server.
+    # Production runs managed PostgreSQL 17 (17.12 on 2026-11-21); the pg16 image
+    # this used could not dump it, and pg-backup.sh now checks the majors first
+    # and fails naming both. Pinned by digest (pg17, pgvector 0.8.x).
+    image: pgvector/pgvector:pg17@sha256:b513c48566e4777cd3370451400000c78eda6a08131d68f4c31d4a76f27bd8fd
     restart: unless-stopped
     logging: *default-logging
     entrypoint: ["bash", "/ops/pg-backup-cycle.sh", "--loop"]
@@ -342,7 +346,13 @@ services:
       # DIRECT_URL because pg_dump needs a session, which a pooler may not give it.
       DATABASE_URL: ${DIRECT_URL:-${DATABASE_URL}}
       BACKUP_DIR: /backups
-      BACKUP_RETAIN: ${BACKUP_RETAIN:-14}
+      # 4, not 14: the host has a 75 GB disk with ~11 GB free and a dump is
+      # ~1.07 GB. 4 dumps hold ~4.3 GB, a fifth exists only while a backup
+      # runs, and the weekly drill needs ~3.5 GB of scratch on the same disk
+      # (bounded WAL), so the worst moment is ~7.8 GB. 14 would need ~15 GB.
+      # Older copies are the off-host bucket's job (its lifecycle). Both
+      # scripts refuse to start, FAILED, when free space is short.
+      BACKUP_RETAIN: ${BACKUP_RETAIN:-4}
       BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-21600}
       BACKUP_DRILL_EVERY_SECONDS: ${BACKUP_DRILL_EVERY_SECONDS:-604800}
     volumes:

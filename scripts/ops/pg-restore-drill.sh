@@ -86,6 +86,7 @@ psql "$DRILL_ADMIN_URL" -X -q -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"${DRILL_D
 pg_restore --exit-on-error --no-owner --no-privileges --dbname="$DRILL_URL" "$DIR/$NAME" ||
   fail "pg_restore exited non-zero"
 echo "pg-restore-drill: restore OK into a disposable database"
+if [ "${DRILL_KEEP:-0}" = "1" ]; then echo "pg-restore-drill: DRILL_KEEP=1 — the restored database is kept as ${DRILL_DB}"; fi
 
 # 3. Same facts, same queries.
 # shellcheck source=pg-verification-queries.sh
