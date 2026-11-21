@@ -178,6 +178,74 @@ class ContinuousLedgerTest {
     assertEquals(good, store.read())
   }
 
+  // ------------------------------- PRO-NBC-04: a write the disk refused --
+
+  /**
+   * Makes every later atomic write fail as a full disk / I/O error does: the
+   * temp-file name is taken by a directory, so opening it for writing throws.
+   * It is not empty, so the store's own temp-file cleanup cannot remove it and
+   * the failure persists until the test lifts it. The ledger file itself is
+   * left exactly as the last good write made it.
+   */
+  private fun failWrites(): File = File(dir, "ledger.json.tmp").also {
+    assertTrue(it.mkdir())
+    File(it, "occupied").writeText("x")
+  }
+
+  @Test
+  fun aFailedWriteKeepsThePreviousLedgerSoAConfirmedUploadDeletesNothing() {
+    recordSegments(2)
+    val bound = ContinuousLedgerKeeper.update { (bindLedger(it, "cs-1", "ev-1", "u-1") as BindOutcome.Bound).ledger }!!
+    assertTrue(ledgerBoundTo(bound, "cs-1"))
+    val blocker = failWrites()
+
+    // PROOVRA confirmed segment 0, but the ledger write fails.
+    val after = ContinuousLedgerKeeper.update { ledgerMarkUploaded(it, "cs-1", 0, "a".repeat(64), 4096L) }!!
+    assertEquals("the previous ledger is returned, not the unpersisted change", bound, after)
+    assertEquals(SEGMENT_RECORDED, after.segments[0].uploadState)
+    assertEquals("nothing becomes deletable on a change the disk does not hold", emptyList<String>(), automaticallyDeletablePaths(after))
+    assertEquals("the in-memory ledger did not advance", bound, ContinuousLedgerKeeper.get())
+    ContinuousLedgerKeeper.forgetInMemory() // process death: the disk is the truth
+    assertEquals(bound, ContinuousLedgerKeeper.get())
+
+    // The disk works again: the same confirmation is persisted and only then deletable.
+    assertTrue(blocker.deleteRecursively())
+    val persisted = ContinuousLedgerKeeper.update { ledgerMarkUploaded(it, "cs-1", 0, "a".repeat(64), 4096L) }!!
+    assertEquals(SEGMENT_UPLOADED, persisted.segments[0].uploadState)
+    assertEquals(listOf(seg(0).path), automaticallyDeletablePaths(persisted))
+    ContinuousLedgerKeeper.forgetInMemory()
+    assertEquals(persisted, ContinuousLedgerKeeper.get())
+  }
+
+  @Test
+  fun aBindTheDiskRefusedIsNotABind() {
+    recordSegments(1)
+    val before = ContinuousLedgerKeeper.get()!!
+    val blocker = failWrites()
+    val after = ContinuousLedgerKeeper.update { (bindLedger(it, "cs-1", "ev-1", "u-1") as BindOutcome.Bound).ledger }!!
+    assertFalse("the session binding was not persisted, so it is not reported bound", ledgerBoundTo(after, "cs-1"))
+    assertEquals(before, after)
+    assertNull(ContinuousLedgerKeeper.get()!!.captureSessionId)
+    assertTrue(blocker.deleteRecursively())
+    val bound = ContinuousLedgerKeeper.update { (bindLedger(it, "cs-1", "ev-1", "u-1") as BindOutcome.Bound).ledger }!!
+    assertTrue(ledgerBoundTo(bound, "cs-1"))
+  }
+
+  @Test
+  fun aFailedReplaceReturnsFalseAndThePreviousLedgerStaysInForce() {
+    assertTrue("a writable disk accepts the start ledger", ContinuousLedgerKeeper.replace(fresh()))
+    val blocker = failWrites()
+    val next = fresh().copy(recordingId = "rec-2", segments = listOf(seg(0)))
+    assertFalse("the caller (the service's start path) is told the write failed", ContinuousLedgerKeeper.replace(next))
+    assertEquals(fresh(), ContinuousLedgerKeeper.get())
+    ContinuousLedgerKeeper.forgetInMemory()
+    assertEquals(fresh(), ContinuousLedgerKeeper.get())
+    assertTrue(blocker.deleteRecursively())
+    assertTrue(ContinuousLedgerKeeper.replace(next))
+    ContinuousLedgerKeeper.forgetInMemory()
+    assertEquals(next, ContinuousLedgerKeeper.get())
+  }
+
   @Test
   fun aMalformedOrForeignLedgerIsNullNeverAGuess() {
     assertNull(ledgerFromJson("not json"))
