@@ -28,6 +28,10 @@ export const EVIDENCE_TABLE_TOMBSTONE_CLASS: Readonly<Record<string, TombstoneCl
   // REPORT-006: storage accounting that outlives the record it accounts for, so
   // the orphan scan can still count an object nothing references. No content.
   ArtifactPublicationIntent: "OPERATIONAL",
+  // FINAL-VERIFY-2 — the durable intent of a derived write: storage accounting
+  // (bucket, key, bytes) that must outlive the record so the reconciler can
+  // still resolve an object nothing references. No content.
+  DerivedAssetStorageIntent: "OPERATIONAL",
   EvidencePart: "DELETED",
   Report: "DELETED",
   VerificationPackage: "DELETED",
@@ -66,6 +70,9 @@ export const EVIDENCE_TABLE_TOMBSTONE_CLASS: Readonly<Record<string, TombstoneCl
   EvidenceReviewWorkflowEvent: "AUDIT",
   EvidenceLegalHold: "AUDIT",
   DestructionReview: "AUDIT",
+  // MATRIX-M626 — a team-less record owner's approval of its destruction: the
+  // record of who approved it and when, kept like a DestructionReview.
+  EvidenceOwnerDestructionApproval: "AUDIT",
   DestructionRequest: "AUDIT",
   DestructionExecution: "AUDIT",
   ImmutableStorageCheck: "AUDIT",
