@@ -30,7 +30,7 @@ import * as WebBrowser from "expo-web-browser";
 import { apiFetch, getAuthToken } from "../../../src/api";
 import { toSafeUserError } from "../../../src/errors/safe-error";
 import { setPendingRoute } from "../../../src/deep-link/pending-intent";
-import { usePlatformContext } from "../../../src/product/platform-context";
+import { switchToWorkspace, usePlatformContext } from "../../../src/product/platform-context";
 import { theme } from "../../../src/theme/theme";
 import {
   ProovraScreen,
@@ -56,7 +56,6 @@ import {
   parseOrgInviteAccept,
   type OrgInviteAccepted,
 } from "../../../src/product/org-invite";
-import { SWITCH_WORKSPACE_PATH, buildSwitchWorkspaceBody } from "../../../src/product/spaces";
 import { webOrigin } from "../../../src/product/intake-create";
 
 type Phase = "checking" | "ready" | "accepting" | "accepted" | "error";
@@ -155,8 +154,10 @@ export default function OrgInviteAcceptScreen() {
 
   const openWorkspace = async (workspaceId: string) => {
     try {
-      await apiFetch(SWITCH_WORKSPACE_PATH, { method: "POST", body: JSON.stringify(buildSwitchWorkspaceBody(workspaceId)) });
-      void refresh();
+      // PRO-NA-06 — the header follows the switch answer at once; the context
+      // re-read it starts only confirms it (a failed re-read no longer leaves
+      // requests naming the workspace that was left).
+      await switchToWorkspace(workspaceId);
       router.replace("/(tabs)");
     } catch {
       // The server kept the previous context; the organization landing is the way on.
