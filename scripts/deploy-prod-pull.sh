@@ -67,8 +67,12 @@ main() {
   local STATE_DIR="${STATE_DIR:-${REPO_ROOT}/.deploy-state}"
   local API_READY_URL="${API_READY_URL:-http://127.0.0.1:8080/readyz}"
   # AUD-023 — the worker is gated on READINESS (database, Redis, storage), as
-  # the API is; /health is liveness only. WORKER_HEALTH_URL is still honoured.
-  local WORKER_HEALTH_URL="${WORKER_READY_URL:-${WORKER_HEALTH_URL:-http://127.0.0.1:8090/readyz}}"
+  # the API is; /health is liveness only.
+  # B8-F-305 — the worker publishes no host port (so it can run as N replicas):
+  # its readiness is asked INSIDE each container (wait_healthy, below). An
+  # explicit WORKER_READY_URL / WORKER_HEALTH_URL is still honoured as an extra
+  # host-side check.
+  local WORKER_HEALTH_URL="${WORKER_READY_URL:-${WORKER_HEALTH_URL:-}}"
   local HEALTH_TIMEOUT_S="${HEALTH_TIMEOUT_S:-180}"
   local API_SVC="proovra-api" WORKER_SVC="proovra-worker"
 
@@ -103,6 +107,14 @@ main() {
       [ -s "$(dirname "${VERIFIER_ENV_FILE}")/password" ] ||
         fail "Bitcoin verification is enabled in ${VERIFIER_ENV_FILE} but '$(dirname "${VERIFIER_ENV_FILE}")/password' is missing or empty."
     fi
+  fi
+
+  # B8-F-305 — N worker replicas need N identities. WORKER_ID in the shared env
+  # file would give every replica the same lease row, hiding a dead one.
+  local WORKER_REPLICAS_SET
+  WORKER_REPLICAS_SET="$(sed -nE 's/^[[:space:]]*(export[[:space:]]+)?WORKER_REPLICAS[[:space:]]*=[[:space:]]*"?([0-9]+)"?[[:space:]]*$/\2/p' "${COMPOSE_ENV_FILE}" | tail -n 1)"
+  if [ "${WORKER_REPLICAS_SET:-1}" -gt 1 ] && grep -Eq '^[[:space:]]*(export[[:space:]]+)?WORKER_ID[[:space:]]*=' "${COMPOSE_ENV_FILE}"; then
+    fail "WORKER_REPLICAS=${WORKER_REPLICAS_SET} with WORKER_ID set in ${COMPOSE_ENV_FILE}: every replica would share one worker identity. Remove WORKER_ID (each container then uses its own hostname)."
   fi
 
   [[ "${GHCR_OWNER:-}" =~ ^[a-z0-9][a-z0-9-]{0,38}$ ]] ||
@@ -261,8 +273,19 @@ record_release() {
 # What a deploy cannot fix but must not hide (OPS-004, OPS-007).
 warn_unattended() {
   local root="$1"
-  [ -n "$(compose --profile backup ps -q pg-backup 2>/dev/null || true)" ] ||
+  local backup_cid backup_state
+  backup_cid="$(compose --profile backup ps -q pg-backup 2>/dev/null | head -n 1 || true)"
+  if [ -z "${backup_cid}" ]; then
     echo "WARNING: the pg-backup service is not running. See docs/runbooks/disaster-recovery.md."
+  else
+    # OPS closure — a container that exists is not a backup that works: one
+    # that keeps restarting (e.g. a client image older than the server) is said.
+    backup_state="$(docker inspect --format '{{.State.Status}} {{.RestartCount}}' "${backup_cid}" 2>/dev/null || echo "unknown 0")"
+    case "${backup_state}" in
+      "running 0") ;;
+      *) echo "WARNING: the pg-backup service is not healthy (state/restarts: ${backup_state}). Read its log: docker compose --profile backup logs pg-backup. See docs/runbooks/disaster-recovery.md." ;;
+    esac
+  fi
   [ -f "${root}/infra/caddy/Caddyfile" ] ||
     echo "WARNING: infra/caddy/Caddyfile is not a file on this host, so the edge cannot be rebuilt from here. See infra/caddy/Caddyfile.example."
 }
@@ -309,13 +332,30 @@ wait_healthy() {
       [ "${status}" = "healthy" ] || all="${status}"
     done
     status="${all}"
-    if [ "${status}" = "healthy" ] && curl -fsS --max-time 5 -o /dev/null "${url}"; then
-      echo "  ${svc} healthy after ${i}s (${url} OK)."
-      return 0
+    if [ "${status}" = "healthy" ]; then
+      if [ -n "${url}" ]; then
+        if curl -fsS --max-time 5 -o /dev/null "${url}"; then
+          echo "  ${svc} healthy after ${i}s (${url} OK)."
+          return 0
+        fi
+      elif ready_in_each "${cids}"; then
+        # No host URL (the worker publishes no port): readiness asked inside
+        # every container, the same probe its healthcheck runs.
+        echo "  ${svc} healthy after ${i}s ($(printf '%s\n' ${cids} | wc -l | tr -d ' ') container(s), /readyz OK in each)."
+        return 0
+      fi
     fi
     sleep 1
   done
   fail "${svc} did not become healthy within ${HEALTH_TIMEOUT_S}s (last health: ${status})."
+}
+
+# B8-F-305 — /readyz inside each container, on the port that container serves.
+ready_in_each() {
+  local cid
+  for cid in $1; do
+    docker exec "${cid}" sh -c 'wget -qO- "http://localhost:${WORKER_PORT:-8090}/readyz" >/dev/null' || return 1
+  done
 }
 
 main "$@"

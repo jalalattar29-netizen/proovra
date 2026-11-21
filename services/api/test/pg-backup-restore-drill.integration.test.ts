@@ -1,10 +1,19 @@
 /**
  * AUD-023 — the repository's PostgreSQL backup and restore drill
  * (scripts/ops/pg-backup.sh, scripts/ops/pg-restore-drill.sh), executed for
- * real. The SOURCE is the canonical disposable integration database
- * (`acquireIntegrationDatabase` — testcontainers PostgreSQL 16 with the full
- * migrated schema, or CI's TEST_DATABASE_URL); the drill TARGET is a second,
- * separate PostgreSQL 16 container this suite starts.
+ * real, at the PRODUCTION major version. Production runs managed PostgreSQL 17
+ * (17.12, 2026-11-21), so the SOURCE is a PostgreSQL 17 container this suite
+ * starts and fills with the fully migrated schema copied from the canonical
+ * integration database (`acquireIntegrationDatabase`, PostgreSQL 16 here and in
+ * CI), and the scripts run in the same pinned pg17 client image the compose
+ * `pg-backup` service uses. The drill TARGET is a second, separate PostgreSQL 17
+ * container.
+ *
+ * OPS closure (2026-11-21) — the tracked service used a pg16 image, which cannot
+ * dump a PG17 server, and nothing ran it. Also proven here: a client older than
+ * the server fails FIRST with both versions named and is recorded as FAILED;
+ * the free-space precheck refuses before writing anything (backup and drill);
+ * the drill server runs with bounded WAL.
  *
  * The repository had no backup mechanism at all; the DR runbook could only say
  * "assumed / managed platform". These scripts make a snapshot-consistent
@@ -31,12 +40,19 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { acquireIntegrationDatabase } from "./integration-harness.js";
 
 const RUN = randomUUID().slice(0, 8);
 const NET = `aud023-drill-net-${RUN}`;
 const DST = `aud023-drill-dst-${RUN}`;
-const IMAGE = "pgvector/pgvector:pg16";
+/** The image the compose `pg-backup` service runs (infra/docker/docker-compose.prod.yml). */
+const IMAGE = "pgvector/pgvector:pg17@sha256:b513c48566e4777cd3370451400000c78eda6a08131d68f4c31d4a76f27bd8fd";
+/** The image the service used before: a PostgreSQL 16 client. */
+const OLD_CLIENT_IMAGE = "pgvector/pgvector:pg16";
+const SRC = `ops-drill-src-${RUN}`;
 const OPS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../../../scripts/ops");
 const DST_ADMIN_URL = `postgresql://drill:drill-pass@${DST}:5432/postgres`;
 
@@ -52,7 +68,7 @@ function fromContainer(url: string): string {
 }
 
 /** Run one of the ops scripts in the PostgreSQL client image, on the drill network. */
-function runScript(script: string, env: Record<string, string>, backups: string) {
+function runScript(script: string, env: Record<string, string>, backups: string, image: string = IMAGE) {
   const res = spawnSync(
     "docker",
     [
@@ -66,7 +82,7 @@ function runScript(script: string, env: Record<string, string>, backups: string)
       "-v", `${OPS_DIR}:/ops:ro`,
       "-v", `${backups}:/backups`,
       ...Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
-      IMAGE, "bash", `/ops/${script}`,
+      image, "bash", `/ops/${script}`,
     ],
     { encoding: "utf8" },
   );
@@ -87,32 +103,52 @@ function waitReady(name: string) {
   }
 }
 
-describe("AUD-023 — pg-backup.sh + pg-restore-drill.sh against disposable PostgreSQL 16", () => {
+describe("AUD-023 — pg-backup.sh + pg-restore-drill.sh against disposable PostgreSQL 17", () => {
   let backups = "";
   let dumpName = "";
   let SRC_URL = "";
   let releaseDb: (() => Promise<void>) | null = null;
-  let src: import("pg").Client | null = null;
+  let src: pg.Client | null = null;
   const psqlSrc = async (sql: string) => {
     await src!.query(sql);
   };
 
   beforeAll(async () => {
     backups = mkdtempSync(join(tmpdir(), "aud023-backups-"));
-    const { acquireIntegrationDatabase } = await import("./integration-harness.js");
     const db = await acquireIntegrationDatabase();
     releaseDb = db.release;
-    SRC_URL = fromContainer(db.url);
-    const pg = await import("pg");
-    src = new pg.default.Client({ connectionString: db.url });
-    await src.connect();
     docker("network", "create", NET);
+    // The PostgreSQL 17 source, reachable from the host on a random loopback port.
+    docker(
+      "run", "-d", "--name", SRC, "--network", NET, "-p", "127.0.0.1::5432",
+      "-e", "POSTGRES_USER=drill", "-e", "POSTGRES_PASSWORD=drill-pass", "-e", "POSTGRES_DB=proovra",
+      IMAGE,
+    );
     docker(
       "run", "-d", "--name", DST, "--network", NET,
       "-e", "POSTGRES_USER=drill", "-e", "POSTGRES_PASSWORD=drill-pass", "-e", "POSTGRES_DB=proovra",
       IMAGE,
     );
+    waitReady(SRC);
     waitReady(DST);
+    // The fully migrated product schema and its rows, copied into the PG17 source
+    // with the pg17 client (which can read the PG16 integration database).
+    const copied = spawnSync(
+      "docker",
+      [
+        "run", "--rm", "--network", NET, "--add-host", "host.docker.internal:host-gateway",
+        "-e", `FROM_URL=${fromContainer(db.url)}`, "-e", `TO_URL=postgresql://drill:drill-pass@${SRC}:5432/proovra`,
+        IMAGE, "bash", "-c",
+        'set -o pipefail; pg_dump --no-owner --no-privileges "$FROM_URL" | psql -X -q -v ON_ERROR_STOP=1 "$TO_URL" >/dev/null',
+      ],
+      { encoding: "utf8" },
+    );
+    expect(copied.status, `${copied.stdout}\n${copied.stderr}`).toBe(0);
+    const port = docker("port", SRC, "5432/tcp").split("\n")[0]!.replace(/^.*:/, "");
+    SRC_URL = `postgresql://drill:drill-pass@${SRC}:5432/proovra`;
+    src = new pg.Client({ connectionString: `postgresql://drill:drill-pass@127.0.0.1:${port}/proovra` });
+    await src.connect();
+    expect((await src.query("SHOW server_version_num")).rows[0].server_version_num).toMatch(/^17\d{4}$/);
     await psqlSrc(`
       DROP SCHEMA IF EXISTS app CASCADE;
       DROP TABLE IF EXISTS public.empty_table;
@@ -140,6 +176,11 @@ describe("AUD-023 — pg-backup.sh + pg-restore-drill.sh against disposable Post
     await src?.query("DROP SCHEMA IF EXISTS app CASCADE; DROP TABLE IF EXISTS public.empty_table;").catch(() => undefined);
     await src?.end().catch(() => undefined);
     await releaseDb?.();
+    try {
+      docker("rm", "-f", SRC);
+    } catch {
+      /* gone */
+    }
     try {
       docker("rm", "-f", DST);
     } catch {
@@ -170,6 +211,46 @@ describe("AUD-023 — pg-backup.sh + pg-restore-drill.sh against disposable Post
     expect(schema).toMatch(/idx\|app\.evidence_team_created\|CREATE INDEX evidence_team_created/);
     expect(schema).toMatch(/con\|app\.evidence_team_id_fkey\|f\|FOREIGN KEY \(team_id\) REFERENCES app\.teams\(id\)/);
   }, 180_000);
+
+  // OPS closure — the production failure: the tracked image was pg16 and the
+  // server is 17. It must fail FIRST, with both versions named, writing nothing.
+  it("a PostgreSQL 16 client against the PostgreSQL 17 server fails first, names both versions, and writes nothing", () => {
+    const before = readdirSync(backups).sort();
+    const res = runScript("pg-backup.sh", { DATABASE_URL: SRC_URL, BACKUP_DIR: "/backups" }, backups, OLD_CLIENT_IMAGE);
+    expect(res.code).not.toBe(0);
+    expect(res.out).toMatch(
+      /pg-backup: FAILED — version mismatch — pg_dump client is PostgreSQL 16 and the server is PostgreSQL 17; .*pgvector\/pgvector:pg17/,
+    );
+    expect(res.out).not.toContain("drill-pass");
+    expect(readdirSync(backups).sort()).toEqual(before);
+  }, 120_000);
+
+  it("the free-space precheck refuses before anything is written, naming what is free and what is needed", () => {
+    const before = readdirSync(backups).sort();
+    // A margin no disk can satisfy drives the refusal path; the default margin
+    // passed in the first case above (the allowed path).
+    const res = runScript(
+      "pg-backup.sh",
+      { DATABASE_URL: SRC_URL, BACKUP_DIR: "/backups", BACKUP_FREE_MARGIN_MB: "900000000" },
+      backups,
+    );
+    expect(res.code).not.toBe(0);
+    expect(res.out).toMatch(
+      /pg-backup: FAILED — insufficient disk space — \/backups has \d+ MB free and needs \d+ MB \(2 x the newest dump, \d+ MB, \+ 900000000 MB margin\)/,
+    );
+    expect(readdirSync(backups).sort()).toEqual(before);
+  }, 120_000);
+
+  it("the local drill refuses to start without scratch space for the restore", () => {
+    const res = runScript(
+      "pg-restore-drill-local.sh",
+      { BACKUP_FILE: `/backups/${dumpName}`, DRILL_FREE_MARGIN_MB: "900000000" },
+      backups,
+    );
+    expect(res.code).not.toBe(0);
+    expect(res.out).toMatch(/pg-restore-drill-local: FAILED — insufficient disk space — the drill scratch has \d+ MB free/);
+    expect(res.out).not.toMatch(/restore OK/);
+  }, 120_000);
 
   it("the drill restores into a fresh database on a disposable server and every fact matches", async () => {
     // Writes after the backup must not matter: the drill checks the BACKUP.
@@ -262,6 +343,9 @@ describe("AUD-023 — pg-backup.sh + pg-restore-drill.sh against disposable Post
       expect(res.code, res.out).toBe(0);
       expect(res.out).toMatch(/pg-backup: OK/);
       expect(res.out).toMatch(/pg-restore-drill: PASS/);
+      // The drill server ran with bounded WAL (the production restore used
+      // ~5.6 GB of disk with the defaults, ~3.5 GB bounded).
+      expect(res.out).toMatch(/pg-restore-drill-local: drill server max_wal_size=256MB min_wal_size=80MB/);
       const rows = await records();
       expect(rows.map((r) => [r.kind, r.outcome])).toEqual([
         ["DATABASE_BACKUP", "SUCCEEDED"],
@@ -280,6 +364,22 @@ describe("AUD-023 — pg-backup.sh + pg-restore-drill.sh against disposable Post
         backups,
       );
       expect(res.code).not.toBe(0);
+      expect(readdirSync(backups).filter((f) => f.endsWith(".dump")).length).toBe(before);
+    }, 120_000);
+
+    it("a cycle in an older client image records FAILED, and its output says why", async () => {
+      await src!.query("DELETE FROM platform_backup_records");
+      const before = readdirSync(backups).filter((f) => f.endsWith(".dump")).length;
+      const res = runScript(
+        "pg-backup-cycle.sh",
+        { DATABASE_URL: SRC_URL, BACKUP_DIR: "/backups", BACKUP_DRILL_EVERY_SECONDS: "0" },
+        backups,
+        OLD_CLIENT_IMAGE,
+      );
+      expect(res.code).not.toBe(0);
+      expect(res.out).toMatch(/version mismatch — pg_dump client is PostgreSQL 16 and the server is PostgreSQL 17/);
+      expect(res.out).not.toMatch(/pg-restore-drill/);
+      expect((await records()).map((r) => [r.kind, r.outcome])).toEqual([["DATABASE_BACKUP", "FAILED"]]);
       expect(readdirSync(backups).filter((f) => f.endsWith(".dump")).length).toBe(before);
     }, 120_000);
 

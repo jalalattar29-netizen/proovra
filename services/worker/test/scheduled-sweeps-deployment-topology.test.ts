@@ -68,6 +68,16 @@ describe("the worker sweeps are deployed and started", () => {
     expect(worker).not.toMatch(/replicas:\s*0/);
   });
 
+  it("B8-F-305 — the worker can run as N containers: no host port, no fixed name, replicas default 1", () => {
+    const worker = serviceBlock(PROD_COMPOSE, "proovra-worker");
+    // A fixed host publish let only one container bind (`--scale` failed).
+    expect(worker).not.toMatch(/^\s+ports:/m);
+    expect(worker).not.toMatch(/127\.0\.0\.1:8090/);
+    expect(worker).not.toMatch(/^\s+container_name:/m);
+    // The production count stays 1 unless the operator sets WORKER_REPLICAS.
+    expect(worker).toMatch(/deploy:\s*\n\s+replicas: \$\{WORKER_REPLICAS:-1\}/);
+  });
+
   it("the worker image runs the entry point that starts the schedulers", () => {
     expect(DOCKERFILE).toMatch(/CMD \["node", "--experimental-specifier-resolution=node", "dist\/index\.js"\]/);
   });

@@ -50,6 +50,7 @@ import type { ReconcileStalledSummary } from "../services/reliability/upload-rec
 import type { ReconcileSummary } from "../routes/ops.routes.js";
 import type { OutputHoldSweepSummary } from "../services/governance/output-hold-release.service.js";
 import type { recoverSealedRecordObligations } from "../services/evidence-complete.service.js";
+import type { OutageWatchdogSummary } from "../services/operations/outage-watchdog.service.js";
 
 /** PRO-C1Z-01 / PRO-C1-02 — what one sealed-record recovery pass did. */
 export type SealedRecordRecoverySummary = Awaited<ReturnType<typeof recoverSealedRecordObligations>>;
@@ -69,6 +70,8 @@ export const OUTPUT_HOLD_RELEASE_LEASE_KEY = "cron:output-hold-release";
 export const SEALED_RECORD_RECOVERY_LEASE_KEY = "cron:sealed-record-recovery";
 /** RG-03 (PRO-O1-13) — the key-compromise owner-notice continuation. */
 export const KEY_COMPROMISE_NOTICE_LEASE_KEY = "cron:key-compromise-notices";
+/** OPS closure (2026-11-21) — the outage watchdog (outage-watchdog.service.ts). */
+export const OUTAGE_WATCHDOG_LEASE_KEY = "cron:ops-outage-watchdog";
 type KeyCompromiseNoticeSweepSummary = { materials: number; noticesWritten: number; deferred: number; failed: number };
 
 export type PlatformMaintenanceStepOutcome<T> =
@@ -85,6 +88,8 @@ export type PlatformMaintenanceSweepResult = {
   /** PRO-C1Z-01 — absent when no recovery pass is configured (a narrow test). */
   sealedRecordRecovery?: PlatformMaintenanceStepOutcome<SealedRecordRecoverySummary>;
   keyCompromiseNotices?: PlatformMaintenanceStepOutcome<KeyCompromiseNoticeSweepSummary>;
+  /** Absent when OPS_WATCHDOG_ENABLED=false or none is configured (a narrow test). */
+  outageWatchdog?: PlatformMaintenanceStepOutcome<OutageWatchdogSummary>;
 };
 
 type SweepLogger = {
@@ -99,6 +104,7 @@ export type PlatformMaintenanceDeps = {
   releaseHeldOutputs?: () => Promise<OutputHoldSweepSummary>;
   recoverSealedRecords?: () => Promise<SealedRecordRecoverySummary>;
   continueKeyCompromiseNotices?: () => Promise<KeyCompromiseNoticeSweepSummary>;
+  runOutageWatchdog?: (logger?: SweepLogger) => Promise<OutageWatchdogSummary>;
   withLease: <T>(
     key: string,
     ttlMs: number,
@@ -118,6 +124,7 @@ async function defaultDeps(): Promise<PlatformMaintenanceDeps> {
     { sweepHeldOutputs },
     { recoverSealedRecordObligations },
     { continueKeyCompromiseNotices },
+    { runOutageWatchdogNow },
   ] = await Promise.all([
     import("../routes/ops.routes.js"),
     import("../services/reliability/upload-reconciliation.service.js"),
@@ -126,6 +133,7 @@ async function defaultDeps(): Promise<PlatformMaintenanceDeps> {
     import("../services/governance/output-hold-release.service.js"),
     import("../services/evidence-complete.service.js"),
     import("../services/operations/signing-key-compromise-owners.service.js"),
+    import("../services/operations/outage-watchdog.runtime.js"),
   ]);
   return {
     runMasterReconcile,
@@ -133,6 +141,9 @@ async function defaultDeps(): Promise<PlatformMaintenanceDeps> {
     releaseHeldOutputs: () => sweepHeldOutputs(),
     recoverSealedRecords: () => recoverSealedRecordObligations(),
     continueKeyCompromiseNotices: () => continueKeyCompromiseNotices(),
+    // OPS closure — on unless OPS_WATCHDOG_ENABLED=false: a detector that has to
+    // be switched on is off in exactly the deployment that needed it.
+    ...(process.env.OPS_WATCHDOG_ENABLED === "false" ? {} : { runOutageWatchdog: (logger?: SweepLogger) => runOutageWatchdogNow(logger) }),
     withLease,
     captureException,
   };
@@ -237,6 +248,14 @@ export async function runPlatformMaintenanceSweep(
   const keyCompromiseNotices = continueNotices
     ? await runStep("key_compromise_notices", KEY_COMPROMISE_NOTICE_LEASE_KEY, continueNotices, deps, trigger)
     : undefined;
+  // OPS closure (2026-11-21) — the outage watchdog: worker refusal, restart
+  // loop, no live worker, stalled queues, stopped reconciliation, missing
+  // backups, pushed through dispatchOpsAlert. Last, so a slow step above only
+  // delays it by one step; its own lease keeps replicas from double-alerting.
+  const runWatchdog = deps.runOutageWatchdog;
+  const outageWatchdog = runWatchdog
+    ? await runStep("ops_outage_watchdog", OUTAGE_WATCHDOG_LEASE_KEY, () => runWatchdog(deps.logger), deps, trigger)
+    : undefined;
   return {
     trigger,
     masterReconcile,
@@ -244,6 +263,7 @@ export async function runPlatformMaintenanceSweep(
     ...(outputHoldRelease ? { outputHoldRelease } : {}),
     ...(sealedRecordRecovery ? { sealedRecordRecovery } : {}),
     ...(keyCompromiseNotices ? { keyCompromiseNotices } : {}),
+    ...(outageWatchdog ? { outageWatchdog } : {}),
   };
 }
 

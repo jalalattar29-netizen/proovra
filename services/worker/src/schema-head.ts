@@ -59,6 +59,13 @@ export async function enforceSchemaHeadBeforeConsumers(deps: {
   sleep?: (ms: number) => Promise<void>;
   attempts?: number;
   intervalMs?: number;
+  /**
+   * OPS outage watchdog — told the outcome before the gate returns or exits, so
+   * a refusal leaves a reason the API can alert on (boot-signal.ts). Awaited;
+   * a hook that throws changes nothing about the gate's decision.
+   */
+  onRefused?: (problem: SchemaHeadProblem) => Promise<unknown>;
+  onCurrent?: () => Promise<unknown>;
 }): Promise<boolean> {
   const attempts = deps.attempts ?? 20;
   const intervalMs = deps.intervalMs ?? 15_000;
@@ -68,11 +75,13 @@ export async function enforceSchemaHeadBeforeConsumers(deps: {
     problem = await schemaHeadProblem(deps.readRows);
     if (!problem) {
       deps.log("info", { expected: EXPECTED_MIGRATION_HEAD, attempt: i }, "worker.schema_head.current");
+      await Promise.resolve().then(() => deps.onCurrent?.()).catch(() => undefined);
       return true;
     }
     if (i < attempts) await sleep(intervalMs);
   }
   deps.log("error", { ...problem, attempts }, "worker.schema_head.behind_refusing_to_start");
+  if (problem) await Promise.resolve(problem).then((p) => deps.onRefused?.(p)).catch(() => undefined);
   deps.exit(1);
   return false;
 }

@@ -20,7 +20,7 @@
 # Environment:
 #   DATABASE_URL                 required; the source database (never printed)
 #   BACKUP_DIR                   default /opt/proovra/backups/postgres
-#   BACKUP_RETAIN                see pg-backup.sh
+#   BACKUP_RETAIN                see pg-backup.sh (default 4)
 #   BACKUP_INTERVAL_SECONDS      with --loop, default 21600
 #   BACKUP_DRILL_EVERY_SECONDS   default 604800; 0 runs a drill every cycle
 #

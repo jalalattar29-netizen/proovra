@@ -30,7 +30,23 @@
 # Environment:
 #   DATABASE_URL      required; the source database (never printed)
 #   BACKUP_DIR        default /opt/proovra/backups/postgres
-#   BACKUP_RETAIN     number of most recent backups to keep (default 14; 0 = keep all)
+#   BACKUP_RETAIN     number of most recent backups to keep (default 4; 0 = keep all).
+#                     Sized to the production host (75 GB disk, ~11 GB free,
+#                     a ~1.07 GB dump): 4 dumps hold ~4.3 GB, a fifth exists
+#                     only while a backup runs (retention runs after it), and
+#                     the weekly drill needs ~3.5 GB of scratch on the same
+#                     disk, so the worst moment is ~7.8 GB. 14 would need
+#                     ~15 GB and fill the disk before retention ever ran.
+#   BACKUP_FREE_MARGIN_MB  free space kept beyond the estimate (default 1024)
+#
+# FREE-SPACE PRECHECK: the backup refuses to start (FAILED, exit 1) unless the
+# backup directory has at least 2 x the newest dump's size + the margin free.
+# With no earlier dump, the database's own size stands in for the dump (a
+# compressed custom dump is smaller than the database, so this over-asks).
+#
+# VERSION CHECK: pg_dump refuses a server of a newer major version with a
+# terse error. The majors are compared first, and a mismatch fails with the
+# two versions and the image to use, so the FAILED line says why.
 #
 # Exit status: 0 only when the dump, its checksum and its verification facts
 # were all written. Any failure removes the partial files.
@@ -45,14 +61,46 @@ fail() {
 
 : "${DATABASE_URL:?pg-backup: DATABASE_URL is required (it is never printed)}"
 BACKUP_DIR="${BACKUP_DIR:-/opt/proovra/backups/postgres}"
-BACKUP_RETAIN="${BACKUP_RETAIN:-14}"
+BACKUP_RETAIN="${BACKUP_RETAIN:-4}"
+BACKUP_FREE_MARGIN_MB="${BACKUP_FREE_MARGIN_MB:-1024}"
 
-for tool in pg_dump psql sha256sum; do
+for tool in pg_dump psql sha256sum df; do
   command -v "$tool" >/dev/null 2>&1 || fail "required tool '$tool' is not installed"
 done
 [[ "$BACKUP_RETAIN" =~ ^[0-9]+$ ]] || fail "BACKUP_RETAIN must be a non-negative integer"
+[[ "$BACKUP_FREE_MARGIN_MB" =~ ^[0-9]+$ ]] || fail "BACKUP_FREE_MARGIN_MB must be a non-negative integer"
 
 mkdir -p "$BACKUP_DIR"
+
+# --- client vs server major version (before anything is written) -------------
+SERVER_VERSION_NUM="$(psql "$DATABASE_URL" -X -q -A -t -v ON_ERROR_STOP=1 -c "SHOW server_version_num" 2>/dev/null | tr -d '[:space:]')" ||
+  fail "could not connect to the database to read its server version"
+[[ "$SERVER_VERSION_NUM" =~ ^[0-9]{5,6}$ ]] || fail "could not read the database server version"
+SERVER_MAJOR=$((SERVER_VERSION_NUM / 10000))
+CLIENT_MAJOR="$(pg_dump --version | sed -nE 's/^pg_dump \(PostgreSQL\) ([0-9]+).*/\1/p')"
+[[ "$CLIENT_MAJOR" =~ ^[0-9]+$ ]] || fail "could not read the pg_dump client version"
+[ "$CLIENT_MAJOR" -ge "$SERVER_MAJOR" ] ||
+  fail "version mismatch — pg_dump client is PostgreSQL ${CLIENT_MAJOR} and the server is PostgreSQL ${SERVER_MAJOR}; pg_dump cannot dump a newer server. Run this in the pgvector/pgvector:pg${SERVER_MAJOR} image (infra/docker/docker-compose.prod.yml, service pg-backup)."
+
+# --- free space (before anything is written) ---------------------------------
+# Needed: 2 x the newest dump + the margin. With no earlier dump, the database's
+# size stands in (larger than its compressed dump, so this over-asks).
+LAST_DUMP="$(ls -1 "$BACKUP_DIR"/proovra-*.dump 2>/dev/null | sort | tail -n 1 || true)"
+if [ -n "$LAST_DUMP" ]; then
+  ESTIMATE_BYTES="$(wc -c <"$LAST_DUMP" | tr -d ' ')"
+  ESTIMATE_FROM="the newest dump"
+else
+  ESTIMATE_BYTES="$(psql "$DATABASE_URL" -X -q -A -t -v ON_ERROR_STOP=1 -c "SELECT pg_database_size(current_database())" 2>/dev/null | tr -d '[:space:]')" ||
+    fail "could not read the database size for the free-space check"
+  ESTIMATE_FROM="the database size (no earlier dump)"
+fi
+[[ "$ESTIMATE_BYTES" =~ ^[0-9]+$ ]] || fail "could not size the backup for the free-space check"
+NEED_KB=$(((2 * ESTIMATE_BYTES) / 1024 + BACKUP_FREE_MARGIN_MB * 1024))
+FREE_KB="$(df -Pk "$BACKUP_DIR" | awk 'NR == 2 {print $4}')"
+[[ "$FREE_KB" =~ ^[0-9]+$ ]] || fail "could not read the free space of the backup directory"
+[ "$FREE_KB" -ge "$NEED_KB" ] ||
+  fail "insufficient disk space — ${BACKUP_DIR} has $((FREE_KB / 1024)) MB free and needs $((NEED_KB / 1024)) MB (2 x ${ESTIMATE_FROM}, $((ESTIMATE_BYTES / 1048576)) MB, + ${BACKUP_FREE_MARGIN_MB} MB margin). Nothing was written; free space or lower BACKUP_RETAIN."
+
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 BASE="${BACKUP_DIR}/proovra-${STAMP}"
 PARTIAL="${BASE}.dump.partial"
