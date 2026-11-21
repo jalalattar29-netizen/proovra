@@ -10437,8 +10437,8 @@
     "aud": "MEX-ACC",
     "name": "an external-review grant is issued on a restricted Case the issuer cannot see",
     "file": "services/api/src/services/external-review/external-review-grant.service.ts",
-    "find": "      where: { AND: [{ id: ids.caseId, teamId }, caseVisibleToWhere(actorUserId)] },",
-    "replace": "      where: { AND: [{ id: ids.caseId, teamId }] },",
+    "find": "  return { AND: [{ ...idWhere, teamId }, caseVisibleToWhere(actorUserId)] };",
+    "replace": "  return { AND: [{ ...idWhere, teamId }] };",
     "tests": [
       {
         "cwd": "services/api",
@@ -10461,8 +10461,8 @@
     "aud": "MEX-ACC",
     "name": "an external-review grant is issued on Evidence of a restricted Case the issuer cannot see",
     "file": "services/api/src/services/external-review/external-review-grant.service.ts",
-    "find": "        deletedAt: null,\n        ...evidenceVisibleThroughCasesWhere(actorUserId),\n      },",
-    "replace": "        deletedAt: null,\n      },",
+    "find": "  return { teamId, deletedAt: null, ...evidenceVisibleThroughCasesWhere(actorUserId) };",
+    "replace": "  return { teamId, deletedAt: null };",
     "tests": [
       {
         "cwd": "services/api",
