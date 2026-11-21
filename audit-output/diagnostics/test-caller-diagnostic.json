@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "28109845be5def0ab38aefdd121fdaa3c0cf3d91b45445ac9901f0a76bb48335",
+  "capabilityRouteInventoryHash": "b82e0dc92f50b2374fb31fa327c638b9914ec8b1d50e21d0a49ca59f153c1396",
   "totals": {
-    "routes": 1260,
+    "routes": 1263,
     "routesWithAnyTestCaller": 59,
     "testOnlyRoutes": 8,
     "testCallSites": 151,
@@ -948,6 +948,12 @@
     },
     {
       "routeId": "GET /v1/cases/:id/available-evidence",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/cases/:id/comments",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -2685,6 +2691,12 @@
     },
     {
       "routeId": "GET /v1/orgs/:id/reports/audit.csv",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/orgs/:id/reports/download-audit-summary.csv",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -5022,6 +5034,12 @@
     },
     {
       "routeId": "POST /v1/evidence-requests/:id/needs-more-info",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/evidence-requests/:id/recipient-contact",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -7707,5 +7725,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "200f2fc7a967d19a22d3c95a6f694f942321e4143e05588adf89717e151840d0"
+  "contentHash": "3e2035fb6c00848f435910f3256e7b213f5ea2ea7a737effc318a84393264fc8"
 }
