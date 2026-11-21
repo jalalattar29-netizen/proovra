@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 26
     },
-    "TerminalWriters": 1702,
-    "ReachableSensitiveMutations": 1670,
-    "ClassifiedSensitiveMutations": 1670,
+    "TerminalWriters": 1703,
+    "ReachableSensitiveMutations": 1671,
+    "ClassifiedSensitiveMutations": 1671,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 32,
@@ -80,7 +80,7 @@
       "EVIDENCE_CUSTODY_FINALIZATION": 396,
       "LEGAL_HOLD_RETENTION_DELETION": 63,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 107,
-      "BILLING_SUBSCRIPTION_SEAT": 120,
+      "BILLING_SUBSCRIPTION_SEAT": 121,
       "SSO_OIDC_SCIM_PROVISIONING": 67,
       "AUTOMATION_QUEUE_WEBHOOK": 133,
       "REPORT_EXPORT_REDACTION": 80,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1485,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1486,
       "JOB_ATTRIBUTED_REACHABLE": 173,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 11,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 12380,
-      "UNRESOLVED_IDENTIFIER": 1807
+      "METHOD_ON_VALUE": 12382,
+      "UNRESOLVED_IDENTIFIER": 1808
     },
     "MutationFixpointRounds": 11,
     "MutationClosurePass": false,
@@ -30857,8 +30857,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence-retention-verification.routes.ts#evidence.update@649",
-      "terminalLocation": "services/api/src/routes/evidence-retention-verification.routes.ts:649",
+      "writerId": "services/api/src/routes/evidence-retention-verification.routes.ts#evidence.update@654",
+      "terminalLocation": "services/api/src/routes/evidence-retention-verification.routes.ts:654",
       "file": "services/api/src/routes/evidence-retention-verification.routes.ts",
       "enclosingDeclaration": "changeAccess",
       "kind": "DATABASE",
@@ -30891,8 +30891,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence-retention-verification.routes.ts#evidenceArchiveRestoreRequest.create@281",
-      "terminalLocation": "services/api/src/routes/evidence-retention-verification.routes.ts:281",
+      "writerId": "services/api/src/routes/evidence-retention-verification.routes.ts#evidenceArchiveRestoreRequest.create@286",
+      "terminalLocation": "services/api/src/routes/evidence-retention-verification.routes.ts:286",
       "file": "services/api/src/routes/evidence-retention-verification.routes.ts",
       "enclosingDeclaration": "evidenceRetentionVerificationRoutes",
       "kind": "DATABASE",
@@ -45846,8 +45846,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/billing-review.service.ts#billingReviewItem.createMany@183",
-      "terminalLocation": "services/api/src/services/billing/billing-review.service.ts:183",
+      "writerId": "services/api/src/services/billing/billing-review.service.ts#billingReviewItem.createMany@190",
+      "terminalLocation": "services/api/src/services/billing/billing-review.service.ts:190",
       "file": "services/api/src/services/billing/billing-review.service.ts",
       "enclosingDeclaration": "recordBillingReviewItem",
       "kind": "DATABASE",
@@ -45895,8 +45895,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/billing-review.service.ts#billingReviewItem.update@203",
-      "terminalLocation": "services/api/src/services/billing/billing-review.service.ts:203",
+      "writerId": "services/api/src/services/billing/billing-review.service.ts#billingReviewItem.update@209",
+      "terminalLocation": "services/api/src/services/billing/billing-review.service.ts:209",
       "file": "services/api/src/services/billing/billing-review.service.ts",
       "enclosingDeclaration": "recordBillingReviewItem",
       "kind": "DATABASE",
@@ -49172,8 +49172,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@465",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:465",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@467",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:467",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "retrySupersededCancellations",
       "kind": "DATABASE",
@@ -49202,8 +49202,8 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@481",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:481",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@522",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:522",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "retrySupersededCancellations",
       "kind": "DATABASE",
@@ -49232,8 +49232,8 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@518",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:518",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@585",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:585",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "retrySupersededCancellations",
       "kind": "DATABASE",
@@ -49262,68 +49262,8 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@548",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:548",
-      "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
-      "enclosingDeclaration": "retrySupersededCancellations",
-      "kind": "DATABASE",
-      "target": "subscription",
-      "mutationKind": "update",
-      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
-      "insideTransaction": false,
-      "entryRoutes": [],
-      "entryJobs": [],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      },
-      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
-    },
-    {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@580",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:580",
-      "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
-      "enclosingDeclaration": "retrySupersededCancellations",
-      "kind": "DATABASE",
-      "target": "subscription",
-      "mutationKind": "update",
-      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
-      "insideTransaction": false,
-      "entryRoutes": [],
-      "entryJobs": [],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      },
-      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
-    },
-    {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.updateMany@451",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:451",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.updateMany@453",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:453",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "retrySupersededCancellations",
       "kind": "DATABASE",
@@ -49352,8 +49292,68 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.updateMany@712",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:712",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.updateMany@484",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:484",
+      "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
+      "enclosingDeclaration": "retrySupersededCancellations",
+      "kind": "DATABASE",
+      "target": "subscription",
+      "mutationKind": "updateMany",
+      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      },
+      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
+    },
+    {
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.updateMany@553",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:553",
+      "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
+      "enclosingDeclaration": "retrySupersededCancellations",
+      "kind": "DATABASE",
+      "target": "subscription",
+      "mutationKind": "updateMany",
+      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      },
+      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
+    },
+    {
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.updateMany@722",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:722",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "supersede",
       "kind": "DATABASE",
@@ -49393,8 +49393,49 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.updateMany@758",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:758",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.updateMany@770",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:770",
+      "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
+      "enclosingDeclaration": "supersede",
+      "kind": "DATABASE",
+      "target": "subscription",
+      "mutationKind": "updateMany",
+      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /paypal",
+        "POST /stripe",
+        "POST /v1/billing/accounts/:type/:id/reconcile",
+        "POST /v1/billing/checkout/paypal",
+        "POST /v1/billing/checkout/paypal/subscriptions/:subscriptionId/confirm",
+        "POST /v1/billing/credits/checkout/paypal",
+        "POST /v1/billing/credits/checkout/stripe",
+        "POST /v1/billing/subscription/plan"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/billing.routes.ts",
+        "MODULE services/api/src/routes/webhooks.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.updateMany@775",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:775",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "supersede",
       "kind": "DATABASE",
@@ -57596,8 +57637,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence/owner-destruction-approval.service.ts#evidenceOwnerDestructionApproval.create@96",
-      "terminalLocation": "services/api/src/services/evidence/owner-destruction-approval.service.ts:96",
+      "writerId": "services/api/src/services/evidence/owner-destruction-approval.service.ts#evidenceOwnerDestructionApproval.create@105",
+      "terminalLocation": "services/api/src/services/evidence/owner-destruction-approval.service.ts:105",
       "file": "services/api/src/services/evidence/owner-destruction-approval.service.ts",
       "enclosingDeclaration": "approveOwnRecordDestruction",
       "kind": "DATABASE",
@@ -57629,8 +57670,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence/owner-destruction-approval.service.ts#evidenceOwnerDestructionApproval.update@86",
-      "terminalLocation": "services/api/src/services/evidence/owner-destruction-approval.service.ts:86",
+      "writerId": "services/api/src/services/evidence/owner-destruction-approval.service.ts#evidenceOwnerDestructionApproval.update@95",
+      "terminalLocation": "services/api/src/services/evidence/owner-destruction-approval.service.ts:95",
       "file": "services/api/src/services/evidence/owner-destruction-approval.service.ts",
       "enclosingDeclaration": "approveOwnRecordDestruction",
       "kind": "DATABASE",
@@ -57662,8 +57703,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence/owner-destruction-approval.service.ts#evidenceOwnerDestructionApproval.updateMany@128",
-      "terminalLocation": "services/api/src/services/evidence/owner-destruction-approval.service.ts:128",
+      "writerId": "services/api/src/services/evidence/owner-destruction-approval.service.ts#evidenceOwnerDestructionApproval.updateMany@144",
+      "terminalLocation": "services/api/src/services/evidence/owner-destruction-approval.service.ts:144",
       "file": "services/api/src/services/evidence/owner-destruction-approval.service.ts",
       "enclosingDeclaration": "withdrawOwnRecordDestructionApproval",
       "kind": "DATABASE",
@@ -115026,7 +115067,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/owner-destruction-approval",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:367",
+      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:372",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -128954,7 +128995,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/archive-restore",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:378",
+      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:383",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -130605,7 +130646,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-access",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:407",
+      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:412",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -131130,7 +131171,7 @@
       "method": "GET",
       "path": "/v1/evidence/retention-archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:159",
+      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:164",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -167049,6 +167090,7 @@
         "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.findUnique — no tenant or self predicate",
         "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.updateMany — no tenant or self predicate",
         "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.updateMany — no tenant or self predicate",
+        "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.updateMany — no tenant or self predicate",
         "services/api/src/services/billing/subscription-lifecycle.handlers.ts: subscription.findUnique — no tenant or self predicate",
         "services/api/src/services/billing/subscription-lifecycle.handlers.ts: payment.findFirst — no tenant or self predicate"
       ],
@@ -175627,7 +175669,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/archive-restore",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:250",
+      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:255",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -176264,7 +176306,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/owner-destruction-approval",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:328",
+      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:333",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -176989,7 +177031,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/verification-access/reinstate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:695",
+      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:700",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -177064,7 +177106,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/verification-access/withdraw",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:694",
+      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:699",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -208631,7 +208673,7 @@
       "method": "PUT",
       "path": "/v1/evidence/:id/verification-disclosure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:471",
+      "registrationEvidence": "services/api/src/routes/evidence-retention-verification.routes.ts:476",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
