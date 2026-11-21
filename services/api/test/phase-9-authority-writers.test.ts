@@ -295,6 +295,12 @@ const SUBSCRIPTION_STATUS_ALLOWED: Record<string, string> = {
   "services/billing/subscription-resume.service.ts":
     "PROVIDER INTERACTION: refuses to restart an ended subscription; provider-first write of the confirmed flag (no capability decision)",
   "services/billing.service.ts": "PERSISTENCE: upsertSubscription status write",
+  // NEW-RG-02-1 (closure/money, 2026-11-21) — a superseded duplicate base
+  // subscription is cancelled only when the RETAINED one is still ACTIVE
+  // (otherwise the pair goes to review). That chooses which provider
+  // subscription may be cancelled; it grants or withholds no capability.
+  "services/billing/superseded-duplicate.service.ts":
+    "CLASSIFICATION: a duplicate is cancelled only while the retained subscription is ACTIVE; otherwise review (no capability decision)",
   // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — `routes/billing.routes.ts`
   // LEFT this allowlist, which is the direction that matters: it now names no
   // subscription status at all.
