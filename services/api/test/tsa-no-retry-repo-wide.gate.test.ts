@@ -121,8 +121,15 @@ function walk(dir: string, out: string[] = []): string[] {
  * handled in ONE left-to-right pass over the characters, which is the only way
  * to get the interaction right without a parser.
  */
+//
+// MEMORY: both strippers keep the kept text as SLICES of the source and join
+// them once. The first version appended one character at a time (`out += c`),
+// which builds a rope of one node per character: two such copies of every
+// scanned file reached 2.1 GB of heap and killed CI's ~2 GB-heap worker
+// (2026-11-21, ad799b8c6). The output is the same string.
 function stripCommentsAndStrings(source: string): string {
-  let out = "";
+  const parts: string[] = [];
+  let runStart = 0;
   let i = 0;
   const n = source.length;
   while (i < n) {
@@ -131,18 +138,23 @@ function stripCommentsAndStrings(source: string): string {
 
     // line comment
     if (c === "/" && next === "/") {
+      parts.push(source.slice(runStart, i));
       while (i < n && source[i] !== "\n") i += 1;
+      runStart = i;
       continue;
     }
     // block comment
     if (c === "/" && next === "*") {
+      parts.push(source.slice(runStart, i));
       i += 2;
       while (i < n && !(source[i] === "*" && source[i + 1] === "/")) i += 1;
       i += 2;
+      runStart = Math.min(i, n);
       continue;
     }
     // string / template literal
     if (c === '"' || c === "'" || c === "`") {
+      parts.push(source.slice(runStart, i));
       const quote = c;
       i += 1;
       while (i < n) {
@@ -157,13 +169,14 @@ function stripCommentsAndStrings(source: string): string {
         i += 1;
       }
       // Replaced by a space so two adjacent identifiers do not fuse.
-      out += " ";
+      parts.push(" ");
+      runStart = Math.min(i, n);
       continue;
     }
-    out += c;
     i += 1;
   }
-  return out;
+  parts.push(source.slice(runStart, n));
+  return parts.join("");
 }
 
 /**
@@ -211,35 +224,37 @@ const TSA_CALL_ALLOWLIST: readonly string[] = [
  * pass.
  */
 function stripCommentsOnly(source: string): string {
-  let out = "";
+  const parts: string[] = [];
+  let runStart = 0;
   let i = 0;
   const n = source.length;
   while (i < n) {
     const c = source[i];
     const next = source[i + 1];
     if (c === "/" && next === "/") {
+      parts.push(source.slice(runStart, i));
       while (i < n && source[i] !== "\n") i += 1;
+      runStart = i;
       continue;
     }
     if (c === "/" && next === "*") {
+      parts.push(source.slice(runStart, i));
       i += 2;
       while (i < n && !(source[i] === "*" && source[i + 1] === "/")) i += 1;
       i += 2;
+      runStart = Math.min(i, n);
       continue;
     }
-    // Skip over a string literal WITHOUT dropping it, so an unbalanced quote
-    // inside a comment cannot desynchronise the rest of the file.
+    // Skip over a string literal WITHOUT dropping it (it stays in the kept run),
+    // so an unbalanced quote inside a comment cannot desynchronise the rest.
     if (c === '"' || c === "'" || c === "`") {
       const quote = c;
-      out += c;
       i += 1;
       while (i < n) {
         if (source[i] === "\\") {
-          out += source[i] + (source[i + 1] ?? "");
           i += 2;
           continue;
         }
-        out += source[i];
         if (source[i] === quote) {
           i += 1;
           break;
@@ -248,10 +263,10 @@ function stripCommentsOnly(source: string): string {
       }
       continue;
     }
-    out += c;
     i += 1;
   }
-  return out;
+  parts.push(source.slice(runStart, Math.min(i, n)));
+  return parts.join("");
 }
 
 type ScannedFile = { rel: string; executable: string; withStrings: string };
@@ -263,15 +278,20 @@ const SCANNED: ScannedFile[] = SCANNED_ROOTS.flatMap((root) => {
   } catch {
     return [];
   }
-  return walk(abs).map((full) => {
-    const body = readFileSync(full, "utf8");
-    return {
-      rel: full.slice(REPO.length + 1).split("\\").join("/"),
-      executable: stripCommentsAndStrings(body),
-      withStrings: stripCommentsOnly(body),
-    };
-  });
-}).filter((f) => !isTestFile(f.rel));
+  // Test files are dropped BEFORE they are read: they were never part of the
+  // corpus, and stripping them only to discard them doubled the memory bill.
+  return walk(abs)
+    .map((full) => ({ full, rel: full.slice(REPO.length + 1).split("\\").join("/") }))
+    .filter((f) => !isTestFile(f.rel))
+    .map(({ full, rel }) => {
+      const body = readFileSync(full, "utf8");
+      return {
+        rel,
+        executable: stripCommentsAndStrings(body),
+        withStrings: stripCommentsOnly(body),
+      };
+    });
+});
 
 describe("TSA no-retry — repo-wide executable gate", () => {
   it("the scan actually covered the tree (guards against a silently empty walk)", () => {
