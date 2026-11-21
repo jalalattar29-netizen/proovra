@@ -186,7 +186,8 @@ export async function settleDerivedAssetUnderIntent(input: {
       if (resolved !== 1) throw new SettleRefused("storage_intent_not_open_at_settle");
       await bound();
       const r = await recordDerivedAsset(input.record, tx as unknown as Client);
-      if (!r.ok) throw new SettleRefused(`persist_failed:${r.reason}`);
+      // The writer's own reason, unchanged (callers prefix it as before).
+      if (!r.ok) throw new SettleRefused(r.reason);
       await bound();
       await tx.$executeRaw`UPDATE "derived_asset_storage_intents" SET "resolved_asset_id" = ${r.id}::uuid WHERE "id" = ${intentId}::uuid`;
       return r.id;
