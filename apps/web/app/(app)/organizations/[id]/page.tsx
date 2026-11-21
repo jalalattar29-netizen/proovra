@@ -51,6 +51,7 @@ import { usePlatformContext } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OrgWorkspaceLifecycleControls } from "../../../../components/organizations/OrgWorkspaceLifecycleControls";
 import { OrgOwnershipOffer } from "./_components/OrgOwnershipOffer";
+import { OrgDataExportPanel } from "./_components/OrgDataExportPanel";
 import {
   formatUserDate,
   formatUserTime,
@@ -1237,6 +1238,14 @@ function OrganizationDetailInner() {
             onAccepted={() => void fetchAll()}
           />
         </div>
+        {/* PRO-CENZ-01 / GOV-015 (EP-0842..EP-0844) — the owner's offboarding
+            export. Owner of a customer organization only, the routes' own
+            gate; a SYSTEM organization has no Enterprise organization surface. */}
+        {callerRole === "ORG_OWNER" && org.kind === "ready" && org.data.organizationKind === "CUSTOMER" ? (
+          <div style={{ marginBottom: 16 }}>
+            <OrgDataExportPanel orgId={orgId} />
+          </div>
+        ) : null}
         {callerRole === "ORG_OWNER" ? (
           <OrgLifecycleControls
             orgId={orgId}
@@ -1250,8 +1259,9 @@ function OrganizationDetailInner() {
             data-control="lifecycle-owner-only-note"
             style={{ fontSize: 13, color: "var(--ink-secondary, #475569)" }}
           >
-            Ownership transfer and organization closure are available to the
-            organization owner only. To leave this organization, use{" "}
+            Ownership transfer, the organization data export and organization
+            closure are available to the organization owner only. To leave this
+            organization, use{" "}
             <strong>Leave organization</strong> in the page header.
           </div>
         )}

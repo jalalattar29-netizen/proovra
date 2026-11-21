@@ -8,6 +8,10 @@
  *   * see the bounded evidence checklist + status per item
  *   * view review indicators (NEVER labelled as fraud)
  *   * request a follow-up
+ *   * (PRO-CENZ-01, EP-1082..EP-1086) set a checklist item's status, map a
+ *     record of the case to it, mark an evidence gap, request a follow-up and
+ *     move a follow-up on — offered only when the read says viewer.canWrite
+ *     (SiuReviewActions.tsx)
  *   * run an export preflight
  *   * download an SIU bundle (when preflight clears; warnings require
  *     an explicit operator reason)
@@ -29,6 +33,11 @@ import {
   isStepUpCancelled,
   useStepUpAction,
 } from "../../../../components/identity-security/StepUpModal";
+import {
+  SiuChecklistItemEditor,
+  SiuFollowUpsSection,
+  type SiuEvidenceOption,
+} from "./SiuReviewActions";
 
 const SIU_STANDING_CAPTION =
   "SIU bundles are operational signals. They do not determine fraud, authorship, or legal admissibility.";
@@ -160,15 +169,34 @@ type Preflight = {
   limitations: ReadonlyArray<string>;
 };
 
+/**
+ * PRO-CENZ-01 — what the profile read projects about the SIU writes for this
+ * reader (siu.routes.ts `projectSiuViewer`, the write routes' own gate).
+ */
+type SiuViewer = {
+  canWrite: boolean;
+  disabledCode: string | null;
+  disabledReason: string | null;
+};
+
 export type SiuPanelProps = {
   caseId: string;
   /** The workspace of the case: a step-up is bound to it, not to the active one. */
   teamId: string | null;
+  /**
+   * The case's records this reader can open (the matter envelope's evidence
+   * section), offered when mapping a record to a checklist item or recording
+   * the record a follow-up returned. The server re-checks reach and the link.
+   */
+  evidenceOptions?: ReadonlyArray<SiuEvidenceOption>;
 };
 
-export function SiuPanel({ caseId, teamId }: SiuPanelProps) {
+export function SiuPanel({ caseId, teamId, evidenceOptions = [] }: SiuPanelProps) {
   const stepUp = useStepUpAction({ teamId });
   const [profile, setProfile] = useState<Profile | null>(null);
+  // Absent (an older API, or no profile yet): no write control is offered.
+  const [viewer, setViewer] = useState<SiuViewer | null>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [preflight, setPreflight] = useState<Preflight | null>(null);
   const [history, setHistory] = useState<ReadonlyArray<ExportHistoryRow> | null>(null);
   const [piiRevealed, setPiiRevealed] = useState(false);
@@ -202,11 +230,13 @@ export function SiuPanel({ caseId, teamId }: SiuPanelProps) {
             durable?: boolean;
             storage?: string;
             piiRedacted?: boolean;
+            viewer?: SiuViewer;
           }
         | { error: { code: string } };
       if ("profile" in res) {
         setProfile(res.profile);
         setPiiRevealed(res.profile.privacyGatedFieldsExposed);
+        setViewer(res.viewer ?? null);
       } else {
         // Phase CASE-DETAIL-PERSONAL-UX — backend returned the
         // `{error:{code:...}}` envelope (e.g. `siu_profile_not_found`).
@@ -556,6 +586,13 @@ export function SiuPanel({ caseId, teamId }: SiuPanelProps) {
             </div>
           ) : null}
 
+          {/* PRO-CENZ-01 — why the reviewer actions are not offered. */}
+          {viewer && !viewer.canWrite && viewer.disabledReason ? (
+            <p style={mutedText} data-testid="siu-read-only" data-disabled-code={viewer.disabledCode ?? ""}>
+              {viewer.disabledReason}
+            </p>
+          ) : null}
+
           {/* Checklist */}
           <h3 style={h3}>Evidence checklist</h3>
           <table style={tableStyle} data-testid="siu-checklist">
@@ -565,6 +602,7 @@ export function SiuPanel({ caseId, teamId }: SiuPanelProps) {
                 <th style={th}>Required</th>
                 <th style={th}>Status</th>
                 <th style={th}>Mapped evidence</th>
+                {viewer?.canWrite ? <th style={th}>Action</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -576,29 +614,73 @@ export function SiuPanel({ caseId, teamId }: SiuPanelProps) {
                     <span>{identifierLabel(item.status)}</span>
                   </td>
                   <td style={td}>{item.mappedEvidenceIds.length}</td>
+                  {viewer?.canWrite ? (
+                    <td style={td}>
+                      <button
+                        type="button"
+                        style={ghostBtn}
+                        onClick={() => setEditingItemId(item.itemId)}
+                        data-testid={`siu-item-act-${item.itemId}`}
+                        aria-expanded={editingItemId === item.itemId}
+                      >
+                        Review item
+                      </button>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
           </table>
+          {viewer?.canWrite && editingItemId
+            ? (() => {
+                const item = profile.checklist.find((c) => c.itemId === editingItemId);
+                return item ? (
+                  <SiuChecklistItemEditor
+                    key={item.itemId}
+                    caseId={caseId}
+                    item={item}
+                    evidenceOptions={evidenceOptions}
+                    onProfile={(next) => setProfile(next as Profile)}
+                    onRefusal={() => void loadProfile()}
+                    onFollowUpCreated={() => void loadProfile()}
+                    onClose={() => setEditingItemId(null)}
+                  />
+                ) : null;
+              })()
+            : null}
 
           {/* Indicators */}
+          <h3 style={h3}>Review indicators</h3>
+          <p style={mutedText}>
+            Operational signals that an SIU reviewer can act on. These
+            are <strong>not</strong> fraud findings.
+          </p>
           {profile.reviewIndicators.length > 0 ? (
-            <>
-              <h3 style={h3}>Review indicators</h3>
-              <p style={mutedText}>
-                Operational signals that an SIU reviewer can act on. These
-                are <strong>not</strong> fraud findings.
-              </p>
-              <ul data-testid="siu-indicators">
-                {profile.reviewIndicators.map((ind, i) => (
-                  <li key={`${ind.code}-${i}`}>
-                    <span>{identifierLabel(ind.code)}</span> — {ind.explanation}{" "}
-                    <span style={{ color: "#64748b" }}>({identifierLabel(ind.severity)})</span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : null}
+            <ul data-testid="siu-indicators">
+              {profile.reviewIndicators.map((ind, i) => (
+                <li key={`${ind.code}-${i}`}>
+                  <span>{identifierLabel(ind.code)}</span> — {ind.explanation}{" "}
+                  <span style={{ color: "#64748b" }}>({identifierLabel(ind.severity)})</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p style={mutedText} data-testid="siu-indicators-empty">
+              No review indicator is recorded.
+              {viewer?.canWrite ? " Open an item above to mark an evidence gap." : ""}
+            </p>
+          )}
+
+          {/* Follow-ups (EP-1085 / EP-1086) */}
+          <h3 style={h3}>Follow-up requests</h3>
+          <SiuFollowUpsSection
+            caseId={caseId}
+            followUps={profile.followUps}
+            checklist={profile.checklist}
+            evidenceOptions={evidenceOptions}
+            canWrite={viewer?.canWrite === true}
+            onChanged={() => void loadProfile()}
+          />
 
           {/* Export */}
           <h3 style={h3}>SIU export</h3>

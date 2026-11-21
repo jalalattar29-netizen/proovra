@@ -307,6 +307,12 @@ export async function organizationsGovernanceRoutes(app: FastifyInstance) {
       });
       const posture = await readRetentionPosture(allWorkspaces.map((w) => w.id), prisma);
 
+      // PRO-CENZ-01 / EP-0806 — whether THIS caller may publish, asked of the
+      // same gate the POST uses (requireOrgAdmin: ORG_ADMIN+ on a CUSTOMER
+      // organization). The web offers the publish form only on true; the POST
+      // still decides.
+      const publish = await requireOrgAdmin({ orgId, userId });
+
       return reply.code(200).send({
         organizationId: orgId,
         key: RETENTION_POLICY_KEY,
@@ -321,6 +327,7 @@ export async function organizationsGovernanceRoutes(app: FastifyInstance) {
           activePolicyCount: posture.activePolicyCount,
           workspacesWithPolicyCount: posture.coveredTeamIds.length,
         },
+        viewer: { canPublish: publish.ok },
       });
     },
   );
