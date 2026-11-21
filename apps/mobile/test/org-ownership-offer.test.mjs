@@ -77,6 +77,11 @@ test("paths name the organization and the offer, encoded", () => {
   assert.equal(O.buildOrgOwnershipOfferPath(ORG), `/v1/orgs/${ORG}/ownership-offer`);
   assert.equal(O.buildOrgOwnershipOfferActionPath(ORG, OFFER, "accept"), `/v1/orgs/${ORG}/ownership-offer/${OFFER}/accept`);
   assert.equal(O.buildOrgOwnershipOfferActionPath("a/b", "c d", "decline"), "/v1/orgs/a%2Fb/ownership-offer/c%20d/decline");
+  for (const a of ["accept", "decline", "cancel"]) {
+    const fn = { accept: O.buildOrgOwnershipOfferAcceptPath, decline: O.buildOrgOwnershipOfferDeclinePath, cancel: O.buildOrgOwnershipOfferCancelPath }[a];
+    assert.equal(fn(ORG, OFFER), O.buildOrgOwnershipOfferActionPath(ORG, OFFER, a));
+    assert.equal(fn("a/b", "c d"), O.buildOrgOwnershipOfferActionPath("a/b", "c d", a));
+  }
 });
 
 test("refusal copy follows the server's code (nested or flattened); an unknown code is not given a reason", () => {

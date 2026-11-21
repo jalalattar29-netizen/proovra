@@ -27,7 +27,9 @@ import { theme } from "../theme/theme";
 import { stepUpMethodFor, withStepUp } from "../product/step-up";
 import { webOrigin } from "../product/intake-create";
 import {
-  buildOrgOwnershipOfferActionPath,
+  buildOrgOwnershipOfferAcceptPath,
+  buildOrgOwnershipOfferCancelPath,
+  buildOrgOwnershipOfferDeclinePath,
   buildOrgOwnershipOfferPath,
   linkedOfferNotice,
   orgOwnershipAcceptedCopy,
@@ -124,7 +126,7 @@ export function OrgOwnershipOfferPanel({
     setHandoff(false);
     await stepUp.start(
       async (proof) => {
-        await apiFetch(buildOrgOwnershipOfferActionPath(orgId, offerId, "accept"), {
+        await apiFetch(buildOrgOwnershipOfferAcceptPath(orgId, offerId), {
           method: "POST",
           body: JSON.stringify(withStepUp({}, proof)),
         });
@@ -144,10 +146,11 @@ export function OrgOwnershipOfferPanel({
       setBusy(true);
       setMessage(null);
       try {
-        await apiFetch(buildOrgOwnershipOfferActionPath(orgId, offer.id, kind), {
-          method: "POST",
-          body: JSON.stringify({}),
-        });
+        if (kind === "decline") {
+          await apiFetch(buildOrgOwnershipOfferDeclinePath(orgId, offer.id), { method: "POST", body: JSON.stringify({}) });
+        } else {
+          await apiFetch(buildOrgOwnershipOfferCancelPath(orgId, offer.id), { method: "POST", body: JSON.stringify({}) });
+        }
         setMessage(kind === "decline" ? ORG_OWNERSHIP_DECLINED_COPY : ORG_OWNERSHIP_WITHDRAWN_COPY);
         await load();
       } catch (err) {

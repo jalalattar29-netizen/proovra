@@ -60,6 +60,17 @@ export function buildOrgOwnershipOfferActionPath(
 ): string {
   return `${buildOrgOwnershipOfferPath(orgId)}/${encodeURIComponent(offerId)}/${action}`;
 }
+// One builder per route, each with a literal suffix, so every call site names
+// exactly one API route (the architecture audit binds consumers by path shape).
+export function buildOrgOwnershipOfferAcceptPath(orgId: string, offerId: string): string {
+  return `/v1/orgs/${encodeURIComponent(orgId)}/ownership-offer/${encodeURIComponent(offerId)}/accept`;
+}
+export function buildOrgOwnershipOfferDeclinePath(orgId: string, offerId: string): string {
+  return `/v1/orgs/${encodeURIComponent(orgId)}/ownership-offer/${encodeURIComponent(offerId)}/decline`;
+}
+export function buildOrgOwnershipOfferCancelPath(orgId: string, offerId: string): string {
+  return `/v1/orgs/${encodeURIComponent(orgId)}/ownership-offer/${encodeURIComponent(offerId)}/cancel`;
+}
 
 /** `GET /v1/orgs/:id/ownership-offer` → the state; anything unreadable is "no offer". */
 export function parseOrgOwnershipOffer(payload: unknown): OrgOwnershipOfferState {
