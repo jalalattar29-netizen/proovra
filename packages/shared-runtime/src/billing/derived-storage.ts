@@ -615,6 +615,50 @@ export async function claimReconcilableDerivedAssetStorageIntents(
 }
 
 /**
+ * closure3/store (FV2-RESIDUAL-2) — RE-DECLARE a holder's write target when the
+ * holder still has bytes that may exist (a disposal that could neither delete
+ * nor record them) but its intent can no longer be relied on to find them:
+ *   - the intent is no longer OPEN: the reconciler resolved it (ABSENT, or
+ *     DELETED) on a listing taken BEFORE this holder's late write landed (a
+ *     holder frozen past its write margin plus the grace), so nothing counts
+ *     the object;
+ *   - a reconciler holds its lease right now: its listing may predate the
+ *     landing, and it may resolve the intent after this statement;
+ *   - the holder's write window (last stamp + TTL) has ended: a version that
+ *     landed after it looks "fresh" to the reconciler, which would keep the
+ *     intent OPEN forever instead of judging it.
+ * In each case a NEW OPEN intent on the same key is written, stamped now
+ * (database clock), counting `bytes`; the reconciler judges it (with any
+ * other OPEN intent on the key) after its own TTL + grace, finds the version
+ * and deletes or adopts it. Otherwise nothing is written: the OPEN intent
+ * still counts and its listing will see what landed inside its window.
+ * Returns the new intent id, or null when none was needed.
+ */
+export async function redeclareDerivedAssetStorageIntentIfUnreliable(
+  prisma: Pick<PrismaClient, "$queryRaw">,
+  input: { intentId: string; bytes: bigint | number },
+): Promise<string | null> {
+  const ttlSeconds = DERIVED_ASSET_STORAGE_RESERVATION_TTL_MS / 1000;
+  const bytes = BigInt(Math.max(0, Math.trunc(Number(input.bytes))));
+  const rows = (await prisma.$queryRaw`
+    INSERT INTO "derived_asset_storage_intents" (
+      "team_id", "evidence_id", "evidence_part_id", "asset_kind", "variant_key",
+      "reserved_bytes", "storage_bucket", "storage_key", "derived_sha256", "content_type",
+      "holder_stamp_utc"
+    )
+    SELECT i."team_id", i."evidence_id", i."evidence_part_id", i."asset_kind", i."variant_key",
+           ${bytes}::bigint, i."storage_bucket", i."storage_key", i."derived_sha256", i."content_type",
+           date_trunc('milliseconds', clock_timestamp())
+      FROM "derived_asset_storage_intents" i
+     WHERE i."id" = ${input.intentId}::uuid
+       AND (i."state" <> 'OPEN'
+            OR i."reconcile_lease_until" >= clock_timestamp()
+            OR i."holder_stamp_utc" <= clock_timestamp() - make_interval(secs => ${ttlSeconds}::double precision))
+    RETURNING "id"::text AS "id"`) as Array<{ id: string }>;
+  return rows[0]?.id ?? null;
+}
+
+/**
  * Record why a claimed intent could not be resolved this tick (it stays OPEN,
  * still counted) and give the lease back, so a later tick judges the key
  * again as soon as the claim rules allow (never while another holder of the
