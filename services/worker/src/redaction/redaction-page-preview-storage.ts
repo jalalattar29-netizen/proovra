@@ -57,6 +57,14 @@ export const PAGE_PREVIEW_WRITE_SAFETY_MARGIN_MS = DERIVED_ASSET_RESERVATION_SAF
 /** After a holder's window closed, how long before its pointer may be judged. */
 export const PAGE_PREVIEW_POINTER_RECONCILE_GRACE_MS = DERIVED_ASSET_INTENT_RECONCILE_GRACE_MS;
 
+/**
+ * closure3 review L1 — the marker a READY row carries while its size still
+ * includes an earlier declaration that was not yet proven empty; the
+ * reconciler re-sizes the row to its stored versions after the window and
+ * clears it. Never shown to anyone (READY answers carry no reason).
+ */
+export const PAGE_PREVIEW_DECLARATION_UNPROVEN = "declaration_unproven";
+
 /** Bounded like the worker's other capacity-lock transactions. */
 const ADMISSION_TRANSACTION = { timeout: 30_000, maxWait: 10_000 } as const;
 
@@ -70,7 +78,13 @@ export type PagePreviewStorageStep =
   /** The key already holds the object: no upload; READY may be written with these bytes. */
   | { kind: "reuse"; bucket: string; key: string; byteSize: number; claimedAt: Date }
   /** Admitted and declared: upload now, before `writeDeadlineAt` (local epoch-ms). */
-  | { kind: "write"; bucket: string; key: string; claimedAt: Date; writeDeadlineAt: number }
+  /**
+   * Admitted and declared: upload now, before `writeDeadlineAt` (local
+   * epoch-ms), and write READY with `byteSize`. `unproven`: an earlier
+   * declaration of this row could still receive a late version, so it stays
+   * counted in `byteSize` and READY is marked for the reconciler.
+   */
+  | { kind: "write"; bucket: string; key: string; claimedAt: Date; writeDeadlineAt: number; byteSize: number; unproven: boolean }
   | { kind: "refused"; reason: "storage_limit" | "evidence_not_found" }
   | { kind: "claim_lost" };
 
@@ -101,12 +115,19 @@ export async function preparePagePreviewWrite(input: {
   contentKey: string;
   bytes: number;
   store: DerivedObjectStore;
+  /**
+   * closure3 review L1 — when the row last changed BEFORE this claim (the
+   * previous claim stamp of a taken-over render, or the release / failure /
+   * reset time): an earlier declaration's holder can have written no later.
+   * Unknown (null): treated as recent.
+   */
+  priorActivityAt?: Date | null;
   client?: Client;
 }): Promise<PagePreviewStorageStep> {
   const db = input.client ?? (defaultPrisma as unknown as Client);
   const row = await db.redactionPagePreview.findFirst({
     where: { id: input.previewId, teamId: input.teamId, state: "RENDERING", renderStartedAt: input.claimedAt },
-    select: { storageBucket: true, storageKey: true },
+    select: { storageBucket: true, storageKey: true, byteSize: true },
   });
   if (!row) return { kind: "claim_lost" };
   const declared = row.storageBucket && row.storageKey ? { bucket: row.storageBucket, key: row.storageKey } : null;
@@ -138,32 +159,48 @@ export async function preparePagePreviewWrite(input: {
   });
   if (!ev) return { kind: "refused", reason: "evidence_not_found" };
   const scope = await resolveWorkspaceScopeForEvidence({ ownerUserId: ev.ownerUserId, teamId: ev.teamId });
+  // closure3 review L1 — an earlier declaration listed empty is PROVEN empty
+  // only once its holder's window has closed (lease + grace since the row
+  // last changed before this claim). Otherwise a PUT aborted at its deadline,
+  // or one whose answer was lost after the body was sent, may still land: the
+  // declaration keeps counting and the new bytes are admitted IN ADDITION,
+  // written under the same key, so the reconciler later sizes the row to
+  // every version that exists.
+  const declaredBytes = declared ? Math.max(0, Number(row.byteSize ?? 0)) : 0;
+  const prior = input.priorActivityAt ?? null;
+  const proven =
+    !declared ||
+    (prior !== null && prior.getTime() < Date.now() - REDACTION_PAGE_PREVIEW_LEASE_MS - PAGE_PREVIEW_POINTER_RECONCILE_GRACE_MS);
+  const byteSize = proven ? input.bytes : declaredBytes + input.bytes;
   const fence = { id: input.previewId, teamId: input.teamId, state: "RENDERING", renderStartedAt: input.claimedAt };
   // The write deadline is measured from BEFORE the stamp is sent.
   const sentAt = Date.now();
   try {
     await db.$transaction(async (tx) => {
       await lockWorkspaceCapacityTx(tx as never, scope);
-      // This row's own earlier declaration was just listed empty: it is not
-      // counted against the bytes that replace it.
-      const own = await tx.redactionPagePreview.updateMany({
-        where: fence,
-        data: { storageBucket: null, storageKey: null, byteSize: null },
-      });
-      if (own.count !== 1) throw new PreviewClaimLost();
+      // A PROVEN-empty earlier declaration is not counted against the bytes
+      // that replace it; an unproven one stays counted (admitted in addition).
+      if (proven) {
+        const own = await tx.redactionPagePreview.updateMany({
+          where: fence,
+          data: { storageBucket: null, storageKey: null, byteSize: null },
+        });
+        if (own.count !== 1) throw new PreviewClaimLost();
+      }
       await assertWorkspaceStorageAvailable({ scope, incomingBytes: input.bytes, usageOptions: { client: tx as never } });
       const held = await tx.redactionPagePreview.updateMany({
         where: fence,
-        data: { storageBucket: target.bucket, storageKey: target.key, byteSize: BigInt(input.bytes), renderStartedAt: renewedAt },
+        data: { storageBucket: target.bucket, storageKey: target.key, byteSize: BigInt(byteSize), renderStartedAt: renewedAt },
       });
       if (held.count !== 1) throw new PreviewClaimLost();
     }, ADMISSION_TRANSACTION);
   } catch (err) {
     if (err instanceof PreviewClaimLost) return { kind: "claim_lost" };
     if ((err as { code?: string }).code === "STORAGE_LIMIT_REACHED") {
-      // Refused, nothing written. An earlier declaration of this row was
-      // proven empty above: it stops counting (fenced on the same claim).
-      if (declared) {
+      // Refused, nothing written. A PROVEN-empty earlier declaration stops
+      // counting (fenced on the same claim); an unproven one stays on the row,
+      // counted, for the reconciler to judge after its window.
+      if (declared && proven) {
         await db.redactionPagePreview
           .updateMany({
             where: { ...fence, storageBucket: declared.bucket, storageKey: declared.key },
@@ -181,6 +218,8 @@ export async function preparePagePreviewWrite(input: {
     key: target.key,
     claimedAt: renewedAt,
     writeDeadlineAt: sentAt + REDACTION_PAGE_PREVIEW_LEASE_MS - PAGE_PREVIEW_WRITE_SAFETY_MARGIN_MS,
+    byteSize,
+    unproven: !proven,
   };
 }
 
@@ -234,6 +273,9 @@ export async function reconcilePagePreviewStoragePointers(input: {
       OR: [
         { state: { in: ["QUEUED", "FAILED"] }, updatedAt: { lt: closedBefore } },
         { state: "RENDERING", renderStartedAt: { lt: closedBefore } },
+        // closure3 review L1 — a READY row whose size still includes an
+        // unproven earlier declaration.
+        { state: "READY", failureReason: PAGE_PREVIEW_DECLARATION_UNPROVEN, updatedAt: { lt: closedBefore } },
       ],
     },
     select: { id: true, state: true, updatedAt: true, renderStartedAt: true, storageBucket: true, storageKey: true, byteSize: true },
@@ -255,7 +297,9 @@ export async function reconcilePagePreviewStoragePointers(input: {
       storageBucket: row.storageBucket,
       storageKey: row.storageKey,
       ...(row.state === "RENDERING" ? { renderStartedAt: { lt: closedBefore } } : { updatedAt: { lt: closedBefore } }),
+      ...(row.state === "READY" ? { failureReason: PAGE_PREVIEW_DECLARATION_UNPROVEN } : {}),
     };
+    const ready = row.state === "READY";
     try {
       const signal = AbortSignal.timeout(PREVIEW_STORE_CALL_MS);
       const uploads = await input.store.listMultipartUploads(target, signal);
@@ -265,6 +309,11 @@ export async function reconcilePagePreviewStoragePointers(input: {
       }
       const versions = await input.store.listVersions(target, signal);
       if (versions.length === 0) {
+        // A READY row's object is never judged absent here: it is left as it is.
+        if (ready) {
+          result.skipped += 1;
+          continue;
+        }
         const res = await db.redactionPagePreview.updateMany({
           where: fence,
           data: { storageBucket: null, storageKey: null, byteSize: null },
@@ -275,7 +324,10 @@ export async function reconcilePagePreviewStoragePointers(input: {
       }
       // Kept (counted). Writing the size also moves `updatedAt`, so a row
       // whose object exists is judged again only after another window.
-      const res = await db.redactionPagePreview.updateMany({ where: fence, data: { byteSize: BigInt(sum(versions)) } });
+      const res = await db.redactionPagePreview.updateMany({
+        where: fence,
+        data: { byteSize: BigInt(sum(versions)), ...(ready ? { failureReason: null } : {}) },
+      });
       if (res.count === 1) result.kept += 1;
       else result.skipped += 1;
     } catch (err) {

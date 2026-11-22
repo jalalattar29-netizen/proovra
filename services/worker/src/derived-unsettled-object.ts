@@ -93,7 +93,7 @@ export async function disposeUnsettledDerivedObject(input: {
   // write is never left uncounted while this holder is alive to say so.
   const redeclare = async (): Promise<string | null> => {
     if (!intentId) return null;
-    return redeclareDerivedAssetStorageIntentIfUnreliable(db, { intentId, bytes: written.sizeBytes }).catch(() => null);
+    return redeclareDerivedAssetStorageIntentIfUnreliable(db, { intentId, bytes: written.sizeBytes, versionId: object.versionId }).catch(() => null);
   };
 
   // An object a row already references is counted by that row. A database

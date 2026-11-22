@@ -93,6 +93,7 @@ vi.mock("../src/redaction/redaction-page-preview-storage.js", async (importOrigi
   const actual = await importOriginal<typeof import("../src/redaction/redaction-page-preview-storage.js")>();
   return {
     pngDimensions: actual.pngDimensions,
+    PAGE_PREVIEW_DECLARATION_UNPROVEN: actual.PAGE_PREVIEW_DECLARATION_UNPROVEN,
     reconcilePagePreviewStoragePointers: async (p: { store: unknown }) => {
       GATE.sweeps.push(p);
       if (GATE.sweepError) throw GATE.sweepError;
@@ -110,7 +111,7 @@ vi.mock("../src/redaction/redaction-page-preview-storage.js", async (importOrigi
       }
       // The declaration the real admission writes before any byte is sent.
       Object.assign(row, { storageBucket: p.bucket, storageKey: p.contentKey, byteSize: BigInt(p.bytes), renderStartedAt: renewed });
-      return { kind: "write", bucket: p.bucket, key: p.contentKey, claimedAt: renewed, writeDeadlineAt: Date.now() + 60_000 };
+      return { kind: "write", bucket: p.bucket, key: p.contentKey, claimedAt: renewed, writeDeadlineAt: Date.now() + 60_000, byteSize: p.bytes, unproven: false };
     },
   };
 });

@@ -618,10 +618,9 @@ export async function claimReconcilableDerivedAssetStorageIntents(
  * closure3/store (FV2-RESIDUAL-2) — RE-DECLARE a holder's write target when the
  * holder still has bytes that may exist (a disposal that could neither delete
  * nor record them) but its intent can no longer be relied on to find them:
- *   - the intent is no longer OPEN: the reconciler resolved it (ABSENT, or
- *     DELETED) on a listing taken BEFORE this holder's late write landed (a
- *     holder frozen past its write margin plus the grace), so nothing counts
- *     the object;
+ *   - the intent was resolved ABSENT or DELETED: the reconciler judged it on
+ *     a listing taken BEFORE this holder's late write landed (a holder frozen
+ *     past its write margin plus the grace), so nothing counts the object;
  *   - a reconciler holds its lease right now: its listing may predate the
  *     landing, and it may resolve the intent after this statement;
  *   - the holder's write window (last stamp + TTL) has ended: a version that
@@ -632,11 +631,15 @@ export async function claimReconcilableDerivedAssetStorageIntents(
  * other OPEN intent on the key) after its own TTL + grace, finds the version
  * and deletes or adopts it. Otherwise nothing is written: the OPEN intent
  * still counts and its listing will see what landed inside its window.
+ * Never when the bytes are already counted (closure3 review L2): an intent
+ * SETTLED or ADOPTED (an adoption that committed but whose answer was lost),
+ * RELEASED (no write ever started), or a row that already references this
+ * very version.
  * Returns the new intent id, or null when none was needed.
  */
 export async function redeclareDerivedAssetStorageIntentIfUnreliable(
   prisma: Pick<PrismaClient, "$queryRaw">,
-  input: { intentId: string; bytes: bigint | number },
+  input: { intentId: string; bytes: bigint | number; versionId?: string | null },
 ): Promise<string | null> {
   const ttlSeconds = DERIVED_ASSET_STORAGE_RESERVATION_TTL_MS / 1000;
   const bytes = BigInt(Math.max(0, Math.trunc(Number(input.bytes))));
@@ -651,9 +654,16 @@ export async function redeclareDerivedAssetStorageIntentIfUnreliable(
            date_trunc('milliseconds', clock_timestamp())
       FROM "derived_asset_storage_intents" i
      WHERE i."id" = ${input.intentId}::uuid
-       AND (i."state" <> 'OPEN'
-            OR i."reconcile_lease_until" >= clock_timestamp()
-            OR i."holder_stamp_utc" <= clock_timestamp() - make_interval(secs => ${ttlSeconds}::double precision))
+       AND (i."state" IN ('ABSENT', 'DELETED')
+            OR (i."state" = 'OPEN'
+                AND (i."reconcile_lease_until" >= clock_timestamp()
+                     OR i."holder_stamp_utc" <= clock_timestamp() - make_interval(secs => ${ttlSeconds}::double precision))))
+       AND NOT EXISTS (
+             SELECT 1 FROM "evidence_part_derived_assets" d
+              WHERE d."storage_bucket" = i."storage_bucket"
+                AND d."storage_key" = i."storage_key"
+                AND ${input.versionId ?? null}::varchar IS NOT NULL
+                AND d."storage_version_id" = ${input.versionId ?? null}::varchar)
     RETURNING "id"::text AS "id"`) as Array<{ id: string }>;
   return rows[0]?.id ?? null;
 }
