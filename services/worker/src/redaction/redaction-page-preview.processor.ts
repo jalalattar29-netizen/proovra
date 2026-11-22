@@ -35,8 +35,9 @@ import {
 import { prisma } from "../db.js";
 import { logger } from "../logger.js";
 import { artifactLockFor } from "../object-retention.js";
-import { getObjectRange, putObjectBuffer } from "../storage.js";
-import { workspaceAllowsDerivedArtifact } from "../workspace-billing.js";
+import { getObjectRange, putObjectBuffer, s3 } from "../storage.js";
+import { s3DerivedObjectStore, type DerivedObjectStore } from "../derived-storage-intent.js";
+import { pngDimensions, preparePagePreviewWrite, reconcilePagePreviewStoragePointers } from "./redaction-page-preview-storage.js";
 import { derivedProductionRefusal } from "./redaction-derivative-writer.js";
 import { PDF_RASTER_SCALE, loadPdfRasterCanvas } from "./redaction-derivative.processor.js";
 import {
@@ -89,7 +90,8 @@ export async function processRedactionPagePreviewJob(
     logger.info({ previewId, reason: claim.reason }, "redaction_page_preview.claim_skipped");
     return;
   }
-  const { teamId, claimedAt } = claim;
+  const { teamId } = claim;
+  let claimedAt = claim.claimedAt;
   const fail = (reason: string) =>
     markPagePreviewFailedWorker({ previewId, teamId, failureReason: reason, claimedAt });
 
@@ -189,36 +191,78 @@ export async function processRedactionPagePreviewJob(
       return;
     }
     // NEW-RG-33-1 (DEC-04 / DEC-16) — the preview is stored under the record's
-    // Object Lock and counted in workspace usage (derived storage), so it is
-    // admitted by THE derived-artifact storage gate with its exact size, like
-    // every sibling derived writer. Refused: FAILED `storage_limit`, nothing
-    // stored; the API queues it again once the workspace has room.
-    const storageGate = await workspaceAllowsDerivedArtifact({
+    // Object Lock and counted in workspace usage (derived storage).
+    // closure3/store (FV2-RESIDUAL-4) — its bytes are ADMITTED under the
+    // workspace capacity lock and DECLARED on the row (pointer + size) before
+    // any byte is sent, so they count from then on whatever fails later; a key
+    // that already holds the object is never written again. Refused: FAILED
+    // `storage_limit`, nothing stored; the API queues it again once the
+    // workspace has room.
+    const outSha = createHash("sha256").update(rendered.png).digest("hex");
+    const contentKey = `${REDACTION_S3_PREFIX}/${teamId}/previews/${preview.projectId}/page-${preview.pageIndex}-${outSha.slice(0, 16)}.png`;
+    const step = await preparePagePreviewWrite({
+      previewId,
+      teamId,
       evidenceId: preview.evidenceId,
-      incomingBytes: rendered.png.length,
+      claimedAt,
+      bucket: evidence.storageBucket,
+      contentKey,
+      bytes: rendered.png.length,
+      store: await pagePreviewObjectStore(),
     });
-    if (!storageGate.allowed) {
-      await fail(storageGate.reason);
+    if (step.kind === "claim_lost") {
+      logger.info({ previewId }, "redaction_page_preview.claim_lost_before_store");
       return;
     }
-    const outSha = createHash("sha256").update(rendered.png).digest("hex");
-    const outKey = `${REDACTION_S3_PREFIX}/${teamId}/previews/${preview.projectId}/page-${preview.pageIndex}-${outSha.slice(0, 16)}.png`;
-    await putObjectBuffer({
-      lock: await artifactLockFor(preview.evidenceId),
-      bucket: evidence.storageBucket,
-      key: outKey,
-      body: rendered.png,
-      contentType: "image/png",
-    });
+    if (step.kind === "refused") {
+      await fail(step.reason);
+      return;
+    }
+    // Every later write is fenced on the claim the admission renewed.
+    claimedAt = step.claimedAt;
+
+    let byteSize = rendered.png.length;
+    let width = rendered.width;
+    let height = rendered.height;
+    if (step.kind === "write") {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), Math.max(0, step.writeDeadlineAt - Date.now()));
+      timer.unref?.();
+      try {
+        if (Date.now() >= step.writeDeadlineAt) throw new PreviewWriteDeadline();
+        await putObjectBuffer({
+          lock: await artifactLockFor(preview.evidenceId),
+          bucket: step.bucket,
+          key: step.key,
+          body: rendered.png,
+          contentType: "image/png",
+          abortSignal: controller.signal,
+        });
+      } catch (err) {
+        // The declaration keeps counting whether or not the PUT landed.
+        throw controller.signal.aborted ? new PreviewWriteDeadline() : err;
+      } finally {
+        clearTimeout(timer);
+      }
+    } else {
+      // REUSE: the object is already stored under this key (an earlier
+      // attempt's PUT whose answer or READY write was lost). Its own size and
+      // dimensions are what the row records.
+      byteSize = step.byteSize;
+      const dims = pngDimensions(
+        await getObjectRange({ bucket: step.bucket, key: step.key, range: "bytes=0-31" }).catch(() => null),
+      );
+      if (dims) ({ width, height } = dims);
+    }
 
     const done = await markPagePreviewReadyWorker({
       previewId,
       teamId,
-      storageBucket: evidence.storageBucket,
-      storageKey: outKey,
-      byteSize: rendered.png.length,
-      width: rendered.width,
-      height: rendered.height,
+      storageBucket: step.bucket,
+      storageKey: step.key,
+      byteSize,
+      width,
+      height,
       claimedAt,
     });
     if (!done.ok) {
@@ -231,20 +275,39 @@ export async function processRedactionPagePreviewJob(
           teamId,
           failureReason: done.reason,
           claimedAt,
-          storedObject: { bucket: evidence.storageBucket, key: outKey, byteSize: rendered.png.length },
+          storedObject: { bucket: step.bucket, key: step.key, byteSize },
         });
       }
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (/ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|5\d\d|SlowDown|InternalError/i.test(msg)) {
+    if (
+      err instanceof PreviewWriteDeadline ||
+      (err as { retriable?: boolean } | null)?.retriable === true ||
+      /ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|5\d\d|SlowDown|InternalError/i.test(msg)
+    ) {
       // Give the claim back first, or the retry finds RENDERING and no-ops.
+      // A declared pointer stays on the row (still counted): the retry reuses
+      // the object if the PUT landed, or the reconciler proves the key empty.
       await releasePagePreviewClaim(previewId, claimedAt);
       throw err;
     }
     logger.warn({ previewId, err: msg.slice(0, 300) }, "redaction_page_preview.render_failed");
     await fail("renderer_failed");
   }
+}
+
+/** A preview PUT that reached the end of its renewed claim's write window. */
+class PreviewWriteDeadline extends Error {
+  readonly retriable = true;
+  constructor() {
+    super("page_preview_put_deadline_exceeded");
+  }
+}
+
+/** The store the admission lists a preview key with (the worker's S3 client). */
+async function pagePreviewObjectStore(): Promise<DerivedObjectStore> {
+  return s3DerivedObjectStore(s3 as never);
 }
 
 export type PdfPagePreviewResult =
@@ -292,7 +355,27 @@ export async function reconcileStrandedRedactionPagePreviews(input: {
   olderThanMs?: number;
   batchSize?: number;
   enqueue: (payload: RedactionPagePreviewJobPayload) => Promise<{ enqueued: boolean }>;
+  /**
+   * closure3/store (FV2-RESIDUAL-4) — the store the declared-pointer
+   * reconciliation lists keys with (default: the worker's S3 client); null
+   * skips that step this tick (the declarations keep counting).
+   */
+  store?: (() => Promise<DerivedObjectStore>) | null;
 }): Promise<{ scanned: number; reenqueued: number }> {
+  // The same cron-locked sweep judges preview declarations whose holder's
+  // window has closed: a key proven empty stops counting, a stored object
+  // stays counted (sized to every version). Fail-isolated: the re-enqueue
+  // below runs whatever happens here.
+  if (input.store !== null) {
+    try {
+      await reconcilePagePreviewStoragePointers({ store: await (input.store ?? pagePreviewObjectStore)() });
+    } catch (err) {
+      logger.warn(
+        { err: err instanceof Error ? err.message.slice(0, 200) : "unknown" },
+        "redaction_page_preview.storage_pointer_reconcile_unavailable",
+      );
+    }
+  }
   const cutoff = new Date(Date.now() - (input.olderThanMs ?? 5 * 60_000));
   const leaseExpired = new Date(Date.now() - REDACTION_PAGE_PREVIEW_LEASE_MS);
   const stranded = await prisma.redactionPagePreview.findMany({

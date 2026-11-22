@@ -970,11 +970,11 @@ export async function workspaceAllowsDerivedArtifact(params: {
   evidenceId: string;
   incomingBytes: bigint | number;
   /**
-   * The derived row (canonical identity) the reservation is held on. Absent
-   * for a derived writer that has no evidence_part_derived_assets row (the
-   * redaction page preview, NEW-RG-33-1): the gate then checks under the same
-   * workspace capacity lock but holds no durable reservation (a bounded, single
-   * preview-image residual; M676 covers derived-asset rows).
+   * The derived row (canonical identity) the reservation is held on. Absent:
+   * the gate checks under the same workspace capacity lock but holds no
+   * durable reservation. (The redaction page preview no longer asks this gate:
+   * closure3/store admits and declares its bytes on its own row under the
+   * same lock, redaction-page-preview-storage.ts.)
    */
   reservation?: Omit<DerivedAssetReservationKey, "evidenceId">;
 }): Promise<{ allowed: true } | { allowed: false; reason: "storage_limit" | "evidence_not_found" }> {

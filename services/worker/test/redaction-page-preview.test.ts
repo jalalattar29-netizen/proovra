@@ -33,6 +33,11 @@ const STORE = vi.hoisted(() => ({
   readError: null as Error | null,
   reads: 0,
   puts: [] as Array<{ bucket: string; key: string; body: Buffer; contentType: string }>,
+  /** What the row declared when each PUT was sent. */
+  declaredAtPut: [] as Array<{ storageKey: unknown; byteSize: unknown; state: unknown }>,
+  putError: null as Error | null,
+  /** The stored object a ranged read of a preview key returns (reuse). */
+  storedPreview: null as Buffer | null,
 }));
 
 vi.mock("../src/db.js", () => ({
@@ -68,30 +73,63 @@ vi.mock("../src/db.js", () => ({
     $queryRawUnsafe: async () => [DB.lifecycle],
   },
 }));
-// NEW-RG-33-1 — the canonical worker derived-artifact storage gate (its own
-// behaviour is proven where it lives); here, what the processor does with it.
+// NEW-RG-33-1 / closure3/store (FV2-RESIDUAL-4) — the preview storage
+// admission (capacity lock, write-ahead declaration, reuse of a stored key) is
+// proven against a real PostgreSQL and object store where it lives
+// (api test closure3-redaction-page-preview-storage.integration.test.ts);
+// here, what the processor does with each of its answers.
 const GATE = vi.hoisted(() => ({
   verdict: { allowed: true } as { allowed: true } | { allowed: false; reason: "storage_limit" | "evidence_not_found" },
-  asked: [] as Array<{ evidenceId: string; incomingBytes: bigint | number }>,
+  asked: [] as Array<{ evidenceId: string; incomingBytes: bigint | number; declaredAtPut?: unknown }>,
+  /** Set: the key already holds an object of this size (reuse). */
+  reuse: null as null | { bytes: number },
+  claimLost: false,
+  /** Calls of the declared-pointer reconciliation (its own behaviour is proven in the api suite). */
+  sweeps: [] as Array<{ store: unknown }>,
+  sweepError: null as Error | null,
 }));
-vi.mock("../src/workspace-billing.js", () => ({
-  workspaceAllowsDerivedArtifact: async (p: { evidenceId: string; incomingBytes: bigint | number }) => {
-    GATE.asked.push(p);
-    return GATE.verdict;
-  },
-}));
+vi.mock("../src/workspace-billing.js", () => ({}));
+vi.mock("../src/redaction/redaction-page-preview-storage.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/redaction/redaction-page-preview-storage.js")>();
+  return {
+    pngDimensions: actual.pngDimensions,
+    reconcilePagePreviewStoragePointers: async (p: { store: unknown }) => {
+      GATE.sweeps.push(p);
+      if (GATE.sweepError) throw GATE.sweepError;
+      return { scanned: 0, cleared: 0, kept: 0, skipped: 0 };
+    },
+    preparePagePreviewWrite: async (p: { evidenceId: string; bytes: number; bucket: string; contentKey: string; claimedAt: Date }) => {
+      GATE.asked.push({ evidenceId: p.evidenceId, incomingBytes: p.bytes });
+      if (GATE.claimLost) return { kind: "claim_lost" };
+      if (!GATE.verdict.allowed) return { kind: "refused", reason: GATE.verdict.reason };
+      const renewed = new Date(p.claimedAt.getTime() + 1);
+      const row = DB.preview!;
+      if (GATE.reuse) {
+        Object.assign(row, { storageBucket: p.bucket, storageKey: p.contentKey, byteSize: BigInt(GATE.reuse.bytes), renderStartedAt: renewed });
+        return { kind: "reuse", bucket: p.bucket, key: p.contentKey, byteSize: GATE.reuse.bytes, claimedAt: renewed };
+      }
+      // The declaration the real admission writes before any byte is sent.
+      Object.assign(row, { storageBucket: p.bucket, storageKey: p.contentKey, byteSize: BigInt(p.bytes), renderStartedAt: renewed });
+      return { kind: "write", bucket: p.bucket, key: p.contentKey, claimedAt: renewed, writeDeadlineAt: Date.now() + 60_000 };
+    },
+  };
+});
 vi.mock("../src/logger.js", () => ({ logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} } }));
 vi.mock("../src/object-retention.js", () => ({ artifactLockFor: async () => null }));
 vi.mock("../src/storage.js", () => ({
-  getObjectRange: async () => {
+  getObjectRange: async (p: { key: string; range?: string }) => {
+    if (p.key.startsWith("redactions/")) return STORE.storedPreview ? STORE.storedPreview.subarray(0, 32) : null;
     STORE.reads += 1;
     if (STORE.readError) throw STORE.readError;
     return STORE.source;
   },
   putObjectBuffer: async (p: { bucket: string; key: string; body: Buffer; contentType: string }) => {
+    STORE.declaredAtPut.push({ storageKey: DB.preview?.storageKey, byteSize: DB.preview?.byteSize, state: DB.preview?.state });
+    if (STORE.putError) throw STORE.putError;
     STORE.puts.push(p);
     return undefined;
   },
+  s3: {},
 }));
 
 import {
@@ -101,6 +139,7 @@ import {
   renderPdfPagePreview,
 } from "../src/redaction/redaction-page-preview.processor.js";
 import { REDACTION_PAGE_PREVIEW_LEASE_MS } from "../src/redaction/redaction-page-preview-writer.js";
+import { pngDimensions } from "../src/redaction/redaction-page-preview-storage.js";
 
 const ENTRY = getWorkEntryOrThrow(JOB_NAMES.RENDER_REDACTION_PAGE_PREVIEW);
 
@@ -166,8 +205,15 @@ beforeEach(async () => {
   STORE.readError = null;
   STORE.reads = 0;
   STORE.puts = [];
+  STORE.declaredAtPut = [];
+  STORE.putError = null;
+  STORE.storedPreview = null;
   GATE.verdict = { allowed: true };
   GATE.asked = [];
+  GATE.reuse = null;
+  GATE.claimLost = false;
+  GATE.sweeps = [];
+  GATE.sweepError = null;
   DB.evidence = {
     storageBucket: "bkt",
     storageKey: "orig/key.pdf",
@@ -234,13 +280,43 @@ describe("processRedactionPagePreviewJob", () => {
     expect(r).toBeLessThan(80);
   });
 
-  it("asks the derived-artifact storage gate with the rendered PNG's exact size before storing (NEW-RG-33-1)", async () => {
+  it("asks the storage admission with the rendered PNG's exact size, and the PUT is sent only once the bytes are DECLARED on the row (NEW-RG-33-1, FV2-RESIDUAL-4)", async () => {
     seed();
     await processRedactionPagePreviewJob(job());
     expect(STORE.puts).toHaveLength(1);
     expect(GATE.asked).toHaveLength(1);
     expect(GATE.asked[0]!.evidenceId).toBe("ev-1");
     expect(BigInt(GATE.asked[0]!.incomingBytes)).toBe(BigInt(STORE.puts[0]!.body.length));
+    expect(STORE.declaredAtPut, "counted before any byte is sent").toEqual([
+      { storageKey: STORE.puts[0]!.key, byteSize: BigInt(STORE.puts[0]!.body.length), state: "RENDERING" },
+    ]);
+  });
+
+  it("a key that already holds the object is never written again: READY with the STORED size and dimensions (FV2-RESIDUAL-4)", async () => {
+    seed();
+    const stored = await sharp({ create: { width: 321, height: 123, channels: 3, background: "#fff" } }).png().toBuffer();
+    STORE.storedPreview = stored;
+    GATE.reuse = { bytes: stored.length };
+    await processRedactionPagePreviewJob(job());
+    expect(STORE.puts, "no second version").toHaveLength(0);
+    expect(DB.preview).toMatchObject({ state: "READY", byteSize: BigInt(stored.length), width: 321, height: 123 });
+  });
+
+  it("a claim lost at admission writes nothing; a failed PUT gives the claim back and KEEPS the declaration counted (FV2-RESIDUAL-4)", async () => {
+    seed();
+    GATE.claimLost = true;
+    await processRedactionPagePreviewJob(job());
+    expect(STORE.puts).toHaveLength(0);
+    expect(STORE.declaredAtPut).toHaveLength(0);
+    expect(DB.preview?.state, "the row is the new holder's").toBe("RENDERING");
+
+    seed();
+    GATE.claimLost = false;
+    STORE.putError = new Error("503 SlowDown");
+    await expect(processRedactionPagePreviewJob(job())).rejects.toThrow(/SlowDown/);
+    expect(DB.preview).toMatchObject({ state: "QUEUED", renderStartedAt: null });
+    expect(DB.preview?.storageKey, "the PUT may have landed: the bytes stay declared").toMatch(/^redactions\/team-1\/previews\//);
+    expect(DB.preview?.byteSize).toBe(STORE.declaredAtPut[0]!.byteSize);
   });
 
   it("a workspace with no storage room gains no preview: nothing stored, the row FAILS storage_limit (NEW-RG-33-1)", async () => {
@@ -341,6 +417,16 @@ describe("processRedactionPagePreviewJob", () => {
   });
 });
 
+describe("pngDimensions", () => {
+  it("reads a PNG's width and height from its header, and nothing else", async () => {
+    const png = await sharp({ create: { width: 17, height: 9, channels: 4, background: "#000" } }).png().toBuffer();
+    expect(pngDimensions(png.subarray(0, 32))).toEqual({ width: 17, height: 9 });
+    expect(pngDimensions(png.subarray(0, 20))).toBeNull();
+    expect(pngDimensions(Buffer.alloc(32))).toBeNull();
+    expect(pngDimensions(null)).toBeNull();
+  });
+});
+
 describe("reconcileStrandedRedactionPagePreviews", () => {
   it("re-enqueues old QUEUED rows and expired RENDERING leases by id, and reports what it enqueued", async () => {
     DB.stranded = [{ id: "p-1" }, { id: "p-2" }];
@@ -357,5 +443,24 @@ describe("reconcileStrandedRedactionPagePreviews", () => {
     expect(or.map((c) => c.state)).toEqual(["QUEUED", "RENDERING"]);
     expect(or[0]).toHaveProperty("updatedAt.lt");
     expect(or[1]).toHaveProperty("renderStartedAt.lt");
+    // closure3/store — the same cron-locked sweep judges preview declarations
+    // against the worker's store.
+    expect(GATE.sweeps).toHaveLength(1);
+    expect(GATE.sweeps[0]!.store).toBeTruthy();
+  });
+
+  it("the declared-pointer reconciliation is fail-isolated and can be skipped; re-enqueueing always runs (FV2-RESIDUAL-4)", async () => {
+    DB.stranded = [{ id: "p-1" }];
+    GATE.sweepError = new Error("store unreachable");
+    const sent: string[] = [];
+    const enqueue = async (p: { previewId: string }) => {
+      sent.push(p.previewId);
+      return { enqueued: true };
+    };
+    expect(await reconcileStrandedRedactionPagePreviews({ enqueue })).toEqual({ scanned: 1, reenqueued: 1 });
+    expect(GATE.sweeps).toHaveLength(1);
+    expect(await reconcileStrandedRedactionPagePreviews({ enqueue, store: null })).toEqual({ scanned: 1, reenqueued: 1 });
+    expect(GATE.sweeps, "store: null skips the step").toHaveLength(1);
+    expect(sent).toEqual(["p-1", "p-1"]);
   });
 });

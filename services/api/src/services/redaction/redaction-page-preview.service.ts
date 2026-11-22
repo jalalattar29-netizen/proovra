@@ -52,7 +52,7 @@ const RETRYABLE_FAILURE_REASONS: ReadonlySet<string> = new Set(["renderer_failed
  * The canonical API storage gate, scoped like the sibling redacted-copy gate
  * (redaction-derivative.service.ts): refused when the workspace has no byte of
  * room left. The PNG's size is unknown until rendered; the worker checks the
- * exact bytes again before it stores them (workspaceAllowsDerivedArtifact).
+ * exact bytes under the capacity lock and declares them first (preparePagePreviewWrite).
  */
 async function previewStorageRefusal(
   prisma: PrismaClient,
