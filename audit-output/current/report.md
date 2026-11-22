@@ -169,5 +169,5 @@ _(none — the instrument is sound)_
 
 ### Product closure
 
-- UNWIRED EXECUTABLE WRITERS: 13 terminal writers have zero entrypoints (PRESERVED_PLANNED_WRITER + DEAD_UNREACHABLE)
+- UNWIRED EXECUTABLE WRITERS: 11 terminal writers have zero entrypoints (PRESERVED_PLANNED_WRITER + DEAD_UNREACHABLE)
 - ArchitectureBacklog: UndisposedRoutes = 21 — registered routes with no reviewed product disposition (NON-BLOCKING, no security or completeness credit)
