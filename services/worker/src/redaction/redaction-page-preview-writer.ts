@@ -26,18 +26,34 @@ export type PagePreviewClaimToken = Date;
 export async function claimPagePreviewForRender(
   previewId: string,
 ): Promise<
-  | { claimed: true; teamId: string; claimedAt: PagePreviewClaimToken }
+  | {
+      claimed: true;
+      teamId: string;
+      claimedAt: PagePreviewClaimToken;
+      /**
+       * closure3 review L1 — when the row last changed before this claim (the
+       * previous claim stamp of a taken-over render, else its last update):
+       * no earlier holder of the row wrote after it. Null when unknown.
+       */
+      priorActivityAt: Date | null;
+    }
   | { claimed: false; reason: "not_found" | "not_queued" }
 > {
   const row = await prisma.redactionPagePreview.findUnique({
     where: { id: previewId },
-    select: { id: true, teamId: true },
+    select: { id: true, teamId: true, state: true, updatedAt: true, renderStartedAt: true },
   });
   if (!row) return { claimed: false, reason: "not_found" };
   const now = new Date();
+  // The row must still be as read (it changed no later than the instant read,
+  // compared by range: a SQL-written timestamp keeps microseconds), so the
+  // prior activity returned is the row's real last change.
+  const unchangedSince =
+    row.updatedAt instanceof Date ? { updatedAt: { lt: new Date(row.updatedAt.getTime() + 1) } } : {};
   const res = await prisma.redactionPagePreview.updateMany({
     where: {
       id: previewId,
+      ...unchangedSince,
       OR: [
         { state: "QUEUED" },
         { state: "RENDERING", renderStartedAt: { lt: new Date(now.getTime() - REDACTION_PAGE_PREVIEW_LEASE_MS) } },
@@ -46,7 +62,13 @@ export async function claimPagePreviewForRender(
     data: { state: "RENDERING", renderStartedAt: now },
   });
   if (res.count !== 1) return { claimed: false, reason: "not_queued" };
-  return { claimed: true, teamId: row.teamId, claimedAt: now };
+  const priorActivityAt =
+    row.state === "RENDERING" && row.renderStartedAt instanceof Date
+      ? row.renderStartedAt
+      : row.updatedAt instanceof Date
+        ? row.updatedAt
+        : null;
+  return { claimed: true, teamId: row.teamId, claimedAt: now, priorActivityAt };
 }
 
 /** Give a claim back after a TRANSIENT failure, so the BullMQ retry can claim it. */
@@ -70,6 +92,8 @@ export async function markPagePreviewReadyWorker(input: {
   width: number;
   height: number;
   claimedAt: PagePreviewClaimToken;
+  /** closure3 review L1 — a reconciler marker kept on the READY row (never shown). */
+  note?: string | null;
 }): Promise<{ ok: true } | { ok: false; reason: string }> {
   const row = await prisma.redactionPagePreview.findFirst({
     where: { id: input.previewId, teamId: input.teamId },
@@ -100,7 +124,7 @@ export async function markPagePreviewReadyWorker(input: {
       byteSize: BigInt(input.byteSize),
       width: input.width,
       height: input.height,
-      failureReason: null,
+      failureReason: input.note ?? null,
     },
   });
   if (res.count !== 1) return { ok: false, reason: "stale_transition" };

@@ -368,8 +368,10 @@ describe("closure3/store — redaction page-preview storage is admitted, declare
     await sweep();
     expect((await row(p.id)).storageKey, "not judged inside the window").not.toBeNull();
 
-    // The retry: the key is listed empty, the bytes are admitted again (the
-    // row's own declaration is not counted against them), stored, READY.
+    // The retry AFTER the earlier holder's window closed: the key is listed
+    // empty, which now proves it, so the bytes are admitted again (the row's
+    // own declaration is not counted against them), stored, READY.
+    await closeWindow(p.id);
     HOOK.put = null;
     await run(p.id);
     r = await row(p.id);
@@ -388,6 +390,67 @@ describe("closure3/store — redaction page-preview storage is admitted, declare
     await closeWindow(q.id);
     await sweep();
     expect(await row(q.id), "no false READY: cleared, still FAILED").toMatchObject({ state: "FAILED", storageKey: null, byteSize: null });
+    await accountingEqualsStored(t, baseline);
+  }, 300_000);
+
+  it("closure3 review L1: an immediate retry admits its bytes IN ADDITION to the unproven earlier declaration; a late version of the earlier PUT is counted, and the reconciler sizes the row after the window", async () => {
+    reset();
+    HOOK.lock = { mode: "GOVERNANCE", retainUntil: new Date(Date.now() + 86_400_000) };
+    const { t, evidenceId, baseline } = await tenantWithRoom(BigInt(pngBytes * 4));
+    const p = await previewOf(t, evidenceId);
+    let lateKey: string | null = null;
+    let lateBody: Buffer | null = null;
+    HOOK.put = async (put) => {
+      lateKey = put.key;
+      lateBody = put.body;
+      throw new Error("aborted at the write deadline ETIMEDOUT"); // the body may still land
+    };
+    await expect(run(p.id)).rejects.toThrow(/ETIMEDOUT/);
+    expect(await row(p.id)).toMatchObject({ state: "QUEUED", byteSize: BigInt(pngBytes) });
+    // The retry runs at once (inside the earlier holder's window). While it
+    // uploads, the earlier PUT lands late on the same key.
+    HOOK.put = async (put, real) => {
+      expect(put.key, "written under the row's declared key").toBe(lateKey);
+      expect((await bothHosts(t)).storageBytesUsed - baseline, "both counted while either may land").toBe(BigInt(pngBytes * 2));
+      await real({ ...put, body: lateBody! });
+      return real(put);
+    };
+    await run(p.id);
+    const r = await row(p.id);
+    expect(r).toMatchObject({ state: "READY", byteSize: BigInt(pngBytes * 2), failureReason: "declaration_unproven" });
+    expect(await storedVersions(t)).toHaveLength(2);
+    await accountingEqualsStored(t, baseline);
+    // After the window the reconciler sizes the READY row to what is stored and clears its marker.
+    await closeWindow(p.id);
+    await sweep();
+    expect(await row(p.id)).toMatchObject({ state: "READY", byteSize: BigInt(pngBytes * 2), failureReason: null });
+    await accountingEqualsStored(t, baseline);
+  }, 300_000);
+
+  it("closure3 review L1: an immediate retry REFUSED for room keeps the unproven earlier declaration counted; its late version stays counted and is sized by the reconciler", async () => {
+    reset();
+    HOOK.lock = { mode: "GOVERNANCE", retainUntil: new Date(Date.now() + 86_400_000) };
+    // Room for exactly one PNG: the earlier declaration uses it.
+    const { t, evidenceId, baseline } = await tenantWithRoom(BigInt(pngBytes));
+    const p = await previewOf(t, evidenceId);
+    let late: { key: string; body: Buffer; real: (q: PutParams) => Promise<unknown>; put: PutParams } | null = null;
+    HOOK.put = async (put, real) => {
+      late = { key: put.key, body: put.body, real, put };
+      throw new Error("503 Service Unavailable after the body was sent");
+    };
+    await expect(run(p.id)).rejects.toThrow(/503/);
+    HOOK.put = null;
+    await run(p.id);
+    const r = await row(p.id);
+    expect(r).toMatchObject({ state: "FAILED", failureReason: "storage_limit", byteSize: BigInt(pngBytes) });
+    expect(r.storageKey, "the unproven declaration is kept").toBe(late!.key);
+    // The earlier PUT lands late.
+    await late!.real(late!.put);
+    expect(await storedVersions(t)).toHaveLength(1);
+    await accountingEqualsStored(t, baseline);
+    await closeWindow(p.id);
+    await sweep();
+    expect(await row(p.id)).toMatchObject({ storageKey: late!.key, byteSize: BigInt(pngBytes) });
     await accountingEqualsStored(t, baseline);
   }, 300_000);
 

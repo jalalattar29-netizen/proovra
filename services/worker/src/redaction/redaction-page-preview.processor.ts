@@ -37,7 +37,12 @@ import { logger } from "../logger.js";
 import { artifactLockFor } from "../object-retention.js";
 import { getObjectRange, putObjectBuffer, s3 } from "../storage.js";
 import { s3DerivedObjectStore, type DerivedObjectStore } from "../derived-storage-intent.js";
-import { pngDimensions, preparePagePreviewWrite, reconcilePagePreviewStoragePointers } from "./redaction-page-preview-storage.js";
+import {
+  PAGE_PREVIEW_DECLARATION_UNPROVEN,
+  pngDimensions,
+  preparePagePreviewWrite,
+  reconcilePagePreviewStoragePointers,
+} from "./redaction-page-preview-storage.js";
 import { derivedProductionRefusal } from "./redaction-derivative-writer.js";
 import { PDF_RASTER_SCALE, loadPdfRasterCanvas } from "./redaction-derivative.processor.js";
 import {
@@ -209,6 +214,7 @@ export async function processRedactionPagePreviewJob(
       contentKey,
       bytes: rendered.png.length,
       store: await pagePreviewObjectStore(),
+      priorActivityAt: claim.priorActivityAt,
     });
     if (step.kind === "claim_lost") {
       logger.info({ previewId }, "redaction_page_preview.claim_lost_before_store");
@@ -221,7 +227,7 @@ export async function processRedactionPagePreviewJob(
     // Every later write is fenced on the claim the admission renewed.
     claimedAt = step.claimedAt;
 
-    let byteSize = rendered.png.length;
+    let byteSize = step.kind === "write" ? step.byteSize : rendered.png.length;
     let width = rendered.width;
     let height = rendered.height;
     if (step.kind === "write") {
@@ -264,6 +270,7 @@ export async function processRedactionPagePreviewJob(
       width,
       height,
       claimedAt,
+      note: step.kind === "write" && step.unproven ? PAGE_PREVIEW_DECLARATION_UNPROVEN : null,
     });
     if (!done.ok) {
       logger.warn({ previewId, reason: done.reason }, "redaction_page_preview.ready_rejected");
