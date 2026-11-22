@@ -23,7 +23,7 @@ had none. The fixtures agreed, because they were written from the same guess.
 
 ## Coverage
 
-**183 bindings — OK 183, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
+**182 bindings — OK 182, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
 
 A binding is one place the app hands a fetched response to a parser. The
 route column is the handler in `services/api/src/routes` that answers that
@@ -213,7 +213,6 @@ top level of it.
 | OK | `parseWorkspaceInviteAccept` | `POST /v1/teams/invites/accept` | alreadyMember, role, workspaceId | alreadyMember, workspaceId |
 | OK | `parseWorkspaceInviteLookup` | `POST /v1/teams/invites/lookup` | context, state | context, state |
 | OK | `parseCreatedIntakeLink` | `POST /v1/workflow/intake-links` | delivery, link, rawToken, replayed, tokenRevealed, warning | delivery, link, rawToken |
-| OK | `parseRevealedContact` | `POST /v1/workflow/intake-links/:id/recipient-contact` | recipientContact | recipientContact, recipientEmail, recipientPhone |
 | OK | `parseAiPolicyEnvelope` | `PUT /v1/teams/ai-policy` | hasExplicitPolicy, policy, version | hasExplicitPolicy, lastModifiedAtUtc, policy, version |
 
 ## What the verdicts mean
