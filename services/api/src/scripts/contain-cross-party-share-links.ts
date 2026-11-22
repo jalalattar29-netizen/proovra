@@ -52,7 +52,9 @@
  *
  * Output never carries a token, token hash, view-session hash, URL or audience
  * label; it is scanned against every secret value read (a hit prints nothing
- * and exits 1). Refused misuse exits 2 and writes nothing.
+ * and exits 1). Refused misuse exits 2 and writes nothing. After an apply has
+ * COMMITTED, a guard hit never reads as "nothing happened": stderr says APPLY
+ * COMMITTED, stdout carries only the fixed safe fields (still guarded), exit 4.
  */
 import { createHash, randomBytes } from "node:crypto";
 import { pathToFileURL } from "node:url";
@@ -361,10 +363,12 @@ export async function runContainCrossPartyShareLinksCli(io: ContainCliIo): Promi
   if (database === "unknown" || expectDb !== database) return refuse(`this connection is database ${database}, not the validated ${expectDb}`);
   try {
     const res = await applyContainment(io.client, { count: Number(countRaw), setHash, backupId }, now);
-    const ok = emit(
+    // The transaction has COMMITTED here. Whatever is printed below, the revocations stand.
+    const full = guardedJson(
       {
         script: "contain-cross-party-share-links",
         mode: "APPLY",
+        committed: true,
         database,
         backupId,
         reasonCode: CONTAINMENT_REASON_CODE,
@@ -377,7 +381,34 @@ export async function runContainCrossPartyShareLinksCli(io: ContainCliIo): Promi
       },
       res.secrets,
     );
-    return ok ? 0 : 1;
+    if (full !== null) {
+      io.out(full);
+      return 0;
+    }
+    // L3 — the full report matched secret material, but the apply is NOT undone and must not read as
+    // "nothing happened". Print only the fixed safe fields (still guarded), and exit with a distinct code.
+    const safe = {
+      script: "contain-cross-party-share-links",
+      mode: "APPLY",
+      committed: true,
+      database,
+      backupId,
+      reasonCode: CONTAINMENT_REASON_CODE,
+      revoked: res.revoked,
+      auditRowsWritten: res.auditRowsWritten,
+      setHash: res.setHash,
+      remainingAfterInTransaction: res.remainingAfterInTransaction,
+      reportWithheld: "the full report matched secret material; the link ids are listed by --verify",
+      next: "run the dry run again (containmentCount must be 0), then --verify",
+    };
+    const text =
+      guardedJson(safe, res.secrets) ?? guardedJson({ ...safe, backupId: "[withheld: matched secret material]" }, res.secrets);
+    io.err(
+      `APPLY COMMITTED: ${res.revoked} link(s) were revoked and ${res.auditRowsWritten} audit row(s) written. ` +
+        "The full report was withheld because it matched secret material; only the safe fields are printed. Exit code 4.\n",
+    );
+    if (text !== null) io.out(text);
+    return 4;
   } catch (e) {
     if (e instanceof ContainmentRefused) return refuse(`${e.code}: ${e.message}`);
     throw e;

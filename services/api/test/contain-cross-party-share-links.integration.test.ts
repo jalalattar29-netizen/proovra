@@ -409,4 +409,35 @@ describe("PRO-G2-01 cross-party access paths + share-link containment (live Post
     ).rejects.toThrow(/SECURITY_CONTAINMENT/);
     expect((await linkRow(ids.LC)).revokedAtUtc).toBeNull();
   });
+
+  it("L3: a guard hit after the apply has committed says APPLY COMMITTED, prints only safe fields and exits 4", async () => {
+    const L9 = await ownerShare(ids.evA, "L9");
+    const d = (await dry()).json;
+    expect(d.ids).toEqual([L9]);
+    // Force the guard to fire AFTER the commit: the backup id (printed in the report) equals the link token hash.
+    const planted = (await linkRow(L9)).tokenHash;
+    const args = applyArgs(d).map((x) => (x.startsWith("--backup-id=") ? `--backup-id=${planted}` : x));
+    let out = "";
+    let err = "";
+    const code = await contain.runContainCrossPartyShareLinksCli({
+      argv: args,
+      env: { DATABASE_URL: DB_URL, ...APPROVED },
+      client: prisma,
+      out: (s) => void (out += s),
+      err: (s) => void (err += s),
+    });
+    expect(code, err).toBe(4);
+    expect(err).toContain("APPLY COMMITTED: 1 link(s) were revoked and 1 audit row(s) written");
+    expect(err).not.toContain("Nothing was written");
+    const safe = JSON.parse(out);
+    expect(safe).toMatchObject({ mode: "APPLY", committed: true, revoked: 1, auditRowsWritten: 1, setHash: d.setHash, database: d.database, remainingAfterInTransaction: 0 });
+    expect(safe.backupId).toBe("[withheld: matched secret material]");
+    expect(safe.ids).toBeUndefined();
+    expect(out).not.toContain(planted);
+    expect(err).not.toContain(planted);
+    for (const s of allSecrets()) expect(out.includes(s) || err.includes(s)).toBe(false);
+    // The revocation did commit.
+    expect((await linkRow(L9)).revocationReason).toBe("SECURITY_CONTAINMENT_PRO_G2_01");
+    expect((await dry()).json.containmentCount).toBe(0);
+  });
 });
