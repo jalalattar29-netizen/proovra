@@ -157,13 +157,13 @@
       "QueueRegistryProblems": 0
     },
     "mutations": {
-      "terminalWriters": 1713,
-      "reachable": 1679,
-      "classified": 1679,
+      "terminalWriters": 1719,
+      "reachable": 1687,
+      "classified": 1687,
       "unclassified": 0,
       "moduleScopedAttribution": 0,
-      "nonRequest": 34,
-      "deadUnreachable": 13,
+      "nonRequest": 32,
+      "deadUnreachable": 11,
       "authorizationAfterMutation": 0,
       "tenantUnbound": 0,
       "unsafeEffectsInsideTransactions": 0,
@@ -176,7 +176,7 @@
       "writerConservationHolds": true,
       "byWriterBucket": {
         "ROUTE_ATTRIBUTED_REACHABLE": 1494,
-        "JOB_ATTRIBUTED_REACHABLE": 173,
+        "JOB_ATTRIBUTED_REACHABLE": 181,
         "MODULE_SCOPED_REACHABLE": 0,
         "REGISTERED_CLI": 10,
         "STARTUP_OR_SCHEDULED": 23,
@@ -184,7 +184,7 @@
         "TEST_OR_BUILD_ONLY": 0,
         "PRESERVED_PLANNED_WRITER": 0,
         "PORT_ATTRIBUTED_REACHABLE": 0,
-        "DEAD_UNREACHABLE": 13,
+        "DEAD_UNREACHABLE": 11,
         "UNRESOLVED": 0
       },
       "writerBucketOverlaps": 0,
@@ -204,7 +204,7 @@
         "BILLING_SUBSCRIPTION_SEAT": 121,
         "SSO_OIDC_SCIM_PROVISIONING": 66,
         "AUTOMATION_QUEUE_WEBHOOK": 133,
-        "REPORT_EXPORT_REDACTION": 80,
+        "REPORT_EXPORT_REDACTION": 86,
         "API_KEY_SECRET_OPERATIONAL_ADMIN": 135
       }
     },
@@ -215,15 +215,15 @@
         "UnclassifiedUnreachableProductionModules": 0,
         "ConnectedButUnreachable": 0,
         "RemovedButPresent": 0,
-        "ProductionModules": 1140,
-        "ReachableProductionModules": 1138,
+        "ProductionModules": 1141,
+        "ReachableProductionModules": 1139,
         "UnreachableProductionModules": 2,
         "UnfollowableModuleSpecifiers": 0
       },
       "problemCount": 0
     },
     "auditGovernance": {
-      "AuditFilesInventoried": 529,
+      "AuditFilesInventoried": 531,
       "AuditFilesUnclassified": 0,
       "AuditArtifactProducersUnknown": 0,
       "AuditArtifactConsumersUnknown": 0,
@@ -272,7 +272,7 @@
       "ProductionRuntimeFilesModifiedByPhase0": 0,
       "ProductBehaviorTestsRemoved": 0,
       "HistoricalMigrationsModifiedByPhase0": 0,
-      "ProductBehaviorTestsInventoried": 436
+      "ProductBehaviorTestsInventoried": 438
     },
     "proofFreshness": {
       "domainProofsRead": 10,
