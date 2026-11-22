@@ -460,7 +460,9 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
         message:
           "External reviewers are granted access in External Review, where the grant is real, time-bounded and audited. Team guests never sent an invitation or granted access and have been retired.",
       },
-      canonical: "/v1/external-review/invitations",
+      // closure3 G — POST /v1/external-review/invitations is itself a typed 410
+      // since closure phase 2 (EP-0425); the live issuing route is /bulk.
+      canonical: "/v1/external-review/invitations/bulk",
     });
 
   app.get<{ Params: { teamId: string } }>(
