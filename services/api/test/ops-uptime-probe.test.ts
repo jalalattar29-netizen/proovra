@@ -15,6 +15,7 @@ import { join, resolve } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import {
+  checkWebhook,
   decideNotification,
   formatAttempt,
   runUptimeProbe,
@@ -39,6 +40,8 @@ const fresh = () => ({
   // The current run (1000) can already be listed; it must be skipped.
   prevRuns: [{ id: 998, conclusion: "success", titles: ["uptime-outcome: UP"] }] as PrevRun[],
   hookStatus: 204,
+  hookGetStatus: 200,
+  hookGets: 0,
   hooks: [] as Array<Record<string, unknown>>,
 });
 let state = fresh();
@@ -68,6 +71,11 @@ beforeAll(async () => {
         if (state.annotationsError) return res.writeHead(403).end();
         const run = state.prevRuns.find((r) => r.id * 10 === Number(m![1]));
         return json(200, (run?.titles ?? []).map((title) => ({ title, annotation_level: "notice" })));
+      }
+      if (u.pathname === SECRET_HOOK_PATH && req.method === "GET") {
+        state.hookGets += 1;
+        // Discord answers a live webhook's GET with its object, token included: the probe must never print it.
+        return res.writeHead(state.hookGetStatus, { "content-type": "application/json" }).end(JSON.stringify({ id: "42", token: "uptime-token-SECRET" }));
       }
       if (u.pathname === SECRET_HOOK_PATH) {
         state.hooks.push(JSON.parse(raw) as Record<string, unknown>);
@@ -383,5 +391,81 @@ describe("the workflow cannot block merges or other workflows", () => {
     expect(wf).toMatch(/UPTIME_SELFTEST: \$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.selftest && '1' \|\| '0' \}\}/);
     expect(wf).toMatch(/run: node scripts\/ops\/uptime-probe\.mjs/);
     expect(wf).toMatch(/timeout-minutes: 5/);
+  });
+});
+
+describe("uptime probe — the alert destination is checked every run (CONFIG_INVALID)", () => {
+  it("a live Discord-shaped webhook is verified by GET each run, and the run is UP", async () => {
+    const r = await run();
+    expect(r.outcome).toBe("UP");
+    expect(state.hookGets).toBe(1);
+    expect(r.out).toMatch(/webhook check: ok \(webhook answered 200\)/);
+    expect(r.out + r.summary).not.toContain("uptime-token-SECRET");
+  });
+
+  it("a revoked webhook (GET 404 / 401) is CONFIG_INVALID now, even while production is up; nothing is posted", async () => {
+    for (const status of [404, 401]) {
+      state.hookGetStatus = status;
+      const r = await run();
+      expect(r.code).toBe(1);
+      expect(r.outcome).toBe("CONFIG_INVALID");
+      expect(r.out).toMatch(new RegExp(`::error title=OPS_ALERT_WEBHOOK_URL invalid::.*rejected \\(HTTP ${status}\\): revoked`));
+      expect(state.hooks).toEqual([]);
+      expect(r.out + r.summary).not.toContain("uptime-token-SECRET");
+    }
+  });
+
+  it("a revoked webhook during an outage: the DOWN annotation is still emitted, outcome CONFIG_INVALID", async () => {
+    state.hookGetStatus = 404;
+    state.readyz = 503;
+    const r = await run();
+    expect(r.outcome).toBe("CONFIG_INVALID");
+    expect(r.out).toMatch(/::error title=PROOVRA down::api-readyz: HTTP 503/);
+  });
+
+  it("malformed values are CONFIG_INVALID and the value is never printed", async () => {
+    for (const bad of ["not a url", "http://example.com/hook", "https://discord.com/channels/1/2", "https://user:pw@hooks.example.com/x"]) {
+      const r = await run({ OPS_ALERT_WEBHOOK_URL: bad });
+      expect(r.code, bad).toBe(1);
+      expect(r.outcome, bad).toBe("CONFIG_INVALID");
+      expect(r.out, bad).not.toContain(bad);
+    }
+    expect(state.hooks).toEqual([]);
+  });
+
+  it("an inconclusive check (5xx) warns but does not fail a healthy run", async () => {
+    state.hookGetStatus = 503;
+    const r = await run();
+    expect(r.outcome).toBe("UP");
+    expect(r.code).toBe(0);
+    expect(r.out).toMatch(/::warning title=Uptime webhook check inconclusive::webhook check inconclusive \(HTTP 503\)/);
+  });
+
+  it("CONFIG_INVALID is never read as an outage: -> UP posts 'monitoring configured', never RECOVERED; -> DOWN posts DOWN", async () => {
+    state.prevRuns = [{ id: 998, conclusion: "failure", titles: ["OPS_ALERT_WEBHOOK_URL invalid", "uptime-outcome: CONFIG_INVALID"] }];
+    const r = await run();
+    expect(r.out).toMatch(/previous outcome: CONFIG_INVALID/);
+    expect(state.hooks).toHaveLength(1);
+    expect(hookText()).not.toMatch(/RECOVERED/);
+    expect(hookText()).toMatch(/Monitoring configured/);
+    state.hooks = [];
+    state.readyz = 500;
+    await run();
+    expect(hookText()).toMatch(/DOWN/);
+    expect(decideNotification("CONFIG_INVALID", true)).toBe("configured");
+    expect(decideNotification("CONFIG_INVALID", false)).toBe("down");
+  });
+
+  it("checkWebhook shapes: a non-Discord https webhook is shape-checked only (no GET)", async () => {
+    let calls = 0;
+    const f = (async () => {
+      calls += 1;
+      return new Response("", { status: 200 });
+    }) as unknown as typeof fetch;
+    expect(await checkWebhook("https://hooks.slack.com/services/T/B/x", { fetchImpl: f })).toMatchObject({ state: "ok" });
+    expect(calls).toBe(0);
+    expect(await checkWebhook("", { fetchImpl: f })).toMatchObject({ state: "missing" });
+    expect(await checkWebhook("https://discord.com/api/webhooks/1/tok", { fetchImpl: f })).toMatchObject({ state: "ok" });
+    expect(calls).toBe(1);
   });
 });

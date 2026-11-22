@@ -10,7 +10,7 @@ export type UptimeAttempt = {
   body?: string;
 };
 export type UptimeResult = { name: string; ok: boolean; status: number | null; detail: string; attempts: number; tries: UptimeAttempt[] };
-export type UptimeOutcome = "UP" | "DOWN" | "CONFIG_MISSING" | "NOTIFY_FAILED" | "SELFTEST";
+export type UptimeOutcome = "UP" | "DOWN" | "CONFIG_MISSING" | "CONFIG_INVALID" | "NOTIFY_FAILED" | "SELFTEST";
 export declare const DEFAULT_PROBES: UptimeProbe[];
 export declare const SELFTEST_PROBE: UptimeProbe;
 export declare const OUTCOMES: UptimeOutcome[];
@@ -33,6 +33,10 @@ export declare function previousOutcome(input: {
 }): Promise<{ outcome: Exclude<UptimeOutcome, "SELFTEST"> | "UNKNOWN"; runId?: number; via: string }>;
 export declare function decideNotification(previous: string, allOk: boolean): "down" | "recovered" | "configured" | null;
 export declare function isDiscordWebhook(url: string): boolean;
+export declare function checkWebhook(
+  url: string | undefined,
+  options?: { fetchImpl?: typeof fetch; timeoutMs?: number },
+): Promise<{ state: "missing" | "invalid" | "ok" | "unverified"; reason: string }>;
 export declare function buildMessage(
   kind: "down" | "recovered" | "configured",
   results: UptimeResult[],

@@ -247,6 +247,12 @@ the production host, and runs `scripts/ops/uptime-probe.mjs`:
   - `CONFIG_MISSING`: the repository secret `OPS_ALERT_WEBHOOK_URL` is not set
     (annotation `OPS_ALERT_WEBHOOK_URL missing`). The run fails so the gap is
     visible. A failing probe is still annotated `PROOVRA down` in the same run.
+  - `CONFIG_INVALID`: the secret is set but unusable: malformed (not https, or a
+    Discord URL that is not `/api/webhooks/<id>/<token>`), or a Discord webhook
+    that answers `401`/`403`/`404` to the GET every run makes (revoked or wrong
+    token). Annotation `OPS_ALERT_WEBHOOK_URL invalid`; the run fails. A
+    5xx/429/no answer to that GET is only a warning ("webhook check
+    inconclusive"). Like `CONFIG_MISSING`, it is never read as an outage.
   - `NOTIFY_FAILED`: a message was due and the webhook refused it.
   - `SELFTEST`: a manual self-test (below). Later runs ignore it.
 - Messages follow the previous run's outcome. Cancelled, timed-out and skipped
@@ -254,7 +260,7 @@ the production host, and runs `scripts/ops/uptime-probe.mjs`:
   fault during checkout), and so are self-tests:
   - previous `DOWN`: still failing, nothing; passing, one `RECOVERED`.
   - previous `UP`: failing, one `[PROOVRA UPTIME] DOWN`; passing, nothing.
-  - previous `CONFIG_MISSING`: failing, `DOWN`; passing, one "Monitoring
+  - previous `CONFIG_MISSING` or `CONFIG_INVALID`: failing, `DOWN`; passing, one "Monitoring
     configured — production up" message that says it is **not** an outage
     recovery. Adding the secret never posts a false `RECOVERED`.
   - previous `NOTIFY_FAILED`, or unreadable: failing, `DOWN`; passing, nothing.
