@@ -22,7 +22,8 @@
 
 import type { Prisma, PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
-import { appendCustodyEventTx, workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import { appendCustodyEventTx, evaluateEffectiveLegalHold, workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import { evaluateMemberAccessWithSnapshot } from "../identity/access-policy.service.js";
 import { allOpen, hiddenRecordIdsInWorkspace } from "../access/record-reach.js";
 import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import {
@@ -132,6 +133,8 @@ async function loadForRecipient(prisma: PrismaClient, transferId: string, teamId
       toOrganizationSlug: true,
       evidenceIds: true,
       expiresAtUtc: true,
+      initiatedByUserId: true,
+      createdAt: true,
     },
   });
   if (!row || row.toOrganizationId !== team.organizationId) return null;
@@ -278,9 +281,90 @@ export type AcceptChainTransferInput = {
   acceptingUserId: string;
 };
 
+/** Why an outstanding offer no longer stands at acceptance (OBS-CHAIN-TRANSFER). */
+export type ChainTransferOfferLapse =
+  | "INITIATOR_AUTHORITY_ENDED"
+  | "RECORD_NOT_TRANSFERABLE"
+  | "RECORD_UNDER_HOLD"
+  | "SUPERSEDED";
+
 export type AcceptChainTransferResult =
   | { ok: true }
-  | { ok: false; denial: "NOT_FOUND" | "INVALID_STATE" };
+  | { ok: false; denial: "NOT_FOUND" | "INVALID_STATE" }
+  | { ok: false; denial: "OFFER_NO_LONGER_VALID"; reason: ChainTransferOfferLapse };
+
+/**
+ * OBS-CHAIN-TRANSFER (closure phase 3) — does the sender's offer still stand?
+ *
+ * The custody-transfer authority model: the SENDING workspace offers
+ * (`governance.exchange.manage` + FEATURE_CHAIN_TRANSFER, its own live,
+ * visible records); the RECEIVING organization accepts or rejects
+ * (`governance.exchange.decide`, AUTHZ-007); the sender completes with a
+ * READY package carrying every record. Nothing changes custody at offer time:
+ * INITIATED only records the offer on the chain, the records stay in the
+ * sender's workspace, and ACCEPTED is what makes the chain say that the
+ * receiving organization took the hand-off. So acceptance consumes an
+ * outstanding offer, and the offer is the initiator's act on the sender's
+ * behalf: it stands only while
+ *   1. the initiator still holds `governance.exchange.manage` in the sending
+ *      workspace (membership, status and access window included), and
+ *   2. every record is still transferable: not deleted, still in the sending
+ *      workspace and visible to the initiator (the scope the offer was checked
+ *      against), under no effective legal hold (a hold blocks every release
+ *      out of custody, GOV-012), and named by no NEWER transfer that is still
+ *      live or done (not REJECTED / EXPIRED / REVOKED).
+ * Unlike an invitation (decision F), acceptance grants no access; the recheck
+ * protects what the custody chain asserts. A failure to read any fact refuses.
+ */
+async function chainTransferOfferLapse(
+  prisma: PrismaClient,
+  row: { id: string; teamId: string; initiatedByUserId: string; evidenceIds: unknown; createdAt: Date },
+): Promise<ChainTransferOfferLapse | null> {
+  const ids = [...new Set(idsOf(row.evidenceIds))];
+  try {
+    const initiator = await evaluateMemberAccessWithSnapshot(
+      {
+        teamId: row.teamId,
+        userId: row.initiatedByUserId,
+        permission: "governance.exchange.manage",
+        resourceKind: "chain_transfer",
+        resourceId: row.id,
+      },
+      prisma,
+    );
+    if (!initiator.decision.allowed) return "INITIATOR_AUTHORITY_ENDED";
+
+    const scope = await workspaceEvidenceWhere(row.teamId, prisma);
+    const live = await prisma.evidence.count({
+      where: {
+        AND: [scope, evidenceVisibleThroughCasesWhere(row.initiatedByUserId)],
+        id: { in: ids },
+        deletedAt: null,
+      },
+    });
+    if (ids.length === 0 || live !== ids.length) return "RECORD_NOT_TRANSFERABLE";
+
+    for (const evidenceId of ids) {
+      const held = await evaluateEffectiveLegalHold(prisma, { teamId: row.teamId, evidenceId });
+      if (held.held) return "RECORD_UNDER_HOLD";
+    }
+
+    const newer = await prisma.chainTransfer.findMany({
+      where: {
+        teamId: row.teamId,
+        id: { not: row.id },
+        createdAt: { gt: row.createdAt },
+        state: { notIn: ["REJECTED", "EXPIRED", "REVOKED"] },
+      },
+      select: { evidenceIds: true },
+    });
+    const mine = new Set(ids);
+    if (newer.some((t) => idsOf(t.evidenceIds).some((id) => mine.has(id)))) return "SUPERSEDED";
+    return null;
+  } catch {
+    return "RECORD_NOT_TRANSFERABLE";
+  }
+}
 
 /** May this caller act on this transfer? False when it does not exist too. */
 export async function chainTransferOpenTo(input: {
@@ -314,6 +398,9 @@ export async function acceptChainTransfer(
   if (row.expiresAtUtc && row.expiresAtUtc.getTime() <= at.getTime()) {
     return { ok: false, denial: "INVALID_STATE" };
   }
+  // OBS-CHAIN-TRANSFER — the offer must still stand; a refusal writes nothing.
+  const lapse = await chainTransferOfferLapse(prisma, row);
+  if (lapse) return { ok: false, denial: "OFFER_NO_LONGER_VALID", reason: lapse };
   const moved = await prisma.$transaction(async (tx) => {
     const claim = await tx.chainTransfer.updateMany({
       where: { id: row.id, state: "INITIATED" },

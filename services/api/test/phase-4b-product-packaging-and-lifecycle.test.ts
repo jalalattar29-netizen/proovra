@@ -16,6 +16,31 @@ vi.mock("../src/storage.js", async (importOriginal) => {
   return { ...actual, copyObjectStorageClass: vi.fn().mockResolvedValue(undefined), restoreObject: vi.fn().mockResolvedValue(undefined), headObjectStorageClass: vi.fn().mockResolvedValue("STANDARD") };
 });
 
+// OBS-CHAIN-TRANSFER — acceptance re-checks the initiator's authority and the
+// records' hold state. Those two answers are set per test here (null = the
+// real implementation, which no other test in this file reaches).
+const CT = vi.hoisted(() => ({ initiatorAllowed: null as boolean | null, held: null as boolean | null }));
+vi.mock("../src/services/identity/access-policy.service.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/services/identity/access-policy.service.js")>();
+  return {
+    ...actual,
+    evaluateMemberAccessWithSnapshot: (async (...args: Parameters<typeof actual.evaluateMemberAccessWithSnapshot>) =>
+      CT.initiatorAllowed === null
+        ? actual.evaluateMemberAccessWithSnapshot(...args)
+        : { decision: { allowed: CT.initiatorAllowed }, snapshot: null }) as typeof actual.evaluateMemberAccessWithSnapshot,
+  };
+});
+vi.mock("@proovra/shared-runtime", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@proovra/shared-runtime")>();
+  return {
+    ...actual,
+    evaluateEffectiveLegalHold: (async (...args: Parameters<typeof actual.evaluateEffectiveLegalHold>) =>
+      CT.held === null
+        ? actual.evaluateEffectiveLegalHold(...args)
+        : { held: CT.held, reasonCode: CT.held ? "EVIDENCE_LEGAL_HOLD" : null, matches: [] }) as typeof actual.evaluateEffectiveLegalHold,
+  };
+});
+
 import {
   PRODUCT_LINES,
   ENTITLEMENT_KEYS,
@@ -1243,9 +1268,10 @@ describe("14. Chain transfer state machine", () => {
     expect(storedState).toBe("INITIATED");
   });
 
-  it("acceptChainTransfer on INITIATED → ACCEPTED", async () => {
-    let updatedState: string | undefined;
-    const prisma = makePrismaStub({
+  // OBS-CHAIN-TRANSFER — a standing offer: one live record, an initiator who
+  // still holds governance.exchange.manage, no hold, no newer transfer.
+  const offerStub = (claims: { state?: string }) =>
+    makePrismaStub({
       chainTransfer: {
         findUnique: async () => ({
           id: "xfer-1",
@@ -1254,26 +1280,63 @@ describe("14. Chain transfer state machine", () => {
           fromOrganizationId: "org-1",
           toOrganizationId: "org-two",
           toOrganizationSlug: "org-two",
-          evidenceIds: [],
+          evidenceIds: ["ev-1"],
           expiresAtUtc: null,
+          initiatedByUserId: "user-1",
+          createdAt: new Date("2026-11-01T00:00:00Z"),
         }),
         updateMany: async (args: { data: Record<string, unknown> }) => {
-          updatedState = args.data.state as string;
+          claims.state = args.data.state as string;
           return { count: 1 };
         },
         create: async () => ({ id: "xfer-1" }),
         findMany: async () => [],
       },
-      team: { findUnique: async () => ({ organizationId: "org-two" }) },
+      team: { findUnique: async () => ({ isPersonal: false, ownerUserId: null, organizationId: "org-two" }) },
+      evidence: { count: async () => 1 },
     });
-    const result = await acceptChainTransfer({
-      prisma: prisma as never,
-      teamId: "team-1",
-      transferId: "xfer-1",
-      acceptingUserId: "user-2",
-    });
-    expect(result.ok).toBe(true);
-    expect(updatedState).toBe("ACCEPTED");
+
+  it("acceptChainTransfer on INITIATED → ACCEPTED", async () => {
+    CT.initiatorAllowed = true;
+    CT.held = false;
+    try {
+      const claims: { state?: string } = {};
+      const result = await acceptChainTransfer({
+        prisma: offerStub(claims) as never,
+        teamId: "team-1",
+        transferId: "xfer-1",
+        acceptingUserId: "user-2",
+      });
+      expect(result.ok).toBe(true);
+      expect(claims.state).toBe("ACCEPTED");
+    } finally {
+      CT.initiatorAllowed = null;
+      CT.held = null;
+    }
+  });
+
+  it("acceptChainTransfer refuses an offer whose initiator lost the transfer authority, or whose record is held, and claims nothing", async () => {
+    try {
+      for (const [allowed, held, reason] of [
+        [false, false, "INITIATOR_AUTHORITY_ENDED"],
+        [true, true, "RECORD_UNDER_HOLD"],
+      ] as const) {
+        CT.initiatorAllowed = allowed;
+        CT.held = held;
+        const claims: { state?: string } = {};
+        const result = await acceptChainTransfer({
+          prisma: offerStub(claims) as never,
+          teamId: "team-1",
+          transferId: "xfer-1",
+          acceptingUserId: "user-2",
+        });
+        expect(result).toEqual({ ok: false, denial: "OFFER_NO_LONGER_VALID", reason });
+        expect(claims.state).toBeUndefined();
+      }
+    } finally {
+      CT.initiatorAllowed = null;
+      CT.held = null;
+    }
   });
 
   it("completeChainTransfer on ACCEPTED → COMPLETED", async () => {
