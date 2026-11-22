@@ -176,6 +176,13 @@ const ENTRYPOINTS = Object.freeze({
     // ops:trust-manifest-sample-inspection.
     "services/api/src/scripts/trust-exposure-holder-inventory.ts",
     "services/api/src/scripts/trust-manifest-sample-inspection.ts",
+    // PRO-G2-01 (2026-11-22, closure3/contain) — the exact access-path inventory of
+    // the CROSS_PARTY packages (read-only, ops:trust-exposure-access-paths) and the
+    // owner-approved containment of their reviewer share links through the
+    // canonical revocation (dry run by default; apply needs the approval variable,
+    // a backup id and the validated set hash: ops:contain-cross-party-share-links).
+    "services/api/src/scripts/trust-exposure-access-paths.ts",
+    "services/api/src/scripts/contain-cross-party-share-links.ts",
     // PRO-N1-06 / PRO-I1Z-01 (2026-11-21, closure2/hist) — the one-off redaction
     // of intake bearer links stored in communication_messages.body_preview.
     // Dry run by default; apply needs the owner-approval variable, a backup id

@@ -23,15 +23,32 @@
  *
  * The output names other tenants' article titles: RESTRICTED. Keep it with the
  * incident record; never in a delivery bundle or a customer message.
+ *
+ * --compare-corrected-builder (PRO-G2-01 closure 3): additionally rebuilds, IN
+ * MEMORY and inside the same READ ONLY transaction, what the CORRECTED
+ * tenant-scoped builder (@proovra/shared-runtime buildTrustVerificationManifests,
+ * the function the fixed Worker and the API preview call) would put in this
+ * package's manifests for the package's workspace TODAY, and diffs it with the
+ * stored manifests: rows in both, rows only stored (FOREIGN = the defect; OWN =
+ * the workspace's own row changed since; UNMATCHED = deleted since) and rows only
+ * the corrected builder has (published since). Nothing is issued, stored or
+ * queued; no title beyond the FOREIGN ones already listed is printed.
+ *
+ * Every result is labelled with its basis: `evidenceBasis:
+ * STORED_ARTIFACT_CONTENTS` for what the stored ZIP carries (inspected), and
+ * `comparison.basis: CORRECTED_BUILDER_IN_MEMORY_NOW` for the rebuild, which
+ * reads current rows (not the rows as they were at generation time).
  */
 import { pathToFileURL } from "node:url";
 
 import type { PrismaClient } from "@prisma/client";
 
+import { buildTrustVerificationManifests } from "@proovra/shared-runtime";
+
 import { readPackageTrustManifests, type RangeReader } from "../services/trust/package-manifest-inspection.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const REFUSED = ["apply", "write", "fix", "execute", "notify", "revoke", "reissue", "save", "download", "out"];
+const REFUSED = ["apply", "write", "fix", "execute", "notify", "revoke", "reissue", "save", "download", "out", "issue"];
 export const MAX_SAMPLE_PACKAGES = 50;
 
 export type SampleStorage = {
@@ -59,7 +76,30 @@ type PkgRow = {
   generated_at: Date;
 };
 type ArticleRow = { id: string; team_id: string; kind: string; section: string; slug: string; title: string; state: string };
-type SubRow = { id: string; team_id: string; state: string };
+type SubRow = { id: string; team_id: string; state: string; slug: string | null };
+
+type CorrectedManifests = {
+  articles: Array<{ kind: string; section: string; slug: string; title: string | null }>;
+  subprocessorSlugs: string[];
+  activeSubprocessorCount: number | null;
+};
+
+/** The corrected builder's manifests for one workspace, reduced to the compared keys. */
+function reduceCorrected(entries: ReadonlyArray<{ path: string; json: unknown }>): CorrectedManifests {
+  const byPath = new Map(entries.map((e) => [e.path, (e.json ?? {}) as Record<string, unknown>]));
+  const list = (v: unknown) => (Array.isArray(v) ? (v as Array<Record<string, unknown>>) : []);
+  const s = (v: unknown) => (typeof v === "string" ? v : "");
+  const trust = byPath.get("intelligence/trust-manifest.json");
+  return {
+    articles: [
+      ...list(trust?.trustArticles).map((r) => ({ kind: "TRUST_CENTER", section: s(r.section), slug: s(r.slug), title: s(r.title) })),
+      ...list(byPath.get("intelligence/methodology-manifest.json")?.sections).map((r) => ({ kind: "METHODOLOGY", section: s(r.section), slug: s(r.slug), title: null })),
+      ...list(byPath.get("intelligence/ai-disclosure-manifest.json")?.sections).map((r) => ({ kind: "AI_DISCLOSURE", section: s(r.section), slug: s(r.slug), title: null })),
+    ],
+    subprocessorSlugs: list(byPath.get("intelligence/subprocessor-manifest.json")?.subprocessors).map((r) => s(r.slug)),
+    activeSubprocessorCount: typeof trust?.activeSubprocessorCount === "number" ? trust.activeSubprocessorCount : null,
+  };
+}
 
 async function readOnly<T>(client: PrismaClient, fn: (tx: PrismaClient) => Promise<T>): Promise<T> {
   return client.$transaction(async (tx) => {
@@ -70,13 +110,15 @@ async function readOnly<T>(client: PrismaClient, fn: (tx: PrismaClient) => Promi
 
 export async function runTrustManifestSampleInspectionCli(io: SampleCliIo): Promise<number> {
   let ids: string[] = [];
+  let compare = false;
   for (const a of io.argv) {
     const m = /^--([a-z-]+)(?:=(.*))?$/.exec(a);
     if (m && REFUSED.includes(m[1]!)) {
       io.err(`refused: --${m[1]} is not supported: this inspection is read-only and saves nothing.\n`);
       return 2;
     }
-    if (m?.[1] === "packages" && m[2] !== undefined) ids.push(...m[2].split(",").map((s) => s.trim()).filter(Boolean));
+    if (m?.[1] === "compare-corrected-builder" && m[2] === undefined) compare = true;
+    else if (m?.[1] === "packages" && m[2] !== undefined) ids.push(...m[2].split(",").map((s) => s.trim()).filter(Boolean));
     else if (m?.[1] === "package" && m[2] !== undefined) ids.push(m[2].trim());
     else {
       io.err(`refused: unknown argument ${a.split("=")[0]}\n`);
@@ -98,7 +140,7 @@ export async function runTrustManifestSampleInspectionCli(io: SampleCliIo): Prom
     return 2;
   }
 
-  const { rows, articles, subs } = await readOnly(io.client, async (tx) => {
+  const { rows, articles, subs, corrected } = await readOnly(io.client, async (tx) => {
     const rows = await tx.$queryRaw<PkgRow[]>`
       SELECT vp.id::text AS id, vp.evidence_id::text AS evidence_id, e.team_id::text AS team_id, vp.version,
              vp.disclosure_profile, vp.storage_bucket, vp.storage_key, vp.s3_version_id,
@@ -108,8 +150,15 @@ export async function runTrustManifestSampleInspectionCli(io: SampleCliIo): Prom
     const articles = await tx.$queryRaw<ArticleRow[]>`
       SELECT id::text AS id, team_id::text AS team_id, kind::text AS kind, section, slug, title, state::text AS state
         FROM trust_center_articles WHERE kind::text IN ('TRUST_CENTER', 'METHODOLOGY', 'AI_DISCLOSURE')`;
-    const subs = await tx.$queryRaw<SubRow[]>`SELECT id::text AS id, team_id::text AS team_id, state::text AS state FROM subprocessors`;
-    return { rows, articles, subs };
+    const subs = await tx.$queryRaw<SubRow[]>`SELECT id::text AS id, team_id::text AS team_id, state::text AS state, slug FROM subprocessors`;
+    // The corrected builder, per package workspace, in THIS read-only transaction: nothing can be written.
+    const corrected = new Map<string, CorrectedManifests>();
+    if (compare) {
+      for (const teamId of [...new Set(rows.map((r) => r.team_id).filter((t): t is string => !!t))]) {
+        corrected.set(teamId, reduceCorrected(await buildTrustVerificationManifests({ prisma: tx, teamId })));
+      }
+    }
+    return { rows, articles, subs, corrected };
   });
 
   const articleIndex = new Map<string, ArticleRow[]>();
@@ -120,6 +169,54 @@ export async function runTrustManifestSampleInspectionCli(io: SampleCliIo): Prom
     articleIndex.set(k, [...(articleIndex.get(k) ?? []), a]);
   }
   const subIndex = new Map(subs.map((s) => [s.id, s]));
+
+  const compareWithCorrected = (
+    row: PkgRow,
+    m: Awaited<ReturnType<typeof readPackageTrustManifests>>,
+    articleFindings: Array<{ kind: string; section: string; slug: string; attribution: string }>,
+    subFindings: Array<{ rowId: string; attribution: string }>,
+  ) => {
+    const c = row.team_id ? corrected.get(row.team_id) : undefined;
+    if (!c) return { basis: "CORRECTED_BUILDER_IN_MEMORY_NOW", outcome: "NO_WORKSPACE" };
+    const correctedKeys = new Set(c.articles.map((a) => keyOf(a.kind, a.section, a.slug, a.title)));
+    const storedKeys = new Set(m.articles.map((a) => keyOf(a.kind, a.section, a.slug, a.title)));
+    const storedOnly = { FOREIGN: 0, OWN: 0, UNMATCHED: 0 } as Record<string, number>;
+    let articlesInBoth = 0;
+    m.articles.forEach((a, i) => {
+      if (correctedKeys.has(keyOf(a.kind, a.section, a.slug, a.title))) articlesInBoth += 1;
+      else storedOnly[articleFindings[i]!.attribution] = (storedOnly[articleFindings[i]!.attribution] ?? 0) + 1;
+    });
+    // The corrected builder names a subprocessor by its slug, the old one by its row id.
+    const correctedSubIds = new Set(
+      subs.filter((x) => x.team_id === row.team_id && x.slug !== null && c.subprocessorSlugs.includes(x.slug)).map((x) => x.id),
+    );
+    const subStoredOnly = { FOREIGN: 0, OWN: 0, UNMATCHED: 0 } as Record<string, number>;
+    let subsInBoth = 0;
+    for (const s of subFindings) {
+      if (correctedSubIds.has(s.rowId)) subsInBoth += 1;
+      else subStoredOnly[s.attribution] = (subStoredOnly[s.attribution] ?? 0) + 1;
+    }
+    const storedSubIds = new Set(subFindings.map((s) => s.rowId));
+    const foreign = storedOnly.FOREIGN! + subStoredOnly.FOREIGN!;
+    return {
+      basis: "CORRECTED_BUILDER_IN_MEMORY_NOW",
+      issued: false,
+      articles: {
+        inBoth: articlesInBoth,
+        storedOnly,
+        correctedOnly: c.articles.filter((a) => !storedKeys.has(keyOf(a.kind, a.section, a.slug, a.title))).length,
+      },
+      subprocessors: {
+        inBoth: subsInBoth,
+        storedOnly: subStoredOnly,
+        correctedOnly: [...correctedSubIds].filter((id) => !storedSubIds.has(id)).length,
+      },
+      activeSubprocessorCount: { stored: m.activeSubprocessorCount, corrected: c.activeSubprocessorCount },
+      conclusion: foreign > 0 ? "STORED_CARRIES_FOREIGN_ROWS_THE_CORRECTED_BUILDER_EXCLUDES" : "NO_FOREIGN_DIFFERENCE",
+      reading:
+        "storedOnly.FOREIGN is the defect; storedOnly.OWN / UNMATCHED and correctedOnly are the workspace's own rows changed since generation (the rebuild reads current rows)",
+    };
+  };
 
   const results: unknown[] = [];
   let failures = 0;
@@ -180,6 +277,7 @@ export async function runTrustManifestSampleInspectionCli(io: SampleCliIo): Prom
         },
         articles: articleFindings.filter((a) => a.attribution !== "OWN"),
         subprocessors: subFindings.filter((s) => s.attribution !== "OWN"),
+        ...(compare ? { comparison: compareWithCorrected(row, m, articleFindings, subFindings) } : {}),
       });
     } catch (e) {
       failures++;

@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 12699,
-      "UNRESOLVED_IDENTIFIER": 1850
+      "METHOD_ON_VALUE": 12780,
+      "UNRESOLVED_IDENTIFIER": 1857
     },
     "MutationFixpointRounds": 11,
     "MutationClosurePass": false,
@@ -29386,41 +29386,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/verification-share/authority.ts#verificationShareToken.updateMany@264",
-      "terminalLocation": "packages/shared-runtime/src/verification-share/authority.ts:264",
-      "file": "packages/shared-runtime/src/verification-share/authority.ts",
-      "enclosingDeclaration": "recordVerificationShareUse",
-      "kind": "DATABASE",
-      "target": "verificationShareToken",
-      "mutationKind": "updateMany",
-      "primaryFamily": "EXTERNAL_REVIEW_INTAKE_SHARE",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "GET /public/verify/:id"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/evidence.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "packages/shared-runtime/src/verification-share/authority.ts#verificationShareToken.updateMany@276",
-      "terminalLocation": "packages/shared-runtime/src/verification-share/authority.ts:276",
+      "writerId": "packages/shared-runtime/src/verification-share/authority.ts#verificationShareToken.updateMany@280",
+      "terminalLocation": "packages/shared-runtime/src/verification-share/authority.ts:280",
       "file": "packages/shared-runtime/src/verification-share/authority.ts",
       "enclosingDeclaration": "recordVerificationShareUse",
       "kind": "DATABASE",
@@ -29454,6 +29421,39 @@
     {
       "writerId": "packages/shared-runtime/src/verification-share/authority.ts#verificationShareToken.updateMany@292",
       "terminalLocation": "packages/shared-runtime/src/verification-share/authority.ts:292",
+      "file": "packages/shared-runtime/src/verification-share/authority.ts",
+      "enclosingDeclaration": "recordVerificationShareUse",
+      "kind": "DATABASE",
+      "target": "verificationShareToken",
+      "mutationKind": "updateMany",
+      "primaryFamily": "EXTERNAL_REVIEW_INTAKE_SHARE",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "GET /public/verify/:id"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/evidence.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/verification-share/authority.ts#verificationShareToken.updateMany@308",
+      "terminalLocation": "packages/shared-runtime/src/verification-share/authority.ts:308",
       "file": "packages/shared-runtime/src/verification-share/authority.ts",
       "enclosingDeclaration": "revokeVerificationShareTokenTx",
       "kind": "DATABASE",
@@ -62034,8 +62034,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance/verification-share.service.ts#evidence.updateMany@434",
-      "terminalLocation": "services/api/src/services/governance/verification-share.service.ts:434",
+      "writerId": "services/api/src/services/governance/verification-share.service.ts#evidence.updateMany@532",
+      "terminalLocation": "services/api/src/services/governance/verification-share.service.ts:532",
       "file": "services/api/src/services/governance/verification-share.service.ts",
       "enclosingDeclaration": "revokeLegacyVerifyLink",
       "kind": "DATABASE",
@@ -62067,8 +62067,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance/verification-share.service.ts#verificationShareToken.updateMany@409",
-      "terminalLocation": "services/api/src/services/governance/verification-share.service.ts:409",
+      "writerId": "services/api/src/services/governance/verification-share.service.ts#verificationShareToken.updateMany@507",
+      "terminalLocation": "services/api/src/services/governance/verification-share.service.ts:507",
       "file": "services/api/src/services/governance/verification-share.service.ts",
       "enclosingDeclaration": "renewVerificationLink",
       "kind": "DATABASE",

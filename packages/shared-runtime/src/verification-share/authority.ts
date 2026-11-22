@@ -233,6 +233,22 @@ export async function resolveVerificationShareToken(
   const a = Buffer.from(row.tokenHash, "hex");
   const b = Buffer.from(tokenHash, "hex");
   if (a.length !== b.length || !timingSafeEqual(a, b)) return { outcome: "UNKNOWN" };
+  return verificationShareOutcomeOfRow(row, now, viewSession);
+}
+
+/**
+ * THE resolver's decision once it holds the stored row (PRO-G2-01): the public
+ * verify route reaches it through `resolveVerificationShareToken` (token →
+ * hash → row → here). Exported so an operator check can ask the SAME question
+ * of a link by its stored id, without any token: a revoked or expired link is
+ * GONE for every viewing session, an exhausted one only stays open to the
+ * session that spent its last use (REPORT-013).
+ */
+export function verificationShareOutcomeOfRow(
+  row: VerificationShareRow,
+  now: Date = new Date(),
+  viewSession?: unknown,
+): Exclude<ResolvedVerificationShare, { outcome: "UNKNOWN" }> {
   const state = verificationShareStateOf(row, now);
   // A link whose last use was spent by THIS viewing session is still open to
   // that session (REPORT-013). Revoked and expired links are never reopened.
