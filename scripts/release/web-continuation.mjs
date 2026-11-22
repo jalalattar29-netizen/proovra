@@ -141,6 +141,34 @@ export function parseTrigger(description) {
   return m ? { sha: m[1], apiRevision: m[2], epoch: Number(m[3]) } : null;
 }
 
+/** Written after a trigger record when the hook call itself failed: that record is void. */
+export const HOOK_FAILED_PREFIX = "deploy hook call failed";
+
+/**
+ * Trigger records (newest first) that stand: a record followed by a
+ * "deploy hook call failed" status is void (the hook never accepted it). A
+ * record whose follow-up could not be written stands — the conservative side:
+ * it is waited on, and counted.
+ */
+export function effectiveTriggers(oursNewestFirst) {
+  const out = [];
+  let voidNext = 0;
+  for (const s of oursNewestFirst ?? []) {
+    if (String(s.description ?? "").startsWith(HOOK_FAILED_PREFIX)) {
+      voidNext += 1;
+      continue;
+    }
+    const t = parseTrigger(s.description);
+    if (!t) continue;
+    if (voidNext > 0) {
+      voidNext -= 1;
+      continue;
+    }
+    out.push({ s, t });
+  }
+  return out;
+}
+
 export function triggerDescription(sha, live) {
   return `triggered web build of ${SHORT(sha)} (api ${SHORT(live.revision)} epoch ${live.routeEpoch}) via the Vercel deploy hook`;
 }
@@ -202,7 +230,7 @@ export function decideContinuation(f) {
   }
   const vercel = classifyVercel(f.vercel);
   const ours = Array.isArray(f.ours) ? f.ours : [];
-  const triggers = ours.map((s) => ({ s, t: parseTrigger(s.description) })).filter((x) => x.t);
+  const triggers = effectiveTriggers(ours);
   const lastTrigger = triggers[0] ?? null;
   const vercelAt = ms(vercel.latest?.created_at);
   const lastTriggerAt = lastTrigger ? ms(lastTrigger.s.created_at) : null;
@@ -537,7 +565,8 @@ export async function runContinuation({
     if (dryRun) return true;
     const latest = sha === facts.headSha ? facts.ours?.[0] : null;
     // An unchanged status is not re-posted (statuses are capped per SHA); every trigger is, because triggers are counted.
-    if (latest && !parseTrigger(status.description) && latest.state === status.state && latest.description === status.description.slice(0, 140)) return true;
+    const recordKeeping = parseTrigger(status.description) || status.description.startsWith(HOOK_FAILED_PREFIX);
+    if (latest && !recordKeeping && latest.state === status.state && latest.description === status.description.slice(0, 140)) return true;
     try {
       await gh.setStatus(sha, { state: status.state, description: status.description.slice(0, 140), context: STATUS_CONTEXT, target_url: runUrl });
       return true;
@@ -560,13 +589,19 @@ export async function runContinuation({
       say(`- SUPERSEDED: main moved to ${current ?? "unreadable"} after evaluation; no build requested (the next run evaluates the new head)`);
     } else {
       const triggeredAt = now();
-      const res = await callDeployHook(String(env[HOOK_SECRET_NAME]).trim(), fetchImpl);
-      if (!res.ok) {
+      // The trigger is recorded BEFORE the hook is called, and the hook is not
+      // called if that record cannot be written: an unrecorded build would
+      // escape the in-flight window and the retry cap, and every later run would
+      // call the hook again. A failed call then voids its record (HOOK_FAILED_PREFIX).
+      const recorded = await setStatus(facts.headSha, d.status);
+      const res = recorded ? await callDeployHook(String(env[HOOK_SECRET_NAME]).trim(), fetchImpl) : null;
+      if (!recorded) {
+        say("- the trigger record could not be written; the deploy hook was NOT called (retrying on the next run)");
+      } else if (!res.ok) {
         say(`- deploy hook call FAILED (HTTP ${res.status ?? res.error}); retrying on the next run`);
-        await setStatus(facts.headSha, { state: "pending", description: `deploy hook call failed (HTTP ${res.status ?? res.error}); retrying on the next run` });
+        await setStatus(facts.headSha, { state: "pending", description: `${HOOK_FAILED_PREFIX} (HTTP ${res.status ?? res.error}); retrying on the next run` });
       } else {
         say(`- deploy hook accepted (HTTP ${res.status}, job ${res.jobId ?? "-"}) for ${facts.headSha}`);
-        await setStatus(facts.headSha, d.status);
         log(`::notice title=Web release continued::Vercel deploy hook called for ${facts.headSha} (live API ${la?.revision}).`);
         // Record WHICH commit Vercel builds: the hook builds main's HEAD at the moment Vercel resolves it.
         const deadline = triggeredAt + observeMs;

@@ -87,6 +87,11 @@ Why it is safe:
   build is of the newer commit, which the Vercel build gates independently
   (compatibility + never older than the live web), exactly as that commit's own
   push build was gated. The run records which commit Vercel started building.
+- The "triggered" status is written BEFORE the hook is called, and the hook is
+  not called if that write fails, so a build can never escape the in-flight
+  window and the retry cap. A hook call that fails is followed by a "deploy hook
+  call failed" status, which voids that record; if even that write fails, the
+  record stands and the next runs wait (the conservative side).
 - A refused or lost continuation build is retried at most 3 times per live API
   revision; then the status turns `failure` and asks for the Vercel build log.
   While a requested build has not been reported (30 minutes), no second request

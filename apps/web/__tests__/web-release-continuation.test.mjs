@@ -21,6 +21,7 @@ import {
   ciState,
   classifyVercel,
   decideContinuation,
+  effectiveTriggers,
   isDeployHookUrl,
   parseTrigger,
   runContinuation,
@@ -114,6 +115,7 @@ function makeWorld({ commits, main, web, api, ci = "success", hook = HOOK, start
     m = /^\/repos\/o\/r\/statuses\/([0-9a-f]+)$/.exec(p);
     if (m && method === "POST") {
       const b = JSON.parse(opts.body);
+      if (w.fail.statusWrite?.(b)) return res(500, {});
       w.addStatus(m[1], b.context, b.state, b.description);
       return res(201, {});
     }
@@ -445,7 +447,9 @@ test("F — retries after a temporary failure never duplicate a pending build, a
   r = await w.run();
   assert.equal(r.outcome, "GAVE_UP");
   assert.equal(r.code, 1);
-  assert.equal(w.ours(C1).filter((s) => parseTrigger(s.description)).length, MAX_TRIGGERS_PER_API_REVISION);
+  // Four records were written (each before its call); the first is voided by its recorded hook failure.
+  assert.equal(w.ours(C1).filter((s) => parseTrigger(s.description)).length, MAX_TRIGGERS_PER_API_REVISION + 1);
+  assert.equal(effectiveTriggers([...w.ours(C1)].reverse()).length, MAX_TRIGGERS_PER_API_REVISION);
   assert.equal(w.hookCalls.length, 4, "no further calls after the cap");
   noGitWrites(w);
 });
@@ -540,4 +544,74 @@ test("helpers: ciState, classifyVercel, isDeployHookUrl, supersedeTargets", () =
     { sha: C0, ours: [] },
   ]);
   assert.deepEqual(t.map((x) => x.sha), [C2]);
+});
+
+test("L5 — the trigger is recorded before the hook is called; an unwritable record means no call, and a recorded call is never repeated", async () => {
+  const w = makeWorld({
+    commits: [{ sha: C0, epoch: 4, api: true }, { sha: C1, epoch: 5, api: true }],
+    main: C1,
+    web: C0,
+    api: { revision: C1, epoch: 5 },
+  });
+  w.addStatus(C1, VERCEL_WEB_CONTEXT, "success", "Canceled by Ignored Build Step");
+  w.clock += 20 * MIN;
+  // Vercel never reports, so only the trigger record can stop a repeat.
+  const realAdd = w.addStatus;
+  w.addStatus = (s, ctx, ...rest) => (ctx === VERCEL_WEB_CONTEXT ? undefined : realAdd(s, ctx, ...rest));
+
+  // 1. The GitHub status write fails: the hook is NOT called, and the run is red.
+  w.fail.statusWrite = () => true;
+  let r = await w.run();
+  assert.equal(r.outcome, "TRIGGER");
+  assert.equal(r.code, 1);
+  assert.equal(w.hookCalls.length, 0);
+  assert.ok(r.lines.some((l) => l.includes("the deploy hook was NOT called")));
+
+  // 2. Writes work again: recorded, then called once.
+  w.fail.statusWrite = null;
+  w.clock += 10 * MIN;
+  r = await w.run();
+  assert.equal(w.hookCalls.length, 1);
+  const order = w.ours(C1).map((s) => s.description);
+  assert.ok(parseTrigger(order.at(-1)), "the trigger record is the last write, made before the call");
+
+  // 3. Every status write fails from now on: the next runs inside the window still do not call again.
+  w.fail.statusWrite = () => true;
+  for (const step of [10, 10]) {
+    w.clock += step * MIN;
+    r = await w.run();
+    assert.equal(r.outcome, "TRIGGER_IN_FLIGHT");
+  }
+  assert.equal(w.hookCalls.length, 1);
+});
+
+test("L5 — a failed hook call voids its record, but only when the failure itself was recorded", async () => {
+  const w = makeWorld({
+    commits: [{ sha: C0, epoch: 4, api: true }, { sha: C1, epoch: 5, api: true }],
+    main: C1,
+    web: C0,
+    api: { revision: C1, epoch: 5 },
+  });
+  w.addStatus(C1, VERCEL_WEB_CONTEXT, "success", "Canceled by Ignored Build Step");
+  w.clock += 20 * MIN;
+  // Hook refuses; the failure note cannot be written: the record stands (conservative), so the next run waits.
+  w.hookStatus = 500;
+  w.fail.statusWrite = (b) => b.description.startsWith("deploy hook call failed");
+  await w.run();
+  assert.equal(w.hookCalls.length, 1);
+  w.clock += 10 * MIN;
+  let r = await w.run();
+  assert.equal(r.outcome, "TRIGGER_IN_FLIGHT");
+  assert.equal(w.hookCalls.length, 1);
+
+  // Repeated hook failures, each recorded: the voided records do not count toward the cap.
+  w.fail.statusWrite = null;
+  w.clock += TRIGGER_IN_FLIGHT_MS;
+  for (let i = 0; i < MAX_TRIGGERS_PER_API_REVISION + 1; i += 1) {
+    r = await w.run();
+    assert.equal(r.outcome, "TRIGGER");
+    w.clock += 10 * MIN;
+  }
+  assert.equal(w.hookCalls.length, 2 + MAX_TRIGGERS_PER_API_REVISION);
+  assert.equal(effectiveTriggers([...w.ours(C1)].reverse()).length, 1, "only the unvoided record counts");
 });
