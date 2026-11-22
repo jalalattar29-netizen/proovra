@@ -234,14 +234,59 @@ the production host, and runs `scripts/ops/uptime-probe.mjs`:
 | `https://api.proovra.com/readyz` | 200 (database, Redis and evidence storage ready) |
 | `https://www.proovra.com/api/health` | 200 |
 
-- Each probe gets 3 attempts, 20 s apart, so one blip does not page.
-- On the first failing run it posts one `[PROOVRA UPTIME] DOWN` message to the
-  repository secret `OPS_ALERT_WEBHOOK_URL`. When a later run passes it posts one
-  `RECOVERED` message. A failure that persists is not re-posted, and the run stays
-  red. If the previous run cannot be read, a failure is posted anyway, and a pass
-  posts no recovery.
-- Without the secret, every run fails with an explicit error, so the missing
-  destination is visible.
+- Each probe gets 3 attempts, 20 s apart, so one blip does not page. Every
+  attempt is logged and listed in the job summary: the HTTP status and the time,
+  and for a non-200 attempt the `server`, `cf-mitigated` and `cf-ray` headers and
+  the first 80 characters of the body (sanitized). A probe that passes only on a
+  retry is visible, not hidden.
+- Each run ends with exactly one outcome, printed as `uptime-outcome: <X>` in the
+  log and the job summary, and as a notice annotation with that title, which the
+  next run reads back:
+  - `UP`: every probe passed and the alert destination is configured.
+  - `DOWN`: a probe failed (annotation `PROOVRA down`).
+  - `CONFIG_MISSING`: the repository secret `OPS_ALERT_WEBHOOK_URL` is not set
+    (annotation `OPS_ALERT_WEBHOOK_URL missing`). The run fails so the gap is
+    visible. A failing probe is still annotated `PROOVRA down` in the same run.
+  - `NOTIFY_FAILED`: a message was due and the webhook refused it.
+  - `SELFTEST`: a manual self-test (below). Later runs ignore it.
+- Messages follow the previous run's outcome. Cancelled, timed-out and skipped
+  runs have no outcome and are passed over (one was cancelled by a runner network
+  fault during checkout), and so are self-tests:
+  - previous `DOWN`: still failing, nothing; passing, one `RECOVERED`.
+  - previous `UP`: failing, one `[PROOVRA UPTIME] DOWN`; passing, nothing.
+  - previous `CONFIG_MISSING`: failing, `DOWN`; passing, one "Monitoring
+    configured — production up" message that says it is **not** an outage
+    recovery. Adding the secret never posts a false `RECOVERED`.
+  - previous `NOTIFY_FAILED`, or unreadable: failing, `DOWN`; passing, nothing.
+- **A red scheduled run is a monitor result, not a push and not an application
+  regression.** Read its outcome line first. `CONFIG_MISSING` says nothing about
+  production; the probe lines and the summary table do.
+- **Self-test** (Actions, uptime, Run workflow, tick `selftest`): adds a probe of
+  `https://api.proovra.com/__uptime_selftest_404` (a GET of a path that answers
+  404) and posts `[TEST]`-labelled DOWN and RECOVERED messages to the configured
+  webhook. Production is only read. The same logic is tested with no network in
+  `services/api/test/ops-uptime-probe.test.ts`, where a local HTTP server stands
+  in for the endpoints, the Actions API and the webhook.
+- **Known (2026-11-22): www passes only on the 3rd attempt from GitHub's
+  runners** in every sampled run, while both api probes pass on attempt 1. The
+  probe step took 42-43 s: the two 20 s retry delays plus about 2-3 s in total.
+  So attempts 1 and 2 are fast refusals, not timeouts. www is proxied by
+  Cloudflare (`server: cloudflare`, `cf-ray`); api is not. The per-attempt lines
+  now record the status and `cf-mitigated` of those refusals. If they show `403`
+  with `cf-mitigated: challenge`, the owner adds the Cloudflare skip rule below;
+  until then a real www outage looks the same as a challenge for 40 s.
+  - Cloudflare dashboard, zone proovra.com, Security, WAF, Custom rules, Create
+    rule. Name: `uptime probe: www /api/health`. Expression:
+    `(http.host eq "www.proovra.com" and http.request.uri.path eq "/api/health" and http.request.method eq "GET")`.
+    Action: Skip. Skip "All remaining custom rules", "All rate limiting rules",
+    "All managed rules" and, where the plan offers it, "All Super Bot Fight Mode
+    Rules". Place it first. `/api/health` returns only `ok`, a timestamp and the
+    public revision.
+  - If the zone uses the free plan's Bot Fight Mode, a WAF rule cannot skip it.
+    Then either turn Bot Fight Mode off, or leave the challenge in place and
+    accept that only api is probed without retries masking it.
+  - Changing Cloudflare is an owner action. Afterwards, the next run's lines must
+    show `attempt web-health #1: HTTP 200`.
 - It runs only on a schedule or by hand, in its own concurrency group. It is never
   part of a push or pull request, so it cannot block a merge or another workflow.
 - **Detects:** the host, Docker, Caddy, TLS, DNS or the API process being down or

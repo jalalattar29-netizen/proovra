@@ -241,6 +241,28 @@ jobs:
           SENTRY_DISABLE_AUTO_UPLOAD: "true"
         run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
+      # CLOSURE-EXT-01 — the RELEASE JS bundle. assembleDebug does not bundle JS
+      # (a debug app loads it from Metro), so nothing in CI exercised the bundle a
+      # release build ships, and the release build failed at this exact task with
+      # "Cannot find module 'babel-preset-expo'" (fixed in ec8801e6f;
+      # apps/mobile/babel.config.cjs). `expo export` is not a substitute: it did
+      # not catch that defect. This runs the Gradle task a release build runs
+      # (the React Native Gradle plugin's `expo export:embed`). Bundling signs
+      # nothing and uploads nothing; no release APK/AAB is assembled here.
+      # Proven locally (Docker, node:20 + JDK 17): FAILS on ec8801e6f^ with the
+      # original error, PASSES on 7b852996e.
+      - name: Release JS bundle — Gradle createBundleReleaseJsAndAssets (CLOSURE-EXT-01)
+        working-directory: apps/mobile/android
+        env:
+          EXPO_USE_WORKSPACE_ROOT: "1"
+          SENTRY_DISABLE_AUTO_UPLOAD: "true"
+        run: |
+          set -euo pipefail
+          ./gradlew :app:createBundleReleaseJsAndAssets --no-daemon --stacktrace
+          bundle=app/build/generated/assets/createBundleReleaseJsAndAssets/index.android.bundle
+          test -s "$bundle" || { echo "::error::the release JS bundle $bundle was not produced"; exit 1; }
+          echo "release JS bundle: $(stat -c %s "$bundle") bytes, sha256 $(sha256sum "$bundle" | cut -d' ' -f1)"
+
       # UC-AND-007 / UC-AND-013 — the capture services' failure decisions
       # (CaptureDecisions.kt: a throwing MediaRecorder.stop(), a null / refused
       # / throwing media projection) on the JVM. AUD-018 — the monotonic

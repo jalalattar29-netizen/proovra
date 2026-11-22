@@ -7,12 +7,26 @@ name: uptime
 # "External uptime check".
 #
 # - Scheduled only (plus manual): never on push or pull_request, so it can never
-#   be a required check and never runs in a PR's checks.
+#   be a required check and never runs in a PR's checks. A scheduled run is a
+#   MONITOR run, not a push and not an application regression: its result says
+#   what production and the monitor's own configuration looked like then.
+# - Each run ends with exactly one outcome — `uptime-outcome: UP | DOWN |
+#   CONFIG_MISSING | NOTIFY_FAILED | SELFTEST` — in the log, in the job summary
+#   (with every probe attempt: HTTP status, time, and for a non-200 attempt the
+#   server / cf-mitigated / cf-ray headers and a sanitized body snippet) and as a
+#   notice annotation the NEXT run reads back (checks: read) to decide DOWN /
+#   RECOVERED. A configuration failure is never read as an outage, so adding the
+#   secret does not post a false RECOVERED.
 # - Its own concurrency group: it never cancels or queues behind ci, deploy or
 #   any other workflow; a slow run is not overlapped by the next one.
 # - Needs the repository secret OPS_ALERT_WEBHOOK_URL (the owner adds it; the same
-#   Discord webhook the API uses is fine). Without it every run FAILS with an
-#   explicit error, so the missing destination is visible, not silent.
+#   Discord webhook the API uses is fine). Without it every run FAILS as
+#   CONFIG_MISSING (annotation "OPS_ALERT_WEBHOOK_URL missing"); a failing probe
+#   is still annotated "PROOVRA down" in that run.
+# - workflow_dispatch with `selftest` adds a probe of a deliberately failing URL
+#   (https://api.proovra.com/__uptime_selftest_404, a GET of a 404 path) and posts
+#   "[TEST]"-labelled DOWN and RECOVERED messages to the configured webhook. A
+#   self-test never feeds a later run's transition.
 # - GitHub runs schedules on the default branch only and may delay them by
 #   several minutes under load; cadence here is every 10 minutes.
 
@@ -20,10 +34,16 @@ on:
   schedule:
     - cron: "*/10 * * * *"
   workflow_dispatch:
+    inputs:
+      selftest:
+        description: "Self-test: probe a deliberately failing URL and post [TEST] DOWN/RECOVERED messages to the configured webhook"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
   actions: read
+  checks: read
 
 concurrency:
   group: uptime-probe
@@ -47,4 +67,5 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           UPTIME_WORKFLOW_FILE: uptime.yml
           UPTIME_BRANCH: ${{ github.event.repository.default_branch }}
+          UPTIME_SELFTEST: ${{ github.event_name == 'workflow_dispatch' && inputs.selftest && '1' || '0' }}
         run: node scripts/ops/uptime-probe.mjs
