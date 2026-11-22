@@ -1717,9 +1717,18 @@ details[open] > .ta-accordion-summary .ta-accordion-chevron {
 /* ---- Verification & preservation matrix ----------------------------------
  * Each cell carries its own state chip, so the seven states stay visually
  * distinct instead of collapsing into one success colour. */
+/* (2026-11-22) The column count follows the width the matrix ACTUALLY has,
+   not the viewport: beside the expanded sidebar or a narrow content column a
+   viewport breakpoint still asked for three columns, and a cell narrower than
+   its label and state is where the label collapsed into single letters. At
+   most three columns, each at least 15rem; one column when the container is
+   narrower than a single 15rem cell. */
 .evidence-detail-matrix {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, max(15rem, calc((100% - 2 * 12px) / 3))), 1fr)
+  );
   gap: 12px;
   align-items: stretch;
 }
@@ -1736,25 +1745,39 @@ details[open] > .ta-accordion-summary .ta-accordion-chevron {
 .evidence-detail-matrix-cell[data-wide="true"] {
   grid-column: 1 / -1;
 }
+/* (2026-11-22) The head WRAPS. It was a non-wrapping row whose state was
+   `flex: none`: a long state ("✓ Verified by PROOVRA against Bitcoin") kept its
+   full width, squeezed the label down to one letter per line, and then ran out
+   of the card across its neighbours. Now each part is laid out at its natural
+   width; when the two do not fit side by side the state moves to its own line
+   below the label, and each wraps by words within the card. Neither can shrink
+   the other into a column. */
 .evidence-detail-matrix-cell__head {
   display: flex;
-  flex-wrap: nowrap;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 8px;
+  column-gap: 12px;
+  row-gap: 4px;
   min-inline-size: 0;
 }
 .evidence-detail-matrix-cell__label {
+  flex: 1 1 auto;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--app-ink-secondary);
   min-inline-size: 0;
+  max-inline-size: 100%;
   overflow-wrap: break-word;
 }
 .evidence-detail-matrix-cell__state {
-  flex: none;
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
 }
 .evidence-detail-matrix-cell__value {
   min-inline-size: 0;
@@ -1769,12 +1792,7 @@ details[open] > .ta-accordion-summary .ta-accordion-chevron {
   font-weight: 500;
   color: var(--app-ink-secondary);
 }
-@media (max-width: 1100px) {
-  .evidence-detail-matrix { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 700px) {
-  .evidence-detail-matrix { grid-template-columns: minmax(0, 1fr); }
-}/* ---- Boundary notes ------------------------------------------------------
+/* ---- Boundary notes ------------------------------------------------------
  * The informational row is a neutral card; "Boundary updated" is the purple
  * logical-start callout, so it mirrors in Arabic. Neither is italic. */
 .evidence-detail-boundary-note {

@@ -117,6 +117,7 @@ export function ProovraChatWidget() {
   const [state, setState] = useState<AssistantState>(READY_STATE);
   const [showHint, setShowHint] = useState(false);
 
+  const dockRef = useRef<HTMLDivElement | null>(null);
   const logRef = useRef<HTMLDivElement | null>(null);
   const fieldRef = useRef<HTMLTextAreaElement | null>(null);
   /** Availability is read once per open, not once per keystroke. */
@@ -185,6 +186,59 @@ export function ProovraChatWidget() {
     void probeAvailability();
     fieldRef.current?.focus();
   }, [open, probeAvailability]);
+
+  /*
+   * (2026-11-22) FIT THE PANEL TO WHAT THE READER CAN SEE.
+   *
+   * assistant.css caps the panel below the application header with CSS
+   * defaults (`--header-h`, `100dvh`). Two things CSS cannot see: the header's
+   * real bottom edge, and an on-screen keyboard — the page's viewport meta does
+   * not resize the layout for it, so `100dvh` stays the same while the bottom
+   * of the screen is covered. While the panel is open this reads the
+   * VisualViewport and hands the dock three numbers: the layout viewport
+   * height, how much of its bottom a keyboard covers, and the lowest edge the
+   * panel's top may reach (the header's bottom, or the top of the visible area
+   * when the browser has scrolled it). The panel and its composer then sit in
+   * the visible area, and its close button stays below the header.
+   */
+  useEffect(() => {
+    if (!open || typeof window === "undefined") return;
+    const dock = dockRef.current;
+    if (!dock) return;
+    const vv = window.visualViewport ?? null;
+
+    const update = () => {
+      const layoutHeight = window.innerHeight;
+      const visibleHeight = vv ? vv.height : layoutHeight;
+      const visibleTop = vv ? vv.offsetTop : 0;
+      const keyboard = Math.max(0, layoutHeight - visibleHeight - visibleTop);
+      const header = document.querySelector(".app-shell-v2-header-slot");
+      const headerBottom = header ? Math.max(0, header.getBoundingClientRect().bottom) : 0;
+      dock.style.setProperty("--assistant-viewport-h", `${Math.round(layoutHeight)}px`);
+      dock.style.setProperty("--assistant-keyboard", `${Math.round(keyboard)}px`);
+      dock.style.setProperty(
+        "--assistant-top-reserve",
+        `${Math.round(Math.max(headerBottom, visibleTop))}px`,
+      );
+      // A short visible area (landscape phone, zoom, an open keyboard): the
+      // panel's own close button stays, the launcher steps aside.
+      dock.dataset.assistantCompact = visibleHeight < 520 ? "true" : "false";
+    };
+
+    update();
+    window.addEventListener("resize", update);
+    vv?.addEventListener("resize", update);
+    vv?.addEventListener("scroll", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      vv?.removeEventListener("resize", update);
+      vv?.removeEventListener("scroll", update);
+      dock.style.removeProperty("--assistant-viewport-h");
+      dock.style.removeProperty("--assistant-keyboard");
+      dock.style.removeProperty("--assistant-top-reserve");
+      delete dock.dataset.assistantCompact;
+    };
+  }, [open]);
 
   // Keep the newest turn in view without yanking the whole page.
   useEffect(() => {
@@ -280,7 +334,7 @@ export function ProovraChatWidget() {
   const canSend = Boolean(draft.trim()) && !busy && state.canSend;
 
   return (
-    <div className="assistant-dock">
+    <div className="assistant-dock" ref={dockRef}>
       {open ? (
         <div
           className="assistant-panel"

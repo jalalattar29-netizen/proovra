@@ -43,10 +43,32 @@
    INLINE END: bottom-right on an LTR page, bottom-left on an Arabic
    (dir="rtl") one — mirrored like the rest of the shell. `env()` has no
    logical inset, so the RTL rule names the left one. */
+/* (2026-11-22) THE PANEL NEVER REACHES UNDER THE APPLICATION HEADER.
+   The height cap used to be `100dvh - 8rem` (desktop) / `100dvh - 6rem`
+   (phone) and ignored the header: with the launcher, the gap and the bottom
+   inset below it, the panel's top rose to ~44px / ~24px from the viewport top,
+   inside the 72px sticky header band. The header paints above the dock
+   (header slot z-index 90, dock 50, both in the root stacking context), so the
+   panel's own header and close button disappeared behind it. Raising the
+   dock's z-index would only trade that for the panel covering the product's
+   header; the fix is the GEOMETRY: the cap reserves the header, the
+   safe-area insets, the launcher and the gaps.
+
+   The variables have CSS defaults (the canonical `--header-h`, `100dvh`, no
+   keyboard). While the panel is open, ProovraChatWidget refines them from the
+   VisualViewport — the measured header bottom, the layout viewport height and
+   an on-screen keyboard's height — so the panel stays inside the area the
+   reader can actually see. */
 .assistant-dock {
+  --assistant-edge: 1.5rem;
+  --assistant-gap: 0.75rem;
+  --assistant-launcher: 3rem;
+  --assistant-viewport-h: 100dvh;
+  --assistant-keyboard: 0px;
+  --assistant-top-reserve: max(var(--header-h, 72px), env(safe-area-inset-top, 0px));
   position: fixed;
-  inset-inline-end: calc(1.5rem + env(safe-area-inset-right, 0px));
-  bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+  inset-inline-end: calc(var(--assistant-edge) + env(safe-area-inset-right, 0px));
+  bottom: calc(var(--assistant-edge) + env(safe-area-inset-bottom, 0px) + var(--assistant-keyboard));
   z-index: 50;
   display: flex;
   flex-direction: column;
@@ -55,7 +77,7 @@
 }
 
 [dir="rtl"] .assistant-dock {
-  inset-inline-end: calc(1.5rem + env(safe-area-inset-left, 0px));
+  inset-inline-end: calc(var(--assistant-edge) + env(safe-area-inset-left, 0px));
 }
 
 /* ---------------------------------------------------------------------------
@@ -138,12 +160,31 @@
 .assistant-panel {
   display: flex;
   flex-direction: column;
-  inline-size: min(24rem, calc(100vw - 3rem));
+  inline-size: min(24rem, calc(100vw - 2 * var(--assistant-edge)));
   /* 38rem: the header, the four opening questions, the AI-off notice and the
      composer together. At 32rem the third question was cut to a sliver by the
-     notice; the height is still capped by the screen on a short laptop. */
-  max-block-size: min(38rem, calc(100dvh - 8rem));
-  overflow: hidden;
+     notice. Below that, the height is what is left of the visible viewport
+     once the header band, a gap, the launcher and the bottom inset (plus an
+     open keyboard) are taken out — see the dock's variables. */
+  max-block-size: min(
+    38rem,
+    calc(
+      var(--assistant-viewport-h)
+      - var(--assistant-top-reserve)
+      - var(--assistant-gap)
+      - var(--assistant-edge)
+      - env(safe-area-inset-bottom, 0px)
+      - var(--assistant-keyboard)
+      - var(--assistant-launcher)
+      - var(--assistant-gap)
+    )
+  );
+  /* The transcript is the part that scrolls. On a screen too short for the
+     header and composer together the whole panel scrolls instead, and the
+     header is sticky, so the close control is never out of reach. */
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border-radius: 16px;
   border: 1px solid var(--border);
   background: var(--card);
@@ -151,6 +192,10 @@
 }
 
 .assistant-panel__header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  flex: none;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -212,8 +257,12 @@
 --------------------------------------------------------------------------- */
 .assistant-log {
   flex: 1 1 auto;
-  min-block-size: 8rem;
+  /* (2026-11-22) The transcript yields first. Its old 8rem minimum, inside a
+     clipped panel, was what pushed the composer out of a short panel; the
+     header and the composer keep their size and the conversation scrolls. */
+  min-block-size: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 0.875rem 1rem;
   display: flex;
   flex-direction: column;
@@ -347,6 +396,11 @@
    failure above the composer.
 --------------------------------------------------------------------------- */
 .assistant-state {
+  /* (2026-11-22) Shrinks and scrolls on a short screen rather than taking the
+     composer's place; its text is never cut, only scrolled. */
+  flex: 0 1 auto;
+  min-block-size: 3rem;
+  overflow-y: auto;
   margin: 0 1rem 0.75rem;
   border-radius: 10px;
   border: 1px solid;
@@ -386,6 +440,12 @@
    THE COMPOSER
 --------------------------------------------------------------------------- */
 .assistant-composer {
+  flex: none;
+  /* Pinned to the panel's bottom edge for the case where even the header and
+     composer together are taller than the screen and the panel scrolls. */
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   border-block-start: 1px solid var(--border-soft, var(--border));
   padding: 0.75rem 1rem 0.875rem;
   background: var(--card);
@@ -433,6 +493,37 @@
 }
 
 /* ---------------------------------------------------------------------------
+   SHORT VISIBLE HEIGHT — a phone in landscape, 200% zoom, an open keyboard.
+   (2026-11-22) The launcher and its gap take ~60px below the panel. On a short
+   screen that was the transcript's whole share, and the disclosure ended up
+   under the composer. While the panel is open its own close button closes it,
+   so the launcher steps aside and the edge tightens. `data-assistant-compact`
+   is set by ProovraChatWidget from the VISIBLE height (so an open keyboard
+   counts); the media query covers the first paint and no-JS layout.
+--------------------------------------------------------------------------- */
+@media (max-height: 520px) {
+  .assistant-dock:has(.assistant-panel) {
+    --assistant-edge: 0.75rem;
+    --assistant-launcher: 0px;
+    --assistant-gap: 0.5rem;
+  }
+
+  .assistant-dock:has(.assistant-panel) .assistant-launcher-slot {
+    display: none;
+  }
+}
+
+.assistant-dock[data-assistant-compact="true"]:has(.assistant-panel) {
+  --assistant-edge: 0.75rem;
+  --assistant-launcher: 0px;
+  --assistant-gap: 0.5rem;
+}
+
+.assistant-dock[data-assistant-compact="true"]:has(.assistant-panel) .assistant-launcher-slot {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------
    PHONE — the panel becomes a sheet.
 --------------------------------------------------------------------------- */
 @media (max-width: 640px) {
@@ -440,12 +531,7 @@
      stretch across the screen anyway: the launcher landed at the wrong end, and
      an invisible 48px strip took every tap along the bottom of the page. */
   .assistant-dock {
-    inset-inline-end: calc(0.75rem + env(safe-area-inset-right, 0px));
-    bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
-  }
-
-  [dir="rtl"] .assistant-dock {
-    inset-inline-end: calc(0.75rem + env(safe-area-inset-left, 0px));
+    --assistant-edge: 0.75rem;
   }
 
   .assistant-dock:has(.assistant-panel) {
@@ -459,7 +545,6 @@
 
   .assistant-panel {
     inline-size: 100%;
-    max-block-size: calc(100dvh - 6rem);
     border-radius: 16px 16px 12px 12px;
   }
 

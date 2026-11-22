@@ -216,12 +216,21 @@ describe("V-018: the help nudge and the page's primary controls", () => {
   it("floats fixed at the bottom-right, never in the header", () => {
     const dock = rulesFor(css, ".assistant-dock")[0];
     expect(dock).toContain("position: fixed");
-    expect(dock).toContain("inset-inline-end: calc(1.5rem + env(safe-area-inset-right, 0px))");
-    expect(dock).toContain("bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px))");
+    // 2026-11-22: the 1.5rem edge is a variable the panel's height cap shares,
+    // and the bottom also clears an on-screen keyboard (0 without one).
+    expect(dock).toContain("--assistant-edge: 1.5rem");
+    expect(dock).toContain("inset-inline-end: calc(var(--assistant-edge) + env(safe-area-inset-right, 0px))");
+    expect(dock).toContain(
+      "bottom: calc(var(--assistant-edge) + env(safe-area-inset-bottom, 0px) + var(--assistant-keyboard))",
+    );
     expect(dock).not.toMatch(/(^|[^-])(right|left):/);
     expect(rulesFor(css, '[dir="rtl"] .assistant-dock')[0]).toContain(
-      "inset-inline-end: calc(1.5rem + env(safe-area-inset-left, 0px))",
+      "inset-inline-end: calc(var(--assistant-edge) + env(safe-area-inset-left, 0px))",
     );
+    // The panel's height cap reserves the application header band, so the
+    // panel (and its close button) never sits under the sticky header.
+    expect(dock).toMatch(/--assistant-top-reserve:\s*max\(var\(--header-h, 72px\)/);
+    expect(rulesFor(css, ".assistant-panel")[0]).toContain("- var(--assistant-top-reserve)");
     expect(read("components/app-shell-v2/AppAccountToolbar.tsx")).not.toContain("assistant");
     expect(read("components/app-shell-v2/app-shell-v2.css")).not.toContain("app-header-assistant-slot");
     const widget = read("components/ai/ProovraChatWidget.tsx");
@@ -255,7 +264,10 @@ describe("narrow screens keep their data readable", () => {
     // F-P1-12 (2026-11-15): logical insets plus the safe area, mirrored for RTL.
     expect(rulesFor(phone, ".assistant-dock").join("")).not.toContain("inset-inline-start:");
     expect(rulesFor(phone, ".assistant-dock").join("")).not.toMatch(/(^|[^-])(right|left):/);
-    expect(rulesFor(phone, ".assistant-dock").join("")).toContain("env(safe-area-inset-bottom, 0px)");
+    // 2026-11-22: the phone sets the shared edge; the base rule adds the
+    // safe-area inset to it, so the bottom still clears the home indicator.
+    expect(rulesFor(phone, ".assistant-dock").join("")).toContain("--assistant-edge: 0.75rem");
+    expect(rulesFor(bare, ".assistant-dock")[0]).toContain("env(safe-area-inset-bottom, 0px)");
     expect(rulesFor(phone, ".assistant-dock:has(.assistant-panel)").join("")).toContain(
       "inset-inline-start: calc(0.75rem + env(safe-area-inset-left, 0px))",
     );
