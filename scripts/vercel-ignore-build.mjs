@@ -49,11 +49,15 @@
  *
  * WEB RELEASE AFTER A SERVER RELEASE. A main push whose API-facing source the
  * live API does not serve yet is SKIPPED (cancelled; production keeps serving
- * the previous web). Once the API is deployed at that commit or later, deploy
- * the web by pushing to main (any commit, e.g. `git commit --allow-empty -m
- * "chore(release): web release after API <sha>"`): its build runs this gate
- * against the now-current API. docs/operations/web-release-after-api.md is the
- * runbook.
+ * the previous web). Once the API is deployed at that commit or later,
+ * .github/workflows/web-release-continuation.yml (closure 3, 2026-11-22) calls
+ * the proovra-web Deploy Hook for main's newest commit, after predicting this
+ * gate's verdict with this module's own `decide()`. That hook build is an
+ * ordinary production build of main (VERCEL_ENV=production,
+ * VERCEL_GIT_COMMIT_REF=main, VERCEL_GIT_COMMIT_SHA = the commit built), so it
+ * runs every check below unchanged, for the commit it actually builds — no
+ * special case exists or is needed. docs/operations/web-release-after-api.md is
+ * the runbook.
  *
  * TWO PLACES (2026-11-21). The 5b9fa29e4 production build was made without the
  * gate asking the live API anything (the API logged no /health request during

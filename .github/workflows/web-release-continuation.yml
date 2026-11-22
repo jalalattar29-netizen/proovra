@@ -1,0 +1,85 @@
+name: web-release-continuation
+
+# Closure 3 (2026-11-22). Finishes a web release that had to wait for the API.
+#
+# The web deploys through Vercel's Git integration on every push to main, and
+# the Vercel build runs the fail-closed compatibility gate
+# (scripts/vercel-ignore-build.mjs). A commit whose API-facing source the live
+# API does not serve yet is "Canceled by Ignored Build Step", and nothing
+# retried it: an operator pushed an empty commit after every backend deploy.
+#
+# scripts/release/web-continuation.mjs evaluates the NEWEST main commit only,
+# from real state (www and api /health, the required workflows on that exact
+# SHA, Vercel's commit status), and:
+#   - web already at that SHA, or a Vercel build in flight: does nothing;
+#   - API not compatible yet: commit status `release/web-continuation` pending,
+#     "waiting for API epoch N (live M) / revision >= X", exits green;
+#   - API now compatible, gate refused earlier, required workflows green, main
+#     unmoved: calls the proovra-web Vercel Deploy Hook once. The Vercel build
+#     re-runs the same gate on the SHA it builds and refuses anything older
+#     than the live web;
+#   - anything unreadable: no promotion, the status says what, the next run retries.
+# It never commits, pushes or tags. The backend deploy stays an operator step.
+#
+# Owner configuration: repository secret VERCEL_WEB_DEPLOY_HOOK_URL (a Deploy
+# Hook of the proovra-web project for branch main). Until it exists, a due
+# continuation shows "waiting on owner configuration: VERCEL_WEB_DEPLOY_HOOK_URL"
+# and the run fails. Runbook: docs/operations/web-release-after-api.md.
+
+on:
+  push:
+    branches: [main]
+  # The required workflows finishing on main is when "CI green" becomes true.
+  workflow_run:
+    workflows: [ci, playwright-e2e, schema-reproducibility, updated-report-journey, deploy-images]
+    types: [completed]
+    branches: [main]
+  # The backend deploy happens on the host and emits no GitHub event: this is
+  # the heartbeat that notices the API has caught up. GitHub may delay it.
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Evaluate and report only: no commit status, no deploy hook call"
+        type: boolean
+        default: false
+
+permissions: {}
+
+# One evaluation at a time, never cancelled mid-flight (a hook call is not
+# interrupted). A queued run is replaced by a newer queued run, which is
+# harmless: every run re-reads main's newest commit.
+concurrency:
+  group: web-release-continuation
+  cancel-in-progress: false
+
+jobs:
+  continue:
+    name: continue the web release of main HEAD
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      statuses: write
+    steps:
+      - name: Check out main (history without blobs, for the API-facing diff)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Evaluate and continue
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          VERCEL_WEB_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_WEB_DEPLOY_HOOK_URL }}
+          ORIGIN_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          WEB_CONTINUATION_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '0' }}
+        run: node scripts/release/web-continuation.mjs
