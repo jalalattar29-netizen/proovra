@@ -214,4 +214,107 @@ describe("chain transfer custody (live PostgreSQL 16)", () => {
       });
     });
   });
+
+  // ===========================================================================
+  // OBS-CHAIN-TRANSFER (closure phase 3) — acceptance consumes an OUTSTANDING
+  // offer. Custody does not change at offer time (INITIATED only records the
+  // offer; the records stay in the sending workspace), so the offer stands
+  // only while the initiator still holds the transfer authority and every
+  // record is still transferable. A refused acceptance writes nothing.
+  // ===========================================================================
+  describe("OBS-CHAIN-TRANSFER: the offer is re-checked at acceptance", () => {
+    const states = async (evidenceId: string) =>
+      (await transferEvents(evidenceId)).map((e) => (e.payload as { state: string }).state);
+    const stateOf = async (transferId: string) =>
+      (await prisma.chainTransfer.findUniqueOrThrow({ where: { id: transferId }, select: { state: true, acceptedByUserId: true } }));
+
+    /** A second OWNER-role member of team A: the only role that holds governance.exchange.manage. */
+    async function initiatorMember() {
+      const email = `obs-ct-${randomUUID().slice(0, 8)}@test.proovra.local`;
+      const user = await prisma.user.create({
+        data: { email, firstName: "Chain", lastName: "Initiator", provider: "EMAIL", providerUserId: email, emailVerifiedAt: new Date() },
+        select: { id: true },
+      });
+      const member = await prisma.teamMember.create({
+        data: { teamId: h.fixtures.teamA.teamId, userId: user.id, role: "OWNER", status: "ACTIVE" },
+        select: { id: true },
+      });
+      return { userId: user.id, memberId: member.id };
+    }
+
+    async function offer(initiatedByUserId: string, evidenceIds?: string[]) {
+      const A = h.fixtures.teamA;
+      const r = await record(A);
+      const receiving = (await prisma.team.findUniqueOrThrow({ where: { id: h.fixtures.teamB.teamId }, select: { organizationId: true } }))
+        .organizationId!;
+      const ids = evidenceIds ?? [r.id];
+      const init = await svc.initiateChainTransfer({
+        teamId: A.teamId,
+        fromOrganizationId: r.organizationId,
+        toOrganizationId: receiving,
+        evidenceIds: ids,
+        initiatedByUserId,
+      });
+      if (!init.ok) throw new Error(init.denial);
+      return { evidenceId: ids[0]!, transferId: init.transferId, organizationId: r.organizationId, receiving };
+    }
+    const accept = (transferId: string) =>
+      svc.acceptChainTransfer({ teamId: h.fixtures.teamB.teamId, transferId, acceptingUserId: h.fixtures.teamB.ownerUserId });
+
+    it("an initiator demoted, or suspended, after the offer: acceptance is refused (INITIATOR_AUTHORITY_ENDED) and nothing is written; restored, the same offer is accepted", async () => {
+      const who = await initiatorMember();
+      const { evidenceId, transferId } = await offer(who.userId);
+
+      await prisma.teamMember.update({ where: { id: who.memberId }, data: { role: "MEMBER" } });
+      expect(await accept(transferId)).toEqual({ ok: false, denial: "OFFER_NO_LONGER_VALID", reason: "INITIATOR_AUTHORITY_ENDED" });
+      expect(await stateOf(transferId)).toEqual({ state: "INITIATED", acceptedByUserId: null });
+      expect(await states(evidenceId)).toEqual(["INITIATED"]);
+
+      await prisma.teamMember.update({ where: { id: who.memberId }, data: { role: "OWNER", status: "SUSPENDED" } });
+      expect(await accept(transferId)).toEqual({ ok: false, denial: "OFFER_NO_LONGER_VALID", reason: "INITIATOR_AUTHORITY_ENDED" });
+      expect(await states(evidenceId)).toEqual(["INITIATED"]);
+
+      await prisma.teamMember.update({ where: { id: who.memberId }, data: { status: "ACTIVE" } });
+      expect(await accept(transferId)).toEqual({ ok: true });
+      expect(await states(evidenceId)).toEqual(["INITIATED", "ACCEPTED"]);
+    });
+
+    it("a record deleted after the offer is no longer transferable (RECORD_NOT_TRANSFERABLE); nothing is written", async () => {
+      const A = h.fixtures.teamA;
+      const { evidenceId, transferId } = await offer(A.ownerUserId);
+      await prisma.evidence.update({ where: { id: evidenceId }, data: { deletedAt: new Date() } as never });
+      expect(await accept(transferId)).toEqual({ ok: false, denial: "OFFER_NO_LONGER_VALID", reason: "RECORD_NOT_TRANSFERABLE" });
+      expect(await stateOf(transferId)).toEqual({ state: "INITIATED", acceptedByUserId: null });
+      expect(await states(evidenceId)).toEqual(["INITIATED"]);
+    });
+
+    it("a record placed under legal hold after the offer is refused (RECORD_UNDER_HOLD); released, the offer is accepted", async () => {
+      const A = h.fixtures.teamA;
+      const { evidenceId, transferId } = await offer(A.ownerUserId);
+      const hold = await prisma.evidenceLegalHold.create({
+        data: { teamId: A.teamId, evidenceId, scope: "EVIDENCE", title: "obs-ct hold", status: "ACTIVE", placedByUserId: A.ownerUserId } as never,
+        select: { id: true },
+      });
+      expect(await accept(transferId)).toEqual({ ok: false, denial: "OFFER_NO_LONGER_VALID", reason: "RECORD_UNDER_HOLD" });
+      expect(await states(evidenceId)).toEqual(["INITIATED"]);
+      await prisma.evidenceLegalHold.update({
+        where: { id: hold.id },
+        data: { status: "RELEASED", releasedAtUtc: new Date(), releasedByUserId: A.ownerUserId } as never,
+      });
+      expect(await accept(transferId)).toEqual({ ok: true });
+    });
+
+    it("a newer live transfer of the same record supersedes the older offer (SUPERSEDED); the newer one is accepted; once it is revoked the older one stands again", async () => {
+      const A = h.fixtures.teamA;
+      const older = await offer(A.ownerUserId);
+      const newer = await offer(A.ownerUserId, [older.evidenceId]);
+      expect(await accept(older.transferId)).toEqual({ ok: false, denial: "OFFER_NO_LONGER_VALID", reason: "SUPERSEDED" });
+      expect(await stateOf(older.transferId)).toEqual({ state: "INITIATED", acceptedByUserId: null });
+
+      expect(await accept(newer.transferId)).toEqual({ ok: true });
+
+      expect(await svc.revokeChainTransfer({ teamId: A.teamId, transferId: newer.transferId, actorUserId: A.ownerUserId })).toEqual({ ok: true });
+      expect(await accept(older.transferId)).toEqual({ ok: true });
+    });
+  });
 });

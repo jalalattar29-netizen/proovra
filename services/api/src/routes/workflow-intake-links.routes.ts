@@ -53,6 +53,7 @@ import {
   WorkflowIntakeLinkError,
 } from "../services/workflow-intake-link.service.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
+import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import {
   loadIntakeLinkSubmissions,
   projectIntakeLinkList,
@@ -818,6 +819,18 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
    * intake-links administration screen and the Evidence Detail intake card —
    * so there is one gate, one audit record, and one behaviour to reason
    * about.
+   *
+   * OBS-INTAKE-REVEAL-STEPUP (closure phase 3) — the ONE contact-disclosure
+   * rule, shared with POST /v1/evidence-requests/:id/recipient-contact
+   * (decision G) and POST /v1/evidence/:id/submitter-contact:
+   *   1. reach to the resource (404, the same answer as a missing one);
+   *   2. `workflow.intake_recipient_contact.reveal` (403);
+   *   3. a FRESH, single-use step-up bound to this purpose AND this link
+   *      (401 STEP_UP_REQUIRED);
+   *   4. an AWAITED tenant-audit row, fail closed, before the values leave
+   *      (never the values themselves), plus the sensitive-reveal event.
+   * There was no legitimate distinction for this copy of the contact: it is
+   * the same third party's address and number the request route guards.
    */
   app.post(
     "/v1/workflow/intake-links/:id/recipient-contact",
@@ -862,7 +875,36 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         });
       }
 
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: link.teamId,
+        userId: member.userId,
+        purpose: "INTAKE_LINK_CONTACT_REVEAL",
+        resourceKind: "workflow_intake_link",
+        resourceId: link.id,
+      });
+      if (gate.sent) return;
+
       const revealed = revealRecipientContact(link, disclosure);
+
+      // Fail closed: a disclosure that cannot be recorded does not happen.
+      await emitTenantAudit({
+        action: "workflow_intake_link.recipient_contact.revealed",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: member.userId,
+        workspaceId: link.teamId,
+        resourceType: "workflow_intake_link",
+        resourceId: link.id,
+        correlationId: req.id ?? null,
+        metadata: {
+          disclosureType: "recipient_contact",
+          revealedEmail: Boolean(revealed.recipientEmail),
+          revealedPhone: Boolean(revealed.recipientPhone),
+          stepUpMethod: gate.method ?? null,
+        },
+      });
 
       /*
        * Recorded on the platform's existing sensitive-reveal convention, the
@@ -938,6 +980,35 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         session?.intakeLink?.intakeMode === "EXTERNAL_ANONYMOUS" || session?.intakeLink?.intakeMode === "EXTERNAL_PSEUDONYMOUS";
       const submitterEmail = anonymous ? null : session?.submitterEmail ?? ev.submittedByEmail ?? null;
       const submitterPhone = anonymous ? null : session?.submitterPhone ?? null;
+      // OBS-INTAKE-REVEAL-STEPUP — the one contact-disclosure rule (see the
+      // recipient reveal above): a fresh single-use step-up bound to this
+      // purpose and this record, then an awaited audit row, fail closed.
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: ev.teamId,
+        userId: member.userId,
+        purpose: "SUBMITTER_CONTACT_REVEAL",
+        resourceKind: "evidence",
+        resourceId: ev.id,
+      });
+      if (gate.sent) return;
+      await emitTenantAudit({
+        action: "evidence.submitter_contact.revealed",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: member.userId,
+        workspaceId: ev.teamId,
+        resourceType: "evidence",
+        resourceId: ev.id,
+        correlationId: req.id ?? null,
+        metadata: {
+          disclosureType: "submitter_contact",
+          revealedEmail: Boolean(submitterEmail),
+          revealedPhone: Boolean(submitterPhone),
+          stepUpMethod: gate.method ?? null,
+        },
+      });
       safeEmitSecurityEvent({
         teamId: ev.teamId,
         eventType: "workflow_intake_recipient_contact_revealed",

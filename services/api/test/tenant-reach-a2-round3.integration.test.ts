@@ -712,7 +712,21 @@ describe("free-user audit round 3: A2-12 … A2-17 (live PostgreSQL)", () => {
       expect(await snapshot()).toEqual(before);
 
       // The case owner reaches the link: every action still works, revoke last.
-      const reveal = await call("POST", `/v1/workflow/intake-links/${linkId}/recipient-contact`, T.owner, {});
+      // OBS-INTAKE-REVEAL-STEPUP — the reveal is stepped up, bound to this link.
+      const reveal = await call(
+        "POST",
+        `/v1/workflow/intake-links/${linkId}/recipient-contact`,
+        T.owner,
+        {},
+        await stepUp.approvedHeader({
+          token: T.owner.token,
+          userId: T.owner.id,
+          teamId: T.teamId,
+          purpose: "INTAKE_LINK_CONTACT_REVEAL",
+          resourceKind: "workflow_intake_link",
+          resourceId: linkId,
+        }),
+      );
       expect(reveal.statusCode, reveal.body).toBe(200);
       expect(reveal.json().recipientContact.recipientEmail).toBe(email);
       expect((await call("POST", `/v1/workflow/intake-links/${linkId}/archive`, T.owner, {})).statusCode).toBe(200);

@@ -568,7 +568,9 @@ export async function collaborationRoutes(app: FastifyInstance) {
         message:
           "Contributor access to discussion threads is not offered. A contributor grant never let anyone read or reply, so it has been retired; external parties are given access through External Review.",
       },
-      canonical: "/v1/external-review/invitations",
+      // closure3 G — POST /v1/external-review/invitations is itself a typed 410
+      // since closure phase 2 (EP-0425); the live issuing route is /bulk.
+      canonical: "/v1/external-review/invitations/bulk",
     });
 
   app.post(

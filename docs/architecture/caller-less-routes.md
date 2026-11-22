@@ -210,3 +210,95 @@ Every retired route keeps `requireAuth`, reads and writes nothing, answers 410
 with a stable code inside `error` and a `canonical` pointer, and has a
 `COMPATIBILITY_TOMBSTONE` entry in route-dispositions.json. Its codes are
 `internal` in the web error registry (no first-party caller).
+
+## Closure phase 3: retirement compatibility (`closure3/sec`, 2026-11-22)
+
+Scope: the four routes retired to typed 410 tombstones in phase 2 (EP-0425, EP-0446,
+EP-0934, EP-1066), EP-0219 (kept, sunset pending an access-log check) and, for
+completeness, the other two OBSOLETE rows (EP-0261, EP-1111). Production runs API
+8e3b57ba3, which contains every tombstone below.
+
+**What git history can and cannot show.** A `git log -S` over `apps/web`,
+`apps/mobile` and `apps/extension` shows only whether a *first-party* build ever
+called a route. It says nothing about customer scripts, integrations, curl users or
+an old browser tab. "No first-party caller" is therefore the compatibility basis
+for retiring, not a proof that nobody calls the route. Only production request logs
+can settle usage.
+
+### Per route
+
+| EP | Retired / kept route (registration) | Compatibility basis | Canonical replacement and its behaviour | Proof the replacement works | Usage evidence available here | Status |
+|---|---|---|---|---|---|---|
+| EP-0425 | POST /v1/external-review/invitations, typed 410 `EXTERNAL_REVIEW_SINGLE_INVITATION_RETIRED` (external-portal.routes.ts:545) | DEC-01, one issuing path. No first-party caller ever: the web uses only the GET list on this path. The retired handler returned the raw bearer token to any administrative-tier caller. | POST /v1/external-review/invitations/bulk: tier + entitlement + `EXTERNAL_REVIEW_GRANT_ISSUE` step-up, emails on issue, never returns the token (reveal-token is OWNER-only break-glass) | cov-external-reviewer "a member without the tier, and no step-up, issue nothing; a foreign record is refused" and "POSITIVE: the invitation writes the grant, its role row, the activity and the tenant audit; the token is not stored" (18/18 on closure3/sec) | git history only (no first-party caller) | Retired. **Must not be reactivated**, even if calls are found: it is the unsafe token-returning path. A caller found in the logs is moved to /bulk. |
+| EP-0446 | POST /v1/external-review/invitations/:id/send-email, typed 410 `EXTERNAL_REVIEW_SEND_EMAIL_RETIRED` (external-portal.routes.ts:1480) | It mailed invitations issued by the retired single-issue route, which sent no email; /bulk emails on issue. No first-party caller ever. | POST /v1/external-review/invitations/:id/resend: same authority as issue, re-mints and mails | cov-external-reviewer "delivery and reveal: the email goes to the reviewer, and reveal retires the token it replaces" (uses /resend) | git history only | Retired |
+| EP-0934 | PATCH /v1/redaction/policy, typed 410 `REDACTION_POLICY_PATCH_RETIRED` (redaction.routes.ts:1351; GET at :1040 unchanged) | Unversioned back-compat shim ("COMPATIBILITY_TOMBSTONE" in disp). No web or native commit ever sent it. | POST /v1/redaction/policies, then versions and assignments (FEATURE_REDACTION entitlement, policy audit) | **new** closure3-retirement-canonical "EP-0934: PATCH /v1/redaction/policy answers 410 and writes nothing; POST /v1/redaction/policies creates the versioned policy" | git history only | Retired |
+| EP-1066 | POST /v1/search/relationships, typed 410 `SEARCH_RELATIONSHIP_CREATE_RETIRED` (search.routes.ts:586; GET /v1/search/relationships/:evidenceId unchanged) | Duplicate of the record route. Native only ever read the GET. | POST /v1/evidence/:id/relationships: `evidence.update_metadata`, both ends open to the caller | **new** closure3-retirement-canonical "EP-1066: POST /v1/search/relationships answers 410 and links nothing; POST /v1/evidence/:id/relationships links the records"; case-reach-matrix | git history only | Retired |
+| EP-0219 | POST /v1/cases/:id/share-team, **live** (cases.routes.ts:2047) | The one obsolete route with a historical first-party caller: the web called it until 7243702f9 (2026-09-17). | POST /v1/cases/:id/access: the same access-target rules and Cases entitlement | **new** closure3-retirement-canonical "EP-0219 (kept, sunset): the canonical POST /v1/cases/:id/access grants an ACTIVE member (201)"; matter-access-tab "CONTROL…" | Not available here. Needs the production query below. | Kept. Retire to a typed 410 only after the query shows zero calls over a window of at least 30 days (see the retention caveat) |
+| EP-0261 | POST /v1/collaboration-team-invites/:token/accept, **live** (collaboration-teams.routes.ts:1643) | Shipped native builds before the body form used it | POST /v1/collaboration-team-invites/accept (token in the body) | rg26-invite-families-inviter-authority; cov-page-apis | Same query (path logged as `/v1/collaboration-team-invites/[redacted]/accept`; the body form logs as `/v1/collaboration-team-invites/[redacted]`) | Kept. Own sunset unchanged: no PENDING legacy invitation in flight and the oldest supported native build uses the body form |
+| EP-1111 | DELETE /v1/teams/:id, refusal tombstone (typed 403/409 with nextAction) | Never deleted anything since 0ddb608dd | POST /v1/teams/:id/closure | workspace-lifecycle-no-hard-delete | Same query | Kept as is |
+
+**Compatibility fix made here.** Two older tombstones (2026-09-16), the
+collaboration-team guests routes (`COLLABORATION_TEAM_GUESTS_RETIRED`,
+collaboration-completion.routes.ts) and the thread contributor routes
+(`COLLABORATION_THREAD_CONTRIBUTORS_RETIRED`, collaboration.routes.ts), named
+`canonical: "/v1/external-review/invitations"`. Since EP-0425 that POST is itself a
+410, so a stale client that followed the pointer reached a second tombstone. Both
+now name `/v1/external-review/invitations/bulk`. Test: closure3-retirement-canonical
+"no tombstone points a stale client at another tombstone…" (revert-proof: fails on
+the old pointer).
+
+### The production evidence that settles usage (lead runs on the host)
+
+The API writes one pino line per request, from the `onResponse` hook in
+services/api/src/server.ts. Field names:
+- `msg`: `request.completed`, or `request.completed.business_error` for any status of 400 or more (every 410 tombstone answer lands here), `.bounded_unavailable`, or `.infrastructure_error`;
+- `method`;
+- `url`: passed through the canonical redactor, so token segments read `[redacted]` and the query string is kept;
+- `statusCode`;
+- `userId`: an account id, never an address;
+- `time`: epoch milliseconds.
+
+**Retention caveat.** Container logs use the json-file driver
+(infra/docker/docker-compose.prod.yml: `max-size: 50m`, `max-file: 5`, so at most
+about 250 MB per container), and every deploy recreates the container, which
+discards the old container's log. `docker logs` therefore covers only the current
+API container's lifetime, capped by size. Production was redeployed on 2026-11-21
+and 2026-11-22, so this window is probably about one day today. The output of step 1 states
+the window actually covered. A clean result over that window does **not** satisfy
+EP-0219's 30-day rule. Either keep running step 2 across deploys, appending to a
+file the lead keeps, until 30 days are covered, or use a longer-lived source if the
+host has one (Caddy access logs only exist if the host's Caddyfile has a `log`
+directive; it is not in the repository).
+
+```bash
+# 1. The window covered (container start, first and last log line).
+docker inspect -f 'created={{.Created}} started={{.State.StartedAt}} log={{.HostConfig.LogConfig.Type}} {{.HostConfig.LogConfig.Config}}' docker-proovra-api-1
+docker logs docker-proovra-api-1 2>&1 | jq -Rr 'fromjson? | select(type=="object" and .time) | .time' | sed -n '1p;$p' \
+  | while read t; do date -u -d "@$((t/1000))" +%FT%TZ; done
+
+# 2. Every call to a retired / sunset route in that window, one TSV line each:
+#    time, METHOD path (ids collapsed), status, userId.
+docker logs docker-proovra-api-1 2>&1 | jq -Rr '
+  fromjson? | select(type=="object" and ((.msg // "") | startswith("request.completed")))
+  | (.method + " " + ((.url // "") | sub("\\?.*$"; "")
+      | gsub("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"; ":id"))) as $mp
+  | select($mp | test("^(POST /v1/external-review/invitations|POST /v1/external-review/invitations/:id/send-email|PATCH /v1/redaction/policy|POST /v1/search/relationships|POST /v1/cases/:id/share-team|POST /v1/collaboration-team-invites/\\[redacted\\]/accept|DELETE /v1/teams/:id)$"))
+  | [((.time/1000) | todate), $mp, (.statusCode|tostring), (.userId // "-")] | @tsv' \
+  | tee -a /opt/proovra/retired-route-calls.tsv
+
+# 3. Summary: calls per route and status, and distinct accounts per route.
+cut -f2,3 /opt/proovra/retired-route-calls.tsv | sort | uniq -c | sort -rn
+cut -f2,4 /opt/proovra/retired-route-calls.tsv | sort -u | cut -f1 | uniq -c
+```
+
+How to read it:
+- For EP-0425, EP-0446, EP-0934 and EP-1066, any line is a caller still on the retired route. Expect status 410 (or 401 when signed out). Contact the account by `userId` and point it at the canonical route; never reopen the route.
+- For EP-0219 and EP-0261, lines with status 200 or 201 are live use: the sunset is not met.
+- For EP-1111, any line is an old client meeting the refusal tombstone.
+- Because the step 2 file is appended, repeated runs may duplicate lines from the same container. De-duplicate with `sort -u` before counting.
+
+The result is not known here. Until the lead runs this over a window long enough
+for the decision, EP-0219's retirement stays pending (missing evidence), and for the
+four retired routes "no external caller" remains an unverified assumption, bounded
+by the tombstones: they authenticate, read and write nothing, and name the
+replacement.

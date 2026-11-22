@@ -28,7 +28,7 @@
 
 import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
-import { StepUpModal, useStepUpAction } from "../../../../../components/identity-security/StepUpModal";
+import { StepUpModal, isStepUpCancelled, useStepUpAction } from "../../../../../components/identity-security/StepUpModal";
 import { useActiveWorkspaceId } from "../../../../../lib/platform-context";
 import { useEffect, useMemo, useState } from "react";
 
@@ -482,9 +482,20 @@ export default function ExternalIntakeSourceCard({
       // apiFetch resolves to the PARSED body, not a Response — calling
       // .json() on it throws a TypeError that surfaces as "couldn't reach
       // the service", which is a confusing way to say "we misread the API".
-      const body = (await apiFetch(
-        `/v1/workflow/intake-links/${encodeURIComponent(linkId)}/recipient-contact`,
-        { method: "POST" },
+      //
+      // OBS-INTAKE-REVEAL-STEPUP — the reveal is stepped up (a fresh challenge
+      // bound to THIS link), like the request's own reveal: the API answers
+      // 401 STEP_UP_REQUIRED, the step-up dialog runs, and the request is
+      // retried once with the approved challenge.
+      const body = (await stepUp.runStepUpAction((headers) =>
+        apiFetch(
+          `/v1/workflow/intake-links/${encodeURIComponent(linkId)}/recipient-contact`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json", ...(headers ?? {}) },
+            body: "{}",
+          },
+        ),
       )) as {
         recipientContact: {
           recipientEmail: string | null;
@@ -493,6 +504,8 @@ export default function ExternalIntakeSourceCard({
       };
       setRawRecipient(body.recipientContact);
     } catch (err) {
+      // Cancelling the step-up revealed nothing and is not an error.
+      if (isStepUpCancelled(err)) return;
       setRevealError(
         toSafeUserError(err, {
           message: "Could not show the full recipient contact.",

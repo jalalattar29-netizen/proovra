@@ -1086,7 +1086,12 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         acceptingUserId: ctx.userId,
       });
       if (!res.ok) {
-        return reply.code(res.denial === "NOT_FOUND" ? 404 : 409).send({ denial: res.denial });
+        // OBS-CHAIN-TRANSFER — an offer that no longer stands says why
+        // (initiator authority ended, record not transferable or held, or a
+        // newer transfer). Additive field; the 409 is unchanged.
+        return reply
+          .code(res.denial === "NOT_FOUND" ? 404 : 409)
+          .send({ denial: res.denial, ...("reason" in res ? { reason: res.reason } : {}) });
       }
       return reply.code(200).send({ ok: true });
     },

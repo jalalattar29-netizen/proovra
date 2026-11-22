@@ -94,14 +94,14 @@ const CASES: Case[] = [
     method: "POST",
     url: `/v1/collaboration/threads/${ID}/contributors`,
     code: "COLLABORATION_THREAD_CONTRIBUTORS_RETIRED",
-    canonical: "/v1/external-review/invitations",
+    canonical: "/v1/external-review/invitations/bulk",
     payload: { teamId: TEAM, intakeSessionId: SESSION, contributorLabel: "x" },
   },
   {
     method: "DELETE",
     url: `/v1/collaboration/threads/${ID}/contributors/${SESSION}?teamId=${TEAM}`,
     code: "COLLABORATION_THREAD_CONTRIBUTORS_RETIRED",
-    canonical: "/v1/external-review/invitations",
+    canonical: "/v1/external-review/invitations/bulk",
   },
   // 2. Owner decision — thread subscriptions.
   {
@@ -165,20 +165,20 @@ const CASES: Case[] = [
     method: "GET",
     url: `/v1/collaboration-teams/${ID}/guests`,
     code: "COLLABORATION_TEAM_GUESTS_RETIRED",
-    canonical: "/v1/external-review/invitations",
+    canonical: "/v1/external-review/invitations/bulk",
   },
   {
     method: "POST",
     url: `/v1/collaboration-teams/${ID}/guests/invite`,
     code: "COLLABORATION_TEAM_GUESTS_RETIRED",
-    canonical: "/v1/external-review/invitations",
+    canonical: "/v1/external-review/invitations/bulk",
     payload: { email: "guest@example.com" },
   },
   {
     method: "PATCH",
     url: `/v1/collaboration-teams/${ID}/guests/${SESSION}/revoke`,
     code: "COLLABORATION_TEAM_GUESTS_RETIRED",
-    canonical: "/v1/external-review/invitations",
+    canonical: "/v1/external-review/invitations/bulk",
   },
   {
     method: "GET",

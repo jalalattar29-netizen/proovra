@@ -47,6 +47,8 @@ import {
   type RevealedContact,
 } from "../../src/product/intake-links";
 import { theme } from "../../src/theme/theme";
+import { ChallengeStepUpSheet, useChallengeStepUp } from "../../src/ui/challenge-step-up";
+import { STEP_UP_CANCEL } from "../../src/product/challenge-step-up";
 import { IntakeDeliveryHistory } from "../../src/ui/intake-delivery-history";
 import { IntakeLinkDetails } from "../../src/ui/intake-link-details";
 import {
@@ -94,6 +96,8 @@ export default function IntakeLinksScreen() {
   const intakeIncluded =
     (envelope as { planFeatures?: Record<string, unknown> } | null)?.planFeatures?.["intakeIncluded"] !== false;
   const teamId = context?.activeTeamId ?? null;
+  // OBS-INTAKE-REVEAL-STEPUP — the contact reveal is stepped up on the server.
+  const stepUp = useChallengeStepUp(teamId);
   const teamName = context?.activeSpaceType === "PERSONAL" ? COPY.personalSpace : (context?.displayName ?? "Workspace");
 
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
@@ -283,19 +287,26 @@ export default function IntakeLinksScreen() {
     if (!item) return;
     setRevealBusy(true);
     try {
-      const res = await apiFetch(buildIntakeRevealPath(item.id), {
-        method: "POST",
-        body: JSON.stringify({ reason: revealReason.trim() }),
-      });
+      // OBS-INTAKE-REVEAL-STEPUP — a fresh challenge bound to THIS link; the
+      // sheet runs it and the request is retried once with the approval.
+      const res = await stepUp.run((headers) =>
+        apiFetch(buildIntakeRevealPath(item.id), {
+          method: "POST",
+          ...(headers ? { headers } : {}),
+          body: JSON.stringify({ reason: revealReason.trim() }),
+        }),
+      );
       setRevealed(parseRevealedContact(res));
     } catch (err) {
       setRevealing(null);
       setRevealReason("");
+      // Cancelling the step-up revealed nothing and is not an error.
+      if ((err as { code?: string } | null)?.code === STEP_UP_CANCEL) return;
       setMutationError({ action: "Couldn't reveal the recipient contact.", message: toSafeUserError(err).message });
     } finally {
       setRevealBusy(false);
     }
-  }, [revealing, revealReason]);
+  }, [revealing, revealReason, stepUp]);
   const closeReveal = () => {
     setRevealing(null);
     setRevealReason("");
@@ -520,6 +531,7 @@ export default function IntakeLinksScreen() {
       {deliveryFor && teamId ? (
         <IntakeDeliveryHistory visible teamId={teamId} linkId={deliveryFor} onClose={() => setDeliveryFor(null)} />
       ) : null}
+      <ChallengeStepUpSheet stepUp={stepUp} />
     </ProovraScreen>
   );
 }
