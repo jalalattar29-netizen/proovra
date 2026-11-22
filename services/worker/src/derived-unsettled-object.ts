@@ -40,7 +40,7 @@
  *   - a database that cannot be read fails CLOSED (nothing deleted).
  */
 import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
-import { resolveDerivedAssetStorageIntentsTx } from "@proovra/shared-runtime";
+import { redeclareDerivedAssetStorageIntentIfUnreliable, resolveDerivedAssetStorageIntentsTx } from "@proovra/shared-runtime";
 import type { DerivedAssetKind } from "@proovra/shared-runtime/media-intelligence";
 import type { PrismaClient } from "@prisma/client";
 
@@ -86,6 +86,14 @@ export async function disposeUnsettledDerivedObject(input: {
     await resolveDerivedAssetStorageIntentsTx(db, { intentIds: [intentId], state, resolution, resolvedBytes: 0 }).catch(
       () => undefined, // still OPEN: over-counted until the reconciler proves it
     );
+  };
+  // closure3/store (FV2-RESIDUAL-2) — bytes that may still exist, recorded on
+  // no row, whose intent was already resolved (or is being judged, or whose
+  // write window ended) are declared again on a fresh OPEN intent: a late
+  // write is never left uncounted while this holder is alive to say so.
+  const redeclare = async (): Promise<string | null> => {
+    if (!intentId) return null;
+    return redeclareDerivedAssetStorageIntentIfUnreliable(db, { intentId, bytes: written.sizeBytes }).catch(() => null);
   };
 
   // An object a row already references is counted by that row. A database
@@ -158,8 +166,9 @@ export async function disposeUnsettledDerivedObject(input: {
       // version (a lost answer) may still land after this delete: the intent
       // stays OPEN, counted, for the reconciler to judge after the grace.
       if (object.versionId) await resolveIntent("DELETED", "holder_deleted_own_version");
+      const redeclaredIntentId = object.versionId ? null : await redeclare();
       await release();
-      logger.warn({ ...log, intentKept: !object.versionId && Boolean(intentId) }, "derived.unsettled_object_deleted");
+      logger.warn({ ...log, intentKept: !object.versionId && Boolean(intentId), redeclaredIntentId }, "derived.unsettled_object_deleted");
       return "deleted";
     }
   }
@@ -228,7 +237,9 @@ export async function disposeUnsettledDerivedObject(input: {
   }
 
   // 3. Neither: nothing is released. With an intent, it keeps counting past
-  //    the reservation's TTL until the reconciler resolves it.
-  logger.error({ ...log, intentKept: Boolean(intentId) }, "derived.unsettled_object_reservation_kept");
+  //    the reservation's TTL until the reconciler resolves it; an intent that
+  //    can no longer be relied on to find these bytes is declared again.
+  const redeclaredIntentId = await redeclare();
+  logger.error({ ...log, intentKept: Boolean(intentId), redeclaredIntentId }, "derived.unsettled_object_reservation_kept");
   return "reservation_kept";
 }
