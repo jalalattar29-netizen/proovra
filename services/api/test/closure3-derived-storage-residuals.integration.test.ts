@@ -536,6 +536,44 @@ describe("closure3/store — derived write intents on a real S3 store (live Post
     await accountingEqualsStored(t, rec.baselineAfter, [rec.evidenceId]);
   }, 300_000);
 
+  it("closure3 review L2: the holder's adoption commits but its answer is lost — the bytes are counted once by the retained row, never re-declared on a second intent", async () => {
+    reset();
+    const { t } = await tenant();
+    const rec = await imageRecord(t);
+    const key = `derived-assets/${rec.evidenceId}/${rec.partId}/image_thumbnail-adopt-lost.webp`;
+    const hold = await admit(t, rec, 8000, key);
+    const put = await workerStorage.putObjectBuffer({ bucket: BUCKET, key, body: Buffer.alloc(8000, 6), contentType: "image/webp", lock: governance() });
+    const versionId = (put as { versionId: string | null }).versionId;
+    const lostAnswer = new Proxy(prisma as unknown as PrismaClient, {
+      get(target, prop, receiver) {
+        if (prop === "$transaction") {
+          return async (fn: never, opts: never) => {
+            await target.$transaction(fn, opts); // the adoption COMMITS ...
+            throw new Error("Connection terminated unexpectedly"); // ... its answer is lost
+          };
+        }
+        const v = Reflect.get(target, prop, receiver);
+        return typeof v === "function" ? v.bind(target) : v;
+      },
+    });
+    // The settle failed (say); the holder disposes: the locked version cannot
+    // be deleted, so it is adopted with the intent — which commits, unanswered.
+    const outcome = await disposal.disposeUnsettledDerivedObject({
+      key: hold.key,
+      heldSince: hold.reservedAtUtc,
+      intentId: hold.intentId,
+      object: { bucket: BUCKET, key, versionId },
+      written: { derivedSha256: "d".repeat(64), sizeBytes: 8000, contentType: "image/webp" },
+      reason: "persist_failed:settle_failed",
+      client: lostAnswer as never,
+    });
+    expect(outcome, "the holder could not see its adoption succeed").toBe("reservation_kept");
+    expect((await intentOf(hold.intentId!)).state).toBe("ADOPTED");
+    expect(await openIntents(rec.evidenceId), "no second intent for bytes a row already counts").toHaveLength(0);
+    await workerBilling.releaseDerivedArtifactReservation(hold.key, hold.reservedAtUtc);
+    await accountingEqualsStored(t, rec.baselineAfter, [rec.evidenceId]);
+  }, 300_000);
+
   it("-3: a STALLED commit keeps the intent row locked, so the reconciler skips it; it then commits (SETTLED) or rolls back (OPEN, later adopted) — never both, never neither", async () => {
     reset();
     const { t } = await tenant();
