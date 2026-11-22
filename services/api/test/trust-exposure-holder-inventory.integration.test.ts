@@ -301,6 +301,39 @@ describe("PRO-G2-01 holder inventory + sample inspection (live PostgreSQL 16, re
     expect(bytesRead).toBeLessThan(totalSize / 2);
   });
 
+  it("sample inspection --compare-corrected-builder diffs the stored manifests with the corrected tenant-scoped builder in memory, issuing nothing", async () => {
+    const pkgsBefore = await prisma.verificationPackage.count({ where: { evidenceId: ids.evidence } });
+    let out = "";
+    let err = "";
+    const code = await runTrustManifestSampleInspectionCli({
+      argv: [`--packages=${ids.pkg}`, "--compare-corrected-builder"],
+      client: prisma,
+      storage: {
+        head: async (p) => ({ sizeBytes: (await storage.headObject(p)).sizeBytes ?? null }),
+        range: async (p) => storage.getObjectRange(p),
+      },
+      out: (s) => (out += s),
+      err: (s) => (err += s),
+    });
+    expect(code, err).toBe(0);
+    const doc = JSON.parse(out);
+    expect(doc.evidenceBasis).toBe("STORED_ARTIFACT_CONTENTS");
+    const c = doc.packages[0].comparison;
+    expect(c.basis).toBe("CORRECTED_BUILDER_IN_MEMORY_NOW");
+    expect(c.issued).toBe(false);
+    // The own article and the own vendor are in both; the foreign rows only in the stored ZIP; the deleted row is UNMATCHED.
+    expect(c.articles.inBoth).toBe(1);
+    expect(c.articles.storedOnly).toEqual({ FOREIGN: 1, OWN: 0, UNMATCHED: 1 });
+    expect(c.subprocessors.inBoth).toBe(1);
+    expect(c.subprocessors.storedOnly).toEqual({ FOREIGN: 1, OWN: 0, UNMATCHED: 0 });
+    expect(c.activeSubprocessorCount.stored).toBe(2);
+    expect(c.activeSubprocessorCount.corrected).toBeGreaterThanOrEqual(1);
+    expect(c.conclusion).toBe("STORED_CARRIES_FOREIGN_ROWS_THE_CORRECTED_BUILDER_EXCLUDES");
+    expect(out).not.toContain(ownTitle);
+    expect(out).not.toContain(`Team A vendor ${tag}`);
+    expect(await prisma.verificationPackage.count({ where: { evidenceId: ids.evidence } })).toBe(pkgsBefore);
+  });
+
   it("sample inspection refuses write-like flags, too many or malformed ids", async () => {
     const run = async (argv: string[]) => {
       let err = "";
@@ -314,6 +347,8 @@ describe("PRO-G2-01 holder inventory + sample inspection (live PostgreSQL 16, re
       return { code, err };
     };
     expect((await run(["--save"])).code).toBe(2);
+    expect((await run(["--issue"])).code).toBe(2);
+    expect((await run([`--packages=${randomUUID()}`, "--compare-corrected-builder=yes"])).code).toBe(2);
     expect((await run(["--packages=not-a-uuid"])).code).toBe(2);
     expect((await run([`--packages=${Array.from({ length: 51 }, () => randomUUID()).join(",")}`])).code).toBe(2);
     expect((await run([])).code).toBe(2);

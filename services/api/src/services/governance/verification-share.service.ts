@@ -15,7 +15,7 @@
  * its own profile: STANDARD (content preview) or BASIC (verification only),
  * plus an explicit original-download grant.
  */
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import {
   LEGACY_VERIFY_LINK_GRACE_DAYS,
   VERIFICATION_SHARE_AUDIENCE_MAX,
@@ -32,6 +32,7 @@ import {
 } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import { SHARE_GRANT_DEFAULT_LIFETIME_DAYS, SHARE_GRANT_MAX_LIFETIME_DAYS } from "@proovra/shared";
 
@@ -299,33 +300,130 @@ export async function resolveShareWorkspaceId(
   return resolveEvidenceWorkspaceId({ teamId: null, ownerUserId: record.ownerUserId ?? null }, client);
 }
 
+type ShareRevokeTx = Pick<PrismaClient, "verificationShareToken">;
+
+/**
+ * THE revocation of one reviewer share, inside the caller's transaction. Both
+ * the owner route (revokeVerificationLink) and the platform security
+ * containment (revokeVerificationLinkForSecurityContainmentTx) go through it,
+ * so the rule below cannot differ between them.
+ */
+async function revokeOwnerShareLinkTx(
+  tx: ShareRevokeTx,
+  input: { evidenceId: string; linkId: string; revokedByUserId: string | null; reason: string; now: Date },
+): Promise<{ row: VerificationShareRow; changed: boolean }> {
+  const current = (await tx.verificationShareToken.findFirst({
+    where: { id: input.linkId, evidenceId: input.evidenceId },
+  })) as VerificationShareRow | null;
+  // PRO-O1-04 (RG-18) — the link printed in an issued report or package
+  // (purpose REPORT / PACKAGE) belongs to the record's publication state,
+  // not to a person: it is not revoked through the reviewer-share controls
+  // (taking the page down is the step-up-gated withdraw route). The rule
+  // renew already applies.
+  if (!current || current.purpose !== "OWNER_SHARE") throw new VerificationShareError("link_not_found");
+  const changed = await revokeVerificationShareTokenTx(tx, {
+    id: current.id,
+    evidenceId: input.evidenceId,
+    revokedByUserId: input.revokedByUserId,
+    reason: input.reason,
+    now: input.now,
+  });
+  const row = (await tx.verificationShareToken.findUniqueOrThrow({
+    where: { id: current.id },
+  })) as VerificationShareRow;
+  return { row, changed };
+}
+
 export async function revokeVerificationLink(
   input: { record: RecordForShare; linkId: string; actorUserId: string },
   client: PrismaClient = defaultPrisma,
   now: Date = new Date(),
 ): Promise<{ link: VerificationLinkView; changed: boolean }> {
   return client.$transaction(async (tx) => {
-    const current = (await tx.verificationShareToken.findFirst({
-      where: { id: input.linkId, evidenceId: input.record.id },
-    })) as VerificationShareRow | null;
-    // PRO-O1-04 (RG-18) — the link printed in an issued report or package
-    // (purpose REPORT / PACKAGE) belongs to the record's publication state,
-    // not to a person: it is not revoked through the reviewer-share controls
-    // (taking the page down is the step-up-gated withdraw route). The rule
-    // renew already applies.
-    if (!current || current.purpose !== "OWNER_SHARE") throw new VerificationShareError("link_not_found");
-    const changed = await revokeVerificationShareTokenTx(tx, {
-      id: current.id,
+    const { row, changed } = await revokeOwnerShareLinkTx(tx, {
       evidenceId: input.record.id,
+      linkId: input.linkId,
       revokedByUserId: input.actorUserId,
       reason: "OWNER_REVOKED",
       now,
     });
-    const row = (await tx.verificationShareToken.findUniqueOrThrow({
-      where: { id: current.id },
-    })) as VerificationShareRow;
     return { link: projectVerificationLink(row, now, input.record), changed };
   });
+}
+
+/** PRO-G2-01 — the reason code a security-containment revocation stores and audits. */
+export const SECURITY_CONTAINMENT_REASON_PATTERN = /^SECURITY_CONTAINMENT_[A-Z0-9_]{2,40}$/;
+export const SECURITY_CONTAINMENT_ACTOR_AUTHORITY = "PLATFORM_SECURITY_CONTAINMENT";
+
+/**
+ * PRO-G2-01 — A PLATFORM SECURITY-CONTAINMENT REVOCATION of one reviewer
+ * share, in the caller's transaction.
+ *
+ * There is no tenant user behind it: the owner of the platform approved the
+ * containment, an operator runs a reviewed script. So instead of borrowing a
+ * workspace member's identity it states what acted:
+ *   - the row is revoked by THE SAME rule as the owner route
+ *     (revokeOwnerShareLinkTx: OWNER_SHARE only, idempotent, history kept),
+ *     with `revoked_by_user_id` NULL and the containment reason code as
+ *     `revocation_reason`;
+ *   - the SAME tenant audit action the owner route writes
+ *     (`verification.link_revoked`, resource evidence_verification, the
+ *     record's workspace) is appended IN THIS TRANSACTION, with actor type
+ *     SYSTEM, authority PLATFORM_SECURITY_CONTAINMENT, the reason code, and
+ *     the containment's incident reference and backup id. A rolled-back
+ *     revocation leaves no audit row and vice versa.
+ * The owner route writes no custody event on revoke; neither does this.
+ * Nothing about the record, its reports or packages is read or written.
+ */
+export async function revokeVerificationLinkForSecurityContainmentTx(
+  tx: Prisma.TransactionClient,
+  input: {
+    evidenceId: string;
+    linkId: string;
+    reasonCode: string;
+    incidentRef: string;
+    backupId: string;
+    correlationId: string;
+    now: Date;
+  },
+): Promise<{ changed: boolean; previousState: VerificationShareState; workspaceId: string | null }> {
+  if (!SECURITY_CONTAINMENT_REASON_PATTERN.test(input.reasonCode)) {
+    throw new Error("security containment needs a SECURITY_CONTAINMENT_* reason code");
+  }
+  const before = (await tx.verificationShareToken.findFirst({
+    where: { id: input.linkId, evidenceId: input.evidenceId },
+  })) as VerificationShareRow | null;
+  const previousState = before ? verificationShareStateOf(before, input.now) : "REVOKED";
+  const { row, changed } = await revokeOwnerShareLinkTx(tx as unknown as ShareRevokeTx, {
+    evidenceId: input.evidenceId,
+    linkId: input.linkId,
+    revokedByUserId: null,
+    reason: input.reasonCode,
+    now: input.now,
+  });
+  await emitTenantAudit(
+    {
+      action: "verification.link_revoked",
+      outcome: changed ? "success" : "no_op",
+      sourceApp: "SYSTEM",
+      actorUserId: null,
+      actorType: "SYSTEM",
+      actorDisplay: `PROOVRA security containment (${input.incidentRef})`,
+      actorAuthority: SECURITY_CONTAINMENT_ACTOR_AUTHORITY,
+      serviceActor: "script:contain-cross-party-share-links",
+      workspaceId: row.teamId,
+      resourceType: "evidence_verification",
+      resourceId: input.evidenceId,
+      correlationId: input.correlationId,
+      previousState,
+      requestedState: "REVOKED",
+      resultingState: verificationShareStateOf(row, input.now),
+      reasonCode: input.reasonCode,
+      metadata: { linkId: row.id, changed, incidentRef: input.incidentRef, backupId: input.backupId },
+    },
+    tx as unknown as PrismaClient,
+  );
+  return { changed, previousState, workspaceId: row.teamId };
 }
 
 export async function rotateVerificationLink(
