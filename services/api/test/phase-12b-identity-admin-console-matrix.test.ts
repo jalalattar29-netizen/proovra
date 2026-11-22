@@ -23,7 +23,7 @@
  *      dressed as "gone", never a silent success, with ZERO state change
  */
 
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Fastify, { type FastifyInstance } from "fastify";
 
 // -----------------------------------------------------------------------------
@@ -386,6 +386,18 @@ vi.mock("../src/services/access-control/session-quarantine.service.js", () => {
 vi.mock("../src/services/access-control/identity-runtime-scheduled.service.js", () => ({
   runScheduledIdentityRuntimeSweep: async (input: Record<string, unknown>) =>
     R("runScheduledIdentityRuntimeSweep", input, { enforcement: false, teamsRead: 0, teamsVisited: 0, failedTeams: 0, stoppedOnBudget: false }),
+  // OBS-TEAMID-SWEEP — the unattended rule reads the activation switch; the
+  // fake answers from the same env variable, with a configured 60-minute idle
+  // timeout when it is on.
+  unattendedWorkspacePlan: async (teamId: string) => {
+    const on = (process.env["IDENTITY_RUNTIME_SCHEDULED_ENFORCEMENT"] ?? "") === "true";
+    return R("unattendedWorkspacePlan", { teamId }, {
+      enforcement: on,
+      autoQuarantine: on,
+      trustDecay: on,
+      stale: on ? { teamId, staleMinutes: 60, revoke: true, governedOnly: true } : { teamId, revoke: false },
+    });
+  },
 }));
 vi.mock("../src/services/access-control/runtime-risk.service.js", () => ({
   runtimeRiskRecomputeSweep: async (i: Record<string, unknown>) =>
@@ -1030,6 +1042,69 @@ describe("RECONCILE — dual-mode entrypoints (machine vs operator)", () => {
     const res: Res = await app.inject({ method: "POST", url: "/v1/admin/identity/runtime/reconcile", headers: JSON_HEADERS, payload: {} });
     expect(hits("runScheduledIdentityRuntimeSweep")).toEqual([]);
     expect(json(res)["scope"]).toBeUndefined();
+  });
+
+  // OBS-TEAMID-SWEEP — a machine call that NAMES a workspace is as unattended
+  // as the fleet: what removes access waits for the activation switch.
+  describe("OBS-TEAMID-SWEEP — machine mode with a named workspace honours the activation switch", () => {
+    afterEach(() => {
+      delete process.env["IDENTITY_RUNTIME_SCHEDULED_ENFORCEMENT"];
+    });
+    const machinePost = (url: string, payload: Record<string, unknown>) => {
+      process.env["IDENTITY_RECONCILE_CRON_SECRET"] = CRON_SECRET;
+      H.sessionPresent = false;
+      return app.inject({ method: "POST", url, headers: cronHeaders, payload }) as Promise<Res>;
+    };
+
+    it("runtime/reconcile, switch off: risk is re-scored WITHOUT auto-quarantine and trust decay does not run", async () => {
+      delete process.env["IDENTITY_RUNTIME_SCHEDULED_ENFORCEMENT"];
+      const res = await machinePost("/v1/admin/identity/runtime/reconcile", { teamId: OTHER_TEAM, decayStaleDays: 14 });
+      expect(res.statusCode).toBe(200);
+      expect(json(res)).toMatchObject({ teamId: OTHER_TEAM, enforcement: false, decay: { decayed: 0, skipped: "enforcement_off" } });
+      expect(hits("runtimeRiskRecomputeSweep")).toHaveLength(1);
+      expect(hits("runtimeRiskRecomputeSweep")[0]!.args).toMatchObject({ teamId: OTHER_TEAM, autoQuarantine: false });
+      expect(hits("sweepTrustedDeviceDecay")).toEqual([]);
+      expect(hits("sweepQuarantineReleases")).toHaveLength(1);
+    });
+
+    it("runtime/reconcile, switch on: auto-quarantine and trust decay run for the named workspace", async () => {
+      process.env["IDENTITY_RUNTIME_SCHEDULED_ENFORCEMENT"] = "true";
+      const res = await machinePost("/v1/admin/identity/runtime/reconcile", { teamId: OTHER_TEAM, decayStaleDays: 14 });
+      expect(res.statusCode).toBe(200);
+      expect(json(res)).toMatchObject({ teamId: OTHER_TEAM, enforcement: true, decay: { decayed: 3 } });
+      expect(hits("runtimeRiskRecomputeSweep")[0]!.args).toMatchObject({ teamId: OTHER_TEAM, autoQuarantine: true });
+      expect(hits("sweepTrustedDeviceDecay")).toHaveLength(1);
+      expect(hits("sweepTrustedDeviceDecay")[0]!.args).toMatchObject({ teamId: OTHER_TEAM, staleDays: 14 });
+    });
+
+    it("sessions/reconcile-stale, switch off: idle sessions are detected, never revoked, whatever staleMinutes the caller sends", async () => {
+      delete process.env["IDENTITY_RUNTIME_SCHEDULED_ENFORCEMENT"];
+      const res = await machinePost("/v1/admin/identity/sessions/reconcile-stale", { teamId: OTHER_TEAM, staleMinutes: 1, batchSize: 25 });
+      expect(res.statusCode).toBe(200);
+      expect(json(res)).toMatchObject({ teamId: OTHER_TEAM, enforcement: false });
+      expect(hits("sweepStaleSessions")).toHaveLength(1);
+      expect(hits("sweepStaleSessions")[0]!.args).toEqual({ teamId: OTHER_TEAM, revoke: false, batchSize: 25 });
+    });
+
+    it("sessions/reconcile-stale, switch on: revokes only at the organization's configured idle timeout, governed identities only", async () => {
+      process.env["IDENTITY_RUNTIME_SCHEDULED_ENFORCEMENT"] = "true";
+      const res = await machinePost("/v1/admin/identity/sessions/reconcile-stale", { teamId: OTHER_TEAM, staleMinutes: 1 });
+      expect(res.statusCode).toBe(200);
+      expect(hits("sweepStaleSessions")[0]!.args).toMatchObject({
+        teamId: OTHER_TEAM, staleMinutes: 60, revoke: true, governedOnly: true,
+      });
+    });
+
+    it("the operator path is a separate authority and does not consult the switch (auto-quarantine and decay kept)", async () => {
+      delete process.env["IDENTITY_RUNTIME_SCHEDULED_ENFORCEMENT"];
+      const res = await POST("/v1/admin/identity/runtime/reconcile", {});
+      expect(res.statusCode).toBe(200);
+      expect(hits("unattendedWorkspacePlan")).toEqual([]);
+      expect(hits("runtimeRiskRecomputeSweep")[0]!.args).toMatchObject({ teamId: TEAM, autoQuarantine: true });
+      expect(hits("sweepTrustedDeviceDecay")).toHaveLength(1);
+      expect(H.stepUps).toHaveLength(1);
+      expect(H.audits).toHaveLength(1);
+    });
   });
 
   it.each(RECONCILES)(

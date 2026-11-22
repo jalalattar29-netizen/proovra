@@ -119,6 +119,55 @@ async function configuredIdleMinutes(teamId: string, client: PrismaClient): Prom
   return Math.min(1440, Math.max(1, Math.ceil(seconds / 60)));
 }
 
+/**
+ * OBS-TEAMID-SWEEP (closure phase 3) — THE unattended rule for one workspace.
+ *
+ * Every machine (shared-secret) call that touches one workspace asks this:
+ * the fleet loop below for each workspace it visits, and a caller holding the
+ * scheduler secret that names a workspace with `teamId` on
+ * POST /v1/admin/identity/runtime/reconcile or
+ * POST /v1/admin/identity/sessions/reconcile-stale. Before this, a machine call
+ * naming a workspace ran risk recompute WITH auto-quarantine, trusted-device
+ * decay and a 30-minute idle revocation whatever the switch said. Holding the
+ * scheduler secret is not the owner's activation decision.
+ *
+ * Off (the default): no auto-quarantine, no trust decay, idle sessions are
+ * detected and never revoked. On: the three legs the header describes, with
+ * idle revocation only at the organization's own configured timeout and only
+ * for identities it governs (DEC-08).
+ *
+ * The operator path (a session, canonical authorization, a step-up bound to
+ * the workspace and an operator audit row) is a separate authority and does
+ * not ask this.
+ */
+export type UnattendedWorkspacePlan = {
+  enforcement: boolean;
+  autoQuarantine: boolean;
+  trustDecay: boolean;
+  stale:
+    | { teamId: string; revoke: false }
+    | { teamId: string; staleMinutes: number; revoke: true; governedOnly: true };
+};
+
+export async function unattendedWorkspacePlan(
+  teamId: string,
+  client: PrismaClient = defaultPrisma,
+  enforcement: boolean = identityRuntimeScheduledEnforcementEnabled(),
+): Promise<UnattendedWorkspacePlan> {
+  const idleMinutes = enforcement ? await configuredIdleMinutes(teamId, client) : null;
+  return {
+    enforcement,
+    autoQuarantine: enforcement,
+    trustDecay: enforcement,
+    // DEC-08 — only identities this workspace governs lose a session to an
+    // unattended call; an independent member's session is account-global.
+    stale:
+      idleMinutes != null
+        ? { teamId, staleMinutes: idleMinutes, revoke: true, governedOnly: true }
+        : { teamId, revoke: false },
+  };
+}
+
 /** Workspaces with something for the runtime sweeps to look at, after `cursor`. */
 async function nextTeams(
   cursor: string | null,
@@ -198,26 +247,20 @@ export async function runScheduledIdentityRuntimeSweep(
       const releases = await sweepQuarantineReleases({ teamId }, client);
       totals.quarantineReleased += releases.released;
 
-      const risk = await runtimeRiskRecomputeSweep({ teamId, autoQuarantine: enforcement }, client);
+      // The one unattended rule (OBS-TEAMID-SWEEP), on this call's switch read.
+      const plan = await unattendedWorkspacePlan(teamId, client, enforcement);
+      const risk = await runtimeRiskRecomputeSweep({ teamId, autoQuarantine: plan.autoQuarantine }, client);
       totals.riskRecomputed += risk.recomputed;
       totals.highRisk += risk.highRiskCount;
       totals.escalatedToQuarantine += risk.escalatedToQuarantine;
 
-      if (enforcement) {
+      if (plan.trustDecay) {
         const decay = await sweepTrustedDeviceDecay({ teamId, now }, client);
         totals.devicesDecayed += decay.decayed;
         totals.devicesAutoInvalidated += decay.autoInvalidated;
       }
 
-      const idleMinutes = enforcement ? await configuredIdleMinutes(teamId, client) : null;
-      const stale = await sweepStaleSessions(
-        // DEC-08 — only identities this workspace governs lose a session to
-        // the schedule; an independent member's session is account-global.
-        idleMinutes != null
-          ? { teamId, staleMinutes: idleMinutes, revoke: true, governedOnly: true }
-          : { teamId, revoke: false },
-        client,
-      );
+      const stale = await sweepStaleSessions(plan.stale, client);
       totals.staleSessionsDetected += stale.staleDetected;
       totals.staleSessionsRevoked += stale.swept;
       await refreshHighRiskSessionGauge({ teamId }, client);

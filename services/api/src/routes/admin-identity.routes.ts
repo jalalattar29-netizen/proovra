@@ -126,7 +126,10 @@ import {
 import { runtimeRiskRecomputeSweep } from "../services/access-control/runtime-risk.service.js";
 import { sweepTrustedDeviceDecay } from "../services/access-control/trusted-device-decay.service.js";
 import { sweepGeoCache } from "../services/access-control/geo-intelligence.service.js";
-import { runScheduledIdentityRuntimeSweep } from "../services/access-control/identity-runtime-scheduled.service.js";
+import {
+  runScheduledIdentityRuntimeSweep,
+  unattendedWorkspacePlan,
+} from "../services/access-control/identity-runtime-scheduled.service.js";
 import { resolveSecurityEventActor } from "../services/security/security-event.service.js";
 import {
   SESSION_QUARANTINE_REASONS,
@@ -231,6 +234,10 @@ const BoundedNote = z.string().min(1).max(400);
 //
 //   machine  — valid `x-cron-secret`; the scheduler names the workspace it was
 //              configured for; no session, no step-up, no operator audit.
+//              Unattended, so whatever removes access (auto-quarantine, trust
+//              decay, idle revocation) waits for the activation switch
+//              IDENTITY_RUNTIME_SCHEDULED_ENFORCEMENT, one workspace or the
+//              fleet alike (OBS-TEAMID-SWEEP, `unattendedWorkspacePlan`).
 //   operator — a real session (requireAuth), a SERVER-derived workspace, the
 //              canonical `authorizeOrFail` chain, step-up bound to that
 //              workspace, and a canonical audit entry carrying the actor and
@@ -1260,12 +1267,22 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         if (gate.sent) return;
         teamId = ctx.teamId;
       }
-      const result = await sweepStaleSessions({
-        teamId,
-        staleMinutes: body.staleMinutes,
-        batchSize: body.batchSize,
-        revoke: true,
-      });
+      // OBS-TEAMID-SWEEP — the machine path is unattended: it revokes only
+      // what the activation switch and the organization's own idle timeout
+      // allow (identity-runtime-scheduled.service.ts `unattendedWorkspacePlan`),
+      // never the 30-minute default or a caller-chosen `staleMinutes`. Off:
+      // detection only. The operator path keeps its own authority (above).
+      const plan = machine ? await unattendedWorkspacePlan(teamId) : null;
+      const result = await sweepStaleSessions(
+        plan
+          ? { ...plan.stale, batchSize: body.batchSize }
+          : {
+              teamId,
+              staleMinutes: body.staleMinutes,
+              batchSize: body.batchSize,
+              revoke: true,
+            },
+      );
       // Also sweep stale OIDC callback attempts — on the MACHINE path only.
       // B7A-F-003 (free-audit 0ea0): that sweep is tenant-agnostic (every
       // connection's attempts and native handoffs), so a workspace operator
@@ -1288,6 +1305,7 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         sessions: result,
         callbackAttempts: callbackSweep,
         teamId,
+        ...(plan ? { enforcement: plan.enforcement } : {}),
       });
     },
   );
@@ -1620,15 +1638,31 @@ export async function adminIdentityRuntimeRoutes(app: FastifyInstance) {
         if (gate.sent) return;
         teamId = ctx.teamId;
       }
+      // OBS-TEAMID-SWEEP — a machine call that names a workspace is as
+      // unattended as the fleet: auto-quarantine and trust decay wait for the
+      // activation switch (`unattendedWorkspacePlan`). The operator path is a
+      // separate authority (session, canonical permission, step-up bound to the
+      // workspace, operator audit) and keeps both legs.
+      const plan = machine ? await unattendedWorkspacePlan(teamId) : null;
       const [risk, decay, releases, geo] = await Promise.all([
         runtimeRiskRecomputeSweep({
           teamId,
           recomputeWindowMinutes: body.recomputeWindowMinutes,
+          autoQuarantine: plan ? plan.autoQuarantine : true,
         }),
-        sweepTrustedDeviceDecay({
-          teamId,
-          staleDays: body.decayStaleDays,
-        }),
+        !plan || plan.trustDecay
+          ? sweepTrustedDeviceDecay({
+              teamId,
+              staleDays: body.decayStaleDays,
+            })
+          : Promise.resolve({
+              scanned: 0,
+              decayed: 0,
+              autoInvalidated: 0,
+              quarantined: 0,
+              quarantineReleased: 0,
+              skipped: "enforcement_off" as const,
+            }),
         sweepQuarantineReleases({ teamId }),
         // B7A-F-003 — the geo cache is platform-wide: the scheduler's leg only.
         machine
@@ -1642,7 +1676,14 @@ export async function adminIdentityRuntimeRoutes(app: FastifyInstance) {
           outcome: { risk, decay, releases, geo },
         });
       }
-      return reply.code(200).send({ risk, decay, releases, geo, teamId });
+      return reply.code(200).send({
+        risk,
+        decay,
+        releases,
+        geo,
+        teamId,
+        ...(plan ? { enforcement: plan.enforcement } : {}),
+      });
     },
   );
 }

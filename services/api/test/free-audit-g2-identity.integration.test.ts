@@ -1588,6 +1588,74 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
       }
     });
 
+    it("OBS-TEAMID-SWEEP: a machine call that NAMES the workspace honours the switch — off: the HIGH session is scored, not quarantined, the stale device keeps its trust and an idle governed session is not revoked; on: the same session is quarantined", async () => {
+      const { target, bound } = await highRiskSession("g2-teamid-high");
+      const governed = await person("g2-teamid-idle", { role: "MEMBER" });
+      await directoryIdentity(governed.userId, "g2-teamid-idle");
+      const idleGoverned = await session(A().teamId, governed.userId, {
+        deviceIdHash: createHash("sha256").update(randomUUID()).digest("hex"),
+      });
+      const device = await prisma.trustedDevice.create({
+        data: {
+          teamId: A().teamId,
+          userId: governed.userId,
+          deviceIdHash: createHash("sha256").update(randomUUID()).digest("hex"),
+          uaPreview: "teamid-agent",
+          ipPreview: "203.0.113.0/24",
+          trustedUntilUtc: future(),
+          lastSeenAtUtc: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000),
+        } as never,
+        select: { id: true },
+      });
+      const deviceState = () =>
+        prisma.trustedDevice.findUniqueOrThrow({ where: { id: device.id }, select: { status: true, trustScoreDecay: true } });
+      const deviceBefore = await deviceState();
+      try {
+        delete process.env.IDENTITY_RUNTIME_SCHEDULED_ENFORCEMENT;
+        const off = await call("POST", "/v1/admin/identity/runtime/reconcile", null, { teamId: A().teamId }, machine());
+        expect(off.statusCode, off.body).toBe(200);
+        // Behaviour first: the session was re-scored and NOT quarantined.
+        const scoredOff = await riskOf(target.id);
+        expect(scoredOff.riskScore).toBe(70);
+        expect(scoredOff.lastRiskRecomputedAtUtc).toBeInstanceOf(Date);
+        expect(scoredOff.quarantinedAtUtc).toBeNull();
+        expect(await deviceState()).toEqual(deviceBefore);
+        expect(json(off).risk.escalatedToQuarantine).toBe(0);
+        expect(json(off)).toMatchObject({ teamId: A().teamId, enforcement: false, decay: { skipped: "enforcement_off" } });
+
+        const staleOff = await call(
+          "POST",
+          "/v1/admin/identity/sessions/reconcile-stale",
+          null,
+          { teamId: A().teamId, staleMinutes: 1 },
+          machine(),
+        );
+        expect(staleOff.statusCode, staleOff.body).toBe(200);
+        expect(json(staleOff)).toMatchObject({ enforcement: false, sessions: { swept: 0 } });
+        expect(json(staleOff).sessions.staleDetected).toBeGreaterThanOrEqual(1);
+        expect((await read(idleGoverned.id)).revokedAtUtc).toBeNull();
+
+        await prisma.authenticatedSession.updateMany({
+          where: { id: { in: [target.id, bound.id] } },
+          data: { lastRiskRecomputedAtUtc: null },
+        });
+        process.env.IDENTITY_RUNTIME_SCHEDULED_ENFORCEMENT = "true";
+        const on = await call("POST", "/v1/admin/identity/runtime/reconcile", null, { teamId: A().teamId }, machine());
+        expect(on.statusCode, on.body).toBe(200);
+        expect(json(on)).toMatchObject({ teamId: A().teamId, enforcement: true });
+        expect(json(on).risk.escalatedToQuarantine).toBeGreaterThanOrEqual(1);
+        const scoredOn = await riskOf(target.id);
+        expect(scoredOn.quarantinedAtUtc).toBeInstanceOf(Date);
+        expect(scoredOn.quarantineReason).toBe("SUSPICIOUS_SESSION_AUTO");
+        expect((await riskOf(bound.id)).quarantinedAtUtc).toBeNull();
+        const deviceAfter = await deviceState();
+        expect(deviceAfter.trustScoreDecay > deviceBefore.trustScoreDecay || deviceAfter.status !== "ACTIVE").toBe(true);
+      } finally {
+        delete process.env.IDENTITY_RUNTIME_SCHEDULED_ENFORCEMENT;
+        await prisma.trustedDevice.deleteMany({ where: { id: device.id } });
+      }
+    });
+
     it("the activation preview is READ-ONLY (it runs inside a read-only transaction) and lists exactly what the switch would do: the HIGH session, the governed idle session, the device decay; the self-serve idle session is counted as excluded", async () => {
       const { target, bound } = await highRiskSession("g2-wssched-preview");
       const governed = await person("g2-wssched-prev-gov", { role: "MEMBER" });
