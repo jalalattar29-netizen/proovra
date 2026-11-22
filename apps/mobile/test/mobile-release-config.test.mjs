@@ -187,3 +187,25 @@ test("AUD-009: debug / simulator artifacts can never be called release", () => {
   // native-build never builds a release configuration or talks to EAS.
   assert.ok(!/-configuration Release|eas-cli|EXPO_TOKEN/.test(NATIVE_SRC));
 });
+
+test("CLOSURE-EXT-01: native-build bundles the RELEASE JS with Gradle, after the debug compile, unsigned and on the same path filters", () => {
+  const job = native.jobs["android-debug-build"];
+  const runs = job.steps.map((s) => String(s.run ?? ""));
+  const at = (re) => runs.findIndex((r) => re.test(r));
+  const debug = at(/:app:assembleDebug\b/);
+  const bundle = at(/\.\/gradlew :app:createBundleReleaseJsAndAssets\b/);
+  const jvm = at(/testDebugUnitTest/);
+  assert.ok(debug >= 0, "the debug compile is kept");
+  assert.ok(jvm >= 0, "the JVM capture-decision tests are kept");
+  assert.ok(bundle > debug, "the release JS bundle runs after the debug compile");
+  // It must fail the job when no bundle is produced, and never substitute `expo export`.
+  assert.match(runs[bundle], /set -euo pipefail/);
+  assert.match(runs[bundle], /test -s "\$bundle"/);
+  assert.match(runs[bundle], /createBundleReleaseJsAndAssets\/index\.android\.bundle/);
+  assert.ok(!runs.some((r) => /expo export(?!:embed)/.test(r)), "expo export is not a substitute for the Gradle bundle");
+  // Unsigned, never a store artifact: no assembleRelease/bundleRelease, no keystore, no upload of a release.
+  assert.ok(!runs.some((r) => /:app:(assemble|bundle)Release\b|keystore|storePassword|MYAPP_UPLOAD/.test(r)));
+  for (const p of ["apps/mobile/**", "packages/shared/src/**", ".github/workflows/native-build.yml"]) {
+    assert.ok(native.on.push.paths.includes(p) && native.on.pull_request.paths.includes(p), `path filter ${p} kept`);
+  }
+});
