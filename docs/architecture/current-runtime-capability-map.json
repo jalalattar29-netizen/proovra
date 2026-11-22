@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 12714,
+      "METHOD_ON_VALUE": 12715,
       "UNRESOLVED_IDENTIFIER": 1854
     },
     "MutationFixpointRounds": 11,
@@ -113106,8 +113106,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/redaction/redaction-page-preview-storage.ts#redactionPagePreview.updateMany@127",
-      "terminalLocation": "services/worker/src/redaction/redaction-page-preview-storage.ts:127",
+      "writerId": "services/worker/src/redaction/redaction-page-preview-storage.ts#redactionPagePreview.updateMany@148",
+      "terminalLocation": "services/worker/src/redaction/redaction-page-preview-storage.ts:148",
       "file": "services/worker/src/redaction/redaction-page-preview-storage.ts",
       "enclosingDeclaration": "preparePagePreviewWrite",
       "kind": "DATABASE",
@@ -113137,8 +113137,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/redaction/redaction-page-preview-storage.ts#redactionPagePreview.updateMany@149",
-      "terminalLocation": "services/worker/src/redaction/redaction-page-preview-storage.ts:149",
+      "writerId": "services/worker/src/redaction/redaction-page-preview-storage.ts#redactionPagePreview.updateMany@184",
+      "terminalLocation": "services/worker/src/redaction/redaction-page-preview-storage.ts:184",
       "file": "services/worker/src/redaction/redaction-page-preview-storage.ts",
       "enclosingDeclaration": "preparePagePreviewWrite",
       "kind": "DATABASE",
@@ -113168,8 +113168,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/redaction/redaction-page-preview-storage.ts#redactionPagePreview.updateMany@155",
-      "terminalLocation": "services/worker/src/redaction/redaction-page-preview-storage.ts:155",
+      "writerId": "services/worker/src/redaction/redaction-page-preview-storage.ts#redactionPagePreview.updateMany@191",
+      "terminalLocation": "services/worker/src/redaction/redaction-page-preview-storage.ts:191",
       "file": "services/worker/src/redaction/redaction-page-preview-storage.ts",
       "enclosingDeclaration": "preparePagePreviewWrite",
       "kind": "DATABASE",
@@ -113199,8 +113199,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/redaction/redaction-page-preview-storage.ts#redactionPagePreview.updateMany@167",
-      "terminalLocation": "services/worker/src/redaction/redaction-page-preview-storage.ts:167",
+      "writerId": "services/worker/src/redaction/redaction-page-preview-storage.ts#redactionPagePreview.updateMany@204",
+      "terminalLocation": "services/worker/src/redaction/redaction-page-preview-storage.ts:204",
       "file": "services/worker/src/redaction/redaction-page-preview-storage.ts",
       "enclosingDeclaration": "preparePagePreviewWrite",
       "kind": "DATABASE",
@@ -113230,8 +113230,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/redaction/redaction-page-preview-storage.ts#redactionPagePreview.updateMany@268",
-      "terminalLocation": "services/worker/src/redaction/redaction-page-preview-storage.ts:268",
+      "writerId": "services/worker/src/redaction/redaction-page-preview-storage.ts#redactionPagePreview.updateMany@317",
+      "terminalLocation": "services/worker/src/redaction/redaction-page-preview-storage.ts:317",
       "file": "services/worker/src/redaction/redaction-page-preview-storage.ts",
       "enclosingDeclaration": "reconcilePagePreviewStoragePointers",
       "kind": "DATABASE",
@@ -113265,8 +113265,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/redaction/redaction-page-preview-storage.ts#redactionPagePreview.updateMany@278",
-      "terminalLocation": "services/worker/src/redaction/redaction-page-preview-storage.ts:278",
+      "writerId": "services/worker/src/redaction/redaction-page-preview-storage.ts#redactionPagePreview.updateMany@327",
+      "terminalLocation": "services/worker/src/redaction/redaction-page-preview-storage.ts:327",
       "file": "services/worker/src/redaction/redaction-page-preview-storage.ts",
       "enclosingDeclaration": "reconcilePagePreviewStoragePointers",
       "kind": "DATABASE",
@@ -113300,8 +113300,39 @@
       }
     },
     {
-      "writerId": "services/worker/src/redaction/redaction-page-preview-writer.ts#redactionPagePreview.updateMany@119",
-      "terminalLocation": "services/worker/src/redaction/redaction-page-preview-writer.ts:119",
+      "writerId": "services/worker/src/redaction/redaction-page-preview-writer.ts#redactionPagePreview.updateMany@118",
+      "terminalLocation": "services/worker/src/redaction/redaction-page-preview-writer.ts:118",
+      "file": "services/worker/src/redaction/redaction-page-preview-writer.ts",
+      "enclosingDeclaration": "markPagePreviewReadyWorker",
+      "kind": "DATABASE",
+      "target": "redactionPagePreview",
+      "mutationKind": "updateMany",
+      "primaryFamily": "REPORT_EXPORT_REDACTION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/redaction/redaction-page-preview.processor.ts#processRedactionPagePreviewJob"
+      ],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/redaction/redaction-page-preview-writer.ts#redactionPagePreview.updateMany@143",
+      "terminalLocation": "services/worker/src/redaction/redaction-page-preview-writer.ts:143",
       "file": "services/worker/src/redaction/redaction-page-preview-writer.ts",
       "enclosingDeclaration": "markPagePreviewFailedWorker",
       "kind": "DATABASE",
@@ -113331,8 +113362,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/redaction/redaction-page-preview-writer.ts#redactionPagePreview.updateMany@38",
-      "terminalLocation": "services/worker/src/redaction/redaction-page-preview-writer.ts:38",
+      "writerId": "services/worker/src/redaction/redaction-page-preview-writer.ts#redactionPagePreview.updateMany@53",
+      "terminalLocation": "services/worker/src/redaction/redaction-page-preview-writer.ts:53",
       "file": "services/worker/src/redaction/redaction-page-preview-writer.ts",
       "enclosingDeclaration": "claimPagePreviewForRender",
       "kind": "DATABASE",
@@ -113362,41 +113393,10 @@
       }
     },
     {
-      "writerId": "services/worker/src/redaction/redaction-page-preview-writer.ts#redactionPagePreview.updateMany@57",
-      "terminalLocation": "services/worker/src/redaction/redaction-page-preview-writer.ts:57",
+      "writerId": "services/worker/src/redaction/redaction-page-preview-writer.ts#redactionPagePreview.updateMany@79",
+      "terminalLocation": "services/worker/src/redaction/redaction-page-preview-writer.ts:79",
       "file": "services/worker/src/redaction/redaction-page-preview-writer.ts",
       "enclosingDeclaration": "releasePagePreviewClaim",
-      "kind": "DATABASE",
-      "target": "redactionPagePreview",
-      "mutationKind": "updateMany",
-      "primaryFamily": "REPORT_EXPORT_REDACTION",
-      "insideTransaction": false,
-      "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/redaction/redaction-page-preview.processor.ts#processRedactionPagePreviewJob"
-      ],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/worker/src/redaction/redaction-page-preview-writer.ts#redactionPagePreview.updateMany@94",
-      "terminalLocation": "services/worker/src/redaction/redaction-page-preview-writer.ts:94",
-      "file": "services/worker/src/redaction/redaction-page-preview-writer.ts",
-      "enclosingDeclaration": "markPagePreviewReadyWorker",
       "kind": "DATABASE",
       "target": "redactionPagePreview",
       "mutationKind": "updateMany",
