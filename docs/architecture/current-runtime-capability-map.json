@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "407d66a0853e9208aaf7ecd9bfed7ea633a6e851ebee5ae067296a38be05fb53",
-  "consumerInventoryHash": "e20b6dd361d64d48d07c17c66f63ff67aebda3f253ce6047ccf6819d95f61315",
+  "consumerInventoryHash": "7d5234d33c3c9918c3d3fbf01f114582d085a12df2a142e508be29e23e83fc2e",
   "dispositionsHash": "72a673714cbf8875409b4d185dc3ddaabd1ce480037aa81908af2a1ae91b1580",
   "totals": {
     "RegisteredRoutes": 1273,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 12699,
+      "METHOD_ON_VALUE": 12701,
       "UNRESOLVED_IDENTIFIER": 1850
     },
     "MutationFixpointRounds": 11,
@@ -7228,7 +7228,7 @@
       "method": "GET",
       "route": "/v1/workflow/intake-links",
       "registeringFile": "services/api/src/routes/workflow-intake-links.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/intake-links.tsx:163",
+      "productConsumer": "apps/mobile/app/(stack)/intake-links.tsx:167",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -7252,7 +7252,7 @@
       "method": "GET",
       "route": "/v1/workflow/intake-links/:id/submissions",
       "registeringFile": "services/api/src/routes/workflow-intake-links.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/intake-links.tsx:220",
+      "productConsumer": "apps/mobile/app/(stack)/intake-links.tsx:224",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -15220,7 +15220,7 @@
       "method": "POST",
       "route": "/v1/workflow/intake-links/:id/recipient-contact",
       "registeringFile": "services/api/src/routes/workflow-intake-links.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/intake-links.tsx:286",
+      "productConsumer": "apps/mobile/app/(stack)/intake-links.tsx:293",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -15232,7 +15232,7 @@
       "method": "POST",
       "route": "/v1/workflow/intake-links/:id/revoke",
       "registeringFile": "services/api/src/routes/workflow-intake-links.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/intake-links.tsx:263",
+      "productConsumer": "apps/mobile/app/(stack)/intake-links.tsx:267",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -15256,7 +15256,7 @@
       "method": "POST",
       "route": "/v1/workflow/intake-links/:id/unarchive",
       "registeringFile": "services/api/src/routes/workflow-intake-links.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/intake-links.tsx:243",
+      "productConsumer": "apps/mobile/app/(stack)/intake-links.tsx:247",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -30878,8 +30878,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/collaboration.routes.ts#discussionMention.updateMany@627",
-      "terminalLocation": "services/api/src/routes/collaboration.routes.ts:627",
+      "writerId": "services/api/src/routes/collaboration.routes.ts#discussionMention.updateMany@629",
+      "terminalLocation": "services/api/src/routes/collaboration.routes.ts:629",
       "file": "services/api/src/routes/collaboration.routes.ts",
       "enclosingDeclaration": "collaborationRoutes",
       "kind": "DATABASE",
@@ -33774,8 +33774,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/product-and-lifecycle.routes.ts#lifecycleWebhookDelivery.updateMany@1470",
-      "terminalLocation": "services/api/src/routes/product-and-lifecycle.routes.ts:1470",
+      "writerId": "services/api/src/routes/product-and-lifecycle.routes.ts#lifecycleWebhookDelivery.updateMany@1475",
+      "terminalLocation": "services/api/src/routes/product-and-lifecycle.routes.ts:1475",
       "file": "services/api/src/routes/product-and-lifecycle.routes.ts",
       "enclosingDeclaration": "productAndLifecycleRoutes",
       "kind": "DATABASE",
@@ -57857,8 +57857,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/exchange/chain-transfer.service.ts#chainTransfer.create@229",
-      "terminalLocation": "services/api/src/services/exchange/chain-transfer.service.ts:229",
+      "writerId": "services/api/src/services/exchange/chain-transfer.service.ts#chainTransfer.create@232",
+      "terminalLocation": "services/api/src/services/exchange/chain-transfer.service.ts:232",
       "file": "services/api/src/services/exchange/chain-transfer.service.ts",
       "enclosingDeclaration": "initiateChainTransfer",
       "kind": "DATABASE",
@@ -57890,8 +57890,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/exchange/chain-transfer.service.ts#chainTransfer.updateMany@318",
-      "terminalLocation": "services/api/src/services/exchange/chain-transfer.service.ts:318",
+      "writerId": "services/api/src/services/exchange/chain-transfer.service.ts#chainTransfer.updateMany@405",
+      "terminalLocation": "services/api/src/services/exchange/chain-transfer.service.ts:405",
       "file": "services/api/src/services/exchange/chain-transfer.service.ts",
       "enclosingDeclaration": "acceptChainTransfer",
       "kind": "DATABASE",
@@ -57923,8 +57923,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/exchange/chain-transfer.service.ts#chainTransfer.updateMany@380",
-      "terminalLocation": "services/api/src/services/exchange/chain-transfer.service.ts:380",
+      "writerId": "services/api/src/services/exchange/chain-transfer.service.ts#chainTransfer.updateMany@467",
+      "terminalLocation": "services/api/src/services/exchange/chain-transfer.service.ts:467",
       "file": "services/api/src/services/exchange/chain-transfer.service.ts",
       "enclosingDeclaration": "rejectChainTransfer",
       "kind": "DATABASE",
@@ -57956,8 +57956,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/exchange/chain-transfer.service.ts#chainTransfer.updateMany@437",
-      "terminalLocation": "services/api/src/services/exchange/chain-transfer.service.ts:437",
+      "writerId": "services/api/src/services/exchange/chain-transfer.service.ts#chainTransfer.updateMany@524",
+      "terminalLocation": "services/api/src/services/exchange/chain-transfer.service.ts:524",
       "file": "services/api/src/services/exchange/chain-transfer.service.ts",
       "enclosingDeclaration": "revokeChainTransfer",
       "kind": "DATABASE",
@@ -57989,8 +57989,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/exchange/chain-transfer.service.ts#chainTransfer.updateMany@501",
-      "terminalLocation": "services/api/src/services/exchange/chain-transfer.service.ts:501",
+      "writerId": "services/api/src/services/exchange/chain-transfer.service.ts#chainTransfer.updateMany@588",
+      "terminalLocation": "services/api/src/services/exchange/chain-transfer.service.ts:588",
       "file": "services/api/src/services/exchange/chain-transfer.service.ts",
       "enclosingDeclaration": "completeChainTransfer",
       "kind": "DATABASE",
@@ -63033,6 +63033,7 @@
         "POST /v1/collaboration-teams/:teamId/archive",
         "POST /v1/evidence-requests/:id/recipient-contact",
         "POST /v1/evidence/:id/owner-destruction-approval",
+        "POST /v1/evidence/:id/submitter-contact",
         "POST /v1/evidence/:id/verification-access/reinstate",
         "POST /v1/evidence/:id/verification-access/withdraw",
         "POST /v1/evidence/:id/verify-links",
@@ -63136,6 +63137,7 @@
         "POST /v1/trust/status/maintenance",
         "POST /v1/trust/subprocessors",
         "POST /v1/trust/subprocessors/seed",
+        "POST /v1/workflow/intake-links/:id/recipient-contact",
         "POST /v1/workflows/instances/:id/steps/:stepKey/waive",
         "PUT /v1/auth/saml/:connectionId/certificate-next",
         "PUT /v1/evidence/:id/verification-disclosure",
@@ -63182,7 +63184,8 @@
         "MODULE services/api/src/routes/teams.routes.ts",
         "MODULE services/api/src/routes/trust-and-governance.routes.ts",
         "MODULE services/api/src/routes/verification-share.routes.ts",
-        "MODULE services/api/src/routes/workflow-instances.routes.ts"
+        "MODULE services/api/src/routes/workflow-instances.routes.ts",
+        "MODULE services/api/src/routes/workflow-intake-links.routes.ts"
       ],
       "entrySchedules": [],
       "invariants": {
@@ -63307,6 +63310,7 @@
         "POST /v1/collaboration-teams/:teamId/archive",
         "POST /v1/evidence-requests/:id/recipient-contact",
         "POST /v1/evidence/:id/owner-destruction-approval",
+        "POST /v1/evidence/:id/submitter-contact",
         "POST /v1/evidence/:id/verification-access/reinstate",
         "POST /v1/evidence/:id/verification-access/withdraw",
         "POST /v1/evidence/:id/verify-links",
@@ -63410,6 +63414,7 @@
         "POST /v1/trust/status/maintenance",
         "POST /v1/trust/subprocessors",
         "POST /v1/trust/subprocessors/seed",
+        "POST /v1/workflow/intake-links/:id/recipient-contact",
         "POST /v1/workflows/instances/:id/steps/:stepKey/waive",
         "PUT /v1/auth/saml/:connectionId/certificate-next",
         "PUT /v1/evidence/:id/verification-disclosure",
@@ -63456,7 +63461,8 @@
         "MODULE services/api/src/routes/teams.routes.ts",
         "MODULE services/api/src/routes/trust-and-governance.routes.ts",
         "MODULE services/api/src/routes/verification-share.routes.ts",
-        "MODULE services/api/src/routes/workflow-instances.routes.ts"
+        "MODULE services/api/src/routes/workflow-instances.routes.ts",
+        "MODULE services/api/src/routes/workflow-intake-links.routes.ts"
       ],
       "entrySchedules": [],
       "invariants": {
@@ -115204,7 +115210,7 @@
       "method": "DELETE",
       "path": "/v1/collaboration/threads/:id/contributors/:sessionId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:580",
+      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:582",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -115243,7 +115249,7 @@
       "method": "DELETE",
       "path": "/v1/collaboration/threads/:id/subscribe",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:680",
+      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:682",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -119486,7 +119492,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/permission-matrix",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:569",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:576",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -119544,7 +119550,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/providers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:329",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:336",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -119635,7 +119641,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/quarantined-sessions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1349",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1367",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -119714,7 +119720,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/role-matrix",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:602",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:609",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveAdminWorkspace -> services/api/src/routes/admin-identity.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -119963,7 +119969,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/scim/tokens",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:692",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:699",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -120033,7 +120039,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/sessions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:874",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:881",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -120114,7 +120120,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/timeline",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1070",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1077",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -126404,7 +126410,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/access-review",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:516",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:518",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -126533,7 +126539,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/activity/v2",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:555",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:557",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -126979,7 +126985,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/guests",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:466",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:468",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -127389,7 +127395,7 @@
       "method": "GET",
       "path": "/v1/collaboration/catalogs",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:690",
+      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:692",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -138971,7 +138977,7 @@
       "method": "GET",
       "path": "/v1/integrations/webhooks/deliveries",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1306",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1311",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -139036,7 +139042,7 @@
       "method": "GET",
       "path": "/v1/integrations/webhooks/endpoints",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1167",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1172",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -139106,7 +139112,7 @@
       "method": "GET",
       "path": "/v1/integrations/webhooks/lifecycle-deliveries",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1353",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1358",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -140764,7 +140770,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/archive/costs",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2124",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2129",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -140831,7 +140837,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/archive/transitions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2040",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2045",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -140905,7 +140911,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/dashboard",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2448",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2453",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -140996,7 +141002,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/destruction/eligible-approvers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2181",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2186",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -141066,7 +141072,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/destruction/requests",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2149",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2154",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -141140,7 +141146,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/destruction/requests/:id/certificate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2377",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2382",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -141198,7 +141204,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/destruction/requests/:id/certificate.json",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2406",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2411",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -141255,7 +141261,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/legal-holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1675",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1680",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -141325,7 +141331,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/retention/policies",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1524",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1529",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -141406,7 +141412,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/retention/upcoming-expirations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1645",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1650",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -141476,7 +141482,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/verification-package/preview",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2558",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2563",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -141549,7 +141555,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/violations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2589",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2594",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -141617,7 +141623,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/violations/counts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2631",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2636",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -156148,7 +156154,7 @@
       "method": "GET",
       "path": "/v1/workflow/intake-links",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:707",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:708",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -156161,7 +156167,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/intake-links.tsx",
-          "line": 163,
+          "line": 167,
           "caller": "IntakeLinksScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -156195,7 +156201,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/intake-links.tsx:163 (IntakeLinksScreen, MOBILE); apps/mobile/app/(tabs)/index.tsx:194 (HomeScreen, MOBILE); apps/web/app/(app)/intake-links/_lib/useServerSearch.ts:87 (fetchIntakeLinkList, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/intake-links.tsx:167 (IntakeLinksScreen, MOBILE); apps/mobile/app/(tabs)/index.tsx:194 (HomeScreen, MOBILE); apps/web/app/(app)/intake-links/_lib/useServerSearch.ts:87 (fetchIntakeLinkList, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -156244,7 +156250,7 @@
       "method": "GET",
       "path": "/v1/workflow/intake-links/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:766",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:767",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -156323,7 +156329,7 @@
       "method": "GET",
       "path": "/v1/workflow/intake-links/:id/submissions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1038",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1109",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -156336,7 +156342,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/intake-links.tsx",
-          "line": 220,
+          "line": 224,
           "caller": "IntakeLinksScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -156354,7 +156360,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/intake-links.tsx:220 (IntakeLinksScreen, MOBILE); apps/web/app/(app)/intake-links/_components/SubmissionsDrawer.tsx:71 (SubmissionsDrawer, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/intake-links.tsx:224 (IntakeLinksScreen, MOBILE); apps/web/app/(app)/intake-links/_components/SubmissionsDrawer.tsx:71 (SubmissionsDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -156403,7 +156409,7 @@
       "method": "GET",
       "path": "/v1/workflow/intake-links/sender-identity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:965",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1036",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -157848,7 +157854,7 @@
       "method": "PATCH",
       "path": "/v1/collaboration-teams/:teamId/access-review/items/:itemId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:532",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:534",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -158092,7 +158098,7 @@
       "method": "PATCH",
       "path": "/v1/collaboration-teams/:teamId/guests/:guestId/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:482",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:484",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -161452,7 +161458,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/elevations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:625",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:632",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveAdminWorkspace -> services/api/src/routes/admin-identity.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -161539,7 +161545,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/emergency-revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1504",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1522",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -161624,7 +161630,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/providers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:359",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:366",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrganizationIdentityAuthority -> services/api/src/services/identity/organization-identity-authority.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -161722,7 +161728,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/providers/:id/policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:498",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:505",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrganizationIdentityAuthority -> services/api/src/services/identity/organization-identity-authority.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -161812,7 +161818,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/providers/:id/transition",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:420",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:427",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrganizationIdentityAuthority -> services/api/src/services/identity/organization-identity-authority.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -161889,7 +161895,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/runtime/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1553",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1571",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "reconcileEntrypointAuth -> services/api/src/routes/admin-identity.routes.ts: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)",
@@ -162101,7 +162107,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/scim/tokens",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:727",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:734",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrganizationIdentityAuthority -> services/api/src/services/identity/organization-identity-authority.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -162200,7 +162206,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/scim/tokens/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:799",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:806",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrganizationIdentityAuthority -> services/api/src/services/identity/organization-identity-authority.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -162381,7 +162387,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/:id/quarantine",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1394",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1412",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -162482,7 +162488,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/:id/release",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1450",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1468",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -162583,7 +162589,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:928",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:935",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -162668,7 +162674,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/:id/score",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1299",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1317",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -162742,7 +162748,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/reconcile-stale",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1215",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1222",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "reconcileEntrypointAuth -> services/api/src/routes/admin-identity.routes.ts: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)",
@@ -162838,7 +162844,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/user/:userId/revoke-all",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:991",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:998",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -172672,7 +172678,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/access-review",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:524",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:526",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -172711,7 +172717,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:540",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:542",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -173069,7 +173075,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/guests/invite",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:474",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:476",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -173759,7 +173765,7 @@
       "method": "POST",
       "path": "/v1/collaboration/threads/:id/contributors",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:574",
+      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:576",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -173881,7 +173887,7 @@
       "method": "POST",
       "path": "/v1/collaboration/threads/:id/mark-mentions-read",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:609",
+      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:611",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/collaboration.routes.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -174208,7 +174214,7 @@
       "method": "POST",
       "path": "/v1/collaboration/threads/:id/subscribe",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:674",
+      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:676",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -178042,7 +178048,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/submitter-contact",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:908",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:950",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -178072,15 +178078,24 @@
         "authenticatedSession",
         "caseEvidenceLink",
         "evidence",
+        "externalIdentityMapping",
+        "identityLinkConsent",
+        "mfaFactor",
+        "organizationMembership",
         "organizationSecurityPolicy",
         "revokedSession",
+        "riskSignal",
+        "ssoConnection",
+        "stepUpChallenge",
         "supportAccessGrant",
         "team",
         "teamMember",
+        "user",
         "workflowIntakeSession"
       ],
       "modelsWritten": [
-        "securityEvent"
+        "securityEvent",
+        "stepUpChallenge"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
@@ -178088,7 +178103,9 @@
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared-runtime/src/standing-creator-authority.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/routes/workflow-intake-links.routes.ts: evidence.findUnique — no tenant or self predicate",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
+        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -179287,6 +179304,8 @@
         "caseEvidenceLink",
         "chainTransfer",
         "custodyEvent",
+        "evidence",
+        "evidenceLegalHold",
         "organizationSecurityPolicy",
         "revokedSession",
         "ssoConnection",
@@ -179306,6 +179325,10 @@
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
         "services/api/src/services/access/record-reach.ts: case.findMany — no tenant or self predicate",
         "services/api/src/services/access/record-reach.ts: caseEvidenceLink.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidence.findUnique — no tenant or self predicate",
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
@@ -179321,7 +179344,7 @@
       "method": "POST",
       "path": "/v1/exchange/chain-transfers/:id/complete",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1139",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1144",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -179397,7 +179420,7 @@
       "method": "POST",
       "path": "/v1/exchange/chain-transfers/:id/reject",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1095",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1100",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -179472,7 +179495,7 @@
       "method": "POST",
       "path": "/v1/exchange/chain-transfers/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1119",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1124",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -189882,7 +189905,7 @@
       "method": "POST",
       "path": "/v1/integrations/webhooks/endpoints",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1196",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1201",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -189963,7 +189986,7 @@
       "method": "POST",
       "path": "/v1/integrations/webhooks/endpoints/:id/deactivate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1276",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1281",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -190032,7 +190055,7 @@
       "method": "POST",
       "path": "/v1/integrations/webhooks/lifecycle-deliveries/:id/replay",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1409",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1414",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -191070,7 +191093,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/archive/transition",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2073",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2078",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -191162,7 +191185,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/destruction/requests",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2201",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2206",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -191255,7 +191278,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/destruction/requests/:id/approve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2250",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2255",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -191353,7 +191376,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/destruction/requests/:id/execute",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2331",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2336",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -191513,7 +191536,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/destruction/requests/:id/reject",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2296",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2301",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -191604,7 +191627,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/legal-holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1725",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1730",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -191718,7 +191741,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/legal-holds/:id/release",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1859",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1864",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -191807,7 +191830,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/legal-holds/:id/release-approval",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1987",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1992",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -191887,7 +191910,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/legal-holds/:id/release-request",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1946",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1951",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -191960,7 +191983,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/retention/policies",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1549",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1554",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -192062,7 +192085,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/retention/policies/:id/release",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1609",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1614",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -209157,7 +209180,7 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:433",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:434",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIntakeWorkflowActor -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -209256,7 +209279,7 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1145",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1216",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIntakeWorkflowActor -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -209327,7 +209350,7 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/recipient-contact",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:822",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:835",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -209340,7 +209363,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/intake-links.tsx",
-          "line": 286,
+          "line": 293,
           "caller": "IntakeLinksScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -209348,7 +209371,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx",
-          "line": 485,
+          "line": 491,
           "caller": "revealRecipient",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -209356,7 +209379,7 @@
         },
         {
           "file": "apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx",
-          "line": 176,
+          "line": 182,
           "caller": "toggleReveal",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -209366,7 +209389,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/intake-links.tsx:286 (IntakeLinksScreen, MOBILE); apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:485 (revealRecipient, WEB); apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:176 (toggleReveal, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/intake-links.tsx:293 (IntakeLinksScreen, MOBILE); apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:491 (revealRecipient, WEB); apps/web/app/(app)/intake-links/_components/RecordsSurface.tsx:182 (toggleReveal, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -209381,15 +209404,24 @@
       "modelsRead": [
         "authenticatedSession",
         "case",
+        "externalIdentityMapping",
+        "identityLinkConsent",
+        "mfaFactor",
+        "organizationMembership",
         "organizationSecurityPolicy",
         "revokedSession",
+        "riskSignal",
+        "ssoConnection",
+        "stepUpChallenge",
         "supportAccessGrant",
         "team",
         "teamMember",
+        "user",
         "workflowIntakeLink"
       ],
       "modelsWritten": [
-        "securityEvent"
+        "securityEvent",
+        "stepUpChallenge"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
@@ -209398,7 +209430,9 @@
         "packages/shared-runtime/src/standing-creator-authority.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/workflow-intake-link.service.ts: workflowIntakeLink.findUnique — no tenant or self predicate",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/services/access/record-reach.ts: case.count — no tenant or self predicate"
+        "services/api/src/services/access/record-reach.ts: case.count — no tenant or self predicate",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
+        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -209411,7 +209445,7 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1067",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1138",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIntakeWorkflowActor -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -209424,7 +209458,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/intake-links.tsx",
-          "line": 263,
+          "line": 267,
           "caller": "IntakeLinksScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -209442,7 +209476,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/intake-links.tsx:263 (IntakeLinksScreen, MOBILE); apps/web/app/(app)/intake-links/page.tsx:328 (IntakeLinksManagement, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/intake-links.tsx:267 (IntakeLinksScreen, MOBILE); apps/web/app/(app)/intake-links/page.tsx:328 (IntakeLinksManagement, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -209490,7 +209524,7 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/send",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1261",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1332",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIntakeWorkflowActor -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -209584,7 +209618,7 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/unarchive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1200",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1271",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIntakeWorkflowActor -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -209597,7 +209631,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/intake-links.tsx",
-          "line": 243,
+          "line": 247,
           "caller": "IntakeLinksScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -209615,7 +209649,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/intake-links.tsx:243 (IntakeLinksScreen, MOBILE); apps/web/app/(app)/intake-links/page.tsx:368 (IntakeLinksManagement, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/intake-links.tsx:247 (IntakeLinksScreen, MOBILE); apps/web/app/(app)/intake-links/page.tsx:368 (IntakeLinksManagement, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
