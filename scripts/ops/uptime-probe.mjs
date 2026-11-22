@@ -25,6 +25,8 @@
  * (what the next run reads back):
  *   UP             every probe passed, the webhook is configured, any message was sent
  *   DOWN           a probe failed (webhook configured)
+ *   CONFIG_INVALID OPS_ALERT_WEBHOOK_URL is malformed, or a Discord webhook
+ *                  answers 401/403/404 to GET (revoked) — checked every run
  *   CONFIG_MISSING OPS_ALERT_WEBHOOK_URL is not set (a probe failure is still
  *                  annotated "PROOVRA down"; production state is in the summary)
  *   NOTIFY_FAILED  a message was due and the webhook refused it
@@ -36,7 +38,7 @@
  * runs and self-tests have no outcome and are passed over:
  *   previous DOWN:            failing -> silent;  passing -> RECOVERED
  *   previous UP:              failing -> DOWN;    passing -> nothing
- *   previous CONFIG_MISSING:  failing -> DOWN;    passing -> one "monitoring
+ *   previous CONFIG_MISSING / CONFIG_INVALID:  failing -> DOWN;    passing -> one "monitoring
  *                             configured; production up" message, explicitly
  *                             NOT an outage recovery
  *   previous NOTIFY_FAILED / unknown: failing -> DOWN; passing -> nothing
@@ -61,7 +63,7 @@ export const DEFAULT_PROBES = [
   { name: "web-health", url: "https://www.proovra.com/api/health" },
 ];
 export const SELFTEST_PROBE = { name: "selftest-404", url: "https://api.proovra.com/__uptime_selftest_404" };
-export const OUTCOMES = ["UP", "DOWN", "CONFIG_MISSING", "NOTIFY_FAILED", "SELFTEST"];
+export const OUTCOMES = ["UP", "DOWN", "CONFIG_MISSING", "CONFIG_INVALID", "NOTIFY_FAILED", "SELFTEST"];
 export const OUTCOME_TITLE = "uptime-outcome";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -183,16 +185,70 @@ export async function previousOutcome({ repo, workflowFile, branch, token, curre
 export function decideNotification(previous, allOk) {
   if (!allOk) return previous === "DOWN" ? null : "down";
   if (previous === "DOWN") return "recovered";
-  if (previous === "CONFIG_MISSING") return "configured";
+  // Neither configuration failure says anything about production: never a RECOVERED.
+  if (previous === "CONFIG_MISSING" || previous === "CONFIG_INVALID") return "configured";
   return null;
 }
+
+const DISCORD_HOSTS = ["discord.com", "discordapp.com", "canary.discord.com", "ptb.discord.com"];
+const DISCORD_WEBHOOK_PATH = /^\/api\/webhooks\/\d+\/[A-Za-z0-9_-]+\/?$/;
+const LOOPBACK = ["127.0.0.1", "localhost", "[::1]"];
 
 export function isDiscordWebhook(url) {
   try {
     const u = new URL(url);
-    return ["discord.com", "discordapp.com", "canary.discord.com", "ptb.discord.com"].includes(u.hostname) && u.pathname.startsWith("/api/webhooks/");
+    return DISCORD_HOSTS.includes(u.hostname) && u.pathname.startsWith("/api/webhooks/");
   } catch {
     return false;
+  }
+}
+
+/**
+ * Is the alert destination usable? Checked EVERY run, so a malformed or
+ * revoked webhook is a visible CONFIG_INVALID now, not a NOTIFY_FAILED at the
+ * first real outage. { state: "missing" | "invalid" | "ok" | "unverified", reason }.
+ *  - shape: https (plain http only for a loopback test receiver), no
+ *    credentials; a Discord host must carry /api/webhooks/<id>/<token>;
+ *  - a Discord-shaped webhook is fetched with GET, which Discord answers 200
+ *    for a live webhook and 401/404 for a revoked one or a wrong token. The
+ *    response body (it contains the token) is never read or printed;
+ *  - any other answer (5xx, 429, network) is "unverified": warned, not failed.
+ * Never prints the URL.
+ */
+export async function checkWebhook(url, { fetchImpl = fetch, timeoutMs = 10_000 } = {}) {
+  const raw = String(url ?? "").trim();
+  if (!raw) return { state: "missing", reason: "not set" };
+  let u;
+  try {
+    u = new URL(raw);
+  } catch {
+    return { state: "invalid", reason: "not a URL" };
+  }
+  if (!(u.protocol === "https:" || (u.protocol === "http:" && LOOPBACK.includes(u.hostname)))) {
+    return { state: "invalid", reason: `scheme ${u.protocol} is not https` };
+  }
+  if (u.username || u.password) return { state: "invalid", reason: "the URL carries credentials" };
+  const discordPath = DISCORD_WEBHOOK_PATH.test(u.pathname);
+  if (DISCORD_HOSTS.includes(u.hostname) && !discordPath) {
+    return { state: "invalid", reason: "a Discord URL that is not a webhook URL (/api/webhooks/<id>/<token>)" };
+  }
+  if (!discordPath) return { state: "ok", reason: "shape valid (this webhook type cannot be verified by GET)" };
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const res = await fetchImpl(raw, { method: "GET", headers: { "user-agent": "proovra-uptime-probe/1" }, signal: ac.signal, redirect: "manual" });
+    try {
+      await res.body?.cancel?.();
+    } catch {
+      /* body discarded */
+    }
+    if (res.status === 200) return { state: "ok", reason: "webhook answered 200" };
+    if ([401, 403, 404].includes(res.status)) return { state: "invalid", reason: `the webhook was rejected (HTTP ${res.status}): revoked, deleted or wrong token` };
+    return { state: "unverified", reason: `webhook check inconclusive (HTTP ${res.status})` };
+  } catch {
+    return { state: "unverified", reason: "webhook check inconclusive (no answer)" };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -211,7 +267,7 @@ export function buildMessage(kind, results, runUrl, { test = false } = {}) {
   } else if (kind === "configured") {
     lines = [
       `**${tag}[PROOVRA UPTIME] Monitoring configured — production up (all ${results.length} external probes pass)**`,
-      "This is not an outage recovery: earlier runs failed only because the alert destination was not configured.",
+      "This is not an outage recovery: earlier runs failed only because the alert destination was missing or invalid.",
     ];
   } else {
     lines = [`**${tag}[PROOVRA UPTIME] RECOVERED — all ${results.length} external probes pass again**`];
@@ -284,15 +340,20 @@ export async function runUptimeProbe({ env = process.env, log = (l) => console.l
     : "";
 
   const webhook = (env.OPS_ALERT_WEBHOOK_URL ?? "").trim();
+  const hook = await checkWebhook(webhook, { fetchImpl });
   let outcome;
   let notified = "none";
   let previous = { outcome: "UNKNOWN", via: "not read" };
 
   if (!allOk) log(`::error title=PROOVRA down::${downText}`);
-  if (!webhook) {
+  if (hook.state === "missing") {
     log("::error title=OPS_ALERT_WEBHOOK_URL missing::The repository secret OPS_ALERT_WEBHOOK_URL is not set, so this uptime check cannot notify anyone. Add it under Settings > Secrets and variables > Actions. This is a monitor configuration failure; production state is in the probe lines and the job summary.");
     outcome = selftest ? "SELFTEST" : "CONFIG_MISSING";
     notified = "impossible (no webhook)";
+  } else if (hook.state === "invalid") {
+    log(`::error title=OPS_ALERT_WEBHOOK_URL invalid::The repository secret OPS_ALERT_WEBHOOK_URL is set but unusable: ${hook.reason}. Replace it under Settings > Secrets and variables > Actions. This is a monitor configuration failure; production state is in the probe lines and the job summary.`);
+    outcome = selftest ? "SELFTEST" : "CONFIG_INVALID";
+    notified = "impossible (webhook invalid)";
   } else if (selftest) {
     const selfFailed = selfResults.every((r) => !r.ok);
     const msgs = [buildMessage("down", selfResults, runUrl, { test: true }), buildMessage("recovered", results, runUrl, { test: true })];
@@ -305,6 +366,7 @@ export async function runUptimeProbe({ env = process.env, log = (l) => console.l
     outcome = "SELFTEST";
     if (!selfFailed || !sent.every((s) => s.ok)) notified += " (self-test FAILED)";
   } else {
+    if (hook.state === "unverified") log(`::warning title=Uptime webhook check inconclusive::${hook.reason}`);
     previous = await previousOutcome({
       repo: env.GITHUB_REPOSITORY,
       workflowFile: env.UPTIME_WORKFLOW_FILE || "uptime.yml",
@@ -332,7 +394,8 @@ export async function runUptimeProbe({ env = process.env, log = (l) => console.l
   }
 
   log(`uptime-outcome: ${outcome}`);
-  log(`::notice title=${OUTCOME_TITLE}: ${outcome}::${allOk ? "all probes passed" : downText}${outcome === "CONFIG_MISSING" ? " (monitor not configured)" : ""}`);
+  log(`::notice title=${OUTCOME_TITLE}: ${outcome}::${allOk ? "all probes passed" : downText}${outcome === "CONFIG_MISSING" ? " (monitor not configured)" : outcome === "CONFIG_INVALID" ? " (alert destination invalid)" : ""}`);
+  log(`webhook check: ${hook.state} (${hook.reason})`);
   if (env.GITHUB_STEP_SUMMARY) {
     try {
       appendFileSync(env.GITHUB_STEP_SUMMARY, summaryMarkdown({ outcome, results: all, previous, notified, selftest }));
@@ -340,7 +403,7 @@ export async function runUptimeProbe({ env = process.env, log = (l) => console.l
       /* best effort */
     }
   }
-  if (outcome === "SELFTEST") return allOk && !/FAILED/.test(notified) && webhook ? 0 : 1;
+  if (outcome === "SELFTEST") return allOk && !/FAILED/.test(notified) && (hook.state === "ok" || hook.state === "unverified") ? 0 : 1;
   return outcome === "UP" ? 0 : 1;
 }
 
