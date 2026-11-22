@@ -190,6 +190,8 @@ export const PURPOSE_LABEL: Readonly<Record<string, string>> = {
   PASSKEY_REMOVE: "Remove a passkey or security key",
   ORG_SECURITY_POLICY_UPDATE: "Change the organization security policy",
   WORKSPACE_IDENTITY_UPDATE: "Change the workspace legal contact or logo",
+  // OBS-INTAKE-REVEAL-STEPUP — the stepped-up contact reveal native offers.
+  INTAKE_LINK_CONTACT_REVEAL: "Reveal the recipient contact",
 };
 
 export function purposeLabel(purpose: string): string {

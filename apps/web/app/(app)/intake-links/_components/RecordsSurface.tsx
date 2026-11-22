@@ -49,6 +49,8 @@ import type { IntakeLinkListItem } from "../_lib/types";
 import { buildRowModel, type IntakeRowModel } from "../_lib/rowModel";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import { StepUpModal, isStepUpCancelled, useStepUpAction } from "../../../../components/identity-security/StepUpModal";
+import { useActiveWorkspaceId } from "../../../../lib/platform-context";
 import { DeliveryChannelIcon, IconDots, IconSpinner } from "./icons";
 import {
   AppRowMenu,
@@ -162,6 +164,9 @@ function RequestCell({
 function IdentityCell({ row }: { row: IntakeRowModel }) {
   // PRO-I1-08 — the list is masked for everybody; a reader holding the reveal
   // authority asks the audited reveal route, one row at a time.
+  // OBS-INTAKE-REVEAL-STEPUP — through the step-up flow: a fresh challenge
+  // bound to THIS link, retried once with the approval.
+  const stepUp = useStepUpAction({ teamId: useActiveWorkspaceId() });
   const [raw, setRaw] = React.useState<{ recipientEmail: string | null; recipientPhone: string | null } | null>(null);
   const [revealBusy, setRevealBusy] = React.useState(false);
   const [revealError, setRevealError] = React.useState<string | null>(null);
@@ -173,11 +178,17 @@ function IdentityCell({ row }: { row: IntakeRowModel }) {
     setRevealBusy(true);
     setRevealError(null);
     try {
-      const body = (await apiFetch(`/v1/workflow/intake-links/${encodeURIComponent(row.id)}/recipient-contact`, {
-        method: "POST",
-      })) as { recipientContact: { recipientEmail: string | null; recipientPhone: string | null } };
+      const body = (await stepUp.runStepUpAction((headers) =>
+        apiFetch(`/v1/workflow/intake-links/${encodeURIComponent(row.id)}/recipient-contact`, {
+          method: "POST",
+          headers: { "content-type": "application/json", ...(headers ?? {}) },
+          body: "{}",
+        }),
+      )) as { recipientContact: { recipientEmail: string | null; recipientPhone: string | null } };
       setRaw(body.recipientContact);
     } catch (err) {
+      // Cancelling the step-up revealed nothing and is not an error.
+      if (isStepUpCancelled(err)) return;
       setRevealError(toSafeUserError(err, { message: "Could not show the full recipient contact." }).message);
     } finally {
       setRevealBusy(false);
@@ -261,6 +272,7 @@ function IdentityCell({ row }: { row: IntakeRowModel }) {
               {revealError}
             </span>
           ) : null}
+          <StepUpModal control={stepUp} />
         </div>
       )}
 

@@ -641,6 +641,10 @@ const PURPOSE_LABEL: Record<string, string> = {
   PUBLIC_VERIFY_PUBLISH: "Show more on the verification page",
   PUBLIC_VERIFY_SUSPEND: "Withdraw the verification page",
   PUBLIC_VERIFY_RESTORE: "Reinstate the verification page",
+  // Decision G / OBS-INTAKE-REVEAL-STEPUP — the stepped-up contact reveals.
+  EVIDENCE_REQUEST_CONTACT_REVEAL: "Reveal the recipient contact",
+  INTAKE_LINK_CONTACT_REVEAL: "Reveal the recipient contact",
+  SUBMITTER_CONTACT_REVEAL: "Reveal the submitter contact",
 };
 
 export function StepUpModal({

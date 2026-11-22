@@ -193,6 +193,15 @@ export const STEP_UP_PURPOSES = [
   // its own reveal route). A third party's address leaves the API only after a
   // fresh step-up, and the disclosure is audited.
   "EVIDENCE_REQUEST_CONTACT_REVEAL",
+  // OBS-INTAKE-REVEAL-STEPUP (closure phase 3) — the same rule for the two
+  // equivalent disclosures of a third party's raw contact: an intake link's
+  // recipient (POST /v1/workflow/intake-links/:id/recipient-contact, resource
+  // `workflow_intake_link`) and an intake record's external submitter
+  // (POST /v1/evidence/:id/submitter-contact, resource `evidence`). Each has
+  // its own purpose so an approval for one disclosure never opens another.
+  // VARCHAR(64) column: no migration.
+  "INTAKE_LINK_CONTACT_REVEAL",
+  "SUBMITTER_CONTACT_REVEAL",
   // Phase 4 closure — dedicated integration step-up purposes. Prior to
   // this closure pass several integration routes shared coarse
   // `SERVICE_ACCOUNT_*` purposes (e.g. test-send + secret rotation both

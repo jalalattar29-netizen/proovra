@@ -14,6 +14,7 @@ import { canonicalJson, intakeConsentDisclosureText } from "@proovra/shared";
 import { expiredEvidenceReservationWhere } from "@proovra/shared-runtime";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { createStepUpCeremony } from "./support/step-up-ceremony.js";
 
 const sent = vi.hoisted(() => [] as Array<{ to: string; subject: string; text: string; html: string; deliveryId: string }>);
 vi.mock("../src/services/notifications/resend-provider.js", () => ({
@@ -452,8 +453,13 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
         } as never,
         select: { id: true },
       });
-      const reveal = (token: string) =>
-        h.app.inject({ method: "POST", url: `/v1/evidence/${ev.id}/submitter-contact`, headers: { authorization: `Bearer ${token}` }, payload: {} });
+      const reveal = (token: string, extra: Record<string, string> = {}) =>
+        h.app.inject({
+          method: "POST",
+          url: `/v1/evidence/${ev.id}/submitter-contact`,
+          headers: { authorization: `Bearer ${token}`, ...extra },
+          payload: {},
+        });
 
       // A VIEWER reads the record but does not hold workflow.intake_recipient_contact.reveal.
       // (The DB role MEMBER maps to canonical REVIEWER, which does hold it.)
@@ -464,7 +470,23 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
       expect(foreign.statusCode, foreign.body).toBe(404);
       expect(foreign.body).not.toContain(submitterEmail);
 
-      const ok = await reveal(A().ownerToken);
+      // OBS-INTAKE-REVEAL-STEPUP — the holder still needs a fresh step-up bound
+      // to this record (proved in depth in obs-intake-reveal-stepup).
+      const stepUp = createStepUpCeremony({
+        prisma,
+        inject: (o) => h.app.inject({ method: o.method, url: o.url, headers: o.headers, payload: o.payload as never }) as never,
+      });
+      const ok = await reveal(
+        A().ownerToken,
+        await stepUp.approvedHeader({
+          token: A().ownerToken,
+          userId: A().ownerUserId,
+          teamId: A().teamId,
+          purpose: "SUBMITTER_CONTACT_REVEAL",
+          resourceKind: "evidence",
+          resourceId: ev.id,
+        }),
+      );
       expect(ok.statusCode, ok.body).toBe(200);
       expect((ok.json() as { submitterContact: { submitterEmail: string | null } }).submitterContact.submitterEmail).toBe(submitterEmail);
     });
