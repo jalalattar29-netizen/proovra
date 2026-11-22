@@ -1160,7 +1160,11 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         packageId: body.packageId,
         actorUserId: ctx.userId,
       });
-      if (!res.ok) return reply.code(409).send({ denial: res.denial });
+      // closure3 M1 — a record no longer transferable (held, deleted, moved)
+      // says why; additive field, the 409 is unchanged.
+      if (!res.ok) {
+        return reply.code(409).send({ denial: res.denial, ...("reason" in res ? { reason: res.reason } : {}) });
+      }
       return reply.code(200).send({ ok: true });
     },
   );

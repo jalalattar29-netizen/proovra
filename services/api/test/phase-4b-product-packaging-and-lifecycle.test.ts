@@ -1294,6 +1294,9 @@ describe("14. Chain transfer state machine", () => {
       },
       team: { findUnique: async () => ({ isPersonal: false, ownerUserId: null, organizationId: "org-two" }) },
       evidence: { count: async () => 1 },
+      // closure3 M1 — the transfer row lock (FOR UPDATE) and the initiator
+      // membership lock (FOR SHARE) read inside the claiming transaction.
+      $queryRaw: async () => [{ state: "INITIATED", id: "member-1" }],
     });
 
   it("acceptChainTransfer on INITIATED → ACCEPTED", async () => {
@@ -1341,9 +1344,13 @@ describe("14. Chain transfer state machine", () => {
 
   it("completeChainTransfer on ACCEPTED → COMPLETED", async () => {
     let updatedState: string | undefined;
+    // closure3 M1 — completion re-checks that the record is live and unheld.
+    CT.held = false;
     const prisma = makePrismaStub({
+      evidence: { count: async () => 1 },
+      $queryRaw: async () => [{ state: "ACCEPTED" }],
       chainTransfer: {
-        findFirst: async () => ({ id: "xfer-1", state: "ACCEPTED" }),
+        findFirst: async () => ({ id: "xfer-1", state: "ACCEPTED", evidenceIds: ["ev-1"], fromOrganizationId: "org-1", toOrganizationSlug: "org-two" }),
         updateMany: async (args: { data: Record<string, unknown> }) => {
           updatedState = args.data.state as string;
           return { count: 1 };
@@ -1362,6 +1369,8 @@ describe("14. Chain transfer state machine", () => {
       teamId: "team-1",
       transferId: "xfer-1",
       packageId: "pkg-1",
+    }).finally(() => {
+      CT.held = null;
     });
     expect(result.ok).toBe(true);
     expect(updatedState).toBe("COMPLETED");

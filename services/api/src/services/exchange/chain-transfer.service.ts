@@ -315,10 +315,16 @@ export type AcceptChainTransferResult =
  *      live or done (not REJECTED / EXPIRED / REVOKED).
  * Unlike an invitation (decision F), acceptance grants no access; the recheck
  * protects what the custody chain asserts. A failure to read any fact refuses.
+ *
+ * Runs INSIDE the acceptance transaction, after `lockOfferTx` (closure3 M1),
+ * on `tx`. Permission-decision events go to `eventClient`, never to the
+ * transaction (they are fire-and-forget and may outlive it).
  */
 async function chainTransferOfferLapse(
-  prisma: PrismaClient,
+  tx: PrismaClient,
   row: { id: string; teamId: string; initiatedByUserId: string; evidenceIds: unknown; createdAt: Date },
+  eventClient: PrismaClient,
+  now: Date,
 ): Promise<ChainTransferOfferLapse | null> {
   const ids = [...new Set(idsOf(row.evidenceIds))];
   try {
@@ -330,31 +336,26 @@ async function chainTransferOfferLapse(
         resourceKind: "chain_transfer",
         resourceId: row.id,
       },
-      prisma,
+      tx,
+      { eventClient },
     );
     if (!initiator.decision.allowed) return "INITIATOR_AUTHORITY_ENDED";
 
-    const scope = await workspaceEvidenceWhere(row.teamId, prisma);
-    const live = await prisma.evidence.count({
-      where: {
-        AND: [scope, evidenceVisibleThroughCasesWhere(row.initiatedByUserId)],
-        id: { in: ids },
-        deletedAt: null,
-      },
-    });
-    if (ids.length === 0 || live !== ids.length) return "RECORD_NOT_TRANSFERABLE";
+    const records = await recordsTransferable(tx, row.teamId, ids, row.initiatedByUserId);
+    if (records) return records;
 
-    for (const evidenceId of ids) {
-      const held = await evaluateEffectiveLegalHold(prisma, { teamId: row.teamId, evidenceId });
-      if (held.held) return "RECORD_UNDER_HOLD";
-    }
-
-    const newer = await prisma.chainTransfer.findMany({
+    // L7 — only a newer transfer that is still LIVE (INITIATED and not past its
+    // expiry, or ACCEPTED) or DONE (COMPLETED: custody already moved) supersedes.
+    // One INITIATED past its expiry is dead even before a sweeper marks it.
+    const newer = await tx.chainTransfer.findMany({
       where: {
         teamId: row.teamId,
         id: { not: row.id },
         createdAt: { gt: row.createdAt },
-        state: { notIn: ["REJECTED", "EXPIRED", "REVOKED"] },
+        OR: [
+          { state: { in: ["ACCEPTED", "COMPLETED"] } },
+          { state: "INITIATED", OR: [{ expiresAtUtc: null }, { expiresAtUtc: { gt: now } }] },
+        ],
       },
       select: { evidenceIds: true },
     });
@@ -365,6 +366,76 @@ async function chainTransferOfferLapse(
     return "RECORD_NOT_TRANSFERABLE";
   }
 }
+
+/**
+ * Are the records still transferable out of the sending workspace? Not
+ * deleted, in its scope (and, when `visibleTo` is given, open to that person
+ * through cases), under no effective legal hold. Shared by acceptance and
+ * completion.
+ */
+async function recordsTransferable(
+  tx: PrismaClient,
+  teamId: string,
+  ids: ReadonlyArray<string>,
+  visibleTo: string | null,
+): Promise<"RECORD_NOT_TRANSFERABLE" | "RECORD_UNDER_HOLD" | null> {
+  const scope = await workspaceEvidenceWhere(teamId, tx);
+  const live = await tx.evidence.count({
+    where: {
+      AND: visibleTo ? [scope, evidenceVisibleThroughCasesWhere(visibleTo)] : [scope],
+      id: { in: [...ids] },
+      deletedAt: null,
+    },
+  });
+  if (ids.length === 0 || live !== ids.length) return "RECORD_NOT_TRANSFERABLE";
+  for (const evidenceId of ids) {
+    const held = await evaluateEffectiveLegalHold(tx, { teamId, evidenceId });
+    if (held.held) return "RECORD_UNDER_HOLD";
+  }
+  return null;
+}
+
+/**
+ * closure3 M1 — serialise a transfer transition with every writer that can
+ * make it invalid, inside the transaction that will claim it:
+ *   1. the transfer row, FOR UPDATE (one transition at a time);
+ *   2. each record's custody lock, `pg_advisory_xact_lock(hashtext(evidenceId))`,
+ *      in sorted order. It is THE lock an EVIDENCE-scope hold placement takes
+ *      (legal-hold.service writeHold), the lock every custody append takes
+ *      (the hold's LEGAL_HOLD_PLACED event, a CASE/WORKSPACE hold's coverage
+ *      reconciliation, a newer transfer's INITIATED event), so any such writer
+ *      either committed before we hold the lock (READ COMMITTED: the check
+ *      below sees it) or waits until this transition has committed, and the
+ *      chain then records it AFTER the transition;
+ *   3. (acceptance) the initiator's team_members row, FOR SHARE: a demotion,
+ *      suspension or removal UPDATEs/DELETEs that row, so it is either
+ *      visible to the check or blocked until we commit.
+ * Why not SERIALIZABLE: PostgreSQL's SSI only detects conflicts among
+ * serializable transactions, and the hold, membership and initiation writers
+ * run READ COMMITTED; the locks above are what those writers actually take.
+ * Residual (stated): a capability-grant change (the ORG / REVIEWER_LEAD tiers
+ * live in other tables) committing during the check is ordered as after the
+ * acceptance; it writes nothing to the custody chain.
+ */
+async function lockTransferTx(
+  tx: Prisma.TransactionClient,
+  transferId: string,
+  evidenceIds: ReadonlyArray<string>,
+): Promise<string | null> {
+  const locked = await tx.$queryRaw<Array<{ state: string }>>`
+    SELECT state FROM chain_transfers WHERE id = ${transferId}::uuid FOR UPDATE`;
+  for (const evidenceId of [...new Set(evidenceIds)].sort()) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${evidenceId}))`;
+  }
+  return locked[0]?.state ?? null;
+}
+
+/**
+ * TEST SEAM (closure3 M1) — called after the offer check and before the claim,
+ * so an integration test can interleave a concurrent hold, demotion or newer
+ * transfer deterministically. Never set in production code.
+ */
+export const chainTransferTestHooks: { afterOfferCheck?: (transferId: string) => Promise<void> } = {};
 
 /** May this caller act on this transfer? False when it does not exist too. */
 export async function chainTransferOpenTo(input: {
@@ -399,31 +470,46 @@ export async function acceptChainTransfer(
     return { ok: false, denial: "INVALID_STATE" };
   }
   // OBS-CHAIN-TRANSFER — the offer must still stand; a refusal writes nothing.
-  const lapse = await chainTransferOfferLapse(prisma, row);
-  if (lapse) return { ok: false, denial: "OFFER_NO_LONGER_VALID", reason: lapse };
-  const moved = await prisma.$transaction(async (tx) => {
-    const claim = await tx.chainTransfer.updateMany({
-      where: { id: row.id, state: "INITIATED" },
-      data: {
+  // closure3 M1 — checked inside the claiming transaction, under the locks
+  // that serialise it with a hold, a demotion or a newer transfer.
+  type Outcome = { kind: "moved" } | { kind: "state" } | { kind: "lapse"; lapse: ChainTransferOfferLapse };
+  const outcome: Outcome = await prisma.$transaction(
+    async (tx) => {
+      const state = await lockTransferTx(tx, row.id, idsOf(row.evidenceIds));
+      if (state !== "INITIATED") return { kind: "state" as const };
+      await tx.$queryRaw`
+        SELECT id FROM team_members
+         WHERE team_id = ${row.teamId}::uuid AND user_id = ${row.initiatedByUserId}::uuid
+         FOR SHARE`;
+      const lapse = await chainTransferOfferLapse(tx as unknown as PrismaClient, row, prisma, at);
+      if (lapse) return { kind: "lapse" as const, lapse };
+      await chainTransferTestHooks.afterOfferCheck?.(row.id);
+      const claim = await tx.chainTransfer.updateMany({
+        where: { id: row.id, state: "INITIATED" },
+        data: {
+          state: "ACCEPTED",
+          acceptedByUserId: input.acceptingUserId,
+          respondedAtUtc: at,
+        },
+      });
+      if (claim.count !== 1) return { kind: "state" as const };
+      await appendTransferCustodyTx(tx, idsOf(row.evidenceIds), {
+        transferId: row.id,
+        fromOrganizationId: row.fromOrganizationId,
+        toOrganizationId: row.toOrganizationId,
+        toOrganizationSlug: row.toOrganizationSlug,
         state: "ACCEPTED",
-        acceptedByUserId: input.acceptingUserId,
-        respondedAtUtc: at,
-      },
-    });
-    if (claim.count !== 1) return false;
-    await appendTransferCustodyTx(tx, idsOf(row.evidenceIds), {
-      transferId: row.id,
-      fromOrganizationId: row.fromOrganizationId,
-      toOrganizationId: row.toOrganizationId,
-      toOrganizationSlug: row.toOrganizationSlug,
-      state: "ACCEPTED",
-      actorUserId: input.acceptingUserId,
-      actorOrganizationId: recipientOrganizationId,
-      transitionedAt: at,
-    });
-    return true;
-  });
-  if (!moved) return { ok: false, denial: "INVALID_STATE" };
+        actorUserId: input.acceptingUserId,
+        actorOrganizationId: recipientOrganizationId,
+        transitionedAt: at,
+      });
+      return { kind: "moved" as const };
+    },
+    // The locks above can wait on a concurrent hold or membership writer.
+    { timeout: 30_000, maxWait: 10_000 },
+  );
+  if (outcome.kind === "lapse") return { ok: false, denial: "OFFER_NO_LONGER_VALID", reason: outcome.lapse };
+  if (outcome.kind !== "moved") return { ok: false, denial: "INVALID_STATE" };
   void tryEmitWebhookEvent(
     "CHAIN_TRANSFER_ACCEPTED",
     {
@@ -554,7 +640,8 @@ export type CompleteChainTransferInput = {
 
 export type CompleteChainTransferResult =
   | { ok: true }
-  | { ok: false; denial: "NOT_FOUND" | "INVALID_STATE" | "PACKAGE_NOT_READY" };
+  | { ok: false; denial: "NOT_FOUND" | "INVALID_STATE" | "PACKAGE_NOT_READY" }
+  | { ok: false; denial: "NOT_TRANSFERABLE"; reason: "RECORD_NOT_TRANSFERABLE" | "RECORD_UNDER_HOLD" };
 
 export async function completeChainTransfer(
   input: CompleteChainTransferInput,
@@ -584,23 +671,40 @@ export async function completeChainTransfer(
     return { ok: false, denial: "PACKAGE_NOT_READY" };
   }
   const at = new Date();
-  const moved = await prisma.$transaction(async (tx) => {
-    const claim = await tx.chainTransfer.updateMany({
-      where: { id: row.id, state: "ACCEPTED" },
-      data: { state: "COMPLETED", packageId: input.packageId, completedAtUtc: at },
-    });
-    if (claim.count !== 1) return false;
-    await appendTransferCustodyTx(tx, idsOf(row.evidenceIds), {
-      transferId: row.id,
-      fromOrganizationId: row.fromOrganizationId,
-      toOrganizationSlug: row.toOrganizationSlug,
-      state: "COMPLETED",
-      actorUserId: input.actorUserId ?? null,
-      transitionedAt: at,
-    });
-    return true;
-  });
-  if (!moved) return { ok: false, denial: "INVALID_STATE" };
+  // closure3 M1 — completion is the release out of custody: the records must
+  // still be transferable (live, in this workspace, under no legal hold) at the
+  // moment it commits, under the same locks as acceptance (lockTransferTx).
+  type Outcome = { kind: "moved" } | { kind: "state" } | { kind: "blocked"; reason: "RECORD_NOT_TRANSFERABLE" | "RECORD_UNDER_HOLD" };
+  const outcome: Outcome = await prisma.$transaction(
+    async (tx) => {
+      const state = await lockTransferTx(tx, row.id, idsOf(row.evidenceIds));
+      if (state !== "ACCEPTED") return { kind: "state" as const };
+      let blocked: "RECORD_NOT_TRANSFERABLE" | "RECORD_UNDER_HOLD" | null;
+      try {
+        blocked = await recordsTransferable(tx as unknown as PrismaClient, input.teamId, [...new Set(idsOf(row.evidenceIds))], null);
+      } catch {
+        blocked = "RECORD_NOT_TRANSFERABLE";
+      }
+      if (blocked) return { kind: "blocked" as const, reason: blocked };
+      const claim = await tx.chainTransfer.updateMany({
+        where: { id: row.id, state: "ACCEPTED" },
+        data: { state: "COMPLETED", packageId: input.packageId, completedAtUtc: at },
+      });
+      if (claim.count !== 1) return { kind: "state" as const };
+      await appendTransferCustodyTx(tx, idsOf(row.evidenceIds), {
+        transferId: row.id,
+        fromOrganizationId: row.fromOrganizationId,
+        toOrganizationSlug: row.toOrganizationSlug,
+        state: "COMPLETED",
+        actorUserId: input.actorUserId ?? null,
+        transitionedAt: at,
+      });
+      return { kind: "moved" as const };
+    },
+    { timeout: 30_000, maxWait: 10_000 },
+  );
+  if (outcome.kind === "blocked") return { ok: false, denial: "NOT_TRANSFERABLE", reason: outcome.reason };
+  if (outcome.kind !== "moved") return { ok: false, denial: "INVALID_STATE" };
   return { ok: true };
 }
 
