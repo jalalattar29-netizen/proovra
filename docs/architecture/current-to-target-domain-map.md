@@ -32,6 +32,8 @@ This document is **descriptive, not prescriptive**.
 | Personal Workspace | `Team(isPersonal=true)` row with a paired auto-bootstrapped `Organization` (`workspace-bootstrap.service.ts:148-189`) | `Workspace(kind=PERSONAL, organizationId=NULL)` | Need to relax `Team.organizationId NOT NULL` (Stage 6 constraint) AND retire the synthetic auto-bootstrapped Organization for personal users | 3+ |
 | Organization Workspace | `Team(isPersonal=false)` row with `organizationId NOT NULL` | `Workspace(kind=ORGANIZATION, organizationId=<real Org>)` | Mechanical rename | 3 |
 
+*Note (2026-11-23):* `Team.workspaceKind` now exists with values `PERSONAL | OWNED | ORGANIZATION` (`services/api/prisma/schema.prisma:4132-4136`). ORGANIZATION workspaces are created only by Enterprise provisioning; self-service workspace creation is retired (`teams.routes.ts` `WORKSPACE_CREATION_NOT_SELF_SERVICE`), so `OWNED` rows are grandfathered legacy. TEAM is a tier of the subscriber's Personal Workspace, not a separate workspace. See `proovra-domain-model.md` (2026-11-23 model correction).
+
 ---
 
 ## 2. Team

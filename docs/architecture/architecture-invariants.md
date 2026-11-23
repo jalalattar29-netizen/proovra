@@ -56,6 +56,8 @@ The strings `"team workspace"`, `"reviewer workspace"`, `"governance workspace"`
 
 **Rationale:** Phase 1.5 Deliverable 4: "Teams may exist inside a Personal Workspace OR inside an Organization Workspace." Personal Workspaces support small Teams (subject to soft caps).
 
+*Note (2026-11-23):* the caps are now plan caps per workspace, not soft caps — PRO 2 Collaboration Teams × 5 accepted non-owner members, TEAM 5 × 10, FREE/PAYG none (`packages/shared-billing/src/plan-catalog.ts:320-355`). TEAM is bought for the subscriber's Personal Workspace, which is multi-member; see `proovra-domain-model.md` (2026-11-23 model correction).
+
 **Pinned by:** `INV-4: no new capability requires ORGANIZATION scope for Team operations`
 
 ---
