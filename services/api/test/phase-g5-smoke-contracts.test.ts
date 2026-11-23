@@ -98,7 +98,9 @@ describe("Phase G5.7 smoke 2 — Reviewer queue → decision path", () => {
   it("Reviewer Console UI wires inline actions through useStepUpAction", () => {
     expect(REVIEWER_CONSOLE).toContain("useStepUpAction");
     expect(REVIEWER_CONSOLE).toContain('data-reviewer-action="assign"');
-    expect(REVIEWER_CONSOLE).toContain('data-reviewer-action="acknowledge"');
+    // TEAM-SPEC §3 (2026-11-23) — acknowledge moved with the Escalations tab
+    // to /reviewer-ops/escalations; escalate stays inline.
+    expect(REVIEWER_CONSOLE).toContain('data-reviewer-action="escalate"');
   });
 });
 

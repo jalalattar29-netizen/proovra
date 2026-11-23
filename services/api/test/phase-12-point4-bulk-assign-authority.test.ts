@@ -134,9 +134,10 @@ describe("Phase 12 Point 4 — bulkAssign delegates to the assignment authority"
   });
 
   it("cannot drag a terminal workflow back to ASSIGNED", async () => {
-    // Re-assigning a closed record changes WHO owns it, never its stage:
-    // the transition rule keeps the terminal stage, so a bulk action can
-    // no longer silently re-open finished work.
+    // TEAM-SPEC §2.1 (2026-11-23) — intentional change: a CLOSED review is
+    // not re-staffed by a bulk assignment at all. It used to change WHO owned
+    // the finished review (the stage stayed CLOSED); it is now refused per
+    // item as WORKFLOW_CLOSED, and nothing is written.
     state.status = "CLOSED";
     const res = await bulkAssign({
       prisma: prismaFake,
@@ -145,14 +146,15 @@ describe("Phase 12 Point 4 — bulkAssign delegates to the assignment authority"
       assigneeUserId: "user-2",
       workflowIds: ["wf-1"],
     });
-    expect(res).toMatchObject({ ok: true, succeeded: 1 });
-    expect(state.updates).toHaveLength(1);
-    expect(state.updates[0]).toMatchObject({
-      status: "CLOSED",
-      assignedToUserId: "user-2",
+    expect(res).toMatchObject({ ok: true, succeeded: 0 });
+    expect((res as { outcomes: unknown[] }).outcomes[0]).toEqual({
+      workflowId: "wf-1",
+      ok: false,
+      denial: "WORKFLOW_CLOSED",
+      code: "workflow_closed",
     });
-    // And the reassignment is on the record's history.
-    expect(state.events.map((e) => e.eventType)).toContain("ASSIGNED");
+    expect(state.updates).toHaveLength(0);
+    expect(state.events).toHaveLength(0);
   });
 
   it("conceals a workflow from another workspace and writes nothing", async () => {

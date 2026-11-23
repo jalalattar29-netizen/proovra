@@ -90,9 +90,13 @@ describe("Reviewer console landing page (full adoption)", () => {
   });
 
   it("provides actionable links from the console to related operator surfaces", () => {
-    expect(src).toMatch(/\/reviewer-ops\/escalations/);
-    expect(src).toMatch(/\/reviewer-ops\/sla/);
-    expect(src).toMatch(/\/governance\/policy/);
+    // TEAM-SPEC §3 (2026-11-23) — the constant chips (incl. the
+    // Enterprise-only /governance/policy) were replaced by the Review hub
+    // tabs (ReviewHubNav), which render only destinations that open.
+    expect(src).not.toMatch(/href="\/governance\/policy"/);
+    expect(
+      readSource("../../../apps/web/components/reviewer-experience/ReviewHubNav.tsx"),
+    ).toMatch(/review\.escalations/);
     // ADM-013 PHASE 1 — the fourth link was a hardcoded platform-admin href behind a
     // platform-admin capability, on a console whose audience is reviewers. It
     // was "actionable" for a population of approximately zero. The console

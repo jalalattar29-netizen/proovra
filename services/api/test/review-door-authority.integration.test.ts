@@ -212,7 +212,8 @@ describe("review door authority (live PostgreSQL)", () => {
     });
 
     it("positive control: a reviewer records a verdict at the same door", async () => {
-      const r = await reviewRecord();
+      // TEAM-SPEC R3 (2026-11-23) — the FIRST decision is the assignee's.
+      const r = await reviewRecord("IN_REVIEW", { assignedToUserId: reviewer.id });
       const res = await post(`/v1/reviewer-ops/workspace/${r.workflowId}/decisions`, reviewer, {
         teamId: A().teamId,
         decision: "APPROVE",

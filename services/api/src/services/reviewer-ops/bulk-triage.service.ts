@@ -45,6 +45,7 @@ import {
 import {
   EscalationEngineError,
 } from "./escalation-engine.service.js";
+import { loadCurrentRoundDecisionState, ReviewDecisionAuthorityError } from "./review-decision.service.js";
 
 // -----------------------------------------------------------------------------
 // Result shape
@@ -144,6 +145,15 @@ export function classifyBulkItemError(err: unknown): {
       case "assignee_not_placed":
         return { code: "REVIEW_ASSIGNEE_NOT_PLACED", unexpected: false };
     }
+  }
+  // The lifecycle Close refuses atomically with the decision authority's own
+  // vocabulary (second_review_pending): a stage the action does not apply to.
+  if (err instanceof ReviewDecisionAuthorityError) {
+    return err.code === "workflow_not_found"
+      ? { code: "REVIEW_WORKFLOW_NOT_FOUND", unexpected: false }
+      : err.code === "stale_decision"
+        ? { code: "REVIEW_CONFLICT", unexpected: false }
+        : { code: "REVIEW_INVALID_TRANSITION", unexpected: false };
   }
   return { code: "REVIEW_ITEM_FAILED", unexpected: true };
 }
@@ -296,9 +306,27 @@ async function runOne(
           teamId: ctx.teamId,
           evidence: evidenceVisibleThroughCasesWhere(ctx.actorUserId),
         },
-        select: { evidenceId: true },
+        select: { id: true, evidenceId: true, status: true, decisionRound: true },
       });
       if (!wf) throw new ReviewerOpsError("REVIEW_WORKFLOW_NOT_FOUND");
+      // TEAM-SPEC §2.2 — Close never skips a pending second review or an
+      // unresolved disagreement (the single-item Close door refuses the same).
+      const round = await loadCurrentRoundDecisionState(
+        {
+          id: wf.id,
+          teamId: ctx.teamId,
+          evidenceId: wf.evidenceId,
+          status: String(wf.status),
+          decisionRound: wf.decisionRound,
+        },
+        client,
+      );
+      if (round.state === "second_required" || round.state === "conflict_detected") {
+        throw new ReviewerOpsError("REVIEW_INVALID_TRANSITION", {
+          reason: "second_review_pending",
+          reviewState: round.state,
+        });
+      }
       await recordLifecycleTransition(
         {
           evidenceId: wf.evidenceId,

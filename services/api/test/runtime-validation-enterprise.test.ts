@@ -336,12 +336,13 @@ describe("Enterprise empty-state components", () => {
   });
 
   it("each preset includes runtime dependency explanation", () => {
-    const presets = [
-      "NoEscalationsEmptyState",
-      "NoWorkloadSnapshotsEmptyState",
-      "NoGovernanceIncidentsEmptyState",
-      "NoSlaBreachesEmptyState",
-    ];
+    // TEAM-SPEC §3 (2026-11-23) — the three reviewer presets
+    // (NoEscalationsEmptyState, NoWorkloadSnapshotsEmptyState,
+    // NoSlaBreachesEmptyState) are read by Team reviewers, not operators: the
+    // spec removes worker jargon ("Runtime dependency: reviewer reconciliation
+    // worker…") from them, and their `reason` now says in plain words when new
+    // items appear. The operator-facing preset keeps the explanation.
+    const presets = ["NoGovernanceIncidentsEmptyState"];
     for (const preset of presets) {
       const slice = functionSource(src, preset, "OperationalEmptyState.tsx");
       // Match `runtimeDependency=` (JSX prop) OR `runtimeDependency:` (object literal).

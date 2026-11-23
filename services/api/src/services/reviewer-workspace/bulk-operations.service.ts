@@ -20,23 +20,66 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
-import type {
-  ReviewerDenialReason,
-  ReviewerVerdict,
+import {
+  isTerminalReviewStage,
+  mapDbStatusToReviewStage,
+  type ReviewerDenialReason,
+  type ReviewerVerdict,
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 // PHASE 12 POINT 4 PASS C1 — the ONE assignment authority (transition rule +
 // lifecycle event + SLA stamps + assignee notification).
-import { assignReviewer } from "../review-operations/review-operations.service.js";
+import { assignReviewer, ReviewOperationError } from "../review-operations/review-operations.service.js";
 import { writeCodingValue } from "./coding-value.service.js";
 
 export type BulkItemOutcome = {
   workflowId: string;
   ok: boolean;
   denial?: ReviewerDenialReason | "WORKFLOW_NOT_FOUND";
+  /**
+   * TEAM-SPEC §2.1 (2026-11-23) — the finer typed reason beside `denial`, so a
+   * mixed selection explains each refused row instead of reading
+   * POLICY_REJECTED for all of them. Additive: `denial` keeps the bounded
+   * vocabulary every reader already maps; `code` is a fixed snake_case word,
+   * never exception text. Bulk assign sends:
+   *   workflow_closed           — the review is CLOSED (denial WORKFLOW_CLOSED)
+   *   assignee_not_eligible     — the assignee is not an active reviewer here (NOT_PERMITTED)
+   *   assignee_not_placed       — the assignee cannot reach the record (NOT_PERMITTED)
+   *   invalid_stage_transition  — the stage refused the move (POLICY_REJECTED)
+   *   concurrent_change         — another change won the race (POLICY_REJECTED)
+   *   item_failed               — unexpected; the detail stays in the server log
+   * A workflow outside the actor's reach stays the one non-enumerating
+   * WORKFLOW_NOT_FOUND with no code.
+   */
+  code?: string;
 };
+
+/** Bulk assign's per-item refusal for an error from the assignment authority. */
+function assignRefusal(workflowId: string, err: unknown): BulkItemOutcome {
+  if (err instanceof ReviewOperationError) {
+    switch (err.code) {
+      case "assignee_not_eligible":
+      case "assignee_not_placed":
+      case "permission_denied":
+        return { workflowId, ok: false, denial: "NOT_PERMITTED", code: err.code };
+      case "workflow_not_found":
+      case "evidence_not_in_workspace":
+        return { workflowId, ok: false, denial: "WORKFLOW_NOT_FOUND" };
+      case "invalid_stage_transition":
+        return {
+          workflowId,
+          ok: false,
+          denial: "POLICY_REJECTED",
+          code: err.details?.reason === "concurrent_change" ? "concurrent_change" : "invalid_stage_transition",
+        };
+      default:
+        return { workflowId, ok: false, denial: "POLICY_REJECTED", code: err.code };
+    }
+  }
+  return { workflowId, ok: false, denial: "POLICY_REJECTED", code: "item_failed" };
+}
 
 const MAX_BULK = 100;
 
@@ -70,10 +113,17 @@ export async function bulkAssign(input: {
         // A record closed to the actor answers as a missing workflow (WORKFLOW-003).
         evidence: evidenceVisibleThroughCasesWhere(input.actorUserId),
       },
-      select: { id: true, evidenceId: true },
+      select: { id: true, evidenceId: true, status: true },
     });
     if (!row) {
       outcomes.push({ workflowId: id, ok: false, denial: "WORKFLOW_NOT_FOUND" });
+      continue;
+    }
+    // TEAM-SPEC §2.1 — a CLOSED review is not re-staffed by an assignment.
+    // The stage matrix allows self-transitions (CLOSED→CLOSED), so without
+    // this a bulk assign silently re-assigned finished reviews.
+    if (isTerminalReviewStage(mapDbStatusToReviewStage(row.status as string))) {
+      outcomes.push({ workflowId: id, ok: false, denial: "WORKFLOW_CLOSED", code: "workflow_closed" });
       continue;
     }
     try {
@@ -95,8 +145,8 @@ export async function bulkAssign(input: {
         prisma,
       );
       outcomes.push({ workflowId: id, ok: true });
-    } catch {
-      outcomes.push({ workflowId: id, ok: false, denial: "POLICY_REJECTED" });
+    } catch (err) {
+      outcomes.push(assignRefusal(id, err));
     }
   }
   return {

@@ -103,6 +103,12 @@ import {
   resolveRecipientContactDisclosure,
 } from "../services/privacy/recipient-contact-disclosure.js";
 import { viewerRenewableGrantIds } from "../services/external-review/external-review-renew-authority.js";
+import {
+  EXTERNAL_REVIEW_WORKSPACE_MISMATCH_BODY,
+  externalReviewGrantRevocableNow,
+  externalReviewManageAllowed,
+  viewerExternalReviewActions,
+} from "../services/external-review/external-review-manage-authority.js";
 import { hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
 
 // ---------------------------------------------------------------------------
@@ -242,6 +248,30 @@ function denyNoPermission(reply: FastifyReply): FastifyReply {
 }
 
 /**
+ * TEAM-SPEC R4 (2026-11-23) — the issue/revoke doors act on the request's
+ * ACTIVE workspace. A client that names a workspace (`teamId` in the body or
+ * query, optional for older clients) must name that one; otherwise the act is
+ * refused clearly instead of landing in a workspace the screen did not show.
+ * Returns true when it has replied.
+ */
+function refuseWorkspaceMismatch(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  // The ACTIVE workspace id, read by the caller from the context it minted in
+  // its own frame — this helper never reads a handed-in context.
+  activeWorkspaceId: string,
+): boolean {
+  const fromBody = (req.body as { teamId?: unknown } | null | undefined)?.teamId;
+  const fromQuery = (req.query as { teamId?: unknown } | null | undefined)?.teamId;
+  const named = typeof fromBody === "string" ? fromBody : typeof fromQuery === "string" ? fromQuery : null;
+  if (named !== null && named !== activeWorkspaceId) {
+    reply.code(409).send(EXTERNAL_REVIEW_WORKSPACE_MISMATCH_BODY);
+    return true;
+  }
+  return false;
+}
+
+/**
  * PHASE 12 REMEDIATION — SEC-001, TIER PRESERVATION (2026-08-06).
  *
  * The migration off `requireCap` must not WIDEN access, and without this
@@ -290,15 +320,13 @@ function denyNoPermission(reply: FastifyReply): FastifyReply {
  * knows it — it is `ctx.workspaceId` from the gate at the top of the handler —
  * so this costs nothing and closes the one gap provenance leaves open.
  */
-function isAdministrativeTier(
-  ctx: AuthorizedWorkspaceContext,
-  expectedWorkspaceId: string,
-): boolean {
-  const proven = assertMintedAuthorizedWorkspaceContext(ctx, {
-    workspaceId: expectedWorkspaceId,
-  });
-  return proven.workspaceRole === "OWNER" || proven.workspaceRole === "ADMIN";
-}
+// TEAM-SPEC §2.11 (2026-11-23) — the administrative-tier helper that stood
+// here is now part of THE External Review manage predicate,
+// `externalReviewManageAllowed` (services/external-review/
+// external-review-manage-authority.ts): the same binding + proven-role check
+// (OWNER or ADMIN), plus review.assign ∧ governance.legal_hold.manage. Every
+// management door in this file (issue, revoke, bulk revoke, resend, session
+// revoke) answers it; the owner tier below is unchanged.
 
 /**
  * A2-15 — break-glass reveal and resend each mint a successor token and put it
@@ -516,6 +544,9 @@ export async function externalPortalRoutes(app: FastifyInstance) {
         ctx.workspaceId,
         rows.map((r) => ({ id: r.grantId, state: r.grantState, expiresAtUtc: r.expiresAtUtc })),
       );
+      // TEAM-SPEC R4 / §2.11 — issue / revoke offered on the one predicate
+      // those doors enforce (this list is always the active workspace's).
+      const actions = await viewerExternalReviewActions(req, ctx.workspaceId);
       return reply.code(200).send({
         invitations: rows.map((r) => {
           const contact = projectRecipientContact({ recipientEmail: r.inviteEmail ?? null, recipientPhone: null }, disclosure);
@@ -523,8 +554,10 @@ export async function externalPortalRoutes(app: FastifyInstance) {
             ...r,
             inviteEmail: contact.recipientEmail ?? contact.recipientEmailMasked,
             viewerCanRenew: renewable.has(r.grantId),
+            viewerCanRevoke: actions.canManage && externalReviewGrantRevocableNow({ state: r.grantState ?? null }),
           };
         }),
+        viewerCanIssue: actions.canIssue,
       });
     },
   );
@@ -559,12 +592,14 @@ export async function externalPortalRoutes(app: FastifyInstance) {
     "/v1/external-review/invitations/:id/revoke",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      // Same tier as invitation issue.
+      // TEAM-SPEC §2.11 — the one issue/revoke predicate
+      // (externalReviewManageAllowed), the same as invitation issue.
       const ctx = await authorizeCurrentWorkspaceOrFail(req, reply, {
         permission: "review.assign",
       });
       if (!ctx) return reply;
-      if (!isAdministrativeTier(ctx, ctx.workspaceId)) return denyNoPermission(reply);
+      if (!externalReviewManageAllowed(ctx, ctx.workspaceId)) return denyNoPermission(reply);
+      if (refuseWorkspaceMismatch(req, reply, ctx.workspaceId)) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       // PRO-R1-11 — an invitation on a matter closed to this caller is, to them, not there.
       if (!(await externalReviewGrantSubjectInReach({ grantId: id, teamId: ctx.workspaceId, actorUserId: ctx.userId }))) {
@@ -672,7 +707,11 @@ export async function externalPortalRoutes(app: FastifyInstance) {
         permission: "review.assign",
       });
       if (!ctx) return reply;
-      if (!isAdministrativeTier(ctx, ctx.workspaceId)) return denyNoPermission(reply);
+      // TEAM-SPEC §2.11 — the one issue/revoke predicate: OWNER/ADMIN ∧
+      // review.assign ∧ governance.legal_hold.manage (the intersection of this
+      // door's former tier and the single-issue route's legal-hold gate).
+      if (!externalReviewManageAllowed(ctx, ctx.workspaceId)) return denyNoPermission(reply);
+      if (refuseWorkspaceMismatch(req, reply, ctx.workspaceId)) return reply;
       // AUD-36 (2026-10-20) — the same commercial gate as the single-issue path:
       // bulk issuance skipped it, so a workspace without External Review could
       // still grant outside reviewers access in bulk.
@@ -740,12 +779,13 @@ export async function externalPortalRoutes(app: FastifyInstance) {
     "/v1/external-review/invitations/bulk/revoke",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      // Bulk revoke shares the bulk-issue gate exactly.
+      // Bulk revoke shares the bulk-issue gate exactly (TEAM-SPEC §2.11).
       const ctx = await authorizeCurrentWorkspaceOrFail(req, reply, {
         permission: "review.assign",
       });
       if (!ctx) return reply;
-      if (!isAdministrativeTier(ctx, ctx.workspaceId)) return denyNoPermission(reply);
+      if (!externalReviewManageAllowed(ctx, ctx.workspaceId)) return denyNoPermission(reply);
+      if (refuseWorkspaceMismatch(req, reply, ctx.workspaceId)) return reply;
       const body = BulkRevokeBody.parse(req.body);
       const res = await bulkRevokeInvitations({
         teamId: ctx.workspaceId,
@@ -836,12 +876,14 @@ export async function externalPortalRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       // Resending an invitation email is the same operational tier as
       // issuing one, and it now ROTATES the grant token server-side, so the
-      // gate must not be weaker than the issue path.
+      // gate must not be weaker than the issue path — it is the issue path's
+      // predicate (TEAM-SPEC §2.11).
       const ctx = await authorizeCurrentWorkspaceOrFail(req, reply, {
         permission: "review.assign",
       });
       if (!ctx) return reply;
-      if (!isAdministrativeTier(ctx, ctx.workspaceId)) return denyNoPermission(reply);
+      if (!externalReviewManageAllowed(ctx, ctx.workspaceId)) return denyNoPermission(reply);
+      if (refuseWorkspaceMismatch(req, reply, ctx.workspaceId)) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       // A2-15 — a missing invitation answers 409 INVITE_NOT_FOUND here.
       if (await refuseGrantRedisclosure(reply, ctx, ctx.workspaceId, id, { status: 409, denial: "INVITE_NOT_FOUND" })) return reply;
@@ -1410,13 +1452,14 @@ export async function externalPortalRoutes(app: FastifyInstance) {
     "/v1/external-review/invitations/:id/sessions/revoke",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      // Operator-initiated session revoke is the same tier as invitation
-      // revoke.
+      // Operator-initiated session revoke is the same gate as invitation
+      // revoke: the one issue/revoke predicate (TEAM-SPEC §2.11).
       const ctx = await authorizeCurrentWorkspaceOrFail(req, reply, {
         permission: "review.assign",
       });
       if (!ctx) return reply;
-      if (!isAdministrativeTier(ctx, ctx.workspaceId)) return denyNoPermission(reply);
+      if (!externalReviewManageAllowed(ctx, ctx.workspaceId)) return denyNoPermission(reply);
+      if (refuseWorkspaceMismatch(req, reply, ctx.workspaceId)) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const body = z
         .object({

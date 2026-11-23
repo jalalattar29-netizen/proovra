@@ -71,9 +71,12 @@ describe("Phase IA-self-serve-regression-fix — BUG 1: All Tools visibility", (
   });
 
   it("the command-palette fallback no longer pushes non-admins to /tools", () => {
-    // Every `router.push(...)` fallback in the palette now uses /home.
     expect(PALETTE).not.toMatch(/router\.push\("\/tools"\)/);
-    expect(PALETTE).toMatch(/router\.push\("\/home"\)/);
+    // TEAM-SPEC §3 (2026-11-23) — there is no fallback any more: a row the
+    // actor cannot open is not listed, and an organization-gated row opens the
+    // page's own explanation. The silent push to /home is gone.
+    expect(PALETTE).not.toMatch(/router\.push\("\/home"\)/);
+    expect(PALETTE).toMatch(/!access\.canLoad && access\.accessState !== "NEEDS_ORGANIZATION"/);
   });
 });
 
@@ -130,7 +133,10 @@ describe("Phase IA-self-serve-regression-fix — BUG 2: Invite teammate + /teams
     // Successor content: WorkspaceAdministrationHome renders a marked
     // empty-state block with guidance + a billing-reachable CTA path.
     expect(TEAMS).toMatch(/data-organizations-empty/);
-    expect(TEAMS).toMatch(/You're not in any organizations yet\./);
+    // TEAM-SPEC (2026-11-23) — the copy now explains that Team members are
+    // invited into the owner's Personal Workspace (no "yet": organizations
+    // come only with an Enterprise agreement).
+    expect(TEAMS).toMatch(/You're not in any organizations\./);
     expect(TEAMS).toMatch(/href="\/billing"/);
   });
 

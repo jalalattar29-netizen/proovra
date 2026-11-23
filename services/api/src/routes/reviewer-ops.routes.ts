@@ -74,6 +74,8 @@ import {
   approveReview,
   assignReviewerToWorkflow,
   buildDashboard,
+  emitDecisionOutcomeSignals,
+  recordResponseReceived,
   getReviewerOpsWorkspace,
   listReviewerOpsQueue,
   pauseReview,
@@ -88,6 +90,7 @@ import { projectQueueIntelligence } from "../services/reviewer-ops/queue-intelli
 import {
   EscalationEngineError,
   acknowledgeEscalation,
+  countEscalations,
   createEscalation,
   listEscalations,
   reassignEscalation,
@@ -489,7 +492,7 @@ function sendEngineError(reply: FastifyReply, err: unknown): boolean {
               : 409;
     reply
       .code(status)
-      .send({ error: { code: err.code, details: err.details ?? null } });
+      .send({ error: { code: err.code, details: refusalDetails(status, err.code, err.details) } });
     return true;
   }
   if (err instanceof EscalationEngineError) {
@@ -505,10 +508,25 @@ function sendEngineError(reply: FastifyReply, err: unknown): boolean {
             : 409;
     reply
       .code(status)
-      .send({ error: { code: err.code, details: err.details ?? null } });
+      .send({ error: { code: err.code, details: refusalDetails(status, err.code, err.details) } });
     return true;
   }
   return false;
+}
+
+/**
+ * TEAM-SPEC §2.2 — every refusal a client receives carries `details.reason`.
+ * A refusal raised without one states its code, lower-cased. A 404 keeps its
+ * bare shape, so a missing record and a record out of reach still read alike.
+ */
+function refusalDetails(
+  status: number,
+  code: string,
+  details: Record<string, unknown> | undefined,
+): Record<string, unknown> | null {
+  if (status === 404) return details ?? null;
+  if (details && typeof details.reason === "string") return details;
+  return { ...(details ?? {}), reason: code.toLowerCase() };
 }
 
 /** A concurrent policy edit: nothing was written, and the caller must re-read. */
@@ -535,17 +553,54 @@ function sendDecisionAuthorityError(
   err: ReviewDecisionAuthorityError,
   ctx: { callerRole: string | null; decision: string },
 ): void {
+  // TEAM-SPEC §2.2 — every refusal carries details.reason (the authority code);
+  // a sub-reason the authority attached stays as details.detail. The 404 keeps
+  // its bare anti-enumeration shape.
+  const out = {
+    code: (status: number) => ({
+      send: (body: { error: Record<string, unknown> }) => {
+        if (status === 404) return reply.code(status).send(body);
+        const prior = (body.error.details ?? err.details ?? {}) as Record<string, unknown>;
+        const sub = typeof prior.reason === "string" && prior.reason !== err.code ? { detail: prior.reason } : {};
+        return reply.code(status).send({ error: { ...body.error, details: { ...prior, ...sub, reason: err.code } } });
+      },
+    }),
+  };
   switch (err.code) {
+    case "not_assignee":
+      out.code(403).send({
+        error: {
+          code: "not_assignee",
+          reason: "Only the reviewer this review is assigned to can record its first decision.",
+        },
+      });
+      return;
+    case "second_stage_needs_reassignment":
+      out.code(403).send({
+        error: {
+          code: "second_stage_needs_reassignment",
+          reason: "The second review is recorded by the reviewer it is reassigned to, never the first reviewer.",
+        },
+      });
+      return;
+    case "use_adjudication":
+      out.code(409).send({
+        error: {
+          code: "use_adjudication",
+          reason: "The reviewers disagree. An independent owner or admin resolves it through adjudication.",
+        },
+      });
+      return;
     case "workflow_not_found":
-      reply.code(404).send({ error: { code: "not_found" } });
+      out.code(404).send({ error: { code: "not_found" } });
       return;
     case "review_already_resolved":
-      reply.code(409).send({
+      out.code(409).send({
         error: { code: "decision_not_allowed", reason: "review_is_resolved" },
       });
       return;
     case "stale_decision":
-      reply.code(409).send({
+      out.code(409).send({
         error: {
           code: "decision_not_allowed",
           reason: "stale_decision",
@@ -554,7 +609,7 @@ function sendDecisionAuthorityError(
       });
       return;
     case "same_reviewer_blocked":
-      reply.code(409).send({
+      out.code(409).send({
         error: {
           code: "same_reviewer_blocked",
           reason:
@@ -564,7 +619,7 @@ function sendDecisionAuthorityError(
       });
       return;
     case "adjudicator_not_independent":
-      reply.code(409).send({
+      out.code(409).send({
         error: {
           code: "adjudicator_not_independent",
           reason:
@@ -574,7 +629,7 @@ function sendDecisionAuthorityError(
       });
       return;
     case "duplicate_stage_decision":
-      reply.code(409).send({
+      out.code(409).send({
         error: {
           code: "duplicate_stage_decision",
           reason: "A decision for this stage already exists.",
@@ -583,12 +638,12 @@ function sendDecisionAuthorityError(
       });
       return;
     case "reviewer_required":
-      reply.code(403).send({
+      out.code(403).send({
         error: { code: "REVIEW_PERMISSION_DENIED", reason: "reviewer_required" },
       });
       return;
     case "adjudicator_role_required":
-      reply.code(403).send({
+      out.code(403).send({
         error: {
           code: "adjudicator_role_required",
           reason:
@@ -598,7 +653,7 @@ function sendDecisionAuthorityError(
       });
       return;
     case "decision_kind_not_allowed":
-      reply.code(400).send({
+      out.code(400).send({
         error: {
           code: "decision_kind_not_allowed",
           reason: `${ctx.decision} is only valid at ADJUDICATION stage.`,
@@ -607,7 +662,7 @@ function sendDecisionAuthorityError(
       });
       return;
     case "rationale_required":
-      reply.code(400).send({
+      out.code(400).send({
         error: {
           code: "rationale_required",
           reason: "All review decisions must include a rationale.",
@@ -618,7 +673,7 @@ function sendDecisionAuthorityError(
     // (e.g. APPROVE on an ASSIGNED, not-started review) is a typed 409, like
     // a stale decision; it used to fall through with no reply at all.
     case "decision_not_from_stage":
-      reply.code(409).send({
+      out.code(409).send({
         error: {
           code: "decision_not_allowed",
           reason: "decision_not_from_stage",
@@ -628,7 +683,7 @@ function sendDecisionAuthorityError(
       return;
     default:
       // No authority refusal may ever leave the request unanswered.
-      reply.code(409).send({
+      out.code(409).send({
         error: { code: "decision_not_allowed", reason: String((err as { code?: unknown }).code ?? "unknown") },
       });
       return;
@@ -898,6 +953,12 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           teamId: q.teamId,
           workflowId,
           viewerUserId: ctx.actorUserId,
+          // TEAM-SPEC §2.5 — what this viewer may do, from the PROVEN context.
+          viewerFacts: {
+            isReviewerCapable: ctx.isReviewerCapable,
+            mayAssign: contextHasCapability(ctx.authorized, "review.assign"),
+            role: provenRole(ctx),
+          },
         });
         // Phase B-2 — surface real governance signals the engine
         // projection doesn't carry: ACTIVE legal holds on the
@@ -1414,6 +1475,36 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           workflowId,
           note: body.note,
         });
+        return reply.code(200).send({ projection: result.projection, outcome: result.outcome });
+      } catch (err) {
+        if (sendEngineError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  // ===========================================================================
+  // POST /v1/reviewer-ops/reviews/:workflowId/response-received
+  //
+  // TEAM-SPEC §2.4 — the way out of NEEDS_INFORMATION. The assignee records
+  // that the requested information arrived: NEEDS_MORE_INFO →
+  // RESPONSE_RECEIVED, from where the review is decided as usual.
+  // ===========================================================================
+
+  app.post(
+    "/v1/reviewer-ops/reviews/:workflowId/response-received",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { workflowId } = ParamsWorkflowId.parse(req.params);
+      const body = z
+        .object({ teamId: z.string().uuid(), note: BoundedNote.nullable().optional() })
+        .parse(req.body ?? {});
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "BASIC_RECORD_REVIEW");
+      if (!ctx) return;
+      if (!(await requireWorkflowInReach(ctx, reply, workflowId))) return;
+      if (!requireReviewerCapable(ctx, reply)) return;
+      try {
+        const result = await recordResponseReceived(ctx, { workflowId, note: body.note ?? null });
         return reply.code(200).send({ projection: result });
       } catch (err) {
         if (sendEngineError(reply, err)) return;
@@ -1456,7 +1547,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           workflowId,
           note: body.note ?? null,
         });
-        return reply.code(200).send({ projection: result });
+        return reply.code(200).send({ projection: result.projection, outcome: result.outcome });
       } catch (err) {
         if (sendEngineError(reply, err)) return;
         throw err;
@@ -1495,7 +1586,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           workflowId,
           note: body.note,
         });
-        return reply.code(200).send({ projection: result });
+        return reply.code(200).send({ projection: result.projection, outcome: result.outcome });
       } catch (err) {
         if (sendEngineError(reply, err)) return;
         throw err;
@@ -1514,8 +1605,9 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const q = z
         .object({
           teamId: z.string().uuid(),
+          // ACTIVE = OPEN ∪ ACKNOWLEDGED ∪ REASSIGNED (TEAM-SPEC §2.7).
           status: z
-            .enum([...REVIEW_ESCALATION_STATUSES, "ALL"] as [
+            .enum([...REVIEW_ESCALATION_STATUSES, "ALL", "ACTIVE"] as [
               string,
               ...string[],
             ])
@@ -1528,16 +1620,20 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         .parse(req.query ?? {});
       const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_ESCALATION");
       if (!ctx) return;
-      const escalations = await listEscalations({
+      const filters = {
         teamId: q.teamId,
         status: q.status as never,
         severity: q.severity,
         reason: q.reason,
         assignedToUserId: q.assignedToUserId,
-        limit: q.limit,
         viewerUserId: ctx.actorUserId,
-      });
-      return reply.code(200).send({ escalations });
+      };
+      // `total` counts under the SAME filters, unbounded by `limit`.
+      const [escalations, total] = await Promise.all([
+        listEscalations({ ...filters, limit: q.limit }),
+        countEscalations(filters),
+      ]);
+      return reply.code(200).send({ escalations, total });
     },
   );
 
@@ -1593,9 +1689,11 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           .code(result.code === "REVIEW_WORKFLOW_NOT_FOUND" ? 404 : 403)
           .send({ error: { code: result.code } });
       }
+      // `created: false` is a dedup hit on an escalation already open — the
+      // client says so instead of "Escalation raised." (AUDIT D13).
       return reply
         .code(result.created ? 201 : 200)
-        .send({ escalation: result.escalation });
+        .send({ escalation: result.escalation, created: result.created });
     },
   );
 
@@ -2117,6 +2215,19 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         orderBy: { id: "asc" },
         take: maxTeams,
       });
+      // TEAM-SPEC R1 default — the automation runs only for workspaces still
+      // entitled to reviewer operations (the request-time gate). A workspace
+      // that lost them is skipped and logged; nothing is deleted. The cursor
+      // still advances over it, so it never starves the rest of the fleet.
+      const entitled = new Set<string>();
+      let skippedNotEntitled = 0;
+      for (const t of teams) {
+        if (await workspaceIncludesReviewCapability(t.id, "REVIEW_ESCALATION")) entitled.add(t.id);
+        else skippedNotEntitled += 1;
+      }
+      if (skippedNotEntitled > 0) {
+        app.log.info({ skippedNotEntitled }, "reviewer_ops.reconcile.skipped_not_entitled");
+      }
 
       const perTeam: Array<{
         teamId: string;
@@ -2143,6 +2254,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         // Checked between teams: a run already in progress finishes.
         if (Date.now() - startedAtMs >= maxDurationMs) break;
         teamsVisited += 1;
+        if (!entitled.has(t.id)) continue;
         const teamResult = await runReconcileSafely({
           teamId: t.id,
           batchSize: body.batchSize,
@@ -2254,6 +2366,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         totalFlippedDueSoon,
         totalDueSoonReminders,
         totalInactivityReminders,
+        skippedNotEntitled,
         perTeam,
       });
     },
@@ -2817,12 +2930,26 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           reasonCode: body.reasonCode ?? null,
           rationale: body.rationale,
           actorIsAdjudicator: isAdjudicator,
+          // TEAM-SPEC R3 — THE explicit adjudication door. Approve / Reject /
+          // Request info never pass this, so a conflict reached through them is
+          // refused with use_adjudication.
+          adjudicationDoor: true,
+        });
+        // TEAM-SPEC §2.3 — the same outcome-driven signals as the engine.
+        await emitDecisionOutcomeSignals({
+          teamId: body.teamId,
+          actorUserId: ctx.actorUserId,
+          workflowId,
+          decision: body.decision,
+          workflowStatusAfter: String(result.workflow.status),
+          outcome: result.outcome,
         });
         return reply.code(result.idempotent ? 200 : 201).send({
           workflowId,
           evidenceId: wf.evidenceId,
           state: result.state,
           idempotent: result.idempotent,
+          outcome: result.outcome,
           decision: {
             id: result.decision.id,
             stage: result.decision.stage,

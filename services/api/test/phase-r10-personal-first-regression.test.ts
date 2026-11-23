@@ -290,8 +290,12 @@ describe("Phase R10 — Stage 2: GlobalRuntimeIndicator hides for personal users
     // We pin the literal here; the live AppAccountToolbar applies the
     // same rule via activeSpace (ORGANIZATION → id, otherwise null)
     // where it wraps GlobalRuntimeIndicator.
+    // TEAM-SPEC R1 (2026-11-23) — a Team-entitled Personal Workspace runs
+    // reviewer operations too, so it also gets the id (each source is still
+    // gated on its own capability inside the hook). Any other personal
+    // workspace still yields null.
     expect(APP_SIDEBAR_SRC).toMatch(
-      /workspace\?\.status === "active"\s*&&\s*envelope\.workspace\.scope === "TEAM"/,
+      /workspace\?\.status === "active"\s*&&\s*\(envelope\.workspace\.scope === "TEAM" \|\|\s*envelope\.planFeatures\?\.reviewerOperationsIncluded === true\)/,
     );
   });
 });

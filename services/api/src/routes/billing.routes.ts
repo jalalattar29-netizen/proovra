@@ -117,6 +117,7 @@ import { acquireLease, enforceRateLimit } from "../services/rate-limit.js";
 import { findStorageDuplicate } from "../services/billing/storage-purchase-guard.service.js";
 import { keepPaidPeriodAfterProviderCancel } from "../services/billing/paid-period.service.js";
 import { findLivePersonalBaseSubscription } from "../services/billing/base-subscription.service.js";
+import { reviewerOperationsEndingOnLowering as reviewerOperationsEndingFor } from "../services/billing/reviewer-operations-ending.service.js";
 import { PayPalHttpError } from "../services/paypal.service.js";
 // PHASE 10 §13.2 STEP 6 (2026-07-23) — managed-identity no-personal guard.
 import { assertPersonalSpaceAllowed } from "../services/identity/identity-mode.service.js";
@@ -614,6 +615,15 @@ function isPayPalNotFound(err: unknown): boolean {
   return err instanceof PayPalHttpError && (err.status === 404 || err.status === 422);
 }
 
+/** TEAM-SPEC §0 / R1 — see services/billing/reviewer-operations-ending.service.ts. */
+function reviewerOperationsEndingOnLowering(
+  userId: string,
+  fromPlan: prismaPkg.PlanType,
+  toPlan: prismaPkg.PlanType,
+) {
+  return reviewerOperationsEndingFor({ userId, fromPlan, toPlan });
+}
+
 export async function billingRoutes(app: FastifyInstance) {
   /**
    * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the billing ACCOUNT surface.
@@ -908,6 +918,11 @@ export async function billingRoutes(app: FastifyInstance) {
       }
 
       if (transition.kind === "CANCELLATION") {
+        const endsReviewerOperations = await reviewerOperationsEndingOnLowering(
+          userId,
+          transition.subscription.plan,
+          prismaPkg.PlanType.FREE,
+        );
         // FREE is not bought, it is what remains after cancelling. Routing it
         // here rather than duplicating the cancellation contract keeps ONE
         // implementation of provider-first cancellation, dependent add-on
@@ -918,8 +933,17 @@ export async function billingRoutes(app: FastifyInstance) {
             message:
               "Moving to Free means cancelling your subscription. Use the cancel action so we can tell you exactly what happens and when.",
           },
+          ...(endsReviewerOperations ? { endsReviewerOperations } : {}),
         });
       }
+
+      // TEAM-SPEC §0/R1 (2026-11-23) — informational only: lowering TEAM to a
+      // plan without reviewer operations stops the workspace's review queues
+      // (data is kept). Never blocks and never changes what happens.
+      const endsReviewerOperations =
+        transition.kind === "DOWNGRADE"
+          ? await reviewerOperationsEndingOnLowering(userId, transition.subscription.plan, transition.targetPlan)
+          : null;
 
       const storage =
         transition.kind === "DOWNGRADE"
@@ -936,6 +960,7 @@ export async function billingRoutes(app: FastifyInstance) {
             "This plan does not include some of your storage. It stays until its paid date and then stops renewing. Confirm to continue.",
           code: "PLAN_CHANGE_ENDS_STORAGE",
           details: { ending: storage.ending, retry: "CONFIRM_STORAGE_ENDING" },
+          ...(endsReviewerOperations ? { endsReviewerOperations } : {}),
         });
       }
 
@@ -989,6 +1014,7 @@ export async function billingRoutes(app: FastifyInstance) {
         ...(storage?.agreed
           ? { storageEnding: { addons: storage.ending, retrying: storageEnd?.retrying ?? null } }
           : {}),
+        ...(endsReviewerOperations ? { endsReviewerOperations } : {}),
       });
     },
   );
@@ -1080,12 +1106,20 @@ export async function billingRoutes(app: FastifyInstance) {
       // could not stop one of them leaves something CHARGING. Reporting that
       // as a clean cancellation is the failure mode this closes, and the
       // client must not have to work it out from a count.
+      // TEAM-SPEC §0 / R1 — informational: cancelling TEAM ends the Personal
+      // Workspace's reviewer operations at the end of access (data kept).
+      const endsReviewerOperations = await reviewerOperationsEndingOnLowering(
+        userId,
+        subscription.plan,
+        prismaPkg.PlanType.FREE,
+      );
       return reply.code(200).send({
         cancellation: {
           ...outcome,
           result:
             outcome.dependentAddonsFailed > 0 ? "ACTION_REQUIRED" : "COMPLETE",
         },
+        ...(endsReviewerOperations ? { endsReviewerOperations } : {}),
       });
     }
   );

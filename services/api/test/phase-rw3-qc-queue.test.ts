@@ -237,7 +237,10 @@ describe("Phase RW3-3 — frontend source contract", () => {
   it("QC card renders a link to /review/qc (discovery hint, not duplicate)", () => {
     // The card is a discovery hint — the real QC samples table lives
     // under /review/qc. Mixing the rows here would muddy bulk-assign.
-    expect(PAGE_SRC).toMatch(/href="\/review\/qc"/);
+    // TEAM-SPEC §3 (2026-11-23) — resolved through reviewDestination (only
+    // rendered when /review/qc opens, or as a workspace switch), not a
+    // constant href that dead-ended for Team.
+    expect(PAGE_SRC).toMatch(/useReviewDestination\("workspace\.review_qc"/);
     expect(PAGE_SRC).toMatch(/data-reviewer-queue-qc-link/);
   });
 

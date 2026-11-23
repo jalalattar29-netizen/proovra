@@ -71,8 +71,10 @@ describe("useGlobalRuntimeState (Phase 28-J)", () => {
     ).not.toMatch(/\/admin\/runtime\/readiness/);
 
     expect(src).toMatch(/\/v1\/ops\/incidents\?teamId=[^&]+&status=OPEN/);
+    // TEAM-SPEC §2 item 7 / §3 (2026-11-23) — the badge counts ACTIVE
+    // (open ∪ acknowledged ∪ reassigned) from one row + the server's total.
     expect(src).toMatch(
-      /\/v1\/reviewer-ops\/escalations\?teamId=[^&]+&status=OPEN/,
+      /\/v1\/reviewer-ops\/escalations\?teamId=[^&]+&status=ACTIVE&limit=1/,
     );
   });
 

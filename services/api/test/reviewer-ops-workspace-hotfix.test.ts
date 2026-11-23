@@ -178,7 +178,11 @@ describe("Phase 32.8E — canonical /review console workspace wiring", () => {
     const page = readSource("../../../apps/web/app/(app)/review/page.tsx");
     expect(page).toMatch(/usePlatformContext/);
     expect(page).toMatch(/activeSpace\?\.type === "ORGANIZATION"/);
-    expect(live).toMatch(/useActiveSpace\(\)/);
+    // TEAM-SPEC R1 (2026-11-23) — the console no longer reads the active
+    // space KIND (bulk eligibility is plan + role); it reads the projected
+    // plan feature and capability instead.
+    expect(live).toMatch(/usePlanFeatureGate\("reviewQueuesIncluded"\)/);
+    expect(live).toMatch(/useCan\("BULK_ACTIONS"\)/);
   });
 
   it("renders bounded loading / error / empty states rather than a bare wall", () => {

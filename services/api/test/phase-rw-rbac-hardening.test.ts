@@ -317,8 +317,11 @@ describe("Phase 12 SEC-001 — external-portal admin gates (canonical primitive)
     // The property this test protects — "the tier comes from the proven
     // canonical role, not from a re-derived or self-declared one" — is now
     // asserted MORE strictly, because provenance is asserted as well.
-    expect(EXTERNAL_ROUTES).toMatch(
-      /function isAdministrativeTier\([\s\S]*?assertMintedAuthorizedWorkspaceContext\(ctx, \{[\s\S]*?workspaceRole === "OWNER"[\s\S]*?workspaceRole === "ADMIN"/,
+    // TEAM-SPEC §2.11 (2026-11-23) — the administrative tier moved into the
+    // one External Review manage predicate; the same proven-role property is
+    // asserted there.
+    expect(readSource("../src/services/external-review/external-review-manage-authority.ts")).toMatch(
+      /function externalReviewManageAllowed\([\s\S]*?assertMintedAuthorizedWorkspaceContext\(candidate, \{[\s\S]*?workspaceRole === "OWNER"[\s\S]*?workspaceRole === "ADMIN"/,
     );
     expect(EXTERNAL_ROUTES).toMatch(
       /function isOwnerTier\([\s\S]*?assertMintedAuthorizedWorkspaceContext\(ctx, \{[\s\S]*?workspaceRole === "OWNER"/,
@@ -358,7 +361,11 @@ describe("Phase 12 SEC-001 — external-portal admin gates (canonical primitive)
       expect(block).toMatch(
         /authorizeCurrentWorkspaceOrFail\(\s*req,\s*reply,\s*\{[\s\S]*?permission:\s*"review\.assign"/,
       );
-      expect(block).toMatch(/isAdministrativeTier\(ctx, ctx\.workspaceId\)/);
+      // TEAM-SPEC §2.11 (2026-11-23) — issue / revoke / resend answer the one
+      // External Review manage predicate (OWNER/ADMIN ∧ review.assign ∧
+      // governance.legal_hold.manage), a tier at least as strict as
+      // the former isAdministrativeTier (now folded into the predicate).
+      expect(block).toMatch(/externalReviewManageAllowed\(ctx, ctx\.workspaceId\)/);
       expect(block).toMatch(/denyNoPermission\(reply\)/);
     },
   );

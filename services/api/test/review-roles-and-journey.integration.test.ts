@@ -77,6 +77,19 @@ const decide = (token: string, ev: string, decision: string, note?: string) =>
   });
 const workflowOf = (ev: string) => prisma.evidenceReviewWorkflow.findUniqueOrThrow({ where: { evidenceId: ev } });
 /**
+ * TEAM-SPEC R3 (2026-11-23) — a FIRST or SECOND decision belongs to the current
+ * assignee: an assignment manager (here the owner) reassigns the review to the
+ * reviewer who decides next. Holding the permission alone decides nothing.
+ */
+async function reassignTo(ev: string, userId: string): Promise<void> {
+  const wf = await workflowOf(ev);
+  const res = await call(A.ownerToken, "POST", `/v1/reviewer-ops/reviews/${wf.id}/reassign`, {
+    teamId: wf.teamId,
+    newAssigneeUserId: userId,
+  });
+  expect(res.status, JSON.stringify(res.body)).toBe(200);
+}
+/**
  * REVIEW IS NOT FORENSIC CUSTODY (owner decision 2026-10-24): every custody
  * row of the record, whatever its type — Review activity must add none.
  */
@@ -299,6 +312,7 @@ describe("one journey: rounds, concurrency, escalation routing, Close and the le
     expect((await decide(A.memberToken, ev, "REJECT_INSUFFICIENT", "insufficient")).status).toBe(200);
     expect((await workflowOf(ev)).status).toBe("ESCALATED");
     expect((await decide(A.memberToken, ev, "REJECT_INSUFFICIENT", "again")).status).toBe(200); // idempotent replay
+    await reassignTo(ev, A.adminUserId); // TEAM-SPEC R3: the SECOND reviewer is the reassigned one
     const second = await decide(A.adminToken, ev, "REJECT_INSUFFICIENT", "agreed, insufficient");
     expect(second.status).toBe(200);
     expect((await workflowOf(ev)).status).toBe("REJECTED_INSUFFICIENT");
@@ -373,6 +387,7 @@ describe("audit findings — second review, reconcile, races, editor Close, Begi
     // The round is not finished: a second review is required.
     expect(wf.decisionRound).toBe(0);
     expect((await offered(A.memberToken, ev)).actions!.APPROVE_INTERNAL.blockedBy).toBe("AWAITING_SECOND_REVIEWER");
+    await reassignTo(ev, A.adminUserId); // TEAM-SPEC R3
     expect((await offered(A.adminToken, ev)).actions!.APPROVE_INTERNAL.enabled).toBe(true);
     expect((await decide(A.adminToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
     wf = await workflowOf(ev);
@@ -575,6 +590,7 @@ describe("second audit — escalation atomicity, settled requests, repeated requ
     expect((await workflowOf(ev)).status).toBe("NEEDS_INFO");
     expect((await decide(A.memberToken, ev, "ESCALATE", "counsel please")).status).toBe(200);
     // The page offers the admin a verdict — not adjudication.
+    await reassignTo(ev, A.adminUserId); // TEAM-SPEC R3
     expect((await offered(A.adminToken, ev)).actions!.APPROVE_INTERNAL.enabled).toBe(true);
     expect((await decide(A.adminToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
     let wf = await workflowOf(ev);
@@ -587,6 +603,7 @@ describe("second audit — escalation atomicity, settled requests, repeated requ
     // An escalated review takes a second review: the admin waits, the member decides.
     expect(wf.status).toBe("ESCALATED");
     expect((await offered(A.adminToken, ev)).actions!.APPROVE_INTERNAL.blockedBy).toBe("AWAITING_SECOND_REVIEWER");
+    await reassignTo(ev, A.memberUserId); // TEAM-SPEC R3: the independent SECOND reviewer
     expect((await offered(A.memberToken, ev)).actions!.APPROVE_INTERNAL.enabled).toBe(true);
     expect((await decide(A.memberToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
     wf = await workflowOf(ev);
@@ -641,13 +658,21 @@ describe("second audit — escalation atomicity, settled requests, repeated requ
     });
     await claimed(ev2);
     expect((await decide(A.memberToken, ev2, "APPROVE_INTERNAL")).status).toBe(200);
+    await reassignTo(ev2, A.adminUserId); // TEAM-SPEC R3
     expect((await decide(A.adminToken, ev2, "REJECT_INSUFFICIENT", "no")).status).toBe(200);
     expect((await workflowOf(ev2)).status).toBe("ESCALATED");
-    // A disagreement: the page offers the owner the deciding verdict (the
-    // authority accepts it as adjudication) and tells the member who decides.
-    expect((await offered(A.ownerToken, ev2)).actions!.APPROVE_INTERNAL.enabled).toBe(true);
+    // A disagreement: the page tells everyone who decides.
+    // TEAM-SPEC R3 — a verdict button never adjudicates: the page names the
+    // explicit adjudication action instead, for the owner as for everyone.
+    expect((await offered(A.ownerToken, ev2)).actions!.APPROVE_INTERNAL).toMatchObject({ enabled: false, blockedBy: "ADJUDICATION_REQUIRED", reason: "use_adjudication" });
     expect((await offered(A.memberToken, ev2)).actions!.APPROVE_INTERNAL.blockedBy).toBe("ADJUDICATION_REQUIRED");
-    expect((await decide(A.adminToken, ev2, "CLOSE", "settled elsewhere")).status).toBe(200);
+    // TEAM-SPEC §2.2 — Close no longer skips an unresolved disagreement.
+    const refusedClose = await decide(A.adminToken, ev2, "CLOSE", "settled elsewhere");
+    expect(refusedClose.status).toBe(409);
+    expect(refusedClose.body.error.code).toBe("second_review_pending");
+    expect((await workflowOf(ev2)).status).toBe("ESCALATED");
+    // A conflict closed before that rule (legacy row) still stays Closed.
+    await prisma.evidenceReviewWorkflow.update({ where: { evidenceId: ev2 }, data: { status: "CLOSED", closedAt: new Date() } });
     await reconcileWorkflowProjection((await workflowOf(ev2)).id);
     expect((await workflowOf(ev2)).status).toBe("CLOSED");
   });
@@ -685,6 +710,13 @@ describe("Review activity is audited exactly once, in the action's own transacti
     expect((await decide(A.memberToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
     expect((await workflowOf(ev)).status).toBe("ESCALATED");
     expect(await reviewAudits(ev, "review.decision.recorded")).toBe(1);
+    // TEAM-SPEC §2.2 — Close cannot skip the pending second review: refused,
+    // with no audit entry; the reassigned SECOND reviewer resolves it first.
+    expect((await decide(A.adminToken, ev, "CLOSE", "done")).status).toBe(409);
+    expect(await reviewAudits(ev, "review.closed")).toBe(0);
+    await reassignTo(ev, A.adminUserId);
+    expect((await decide(A.adminToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
+    expect(await reviewAudits(ev, "review.decision.recorded")).toBe(2);
     expect((await decide(A.adminToken, ev, "CLOSE", "done")).status).toBe(200);
     expect((await decide(A.adminToken, ev, "REOPEN", "more")).status).toBe(200);
     expect(await reviewAudits(ev, "review.closed")).toBe(1);
@@ -785,6 +817,7 @@ describe("third audit — side effects after commit, legacy rounds, console, cus
       wf0.id,
     );
     expect((await decide(A.memberToken, ev, "ESCALATE", "counsel please")).status).toBe(200);
+    await reassignTo(ev, A.adminUserId); // TEAM-SPEC R3
     expect((await offered(A.adminToken, ev)).actions!.APPROVE_INTERNAL.enabled).toBe(true);
     expect((await decide(A.adminToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
     const wf = await workflowOf(ev);

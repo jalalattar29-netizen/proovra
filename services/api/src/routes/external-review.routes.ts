@@ -44,7 +44,13 @@ import { requireAuth } from "../middleware/auth.js";
 // purchased plan (contract-first for Enterprise), never a plan name read
 // here and never the requester's own subscription.
 import { workspaceIncludesExternalReview } from "../services/billing-enforcement.service.js";
-import { authorizeOrFail } from "../middleware/authorize.js";
+import { authorizeOrFail, evaluateAuthorizedWorkspace, sendDenyResponse } from "../middleware/authorize.js";
+import {
+  EXTERNAL_REVIEW_MANAGE_PERMISSION,
+  externalReviewGrantRevocableNow,
+  externalReviewManageAllowed,
+  viewerExternalReviewActions,
+} from "../services/external-review/external-review-manage-authority.js";
 import { hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
 // Phase 3 blocker closure — issuing an external-reviewer grant exposes
 // sensitive evidence to an OUTSIDE reviewer, so it must require a fresh
@@ -165,6 +171,34 @@ function projectGrantForReviewer(
   };
 }
 
+/**
+ * TEAM-SPEC §2.11 — the ONE issue/revoke predicate
+ * (`externalReviewManageAllowed`: OWNER/ADMIN ∧ review.assign ∧
+ * governance.legal_hold.manage, the intersection of what the grant doors and
+ * the invitation doors enforced), asked AFTER the door's own permission gate so
+ * that gate's deny shapes are unchanged. Returns true when it has replied.
+ */
+async function refuseUnlessExternalReviewManager(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  teamId: string,
+): Promise<boolean> {
+  const outcome = await evaluateAuthorizedWorkspace(req, {
+    workspaceId: teamId,
+    permission: EXTERNAL_REVIEW_MANAGE_PERMISSION,
+    antiEnumeration: false,
+  });
+  if (outcome.allowed && externalReviewManageAllowed(outcome.context, teamId)) return false;
+  if (!outcome.allowed && (outcome.httpStatus === 503 || outcome.httpStatus === 401)) {
+    sendDenyResponse(reply, outcome);
+    return true;
+  }
+  reply.code(403).send({
+    error: { code: "permission_denied", reason: "external_review_manage_required" },
+  });
+  return true;
+}
+
 // =============================================================================
 // Routes
 // =============================================================================
@@ -183,18 +217,19 @@ export async function externalReviewRoutes(app: FastifyInstance) {
       if (body.allowOriginalDownload === true) {
         return reply.code(400).send({ error: { code: "external_review_originals_not_released" } });
       }
-      // Phase 26 canonical authorize() gate. The bounded
-      // `governance.legal_hold.manage` permission covers
-      // sensitive-share creation per the Phase 17 catalog. Migration
-      // to a dedicated `governance.external_review.manage` permission
-      // is a clean follow-up; for now we re-use the existing
-      // governance gate so the route is hardened on day one.
+      // Phase 26 canonical authorize() gate (`governance.legal_hold.manage`),
+      // kept first so its deny shapes are unchanged. TEAM-SPEC §2.11 closes
+      // the follow-up this comment used to name: issue and revoke, on every
+      // door, now answer ONE predicate — `externalReviewManageAllowed`
+      // (OWNER/ADMIN ∧ review.assign ∧ legal_hold.manage), the intersection
+      // of this gate and the bulk-invitation gate, so no role gained power.
       const actor = await authorizeOrFail(req, reply, {
         teamId: body.teamId,
         permission: "governance.legal_hold.manage",
         antiEnumeration: true,
       });
       if (!actor) return;
+      if (await refuseUnlessExternalReviewManager(req, reply, actor.teamId)) return;
 
       /**
        * THE COMMERCIAL GATE — the open item this closes.
@@ -325,8 +360,19 @@ export async function externalReviewRoutes(app: FastifyInstance) {
       // renew route but the challenge (permission, subject reach, entitlement,
       // session quarantine, renewability). Renew is offered on this answer only.
       const renewable = await viewerRenewableGrantIds(req, q.teamId, grants);
+      // TEAM-SPEC R4 / §2.11 — whether THIS viewer could issue / revoke, from
+      // the one predicate the issue and revoke doors enforce. Those doors act
+      // on the ACTIVE workspace, so a list read for another workspace offers
+      // neither (`viewerActions.sameWorkspace: false` says why).
+      const actions = await viewerExternalReviewActions(req, q.teamId);
       return reply.code(200).send({
-        grants: grants.map((g) => ({ ...g, viewerCanRenew: renewable.has(g.id) })),
+        grants: grants.map((g) => ({
+          ...g,
+          viewerCanRenew: renewable.has(g.id),
+          viewerCanRevoke: actions.canManage && externalReviewGrantRevocableNow(g),
+        })),
+        viewerCanIssue: actions.canIssue,
+        viewerActions: { workspaceId: actions.actionsWorkspaceId, sameWorkspace: actions.sameWorkspace },
       });
     },
   );
@@ -346,6 +392,8 @@ export async function externalReviewRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
+      // TEAM-SPEC §2.11 — the one issue/revoke predicate (see issue above).
+      if (await refuseUnlessExternalReviewManager(req, reply, actor.teamId)) return;
       const result = await transitionExternalReviewGrant({
         grantId: id,
         teamId: body.teamId,

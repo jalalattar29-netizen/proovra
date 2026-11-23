@@ -23,8 +23,10 @@
  *   POST  /v1/reviewer/qc/samples/:id/verdict          — render QC verdict
  *
  * Hard rules:
- *   * Every route is workspace-anchored. Personal-space callers receive
- *     a bounded 403 with `denial: "WORKSPACE_NOT_FOUND"`.
+ *   * Every route is workspace-anchored and needs the active workspace's
+ *     REVIEW_TASKS_AND_QUEUES capability (TEAM-SPEC R1/R2: any workspace
+ *     kind whose effective plan is Team or above); otherwise a typed 403
+ *     ENTITLEMENT_REQUIRED.
  *   * Bounded denial reasons via shared REVIEWER_DENIAL_REASONS.
  *   * Capability-gated: each handler validates the caller's
  *     reviewer-role capability before mutating.
@@ -177,8 +179,17 @@ async function resolveTeam(
       });
     return null;
   }
-  if (resolved.context.workspaceKind === "PERSONAL") {
-    reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
+  // TEAM-SPEC R1/R2 (2026-11-23) — the surface used to refuse every PERSONAL
+  // workspace here (`denial: "WORKSPACE_NOT_FOUND"`), whatever its plan, while
+  // reads carried no plan check at all. Team is bought FOR the Personal
+  // Workspace, so the stored kind is not the question: the active workspace's
+  // EFFECTIVE plan is. Every read and write now needs REVIEW_TASKS_AND_QUEUES
+  // (TEAM and above, contract exclusions honoured by the one ladder), asked
+  // AFTER membership is proven so a non-member still learns nothing about the
+  // plan. Free and Pro personal workspaces gain nothing; the kind is never
+  // relabelled. Write-specific capabilities (BULK_REVIEW_OPERATIONS,
+  // REVIEW_ASSIGNMENTS) are still asked by the handlers.
+  if (await refuseWithoutReviewCapability(reply, resolved.context.workspaceId, "REVIEW_TASKS_AND_QUEUES")) {
     return null;
   }
 
@@ -277,9 +288,10 @@ function denyNoPermission(reply: FastifyReply): FastifyReply {
  * (`workspaceIncludesReviewCapability`): bulk acts need
  * BULK_REVIEW_OPERATIONS, assigning another reviewer REVIEW_ASSIGNMENTS, and
  * coding / QC / disagreement writes REVIEW_TASKS_AND_QUEUES (the capability
- * `POST /v1/coding/schemas` already asks). Only writes are gated: what a
- * workspace already holds stays readable after a downgrade. The refusal is
- * the one that route already sends.
+ * `POST /v1/coding/schemas` already asks). Since TEAM-SPEC R2 (2026-11-23)
+ * resolveTeam also asks REVIEW_TASKS_AND_QUEUES for every READ, so after a
+ * downgrade the data is kept (never deleted) but served again only once the
+ * workspace is Team-entitled. The refusal is the one that route already sends.
  */
 async function refuseWithoutReviewCapability(
   reply: FastifyReply,
@@ -379,6 +391,38 @@ async function auditBulkCodingWrites(input: {
       denial: o.ok ? null : (o.denial ?? "POLICY_REJECTED"),
       metadata: { ...input.metadata, bulk: true },
     });
+  }
+}
+
+/**
+ * TEAM-SPEC §2.10 (2026-11-23) — one tenant-audit row per workflow a bulk
+ * assignment named, success or refusal, the way bulk decide records
+ * `reviewer.code.bulk_decide`. The assignment authority already leaves the
+ * review's own history; this row records that the move came through a bulk
+ * act, by whom, to whom. Identifiers and bounded codes only. Awaited so the
+ * rows exist when the response is sent; a failed write cannot turn the
+ * assignments into a 500.
+ */
+async function auditBulkAssign(input: {
+  actorUserId: string;
+  teamId: string;
+  assigneeUserId: string;
+  outcomes: ReadonlyArray<{ workflowId: string; ok: boolean; denial?: string; code?: string }>;
+}): Promise<void> {
+  for (const o of input.outcomes) {
+    const denial = o.ok ? null : (o.denial ?? "POLICY_REJECTED");
+    await emitTenantAudit({
+      action: "reviewer.bulk_assign",
+      outcome: o.ok ? "success" : "denied",
+      denialReason: denial,
+      reasonCode: o.ok ? null : (o.code ?? denial),
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: input.teamId,
+      resourceType: "evidence_review_workflow",
+      resourceId: o.workflowId,
+      metadata: { workflowId: o.workflowId, assigneeUserId: input.assigneeUserId, bulk: true },
+    }).catch(() => {});
   }
 }
 
@@ -1025,6 +1069,12 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         workflowIds: body.workflowIds,
       });
       if (!res.ok) return denyWith(reply, 409, res.denial);
+      await auditBulkAssign({
+        actorUserId: ctx.userId,
+        teamId: ctx.teamId,
+        assigneeUserId: body.assigneeUserId,
+        outcomes: res.outcomes,
+      });
       return reply.code(200).send(res);
     },
   );

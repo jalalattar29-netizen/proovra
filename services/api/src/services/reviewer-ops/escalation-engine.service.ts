@@ -819,7 +819,12 @@ async function auditEscalationMove(
 
 export type ListEscalationsInput = {
   teamId: string;
-  status?: ReviewEscalationStatus | "ALL";
+  /**
+   * One stored status, "ALL", or "ACTIVE" = OPEN ∪ ACKNOWLEDGED ∪ REASSIGNED —
+   * the set every "open escalation" count in the product already means
+   * (TEAM-SPEC §2.7).
+   */
+  status?: ReviewEscalationStatus | "ALL" | "ACTIVE";
   severity?: "INFO" | "WARNING" | "HIGH" | "CRITICAL";
   reason?: ReviewEscalationReason;
   assignedToUserId?: string;
@@ -834,22 +839,39 @@ export async function listEscalations(
 ): Promise<ReadonlyArray<EscalationProjection>> {
   const limit = Math.min(Math.max(input.limit ?? 50, 1), 200);
   const rows = await client.reviewEscalation.findMany({
-    where: {
-      teamId: input.teamId,
-      workflow: { evidence: evidenceVisibleThroughCasesWhere(input.viewerUserId) },
-      ...(input.status && input.status !== "ALL"
-        ? { status: input.status }
-        : {}),
-      ...(input.severity ? { severity: input.severity } : {}),
-      ...(input.reason ? { reason: input.reason } : {}),
-      ...(input.assignedToUserId
-        ? { assignedToUserId: input.assignedToUserId }
-        : {}),
-    },
+    where: escalationListWhere(input),
     orderBy: [{ severity: "desc" }, { createdAt: "desc" }],
     take: limit,
   });
   return rows.map(projectEscalation);
+}
+
+/** The escalations under the list filters, unbounded by the page limit. */
+export async function countEscalations(
+  input: Omit<ListEscalationsInput, "limit">,
+  client: PrismaClient = defaultPrisma,
+): Promise<number> {
+  return client.reviewEscalation.count({ where: escalationListWhere(input) });
+}
+
+const ACTIVE_ESCALATION_STATUSES = ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] as const;
+
+/** ONE filter for the list and its total, so the two can never disagree. */
+function escalationListWhere(input: Omit<ListEscalationsInput, "limit">) {
+  return {
+    teamId: input.teamId,
+    workflow: { evidence: evidenceVisibleThroughCasesWhere(input.viewerUserId) },
+    ...(input.status === "ACTIVE"
+      ? { status: { in: [...ACTIVE_ESCALATION_STATUSES] } }
+      : input.status && input.status !== "ALL"
+        ? { status: input.status }
+        : {}),
+    ...(input.severity ? { severity: input.severity } : {}),
+    ...(input.reason ? { reason: input.reason } : {}),
+    ...(input.assignedToUserId
+      ? { assignedToUserId: input.assignedToUserId }
+      : {}),
+  };
 }
 
 // Convenience: pull the current OPEN escalation for a workflow (used

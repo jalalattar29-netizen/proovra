@@ -207,21 +207,47 @@ export async function getEscalationAnalytics(
 // Reviewer performance
 // -----------------------------------------------------------------------------
 
+/**
+ * TEAM-SPEC §2.8 (2026-11-23) — a reviewer row says "no data" instead of a
+ * fabricated value. `slaComplianceRate` is null when the reviewer completed
+ * nothing in the range (it used to read 1, i.e. "100% compliant" with zero
+ * completions); `meanResolutionMs` is null when no completed review carries an
+ * assignment time; `capacityScore` is null when no workload snapshot exists for
+ * the reviewer (it used to read 100, "fully available", for someone the
+ * snapshot job never measured). Widened locally over the shared row type
+ * (packages/shared is not edited in this change); the wire stays a superset.
+ */
+export type ReviewerPerformanceRowWire = Omit<ReviewerPerformanceRow, "slaComplianceRate" | "capacityScore"> & {
+  slaComplianceRate: number | null;
+  capacityScore: number | null;
+};
+export type ReviewerPerformanceProjectionWire = Omit<ReviewerPerformanceProjection, "rows"> & {
+  rows: ReadonlyArray<ReviewerPerformanceRowWire>;
+};
+
+const COMPLETED_REVIEW_STATUSES = ["APPROVED_INTERNAL", "REJECTED_INSUFFICIENT", "CLOSED"] as const;
+
 export async function getReviewerPerformance(
   input: { teamId: string; rangeDays?: number; limit?: number; viewerUserId: string },
   client: PrismaClient = defaultPrisma,
-): Promise<ReviewerPerformanceProjection> {
+): Promise<ReviewerPerformanceProjectionWire> {
   const { startUtc, endUtc } = boundRange(input.rangeDays);
   const limit = Math.min(Math.max(input.limit ?? 25, 1), 100);
 
-  // Pull every workflow row that touches the range or is still
-  // active. Cheaper than per-reviewer queries — the workspace size
-  // is bounded by the reviewer team count.
+  // TEAM-SPEC §2.8 — bounded in the DATABASE to the work the projection is
+  // about: assigned reviews still active, plus reviews completed inside the
+  // range. It used to load every assigned workflow the workspace ever had
+  // (and resolve each one's decision), so the cost grew with history rather
+  // than with the window asked for.
   const rows = await client.evidenceReviewWorkflow.findMany({
     where: {
       teamId: input.teamId,
       assignedToUserId: { not: null },
       evidence: evidenceVisibleThroughCasesWhere(input.viewerUserId),
+      OR: [
+        { status: { notIn: [...COMPLETED_REVIEW_STATUSES] as never } },
+        { completedAtUtc: { gte: startUtc, lte: endUtc } },
+      ],
     },
     select: {
       assignedToUserId: true,
@@ -273,18 +299,24 @@ export async function getReviewerPerformance(
     return s;
   }
 
+  const completedInRange = (r: (typeof rows)[number]): boolean =>
+    r.completedAtUtc !== null && r.completedAtUtc >= startUtc && r.completedAtUtc <= endUtc;
+
   // Verdicts come from the CURRENT round's decision, not the stored status
   // (2026-10-24: an approved review that was then closed counted as neither).
+  // Only the rows that count a verdict (completed in range) are resolved, so
+  // the per-workflow second-review lookup inside the decision loader runs for
+  // the window's completions only, never for active work.
   const decisions = await loadCurrentReviewDecisions(
-    rows.map((r) => ({ id: r.id, teamId: r.teamId ?? null, evidenceId: r.evidenceId, status: String(r.status), decisionRound: r.decisionRound })),
+    rows
+      .filter(completedInRange)
+      .map((r) => ({ id: r.id, teamId: r.teamId ?? null, evidenceId: r.evidenceId, status: String(r.status), decisionRound: r.decisionRound })),
+    client,
   );
   for (const r of rows) {
     if (!r.assignedToUserId) continue;
     const s = slot(r.assignedToUserId);
-    const isCompleted =
-      r.status === "APPROVED_INTERNAL" ||
-      r.status === "REJECTED_INSUFFICIENT" ||
-      r.status === "CLOSED";
+    const isCompleted = (COMPLETED_REVIEW_STATUSES as readonly string[]).includes(String(r.status));
     if (!isCompleted) s.active += 1;
     if (r.slaStatus === "OVERDUE" || r.slaStatus === "BREACHED") {
       s.overdue += 1;
@@ -292,7 +324,7 @@ export async function getReviewerPerformance(
     if (r.status === "ESCALATED" || r.activeEscalationId) {
       s.escalated += 1;
     }
-    if (r.completedAtUtc && r.completedAtUtc >= startUtc && r.completedAtUtc <= endUtc) {
+    if (r.completedAtUtc && completedInRange(r)) {
       s.completedInRange += 1;
       s.completedTotal += 1;
       if (decisions.get(r.id) === "APPROVED") s.approvedInRange += 1;
@@ -306,17 +338,22 @@ export async function getReviewerPerformance(
     }
   }
 
-  // Capacity score per reviewer is the most-recent snapshot.
-  const recent = await client.reviewerWorkloadSnapshot.findMany({
-    where: { teamId: input.teamId },
-    orderBy: { computedAtUtc: "desc" },
-    take: 500,
-    select: {
-      reviewerUserId: true,
-      capacityScore: true,
-      computedAtUtc: true,
-    },
-  });
+  // Capacity score per reviewer is the most-recent snapshot — asked only for
+  // the reviewers in this projection, one latest row each.
+  const reviewerIds = [...agg.keys()];
+  const recent =
+    reviewerIds.length === 0
+      ? []
+      : await client.reviewerWorkloadSnapshot.findMany({
+          where: { teamId: input.teamId, reviewerUserId: { in: reviewerIds } },
+          orderBy: { computedAtUtc: "desc" },
+          distinct: ["reviewerUserId"],
+          select: {
+            reviewerUserId: true,
+            capacityScore: true,
+            computedAtUtc: true,
+          },
+        });
   const latestCapacity = new Map<string, number>();
   for (const r of recent) {
     if (!latestCapacity.has(r.reviewerUserId)) {
@@ -324,7 +361,7 @@ export async function getReviewerPerformance(
     }
   }
 
-  const projectedRows: ReviewerPerformanceRow[] = Array.from(agg.entries())
+  const projectedRows: ReviewerPerformanceRowWire[] = Array.from(agg.entries())
     .map(([reviewerUserId, s]) => {
       const meanResolutionMs =
         s.resolvedCount > 0
@@ -333,7 +370,7 @@ export async function getReviewerPerformance(
       const slaComplianceRate =
         s.completedTotal > 0
           ? s.slaCompliantCompleted / s.completedTotal
-          : 1;
+          : null;
       return {
         reviewerUserId,
         active: s.active,
@@ -344,7 +381,7 @@ export async function getReviewerPerformance(
         escalated: s.escalated,
         meanResolutionMs,
         slaComplianceRate,
-        capacityScore: latestCapacity.get(reviewerUserId) ?? 100,
+        capacityScore: latestCapacity.get(reviewerUserId) ?? null,
       };
     })
     .sort((a, b) => {

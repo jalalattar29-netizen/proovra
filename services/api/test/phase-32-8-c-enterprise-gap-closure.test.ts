@@ -86,16 +86,21 @@ describe("Phase 32.8C FINAL-3 — Reviewer Ops + Governance gating fix", () => {
     expect(REVIEWER_TSX).not.toMatch(
       /<section className="cc-section" data-reviewer-personal>/,
     );
-    expect(REVIEWER_BULK_TSX).toMatch(/data-reviewer-bulk-personal-banner/);
+    // TEAM-SPEC R1 (2026-11-23) — the banner now explains the plan + role
+    // requirement (bulk is no longer refused by workspace kind).
+    expect(REVIEWER_BULK_TSX).toMatch(/data-reviewer-bulk-unavailable-banner/);
   });
 
   it("Reviewer Ops renders every console section for both scopes", () => {
     // The console renders its sections unconditionally; scope only
     // changes what is actionable, never what is visible.
     expect(REVIEWER_TSX).toMatch(/<QueueTable/);
-    expect(REVIEWER_TSX).toMatch(/<EscalationsTable/);
-    expect(REVIEWER_TSX).toMatch(/<WorkloadTable/);
-    expect(REVIEWER_TSX).toMatch(/<SlaPanel/);
+    // TEAM-SPEC §3 (2026-11-23) — the console's Escalations / Workload / SLA
+    // tabs duplicated the Monitoring pages and were removed; the Review hub
+    // tabs lead to /reviewer-ops/sla and /reviewer-ops/escalations instead.
+    expect(REVIEWER_TSX).not.toMatch(/<EscalationsTable/);
+    expect(REVIEWER_TSX).not.toMatch(/<WorkloadTable/);
+    expect(REVIEWER_TSX).not.toMatch(/<SlaPanel/);
     expect(REVIEWER_TSX).toMatch(/<SavedViewsPanel/);
     expect(REVIEWER_TSX).toMatch(/<MultiStageReviewSummaryCard/);
     // No scope-conditional early return that swaps the whole surface.
@@ -117,8 +122,9 @@ describe("Phase 32.8C FINAL-3 — Reviewer Ops + Governance gating fix", () => {
   });
 
   it("Reviewer Ops personal banner labels the team-only action explicitly", () => {
+    // TEAM-SPEC R1 — names the real requirement (plan + role), not "a workspace".
     expect(REVIEWER_BULK_TSX).toMatch(
-      /Bulk reviewer operations require a workspace[\s\S]{0,200}open each workflow individually/,
+      /Bulk review actions are available to workspace owners and admins[\s\S]{0,200}Open each review individually/,
     );
   });
 

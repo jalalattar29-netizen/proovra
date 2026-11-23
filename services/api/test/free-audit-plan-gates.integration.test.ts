@@ -229,10 +229,15 @@ describe("free-user audit — plan gates match Pricing (live PostgreSQL)", () =>
       expect(await prisma.codingSchema.count({ where: { teamId: A().teamId } })).toBe(0);
     });
 
-    it("reads stay open after a downgrade", async () => {
+    // TEAM-SPEC R2 (2026-11-23) — intentional change: reads of this surface
+    // now need REVIEW_TASKS_AND_QUEUES too (they had no plan check). After a
+    // downgrade the data is kept, never deleted, and is served again once the
+    // workspace is Team-entitled; meanwhile reads answer the typed refusal.
+    it("reads answer the typed entitlement refusal after a downgrade (data kept)", async () => {
       for (const url of ["/v1/coding/schemas", "/v1/reviewer/disagreements", "/v1/reviewer/qc/samples"]) {
         const res = await call("GET", `${url}?teamId=${A().teamId}`, A().ownerToken);
-        expect(res.statusCode, `${url} ${res.body}`).toBe(200);
+        expect(res.statusCode, `${url} ${res.body}`).toBe(403);
+        expect(res.json().error, url).toMatchObject({ code: "ENTITLEMENT_REQUIRED", entitlement: "REVIEW_TASKS_AND_QUEUES" });
       }
     });
 

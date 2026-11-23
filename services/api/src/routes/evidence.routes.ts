@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { applyReviewDecisionAuthority } from "../services/evidence-review/review-action-authority.js";
 import { objectKeyFileNameFragment } from "../services/storage/object-key-file-name.js";
 import { releaseRefusedUploadReservation } from "../services/evidence-upload-refusal.service.js";
 import { bumpCaptureFailure, objectLockPolicyFromEnv } from "@proovra/shared-runtime";
@@ -11697,7 +11698,10 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
               })
             )?.role ?? null
           : null;
-        const reviewWorkflowActions = projectReviewWorkflowActions({
+        // TEAM-SPEC R3 — narrowed to what the decision authority accepts: a
+        // verdict is the assignee's, a conflict needs the explicit adjudication
+        // action, Close never skips a pending second review.
+        const reviewWorkflowActions = applyReviewDecisionAuthority(projectReviewWorkflowActions({
           dbStatus: workflowStatus,
           assignedToUserId: reviewerWorkflowSummary.workflow?.assignedTo?.id ?? null,
           viewerUserId: ownerUserId,
@@ -11713,6 +11717,10 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
             reviewIncluded && evidence.teamId
               ? await workspaceIncludesReviewCapability(evidence.teamId, "REVIEW_ESCALATION")
               : reviewIncluded,
+          decision: decisionState,
+        }), {
+          assignedToUserId: reviewerWorkflowSummary.workflow?.assignedTo?.id ?? null,
+          viewerUserId: ownerUserId,
           decision: decisionState,
         });
         const caseAssignmentView = {

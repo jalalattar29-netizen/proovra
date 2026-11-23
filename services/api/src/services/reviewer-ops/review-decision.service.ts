@@ -93,7 +93,12 @@ export class ReviewDecisionAuthorityError extends Error {
       | "adjudicator_role_required"
       | "decision_kind_not_allowed"
       | "rationale_required"
-      | "decision_not_from_stage",
+      | "decision_not_from_stage"
+      // TEAM-SPEC R3 (2026-11-23) — decision authority follows the assignment.
+      | "not_assignee"
+      | "second_stage_needs_reassignment"
+      | "use_adjudication"
+      | "second_review_pending",
     public readonly details?: Record<string, unknown>,
   ) {
     super(code);
@@ -168,6 +173,13 @@ export type RecordReviewDecisionInput = {
    */
   actorIsAdjudicator?: boolean;
   /**
+   * TEAM-SPEC R3 — the submission came through the EXPLICIT adjudication door
+   * (`POST /v1/reviewer-ops/workspace/:id/decisions`). Approve / Reject /
+   * Request info never adjudicate: a conflict reached through them is refused
+   * with `use_adjudication`, whoever the actor is. Fail-closed: absent = false.
+   */
+  adjudicationDoor?: boolean;
+  /**
    * Optional optimistic precondition: the raw DB `workflow.status` the
    * caller last observed. A mismatch is a stale decision → conflict,
    * ZERO mutation.
@@ -175,12 +187,36 @@ export type RecordReviewDecisionInput = {
   expectedStatus?: string | null;
 };
 
+export type ReviewDecisionNextRequirement = "second_review" | "adjudication" | null;
+
+/**
+ * TEAM-SPEC §2.3 — what a submission actually did. A FIRST decision under a
+ * second-review requirement records a stage and changes no status; callers
+ * report THIS, never "approved", unless the status reached a terminal stage.
+ */
+export type ReviewDecisionOutcome = {
+  stageRecorded: WorkflowReviewStage;
+  statusChanged: boolean;
+  reviewState: ReviewDecisionState;
+  nextRequirement: ReviewDecisionNextRequirement;
+  idempotent: boolean;
+};
+
+export function nextRequirementFor(state: ReviewDecisionState): ReviewDecisionNextRequirement {
+  if (state === "second_required") return "second_review";
+  if (state === "conflict_detected" || state === "adjudication_required") return "adjudication";
+  return null;
+}
+
 export type RecordReviewDecisionResult = {
   workflow: DbWorkflow;
   decision: DbDecision;
   state: ReviewDecisionState;
   /** True when an identical decision was already on the immutable log. */
   idempotent: boolean;
+  /** The stored status the decision was made against. */
+  previousStatus: string;
+  outcome: ReviewDecisionOutcome;
 };
 
 function stageToDbStatus(stage: ReviewStage): EvidenceReviewWorkflowStatus {
@@ -305,14 +341,23 @@ export async function recordReviewDecision(
         },
         tx,
       );
+      const replayState = deriveReviewState({
+        decisions: rows,
+        requiresSecond: requiresSecondNow.required,
+      });
       return {
         workflow: wf,
         decision: identical,
-        state: deriveReviewState({
-          decisions: rows,
-          requiresSecond: requiresSecondNow.required,
-        }),
+        state: replayState,
         idempotent: true,
+        previousStatus: String(wf.status),
+        outcome: {
+          stageRecorded: identical.stage,
+          statusChanged: false,
+          reviewState: replayState,
+          nextRequirement: nextRequirementFor(replayState),
+          idempotent: true,
+        },
       };
     }
 
@@ -364,19 +409,52 @@ export async function recordReviewDecision(
           ? "SECOND"
           : "ADJUDICATION";
 
+    // TEAM-SPEC R3 — the FIRST decision (a request for information included)
+    // belongs to the CURRENT ASSIGNEE. Holding review.assign confers no
+    // decision authority. Read on the row this transaction decides against;
+    // the projection write below is conditional on the same assignment, so a
+    // reassignment that commits meanwhile refuses this decision.
+    if (targetStage === "FIRST" && wf.assignedToUserId !== input.actorUserId) {
+      throw new ReviewDecisionAuthorityError("not_assignee", {
+        reason: "not_assignee",
+        stage: "FIRST",
+      });
+    }
+
     // Same-reviewer independence guard (server-enforced).
     if (targetStage === "SECOND") {
       const first = rows.find((d) => d.stage === "FIRST");
       if (first && first.reviewerUserId === input.actorUserId) {
         throw new ReviewDecisionAuthorityError("same_reviewer_blocked", {
+          reason: "same_reviewer_blocked",
           firstReviewerUserId: first.reviewerUserId,
+          nextRequirement: "second_review",
+        });
+      }
+      // The SECOND decision belongs to the reviewer an assignment manager
+      // reassigned the review to — never to whoever holds the permission.
+      if (wf.assignedToUserId !== input.actorUserId) {
+        throw new ReviewDecisionAuthorityError("second_stage_needs_reassignment", {
+          reason: "second_stage_needs_reassignment",
+          stage: "SECOND",
         });
       }
     }
 
+    // Approve / Reject / Request info never adjudicate (TEAM-SPEC R3): a
+    // conflict is resolved only through the explicit adjudication action.
+    if (targetStage === "ADJUDICATION" && !input.adjudicationDoor) {
+      throw new ReviewDecisionAuthorityError("use_adjudication", {
+        reason: "use_adjudication",
+        reviewState: state,
+      });
+    }
+
     // Adjudication requires caller-asserted OWNER/ADMIN authority.
     if (targetStage === "ADJUDICATION" && !input.actorIsAdjudicator) {
-      throw new ReviewDecisionAuthorityError("adjudicator_role_required");
+      throw new ReviewDecisionAuthorityError("adjudicator_role_required", {
+        reason: "adjudicator_role_required",
+      });
     }
     // WORKFLOW-018 — separation of duties at adjudication. An adjudicator
     // resolves a disagreement between the first and second reviewers, so
@@ -479,7 +557,13 @@ export async function recordReviewDecision(
     // decision refuses it; the whole transaction (decision row included) rolls
     // back, and the reviewer sees the review as it now is.
     const projected = await tx.evidenceReviewWorkflow.updateMany({
-      where: { id: wf.id, status: wf.status },
+      where: {
+        id: wf.id,
+        status: wf.status,
+        // A FIRST / SECOND decision is the assignee's: conditional on the
+        // assignment it was authorized against (TEAM-SPEC R3, atomic).
+        ...(targetStage === "ADJUDICATION" ? {} : { assignedToUserId: wf.assignedToUserId }),
+      },
       data,
     });
     if (projected.count !== 1) {
@@ -547,6 +631,14 @@ export async function recordReviewDecision(
       decision: created,
       state: projection.state,
       idempotent: false,
+      previousStatus: String(wf.status),
+      outcome: {
+        stageRecorded: targetStage,
+        statusChanged: String(updated.status) !== String(wf.status),
+        reviewState: projection.state,
+        nextRequirement: nextRequirementFor(projection.state),
+        idempotent: false,
+      },
     };
   });
 
@@ -589,6 +681,72 @@ export async function recordReviewDecision(
   }
 
   return result;
+}
+
+// -----------------------------------------------------------------------------
+// TEAM-SPEC R3 — the decision state the NEXT submission would meet.
+// -----------------------------------------------------------------------------
+
+export type CurrentRoundDecisionState = {
+  state: ReviewDecisionState;
+  round: number;
+  secondReviewRequired: boolean;
+  secondReviewReason: string | null;
+  firstReviewerUserId: string | null;
+  secondReviewerUserId: string | null;
+};
+
+/**
+ * Read-only mirror of the round rule `recordReviewDecision` applies: a round a
+ * request for information resolved, on a review that has since moved on, is
+ * finished, and the next submission opens a fresh round (FIRST required). Used
+ * by the viewer-action projection, the reassignment independence check and the
+ * Close guard, so none of them can disagree with the authority.
+ */
+export async function loadCurrentRoundDecisionState(
+  wf: { id: string; teamId: string; evidenceId: string; status: string; decisionRound: number },
+  client: PrismaClient | Prisma.TransactionClient = defaultPrisma,
+): Promise<CurrentRoundDecisionState> {
+  const rows = await client.workflowReviewDecision.findMany({
+    where: { workflowId: wf.id, teamId: wf.teamId, round: wf.decisionRound },
+    orderBy: { decidedAt: "asc" },
+    select: { stage: true, decision: true, reviewerUserId: true },
+  });
+  const live = await requiresSecondReview(
+    { workflowId: wf.id, teamId: wf.teamId, evidenceId: wf.evidenceId },
+    client,
+  );
+  if (rows.length > 0) {
+    const roundSecond = await secondReviewForRound(
+      { workflowId: wf.id, teamId: wf.teamId, evidenceId: wf.evidenceId, round: wf.decisionRound },
+      client,
+    );
+    const outcome = deriveDecisionProjection(rows, roundSecond.required);
+    const stageNow = mapDbStatusToReviewStage(wf.status);
+    if (
+      outcome.state === "resolved" &&
+      outcome.projectedStage === "NEEDS_MORE_INFO" &&
+      !DECISION_TERMINAL_STAGES.has(stageNow) &&
+      stageNow !== "NEEDS_MORE_INFO"
+    ) {
+      return {
+        state: "first_required",
+        round: wf.decisionRound + 1,
+        secondReviewRequired: live.required,
+        secondReviewReason: live.reason,
+        firstReviewerUserId: null,
+        secondReviewerUserId: null,
+      };
+    }
+  }
+  return {
+    state: deriveReviewState({ decisions: rows, requiresSecond: live.required }),
+    round: wf.decisionRound,
+    secondReviewRequired: live.required,
+    secondReviewReason: live.reason,
+    firstReviewerUserId: rows.find((r) => r.stage === "FIRST")?.reviewerUserId ?? null,
+    secondReviewerUserId: rows.find((r) => r.stage === "SECOND")?.reviewerUserId ?? null,
+  };
 }
 
 // -----------------------------------------------------------------------------

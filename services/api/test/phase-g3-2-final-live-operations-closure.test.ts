@@ -71,6 +71,9 @@ function stripComments(source: string): string {
 const REVIEWER_CONSOLE = readSource(
   "../../../apps/web/components/reviewer-experience/ReviewerConsole.tsx",
 );
+const QUEUE_ROW = readSource(
+  "../../../apps/web/components/reviewer-experience/queueRow.ts",
+);
 const MATTER_WORKSPACE = readSource(
   "../../../apps/web/components/cases-experience/MatterWorkspace.tsx",
 );
@@ -104,8 +107,11 @@ describe("Phase G3.2 — inline reviewer action UI (Reviewer Console)", () => {
     );
   });
 
-  it("Escalations rows expose Acknowledge + Open inspector", () => {
-    expect(REVIEWER_CONSOLE).toContain('data-reviewer-action="acknowledge"');
+  it("Escalations rows (Acknowledge) live on the Escalations page, not the console", () => {
+    // TEAM-SPEC §3 (2026-11-23) — the console's Escalations tab (and its
+    // inline Acknowledge) was removed; acknowledgement lives on the
+    // Escalations page (/reviewer-ops/escalations), reached from the Review hub.
+    expect(REVIEWER_CONSOLE).not.toContain('data-reviewer-action="acknowledge"');
   });
 
   it("Approve + Reject remain OFF the inline surface (inspector-only)", () => {
@@ -118,7 +124,10 @@ describe("Phase G3.2 — inline reviewer action UI (Reviewer Console)", () => {
     expect(REVIEWER_CONSOLE).toContain("/assign");
     expect(REVIEWER_CONSOLE).toContain("/request-info");
     expect(REVIEWER_CONSOLE).toContain("/v1/reviewer-ops/escalations");
-    expect(REVIEWER_CONSOLE).toContain("/acknowledge");
+    // TEAM-SPEC §3 (2026-11-23) — the console's Escalations tab (and its
+    // inline Acknowledge) was removed; acknowledgement lives on the
+    // Escalations page (/reviewer-ops/escalations), reached from the Review hub.
+    expect(REVIEWER_CONSOLE).not.toContain("/acknowledge");
   });
 
   it("inline mutations flow through useStepUpAction (step-up gate honoured)", () => {
@@ -134,13 +143,14 @@ describe("Phase G3.2 — inline reviewer action UI (Reviewer Console)", () => {
   });
 
   it("terminal rows (approved/rejected/cancelled/destroyed/tombstoned) disable inline actions", () => {
-    expect(REVIEWER_CONSOLE).toContain("TERMINAL_STATUSES");
-    expect(REVIEWER_CONSOLE).toContain("isRowActionable");
-    expect(REVIEWER_CONSOLE).toContain('"APPROVED"');
-    expect(REVIEWER_CONSOLE).toContain('"REJECTED"');
-    expect(REVIEWER_CONSOLE).toContain('"CANCELLED"');
-    expect(REVIEWER_CONSOLE).toContain('"DESTROYED"');
-    expect(REVIEWER_CONSOLE).toContain('"TOMBSTONED"');
+    // TEAM-SPEC §3 — rows are mapped by the shared queueRow (the API sends
+    // `lifecycleState`, which the old `status`-based set never saw), and the
+    // terminal guard is the shared one over the real lifecycle vocabulary.
+    expect(REVIEWER_CONSOLE).toContain("isQueueRowActionable");
+    expect(QUEUE_ROW).toContain("TERMINAL_QUEUE_STATES");
+    expect(QUEUE_ROW).toContain('"APPROVED"');
+    expect(QUEUE_ROW).toContain('"REJECTED"');
+    expect(QUEUE_ROW).toContain('"ARCHIVED"');
   });
 
   it("visible loading/error/flash states for every mutation", () => {
@@ -189,15 +199,14 @@ describe("Phase G3.2 — Reviewer Console pagination", () => {
 
   it("hits the per-tab paginated endpoints", () => {
     expect(REVIEWER_CONSOLE).toContain("/v1/reviewer-ops/queue?");
-    expect(REVIEWER_CONSOLE).toContain("/v1/reviewer-ops/escalations?");
-    expect(REVIEWER_CONSOLE).toContain("/v1/reviewer-ops/workload?");
+    // TEAM-SPEC §3 — escalations / workload tabs removed from the console.
+    expect(REVIEWER_CONSOLE).not.toContain("/v1/reviewer-ops/escalations?");
+    expect(REVIEWER_CONSOLE).not.toContain("/v1/reviewer-ops/workload?");
   });
 
   it("respects the backend's bounded per-endpoint maxima", () => {
     expect(REVIEWER_CONSOLE).toMatch(/queue:\s*100/);
     expect(REVIEWER_CONSOLE).toMatch(/mine:\s*100/);
-    expect(REVIEWER_CONSOLE).toMatch(/escalations:\s*200/);
-    expect(REVIEWER_CONSOLE).toMatch(/workload:\s*200/);
   });
 });
 

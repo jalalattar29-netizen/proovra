@@ -91,7 +91,8 @@ describe("features round 3 follow-up (live PostgreSQL)", () => {
       } as never,
     });
     const wf = await prisma.evidenceReviewWorkflow.create({
-      data: { evidenceId: ev.id, teamId: A.teamId, workspaceType: "TEAM", status: "IN_REVIEW" } as never,
+      // TEAM-SPEC R3 (2026-11-23) — the FIRST decision is the assignee's.
+      data: { evidenceId: ev.id, teamId: A.teamId, workspaceType: "TEAM", status: "IN_REVIEW", assignedToUserId: A.adminUserId } as never,
     });
     // The ADMIN makes the decision the sample checks.
     const approve = await req("POST", `/v1/reviewer-ops/reviews/${wf.id}/approve`, A.adminToken, { teamId: A.teamId, note: "decided by admin" });

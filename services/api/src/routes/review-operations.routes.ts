@@ -31,7 +31,7 @@ import {
 
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { authorizeOrFail, authorizeWorkspaceOrFail } from "../middleware/authorize.js";
+import { authorizeOrFail, authorizeWorkspaceOrFail, evaluateAuthorizedWorkspace } from "../middleware/authorize.js";
 import {
   workspaceIncludesReviewCapability,
   type ReviewCapability,
@@ -55,6 +55,7 @@ import {
 // stays on the Phase 13 lifecycle service above.
 import {
   ReviewDecisionAuthorityError,
+  loadCurrentRoundDecisionState,
   recordReviewDecision,
 } from "../services/reviewer-ops/review-decision.service.js";
 // Phase C0 — Sensitive review decision step-up enforcement.
@@ -158,8 +159,10 @@ function reviewErrorToReply(err: unknown, reply: FastifyReply): void {
           : err.code === "rationale_required"
             ? 422
             : 409;
+    // TEAM-SPEC §2.2 — every refusal carries details.reason (the 404 keeps
+    // its bare anti-enumeration shape).
     reply.code(status).send({
-      error: { code: err.code, details: err.details ?? null },
+      error: { code: err.code, details: status === 404 ? (err.details ?? null) : withReason(err.code, err.details) },
     });
     return;
   }
@@ -179,11 +182,17 @@ function reviewErrorToReply(err: unknown, reply: FastifyReply): void {
                 ? 409
                 : 400;
     reply.code(status).send({
-      error: { code: err.code, details: err.details ?? null },
+      error: { code: err.code, details: status === 404 ? (err.details ?? null) : withReason(err.code, err.details) },
     });
     return;
   }
   reply.code(500).send({ error: { code: "internal_error" } });
+}
+
+function withReason(code: string, details: Record<string, unknown> | undefined): Record<string, unknown> {
+  const prior = details ?? {};
+  const sub = typeof prior.reason === "string" && prior.reason !== code ? { detail: prior.reason } : {};
+  return { ...prior, ...sub, reason: code };
 }
 
 export async function reviewOperationsRoutes(app: FastifyInstance) {
@@ -365,12 +374,17 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
           // status projection atomically. Adjudicator authority is an
           // informational role read (authorization already enforced by
           // requireReviewerMember above).
-          const membership = await prisma.teamMember.findUnique({
-            where: {
-              teamId_userId: { teamId: teamId, userId: ok.userId },
-            },
-            select: { role: true },
+          //
+          // TEAM-SPEC §2.10 — the adjudicator role is the PROVEN role of the
+          // ACTIVE member (the canonical authorization context), never a
+          // status-blind TeamMember read. This door never adjudicates (no
+          // adjudicationDoor): a conflict here is refused with use_adjudication.
+          const proven = await evaluateAuthorizedWorkspace(req, {
+            workspaceId: teamId,
+            permission: "evidence_request.review",
+            antiEnumeration: true,
           });
+          const provenRole = proven.allowed ? proven.context.workspaceRole : null;
           const result = await recordReviewDecision({
             workflowId: workflow.id,
             teamId: teamId,
@@ -382,11 +396,32 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
                   ? "REJECT"
                   : "REQUEST_INFO",
             rationale: body.note ?? body.escalationReason ?? null,
-            actorIsAdjudicator:
-              membership?.role === "OWNER" || membership?.role === "ADMIN",
+            actorIsAdjudicator: provenRole === "OWNER" || provenRole === "ADMIN",
           });
           updated = result.workflow;
         } else {
+          // TEAM-SPEC §2.2 — Close never skips a pending second review or an
+          // unresolved disagreement: the required number of reviews is never
+          // reduced.
+          if (body.decision === "CLOSE") {
+            const current = await prisma.evidenceReviewWorkflow.findUniqueOrThrow({
+              where: { id: workflow.id },
+              select: { id: true, evidenceId: true, status: true, decisionRound: true },
+            });
+            const round = await loadCurrentRoundDecisionState({
+              id: current.id,
+              teamId,
+              evidenceId: current.evidenceId,
+              status: String(current.status),
+              decisionRound: current.decisionRound,
+            });
+            if (round.state === "second_required" || round.state === "conflict_detected") {
+              throw new ReviewDecisionAuthorityError("second_review_pending", {
+                reason: "second_review_pending",
+                reviewState: round.state,
+              });
+            }
+          }
           // ESCALATE / REOPEN / CLOSE — lifecycle routing, not a
           // verdict; handled by the Phase 13 lifecycle service.
           updated = await recordLifecycleTransition({

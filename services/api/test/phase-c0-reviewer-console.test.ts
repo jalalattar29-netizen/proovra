@@ -137,12 +137,15 @@ describe("Phase C0 — sensitive review decision step-up enforcement", () => {
 });
 
 describe("Phase C0 — reviewer console UI (source contract)", () => {
-  it("React component declares five tabs (Queue / Mine / Escalations / SLA / Workload)", () => {
+  // TEAM-SPEC §3 (2026-11-23) — five tabs became two. Escalations, SLA and
+  // Workload duplicated the Monitoring pages (/reviewer-ops/escalations,
+  // /reviewer-ops/sla), which the Review hub tabs lead to.
+  it("React component declares the two review slices (Queue / Mine); Monitoring tabs removed", () => {
     expect(CONSOLE_UI).toMatch(/TABS:[\s\S]*?\{\s*id:\s*"queue"/);
     expect(CONSOLE_UI).toMatch(/id:\s*"mine"/);
-    expect(CONSOLE_UI).toMatch(/id:\s*"escalations"/);
-    expect(CONSOLE_UI).toMatch(/id:\s*"sla"/);
-    expect(CONSOLE_UI).toMatch(/id:\s*"workload"/);
+    expect(CONSOLE_UI).not.toMatch(/id:\s*"escalations"/);
+    expect(CONSOLE_UI).not.toMatch(/id:\s*"sla"/);
+    expect(CONSOLE_UI).not.toMatch(/id:\s*"workload"/);
   });
 
   it("no operational-density mode system remains in the reviewer console", () => {
@@ -155,21 +158,25 @@ describe("Phase C0 — reviewer console UI (source contract)", () => {
     expect(CONSOLE_UI).not.toMatch(/data-density=/);
   });
 
-  it("keyboard navigation handles j / k / Enter / / / Cmd+K", () => {
+  it("keyboard navigation handles j / k / Enter / /, and leaves chords to the app", () => {
     // Each key has an explicit branch in `handleKeyDown`.
     expect(CONSOLE_UI).toMatch(/e\.key\s*===\s*"j"/);
     expect(CONSOLE_UI).toMatch(/e\.key\s*===\s*"k"/);
     expect(CONSOLE_UI).toMatch(/e\.key\s*===\s*"Enter"/);
     expect(CONSOLE_UI).toMatch(/e\.key\s*===\s*"\/"/);
-    expect(CONSOLE_UI).toMatch(
-      /\(e\.metaKey \|\| e\.ctrlKey\)[\s\S]*?e\.key\.toLowerCase\(\)\s*===\s*"k"/,
-    );
+    // TEAM-SPEC §3 (D12) — Ctrl/Cmd+K is the app-wide "Jump to a page"
+    // palette only; the console returns early on any chord.
+    expect(CONSOLE_UI).toMatch(/if \(e\.metaKey \|\| e\.ctrlKey \|\| e\.altKey\) return;/);
   });
 
-  it("command palette opens on Cmd/Ctrl + K and closes on Escape", () => {
-    expect(CONSOLE_UI).toContain("setPaletteOpen(true)");
-    expect(CONSOLE_UI).toContain("setPaletteOpen(false)");
-    expect(CONSOLE_UI).toContain("CommandPalette");
+  // TEAM-SPEC §3 (2026-11-23) — INVERTED. The reviewer command palette bound
+  // Ctrl/Cmd+K on window alongside the global palette and both opened at once.
+  it("the reviewer command palette is removed (trigger, overlay, handler, CSS)", () => {
+    expect(CONSOLE_UI).not.toContain("setPaletteOpen");
+    expect(CONSOLE_UI).not.toContain("paletteOpen");
+    expect(CONSOLE_UI).not.toMatch(/function CommandPalette\(/);
+    expect(CONSOLE_UI).not.toContain("reviewer-console__palette");
+    expect(CONSOLE_UI).not.toContain("data-reviewer-command-palette-open");
   });
 
   it("opens the focused row via the existing inspector", () => {
@@ -186,7 +193,9 @@ describe("Phase C0 — reviewer console UI (source contract)", () => {
     expect(CONSOLE_UI).toContain("/assign");
     expect(CONSOLE_UI).toContain("/request-info");
     expect(CONSOLE_UI).toContain("/v1/reviewer-ops/escalations");
-    expect(CONSOLE_UI).toContain("/acknowledge");
+    // TEAM-SPEC §3 — acknowledging an escalation lives on the Escalations
+    // page with the escalation tab gone from the console.
+    expect(CONSOLE_UI).not.toContain("/acknowledge");
     expect(CONSOLE_UI).toContain("/v1/reviewer-ops/saved-views");
 
     // Approve / Reject MUST NOT live inline — they remain in the
@@ -209,9 +218,10 @@ describe("Phase C0 — reviewer console UI (source contract)", () => {
   });
 
   it("Phase G3.2 — terminal rows do not expose inline mutation buttons", () => {
-    // The TERMINAL_STATUSES set + isRowActionable() guard the rows.
-    expect(CONSOLE_UI).toContain("TERMINAL_STATUSES");
-    expect(CONSOLE_UI).toContain("isRowActionable");
+    // TEAM-SPEC §3 — the shared queueRow guard (TERMINAL_QUEUE_STATES over the
+    // real lifecycleState) replaces the console's own set, which compared the
+    // `status` field the API never sent.
+    expect(CONSOLE_UI).toContain("isQueueRowActionable");
   });
 
   it("Phase G3.2 — visible loading / error / flash states for every mutation", () => {
@@ -227,16 +237,15 @@ describe("Phase C0 — reviewer console UI (source contract)", () => {
     expect(CONSOLE_UI).toContain("data-reviewer-pagination-view-all");
     // Pagination must call the per-tab endpoints, not invent a new one.
     expect(CONSOLE_UI).toContain("/v1/reviewer-ops/queue?");
-    expect(CONSOLE_UI).toContain("/v1/reviewer-ops/escalations?");
-    expect(CONSOLE_UI).toContain("/v1/reviewer-ops/workload?");
+    // TEAM-SPEC §3 — only the queue slices remain on the console.
+    expect(CONSOLE_UI).not.toContain("/v1/reviewer-ops/escalations?");
+    expect(CONSOLE_UI).not.toContain("/v1/reviewer-ops/workload?");
   });
 
   it("Phase G3.2 — pagination caps respect the backend's bounded maxima", () => {
     // Queue endpoint allows ≤100; workload + escalations allow ≤200.
     expect(CONSOLE_UI).toMatch(/queue:\s*100/);
     expect(CONSOLE_UI).toMatch(/mine:\s*100/);
-    expect(CONSOLE_UI).toMatch(/escalations:\s*200/);
-    expect(CONSOLE_UI).toMatch(/workload:\s*200/);
   });
 
   it("consumes the /v1/reviewer-ops/console aggregator", () => {

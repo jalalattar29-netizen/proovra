@@ -364,6 +364,8 @@ describe("features round 3 closures (live PostgreSQL)", () => {
   it("PRO-091: a rendered QC verdict cannot be rendered again", async () => {
     const ev = await mkEvidence(A, orgs.A, `R3QC-${tag}`);
     const wf = await mkWorkflow(A.teamId, ev.id);
+    // TEAM-SPEC R3 (2026-11-23) — the FIRST decision is the assignee's.
+    await prisma.evidenceReviewWorkflow.update({ where: { id: wf.id }, data: { assignedToUserId: A.adminUserId } });
     const approve = await req("POST", `/v1/reviewer-ops/reviews/${wf.id}/approve`, A.adminToken, { teamId: A.teamId, note: "r3 approve" });
     expect(approve.statusCode, approve.body).toBe(200);
     await h.handlersSettled();

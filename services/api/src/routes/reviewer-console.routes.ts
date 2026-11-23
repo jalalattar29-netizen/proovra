@@ -56,7 +56,7 @@ import {
   buildDashboard,
   listReviewerOpsQueue,
 } from "../services/reviewer-ops/reviewer-operations-engine.service.js";
-import { listEscalations } from "../services/reviewer-ops/escalation-engine.service.js";
+import { countEscalations, listEscalations } from "../services/reviewer-ops/escalation-engine.service.js";
 import { listLatestWorkloadSnapshots } from "../services/reviewer-ops/workload.service.js";
 import { listReviewerOpsSavedViews } from "../services/reviewer-ops/saved-queue-views.service.js";
 
@@ -232,20 +232,12 @@ export async function reviewerConsoleRoutes(
         ),
         safeSection(
           () =>
-            // `ListEscalationsInput` accepts a single `status`
-            // value or the literal "ALL". We pick `OPEN` here so
-            // the top-of-tab matches the dashboard's primary
-            // escalation count.
-            listEscalations(
-              {
-                teamId,
-                status: "OPEN",
-                limit: SECTION_LIMIT,
-                viewerUserId: ctx.userId,
-              },
-              client,
-            ),
-          [],
+            // ACTIVE = OPEN ∪ ACKNOWLEDGED ∪ REASSIGNED — the same set the
+            // dashboard's open-escalation count reads (TEAM-SPEC §2.7); an
+            // acknowledged escalation is still open work. `total` is the
+            // count under the same filter, unbounded by the section limit.
+            activeEscalationsWithTotal(teamId, ctx.userId, client),
+          { rows: [] as Awaited<ReturnType<typeof listEscalations>>, total: 0 },
           req,
           "escalations",
         ),
@@ -351,9 +343,9 @@ export async function reviewerConsoleRoutes(
         },
         // Tab 3 — Escalations (open, ack, reassigned).
         escalations: {
-          rows: escalationSection.value,
+          rows: escalationSection.value.rows,
           status: escalationSection.status,
-          count: escalationSection.value.length,
+          count: escalationSection.value.total,
         },
         // Tab 4 — SLA rollup.
         sla: {
@@ -391,4 +383,21 @@ export async function reviewerConsoleRoutes(
       });
     },
   );
+}
+
+/**
+ * TEAM-SPEC §2.7 — the console's Escalations section: ACTIVE escalations
+ * (OPEN ∪ ACKNOWLEDGED ∪ REASSIGNED) up to the section limit, and `total`, the
+ * count under the same filter.
+ */
+async function activeEscalationsWithTotal(
+  teamId: string,
+  viewerUserId: string,
+  client: Parameters<typeof listEscalations>[1],
+): Promise<{ rows: Awaited<ReturnType<typeof listEscalations>>; total: number }> {
+  const [rows, total] = await Promise.all([
+    listEscalations({ teamId, status: "ACTIVE", limit: SECTION_LIMIT, viewerUserId }, client),
+    countEscalations({ teamId, status: "ACTIVE", viewerUserId }, client),
+  ]);
+  return { rows, total };
 }

@@ -227,7 +227,9 @@ describe("Phase G4.6 — Reviewer flows unchanged", () => {
   it("Reviewer Console still wires the G3.2 inline actions", () => {
     expect(REVIEWER_CONSOLE).toContain('data-reviewer-action="assign"');
     expect(REVIEWER_CONSOLE).toContain('data-reviewer-action="escalate"');
-    expect(REVIEWER_CONSOLE).toContain('data-reviewer-action="acknowledge"');
+    // TEAM-SPEC §3 (2026-11-23) — acknowledge moved with the Escalations tab
+    // to /reviewer-ops/escalations; request-info stays inline.
+    expect(REVIEWER_CONSOLE).toContain('data-reviewer-action="request-info"');
   });
 
   it("Reviewer Console still routes mutations through useStepUpAction", () => {
@@ -236,8 +238,8 @@ describe("Phase G4.6 — Reviewer flows unchanged", () => {
   });
 
   it("Reviewer Console still respects terminal-row guard", () => {
-    expect(REVIEWER_CONSOLE).toContain("TERMINAL_STATUSES");
-    expect(REVIEWER_CONSOLE).toContain("isRowActionable");
+    // TEAM-SPEC §3 — the shared queueRow terminal guard (real lifecycleState).
+    expect(REVIEWER_CONSOLE).toContain("isQueueRowActionable");
   });
 });
 

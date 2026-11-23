@@ -107,6 +107,11 @@ import {
   findLivePersonalBaseSubscription,
   type LiveBaseSubscriptionRow,
 } from "./base-subscription.service.js";
+import {
+  loweringEndsReviewerOperations,
+  reviewerOperationsEndingOnLowering,
+  type ReviewerOperationsEnding,
+} from "./reviewer-operations-ending.service.js";
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -443,6 +448,13 @@ export type PlanOffer = {
    * confirmation. Never assembled in the client.
    */
   effectSummary: string;
+  /**
+   * TEAM-SPEC §0 / R1 (2026-11-23) — DOWNGRADE offers from TEAM only: the
+   * Personal Workspace's open reviews and active escalations whose reviewer
+   * operations this move ends, so the confirmation can warn BEFORE the
+   * customer commits. Read-only counts; never blocks; nothing scheduled.
+   */
+  endsReviewerOperations?: ReviewerOperationsEnding;
 };
 
 /** Per provider: can a checkout for this offer be started now (configuration only). */
@@ -1173,6 +1185,24 @@ function planOffersFor(params: {
             : `Lower limits than you have now. Nothing you have recorded is deleted.`,
     };
   });
+}
+
+/**
+ * TEAM-SPEC §0 / R1 — attach the reviewer-operations warning to each DOWNGRADE
+ * offer that ends them (TEAM → PRO; FREE is reached by cancelling, which
+ * carries the same field on its own response).
+ */
+function withReviewerOperationsEnding(
+  currentPlan: prismaPkg.PlanType,
+  ending: ReviewerOperationsEnding | null,
+  offers: PlanOffer[],
+): PlanOffer[] {
+  if (!ending) return offers;
+  return offers.map((offer) =>
+    offer.action === "DOWNGRADE" && loweringEndsReviewerOperations(currentPlan, offer.planKey)
+      ? { ...offer, endsReviewerOperations: ending }
+      : offer,
+  );
 }
 
 /**
@@ -2083,6 +2113,17 @@ export async function buildBillingAccountProjection(input: {
     bannerMessages.push(dependentCancellationBannerMessage(dependentCancellation));
   }
 
+  // TEAM-SPEC §0 / R1 — counted once, only for a manager of a TEAM account
+  // (the only case a DOWNGRADE offer can end reviewer operations).
+  const reviewerOperationsEnding =
+    canManage && scope.planSource !== "INTERNAL_GRANT" && loweringEndsReviewerOperations(scope.plan, prismaPkg.PlanType.PRO)
+      ? await reviewerOperationsEndingOnLowering({
+          userId: scope.ownerUserId ?? account.id,
+          fromPlan: scope.plan,
+          toPlan: prismaPkg.PlanType.PRO,
+        })
+      : null;
+
   return {
     account,
     plan,
@@ -2151,7 +2192,7 @@ export async function buildBillingAccountProjection(input: {
           // INTERNAL PLAN GRANT — no self-service offer while a grant governs:
           // checkout of any tier at or below it is refused (INTERNAL_GRANT_ACTIVE),
           // and Enterprise is a contact flow, not an offer.
-          planOffers: scope.planSource === "INTERNAL_GRANT" ? [] : planOffersFor({
+          planOffers: scope.planSource === "INTERNAL_GRANT" ? [] : withReviewerOperationsEnding(scope.plan, reviewerOperationsEnding, planOffersFor({
             // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — a
             // self-service account is always PERSONAL. The ternary that stood
             // here picked a WORKSPACE subject and, with it, a different plan
@@ -2172,7 +2213,7 @@ export async function buildBillingAccountProjection(input: {
                 | "PRO"
                 | "TEAM"
                 | undefined) ?? null,
-          }),
+          })),
         }
       : {}),
     // Not eligible, but a self-service tier would make it so — say so.

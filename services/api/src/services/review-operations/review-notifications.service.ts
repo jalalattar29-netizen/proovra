@@ -37,21 +37,43 @@ import type {
 } from "@prisma/client";
 import {
   absoluteInternalUrl,
+  internalNavPath,
   internalResourcePath,
   type NotificationEventType,
 } from "@proovra/shared";
+
+/**
+ * The workflow fields a review email needs. `id` is optional only for older
+ * callers; every in-tree caller passes the row, which carries it.
+ */
+type NotifiedWorkflow = Pick<DbWorkflow, "evidenceId" | "teamId" | "assignedToUserId"> & { id?: string };
+
+/**
+ * TEAM-SPEC §3 (2026-11-23) — where a review email sends the reviewer: the
+ * review inspector `/reviewer-ops/<workflowId>`, where the assignment,
+ * deadline and decision actions live. It used to open `/evidence/<id>`, the
+ * record page, which carries none of them. The ReviewAssigned template has a
+ * single link, so the evidence page stays reachable from the inspector
+ * ("Open evidence detail"); a workflow without an id falls back to it.
+ */
+export function reviewEmailLink(workflow: { id?: string | null; evidenceId: string }): string {
+  const path = workflow.id
+    ? internalNavPath(`/reviewer-ops/${encodeURIComponent(workflow.id)}`)
+    : internalResourcePath({ type: "evidence", id: workflow.evidenceId });
+  return absoluteInternalUrl(getEmailWebBaseUrl(), path);
+}
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { safeSendEmailNotification, type NotificationSendResult } from "../notifications/index.js";
 import { getEmailWebBaseUrl } from "../notifications/templates.js";
 
 async function resolveAssigneeAndWorkspace(
-  workflow: Pick<DbWorkflow, "evidenceId" | "teamId" | "assignedToUserId">,
+  workflow: NotifiedWorkflow,
   client: PrismaClient,
 ): Promise<{
   reviewer: { id: string; email: string; displayName: string | null } | null;
   workspaceName: string;
-  evidenceUrl: string;
+  reviewUrl: string;
 }> {
   let reviewer: {
     id: string;
@@ -89,13 +111,10 @@ async function resolveAssigneeAndWorkspace(
     }
   }
 
-  // PHASE 11 — canonical evidence resource link (resource-id family).
-  const evidenceUrl = absoluteInternalUrl(
-    getEmailWebBaseUrl(),
-    internalResourcePath({ type: "evidence", id: workflow.evidenceId }),
-  );
+  // TEAM-SPEC §3 — the review inspector, not the record page (reviewEmailLink).
+  const reviewUrl = reviewEmailLink(workflow);
 
-  return { reviewer, workspaceName, evidenceUrl };
+  return { reviewer, workspaceName, reviewUrl };
 }
 
 type DispatchKind =
@@ -109,12 +128,12 @@ type DispatchKind =
   | { eventType: Extract<NotificationEventType, "REVIEW_INACTIVITY_REMINDER"> };
 
 async function dispatchToAssignee(
-  workflow: Pick<DbWorkflow, "evidenceId" | "teamId" | "assignedToUserId">,
+  workflow: NotifiedWorkflow,
   kind: DispatchKind,
   initiatedByUserId: string | null,
   client: PrismaClient,
 ): Promise<NotificationSendResult | null> {
-  const { reviewer, workspaceName, evidenceUrl } =
+  const { reviewer, workspaceName, reviewUrl } =
     await resolveAssigneeAndWorkspace(workflow, client);
 
   // No assignee → nothing to do. Caller may still want to log an
@@ -140,7 +159,7 @@ async function dispatchToAssignee(
           workspaceName,
           requestTitle: `Evidence ${workflow.evidenceId.slice(0, 8)}…`,
           reviewerName: reviewer.displayName ?? null,
-          requestUrl: evidenceUrl,
+          requestUrl: reviewUrl,
         },
       },
     },
@@ -225,7 +244,7 @@ export async function notifyReviewResponseReceived(
 /** The reminder engine's send. Reports the outcome, so the row can record it. */
 export async function sendReviewReminder(
   input: {
-    workflow: Pick<DbWorkflow, "evidenceId" | "teamId" | "assignedToUserId">;
+    workflow: NotifiedWorkflow;
     kind: "DUE_SOON" | "REVIEWER_INACTIVE";
   },
   client: PrismaClient = defaultPrisma,

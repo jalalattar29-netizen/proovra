@@ -393,7 +393,12 @@ describe("Review / Custody / Artifact boundary (Postgres + Redis + MinIO, real w
     const wf2 = await prisma.evidenceReviewWorkflow.findUniqueOrThrow({ where: { evidenceId } });
     expect((await call("PATCH", `/v1/evidence/${evidenceId}/reviewer-workflow`, A().memberToken, { status: "IN_REVIEW", expectedUpdatedAt: wf2.updatedAt.toISOString() })).statusCode).toBe(200);
     expect((await decide("ESCALATE", SENTINEL_NOTE)).statusCode).toBe(200);
+    // TEAM-SPEC R3 (2026-11-23) — each decision is the current assignee's: the
+    // review is handed to the admin (FIRST of round 1), then back to the member
+    // (the independent SECOND).
+    await prisma.evidenceReviewWorkflow.update({ where: { evidenceId }, data: { assignedToUserId: A().adminUserId } });
     expect((await call("POST", `/v1/review-operations/evidence/${evidenceId}/decision`, A().adminToken, { decision: "APPROVE_INTERNAL", note: null })).statusCode).toBe(200);
+    await prisma.evidenceReviewWorkflow.update({ where: { evidenceId }, data: { assignedToUserId: A().memberUserId } });
     expect((await call("POST", `/v1/review-operations/evidence/${evidenceId}/decision`, A().memberToken, { decision: "APPROVE_INTERNAL", note: null })).statusCode).toBe(200);
     expect((await call("POST", `/v1/review-operations/evidence/${evidenceId}/decision`, A().adminToken, { decision: "CLOSE", note: "closing" })).statusCode).toBe(200);
     expect((await call("POST", `/v1/review-operations/evidence/${evidenceId}/decision`, A().adminToken, { decision: "REOPEN", note: "again" })).statusCode).toBe(200);

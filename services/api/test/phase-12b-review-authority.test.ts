@@ -106,6 +106,9 @@ function makeDb(seed: {
           evidenceId: EVIDENCE_ID,
           teamId: TEAM_ID,
           status: "IN_REVIEW",
+          // TEAM-SPEC R3 (2026-11-23) — a FIRST / SECOND decision belongs to the
+          // current assignee; the default reviewer here is ACTOR_A.
+          assignedToUserId: ACTOR_A as string | null,
           escalationLevel: 0,
           reopenCount: 0,
           completedAtUtc: null as Date | null,
@@ -158,11 +161,12 @@ function makeDb(seed: {
       // The authority's projection write is CONDITIONAL on the state it read
       // (2026-10-24): it applies only while the stored status still matches.
       updateMany: async (args: {
-        where: { id: string; status?: string };
+        where: { id: string; status?: string; assignedToUserId?: string | null };
         data: Record<string, unknown>;
       }) => {
         if (!state.workflow || state.workflow.id !== args.where.id) return { count: 0 };
         if (args.where.status !== undefined && state.workflow.status !== args.where.status) return { count: 0 };
+        if ("assignedToUserId" in args.where && state.workflow.assignedToUserId !== args.where.assignedToUserId) return { count: 0 };
         state.workflowUpdates.push(args.data);
         Object.assign(state.workflow, args.data);
         return { count: 1 };
@@ -450,6 +454,8 @@ describe("canonical recordReviewDecision — second-review flow", () => {
   it("a disagreeing SECOND verdict projects ESCALATED (conflict)", async () => {
     const { prisma, state } = makeDb({
       legalHolds: 1,
+      // TEAM-SPEC R3 — the SECOND reviewer is the one it was reassigned to.
+      workflow: { assignedToUserId: ACTOR_B },
       decisions: [
         { stage: "FIRST", decision: "APPROVE", reviewerUserId: ACTOR_A },
       ],
@@ -486,6 +492,7 @@ describe("canonical recordReviewDecision — second-review flow", () => {
           decision: "UPHOLD_FIRST",
           rationale: "First review stands.",
           actorIsAdjudicator: false,
+          adjudicationDoor: true,
         },
         denied.prisma,
       ),
@@ -502,6 +509,7 @@ describe("canonical recordReviewDecision — second-review flow", () => {
         decision: "UPHOLD_FIRST",
         rationale: "First review stands.",
         actorIsAdjudicator: true,
+        adjudicationDoor: true,
       },
       allowed.prisma,
     );
@@ -531,6 +539,7 @@ describe("canonical recordReviewDecision — second-review flow", () => {
             decision: actor === ACTOR_A ? "UPHOLD_FIRST" : "UPHOLD_SECOND",
             rationale: "My own review stands.",
             actorIsAdjudicator: true,
+            adjudicationDoor: true,
           },
           db.prisma,
         ),
@@ -549,6 +558,7 @@ describe("canonical recordReviewDecision — second-review flow", () => {
         decision: "UPHOLD_SECOND",
         rationale: "Second review stands.",
         actorIsAdjudicator: true,
+        adjudicationDoor: true,
       },
       third.prisma,
     );
@@ -570,6 +580,69 @@ describe("canonical recordReviewDecision — second-review flow", () => {
       ),
     ).rejects.toMatchObject({ code: "decision_kind_not_allowed" });
     expect(state.decisions).toHaveLength(0);
+  });
+});
+
+describe("canonical recordReviewDecision — TEAM-SPEC R3 decision authority", () => {
+  it("a FIRST decision by anyone but the assignee is refused (not_assignee), zero mutation", async () => {
+    for (const assignedToUserId of [ACTOR_B, null]) {
+      const { prisma, state } = makeDb({ workflow: { assignedToUserId } });
+      await expect(
+        recordReviewDecision(
+          { workflowId: WORKFLOW_ID, teamId: TEAM_ID, actorUserId: ACTOR_A, decision: "REQUEST_INFO", rationale: "need more" },
+          prisma,
+        ),
+      ).rejects.toMatchObject({ code: "not_assignee", details: { reason: "not_assignee" } });
+      expect(state.decisions).toHaveLength(0);
+      expect(state.workflowUpdates).toHaveLength(0);
+    }
+  });
+
+  it("a SECOND decision by a non-assignee needs reassignment", async () => {
+    const { prisma, state } = makeDb({
+      legalHolds: 1,
+      decisions: [{ stage: "FIRST", decision: "APPROVE", reviewerUserId: ACTOR_A }],
+    });
+    await expect(
+      recordReviewDecision(
+        { workflowId: WORKFLOW_ID, teamId: TEAM_ID, actorUserId: ACTOR_B, decision: "APPROVE", rationale: "" },
+        prisma,
+      ),
+    ).rejects.toMatchObject({ code: "second_stage_needs_reassignment" });
+    expect(state.decisions).toHaveLength(1);
+  });
+
+  it("a conflict reached outside the adjudication door is use_adjudication, even for an adjudicator", async () => {
+    const { prisma, state } = makeDb({
+      decisions: [
+        { stage: "FIRST", decision: "APPROVE", reviewerUserId: ACTOR_A },
+        { stage: "SECOND", decision: "REJECT", reviewerUserId: ACTOR_B },
+      ],
+      workflow: { status: "ESCALATED", assignedToUserId: ACTOR_C },
+    });
+    await expect(
+      recordReviewDecision(
+        { workflowId: WORKFLOW_ID, teamId: TEAM_ID, actorUserId: ACTOR_C, decision: "APPROVE", rationale: "", actorIsAdjudicator: true },
+        prisma,
+      ),
+    ).rejects.toMatchObject({ code: "use_adjudication" });
+    expect(state.decisions).toHaveLength(2);
+    expect(state.workflowUpdates).toHaveLength(0);
+  });
+
+  it("the outcome reports a FIRST-only decision as recorded, status unchanged", async () => {
+    const { prisma } = makeDb({ legalHolds: 1 });
+    const result = await recordReviewDecision(
+      { workflowId: WORKFLOW_ID, teamId: TEAM_ID, actorUserId: ACTOR_A, decision: "APPROVE", rationale: "" },
+      prisma,
+    );
+    expect(result.outcome).toEqual({
+      stageRecorded: "FIRST",
+      statusChanged: false,
+      reviewState: "second_required",
+      nextRequirement: "second_review",
+      idempotent: false,
+    });
   });
 });
 

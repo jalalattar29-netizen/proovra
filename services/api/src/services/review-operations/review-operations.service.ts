@@ -50,6 +50,7 @@ import {
 // retains only NON-decision lifecycle transitions.
 import {
   ReviewDecisionAuthorityError,
+  loadCurrentRoundDecisionState,
   recordReviewDecision as recordCanonicalReviewDecision,
 } from "../reviewer-ops/review-decision.service.js";
 import {
@@ -794,6 +795,35 @@ export async function recordLifecycleTransition(
   // transaction (ET-CUS-12, 2026-10-23).
   const updated = await client.$transaction(async (txc) => {
     const tx = txc as unknown as PrismaClient;
+    // TEAM-SPEC §2.2 — Close never skips a pending second review or an
+    // unresolved disagreement (every Close door funnels through here: the
+    // single-item route, both bulk paths). Decided ATOMICALLY: the workflow row
+    // is locked first, so a decision that committed before is read here, and
+    // a decision still in flight cannot land after — its own write is
+    // conditional on the status this Close is about to change, and is refused.
+    if (input.decision === "CLOSE" && workflow.teamId) {
+      await txc.$queryRaw`SELECT "id" FROM "evidence_review_workflows" WHERE "id" = ${workflow.id}::uuid FOR UPDATE`;
+      const locked = await txc.evidenceReviewWorkflow.findUniqueOrThrow({
+        where: { id: workflow.id },
+        select: { status: true, decisionRound: true },
+      });
+      const round = await loadCurrentRoundDecisionState(
+        {
+          id: workflow.id,
+          teamId: workflow.teamId,
+          evidenceId: workflow.evidenceId,
+          status: String(locked.status),
+          decisionRound: locked.decisionRound,
+        },
+        txc,
+      );
+      if (round.state === "second_required" || round.state === "conflict_detected") {
+        throw new ReviewDecisionAuthorityError("second_review_pending", {
+          reason: "second_review_pending",
+          reviewState: round.state,
+        });
+      }
+    }
     const moved = await applyTransition(workflow, toStage, patch, tx, { strict: true });
     await txc.evidenceReviewWorkflowEvent.create({
       data: {

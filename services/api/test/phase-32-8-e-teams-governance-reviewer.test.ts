@@ -639,15 +639,15 @@ describe("Phase 32.8E — /review canonical reviewer console mount", () => {
     expect(REVIEWER_PANEL).not.toMatch(/\/v1\/reviewer-ops\/command/);
   });
 
-  it("renders the canonical sections (Queue / Escalations / Workload / SLA / Saved views / Multi-stage summary)", () => {
-    for (const fn of [
-      "QueueTable",
-      "EscalationsTable",
-      "WorkloadTable",
-      "SlaPanel",
-      "SavedViewsPanel",
-    ]) {
+  // TEAM-SPEC §3 (2026-11-23) — the console is the hub's "My reviews" tab;
+  // its Escalations / Workload / SLA tabs duplicated the Monitoring pages and
+  // were removed (the hub tabs lead to /reviewer-ops/sla + /escalations).
+  it("renders the canonical sections (Queue / Saved views / Multi-stage summary); Monitoring lives on its own pages", () => {
+    for (const fn of ["QueueTable", "SavedViewsPanel"]) {
       expect(REVIEWER_PANEL).toMatch(new RegExp(`function ${fn}\\(`));
+    }
+    for (const fn of ["EscalationsTable", "WorkloadTable", "SlaPanel"]) {
+      expect(REVIEWER_PANEL).not.toMatch(new RegExp(`function ${fn}\\(`));
     }
     expect(REVIEWER_PANEL).toMatch(/<MultiStageReviewSummaryCard/);
   });
@@ -657,16 +657,18 @@ describe("Phase 32.8E — /review canonical reviewer console mount", () => {
     // scope never hides the surface. Bulk triage is the only team-only
     // action, and it explains itself instead of disappearing.
     const bulk = readWeb("components/reviewer-experience/ReviewerBulkOpsBar.tsx");
-    expect(bulk).toMatch(/data-reviewer-bulk-personal-banner/);
+    // TEAM-SPEC R1 — the requirement is the plan + role, never the workspace kind.
+    expect(bulk).toMatch(/data-reviewer-bulk-unavailable-banner/);
     expect(bulk).toMatch(
-      /Bulk reviewer operations require a workspace[\s\S]{0,200}open each workflow individually/,
+      /Bulk review actions are available to workspace owners and admins[\s\S]{0,200}Open each review individually/,
     );
   });
 
-  it("explicitly notes decisions happen on the per-workflow surface", () => {
-    expect(REVIEWER_PANEL).toMatch(
-      /Daily evidence\s*\n?\s*decisions happen in Reviewer Workspace/,
-    );
+  // TEAM-SPEC §3 — the subtitle describes the two slices; decisions still
+  // happen in the per-workflow inspector the rows open.
+  it("explicitly notes what the console holds and that rows open the inspector", () => {
+    expect(REVIEWER_PANEL).toMatch(/Reviews waiting for an owner and reviews assigned to you/);
+    expect(REVIEWER_PANEL).toMatch(/Open inspector/);
   });
 
   it("bulk triage maps only to bounded backend actions — no invented semantics", () => {
@@ -707,15 +709,20 @@ describe("Phase 32.8E — /review canonical reviewer console mount", () => {
   });
 
   it("SLA tones are bounded (ok / due_soon / overdue) — no synthesized urgency", () => {
-    expect(REVIEWER_PANEL).toMatch(/severityTone|priorityTone|statusTone/);
-    expect(REVIEWER_PANEL).toMatch(/<SlaPanel/);
+    expect(REVIEWER_PANEL).toMatch(/priorityTone|statusTone/);
+    // TEAM-SPEC §3 — the SLA rollup is the Monitoring page, not a console tab.
+    expect(REVIEWER_PANEL).not.toMatch(/<SlaPanel/);
   });
 
-  it("links to the canonical sub-routes (per-workflow detail + SLA + escalations + governance policy + ops observability)", () => {
+  // TEAM-SPEC §3 (2026-11-23) — the six constant chips (Work / Manage /
+  // Monitor / Respond / Configure → /governance/policy, Enterprise-only) are
+  // gone. The page renders ReviewHubNav, whose tabs resolve each destination
+  // and render only the ones that open for this actor.
+  it("links to the canonical sub-routes through the Review hub (per-workflow detail + hub tabs + ops observability)", () => {
     expect(REVIEWER_PAGE).toMatch(/\/reviewer-ops\/\$\{candidate\}/);
-    expect(REVIEWER_PANEL).toMatch(/href="\/reviewer-ops\/sla"/);
-    expect(REVIEWER_PANEL).toMatch(/href="\/reviewer-ops\/escalations"/);
-    expect(REVIEWER_PANEL).toMatch(/href="\/governance\/policy"/);
+    expect(REVIEWER_PAGE).toMatch(/<ReviewHubNav active="my-reviews"/);
+    expect(REVIEWER_PANEL).not.toMatch(/href="\/governance\/policy"/);
+    expect(REVIEWER_PANEL).not.toMatch(/href="\/review\/workspace"/);
     // ADM-013 PHASE 1 — the fifth link is no longer a constant href. See the sibling
     // assertion below for why.
     expect(REVIEWER_PANEL).toMatch(/href=\{healthDestination\.href\}/);
