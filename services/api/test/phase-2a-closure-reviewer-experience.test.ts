@@ -208,7 +208,10 @@ describe("Phase 2A Closure — queues + bulk UI", () => {
     // filter excluding PENDING) and the literal "ASSIGN" for the
     // assign button. Bounded vocabulary lives on the source page.
     expect(QUEUES_PAGE).toMatch(/data-bulk-action="ASSIGN"/);
-    expect(QUEUES_PAGE).toMatch(/data-bulk-action=\{v\}/);
+    // TEAM-UI-SPEC (queues round) — the four per-verdict buttons became ONE
+    // "Code verdict" AppListbox over the same bounded vocabulary + ONE Apply.
+    expect(QUEUES_PAGE).toMatch(/data-bulk-action="CODE_VERDICT"/);
+    expect(QUEUES_PAGE).toMatch(/data-bulk-code-verdict=\{verdict/);
     expect(QUEUES_PAGE).toMatch(/REVIEWER_VERDICTS\.filter/);
   });
   it("queues route registered + mapped to the REVIEW pillar", () => {

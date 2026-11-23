@@ -102,7 +102,12 @@ describe("Reviewer console landing page (full adoption)", () => {
     // was "actionable" for a population of approximately zero. The console
     // now asks useHealthDestination(), which sends a reviewer to their own
     // workspace's health and platform staff to the global runtime.
-    expect(src).toMatch(/useHealthDestination\(\)/);
+    // TEAM-UI-SPEC §3 (round 3) — the health link moved from the My reviews
+    // header to the Monitoring (SLA) page, with the same resolver.
+    expect(src).not.toMatch(/useHealthDestination\(\)/);
+    expect(
+      readSource("../../../apps/web/app/(app)/reviewer-ops/sla/page.tsx"),
+    ).toMatch(/useHealthDestination\(\)/);
     expect(src).not.toMatch(/\/admin\/platform\/observability/);
   });
 

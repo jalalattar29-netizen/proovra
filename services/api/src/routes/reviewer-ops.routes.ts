@@ -46,6 +46,7 @@ import {
   REVIEW_ESCALATION_REASONS,
   REVIEW_ESCALATION_STATUSES,
   SAVED_VIEW_VISIBILITIES,
+  stringContainsForbiddenOverclaim,
   type SavedViewVisibility,
 } from "@proovra/shared";
 
@@ -2900,6 +2901,15 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       // round the console's controls.
       if (!requireReviewerCapable(ctx, reply)) return;
       if (!(await requireWorkflowInReach(ctx, reply, workflowId, "plain"))) return;
+      // TEAM-UI-SPEC §2 — this door is now the ONLY verdict entry in the
+      // inspector, so it screens the rationale for public-authenticity
+      // overclaims exactly as the approve / reject / request-info doors screen
+      // their note (reviewer-operations-engine assertNoteIfRequired).
+      if (stringContainsForbiddenOverclaim(body.rationale)) {
+        return reply
+          .code(403)
+          .send({ error: { code: "REVIEW_PERMISSION_DENIED", details: { reason: "forbidden_wording" } } });
+      }
 
       const wf = await prisma.evidenceReviewWorkflow.findFirst({
         where: { id: workflowId, teamId: body.teamId },

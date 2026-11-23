@@ -81,6 +81,7 @@ const GOVERNANCE_PAGE = readWeb("app/(app)/governance/page.tsx");
 // that asserted the older panel name are now keyed on the canonical
 // reviewer console mount instead.
 const REVIEWER_PAGE = readWeb("app/(app)/review/page.tsx");
+const SLA_PAGE = readWeb("app/(app)/reviewer-ops/sla/page.tsx");
 
 // =============================================================================
 // PART 1 — workspace-admin service
@@ -668,7 +669,10 @@ describe("Phase 32.8E — /review canonical reviewer console mount", () => {
   // happen in the per-workflow inspector the rows open.
   it("explicitly notes what the console holds and that rows open the inspector", () => {
     expect(REVIEWER_PANEL).toMatch(/Reviews waiting for an owner and reviews assigned to you/);
-    expect(REVIEWER_PANEL).toMatch(/Open inspector/);
+    // TEAM-UI-SPEC §4 (round 3) — the row navigation is "Open" (ghost link to
+    // the inspector), still the canonical decision surface.
+    expect(REVIEWER_PANEL).toMatch(/data-reviewer-action="open-inspector"/);
+    expect(REVIEWER_PANEL).toMatch(/\/reviewer-ops\/\$\{encodeURIComponent\(wid\)\}/);
   });
 
   it("bulk triage maps only to bounded backend actions — no invented semantics", () => {
@@ -724,8 +728,10 @@ describe("Phase 32.8E — /review canonical reviewer console mount", () => {
     expect(REVIEWER_PANEL).not.toMatch(/href="\/governance\/policy"/);
     expect(REVIEWER_PANEL).not.toMatch(/href="\/review\/workspace"/);
     // ADM-013 PHASE 1 — the fifth link is no longer a constant href. See the sibling
-    // assertion below for why.
-    expect(REVIEWER_PANEL).toMatch(/href=\{healthDestination\.href\}/);
+    // assertion below for why. TEAM-UI-SPEC §3 (round 3) — it moved from the
+    // My reviews header to the Monitoring (SLA) page.
+    expect(REVIEWER_PANEL).not.toMatch(/healthDestination/);
+    expect(SLA_PAGE).toMatch(/href=\{healthDestination\.href\}/);
   });
 
   it("resolves the operator deep-link per actor rather than gating one href", () => {
@@ -743,11 +749,14 @@ describe("Phase 32.8E — /review canonical reviewer console mount", () => {
     // the actor". One resolver returns the href AND its label together, so a
     // link cannot name a scope it does not open, and returns null when the
     // actor holds neither authority.
-    expect(REVIEWER_PANEL).toMatch(/useHealthDestination\(\)/);
-    expect(REVIEWER_PANEL).toMatch(
+    // TEAM-UI-SPEC §3 (round 3) — the link lives on the Monitoring (SLA) page
+    // now; the same per-actor resolver decides it there.
+    expect(SLA_PAGE).toMatch(/useHealthDestination\(\)/);
+    expect(SLA_PAGE).toMatch(
       /healthDestination \?[\s\S]{0,200}healthDestination\.href/,
     );
-    expect(REVIEWER_PANEL).toMatch(/\{healthDestination\.label\}/);
+    expect(SLA_PAGE).toMatch(/\{healthDestination\.label\}/);
+    expect(SLA_PAGE).not.toMatch(/"\/admin\/platform\/observability"/);
     // The hardcoded platform href must not come back.
     expect(REVIEWER_PANEL).not.toMatch(/"\/admin\/platform\/observability"/);
   });

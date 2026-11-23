@@ -186,13 +186,14 @@ describe("Phase C0 — reviewer console UI (source contract)", () => {
   });
 
   it("Phase G3.2 — inline mutations route through the audited reviewer-ops endpoints only", () => {
-    // The bounded mutation set: assign, request-info, escalate,
-    // acknowledge, and saved-view create/delete. No other write
-    // methods may appear in the console.
+    // The bounded mutation set: assign and saved-view create/delete. No
+    // other write methods may appear in the console. TEAM-UI-SPEC §4
+    // (round 3) — request-info and raise-escalation left the console rows
+    // (inspector only).
     expect(CONSOLE_UI).toContain("/v1/reviewer-ops/reviews/");
     expect(CONSOLE_UI).toContain("/assign");
-    expect(CONSOLE_UI).toContain("/request-info");
-    expect(CONSOLE_UI).toContain("/v1/reviewer-ops/escalations");
+    expect(CONSOLE_UI).not.toContain("/request-info");
+    expect(CONSOLE_UI).not.toContain("/v1/reviewer-ops/escalations");
     // TEAM-SPEC §3 — acknowledging an escalation lives on the Escalations
     // page with the escalation tab gone from the console.
     expect(CONSOLE_UI).not.toContain("/acknowledge");
@@ -210,11 +211,12 @@ describe("Phase C0 — reviewer console UI (source contract)", () => {
     expect(CONSOLE_UI).toContain("StepUpModal");
   });
 
-  it("Phase G3.2 — inline-action keyboard shortcuts wire a / e / m", () => {
-    // `a` assign, `e` escalate, `m` request more info.
-    expect(CONSOLE_UI).toMatch(/lower\s*===\s*"a"/);
-    expect(CONSOLE_UI).toMatch(/lower\s*===\s*"e"/);
-    expect(CONSOLE_UI).toMatch(/lower\s*===\s*"m"/);
+  // TEAM-UI-SPEC §4 (round 3) — only `a` (assign) remains; `e` / `m` left
+  // with the row's Escalate / Request info.
+  it("Phase G3.2 — inline-action keyboard shortcut wires a (e / m removed)", () => {
+    expect(CONSOLE_UI).toMatch(/toLowerCase\(\)\s*===\s*"a"/);
+    expect(CONSOLE_UI).not.toMatch(/===\s*"e"/);
+    expect(CONSOLE_UI).not.toMatch(/===\s*"m"/);
   });
 
   it("Phase G3.2 — terminal rows do not expose inline mutation buttons", () => {

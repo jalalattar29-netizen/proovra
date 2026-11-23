@@ -309,7 +309,9 @@ describe("Phase R10 — Stage 2: hardcoded /ops links sit behind useCan() checks
     // Phase 12 Point 4 — the reviewer operator deep-link moved onto the
     // canonical `/review` console when the unmounted command console
     // was deleted; the useCan() gating relationship is preserved.
-    "components/reviewer-experience/ReviewerConsole.tsx",
+    // TEAM-UI-SPEC §3 (round 3) — it moved again, from the My reviews header
+    // to the Monitoring (SLA) page, still resolved by useHealthDestination().
+    "app/(app)/reviewer-ops/sla/page.tsx",
     "components/command-center/CommandCenter.tsx",
     "components/governance-experience/GovernanceControlPlane.tsx",
     // 2026-09-26 — the contextual notice carries NO link at all now (one

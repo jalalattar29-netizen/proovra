@@ -98,10 +98,14 @@ const SHARED_PRESENCE_DOC = readSource(
 // ---------------------------------------------------------------------------
 
 describe("Phase G3.2 — inline reviewer action UI (Reviewer Console)", () => {
-  it("Queue/Mine rows expose Assign / Escalate / Request info / Open inspector buttons", () => {
+  // TEAM-UI-SPEC §4 (round 3) — rows are "Open" (ghost link) + at most ONE
+  // secondary ("Assign" on an unassigned row when the viewer may assign).
+  // Escalate moved to the inspector's secondary actions; requesting
+  // information is part of the inspector's decision flow.
+  it("Queue/Mine rows expose Open + Assign only (no Escalate / Request info)", () => {
     expect(REVIEWER_CONSOLE).toContain('data-reviewer-action="assign"');
-    expect(REVIEWER_CONSOLE).toContain('data-reviewer-action="escalate"');
-    expect(REVIEWER_CONSOLE).toContain('data-reviewer-action="request-info"');
+    expect(REVIEWER_CONSOLE).not.toContain('data-reviewer-action="escalate"');
+    expect(REVIEWER_CONSOLE).not.toContain('data-reviewer-action="request-info"');
     expect(REVIEWER_CONSOLE).toContain(
       'data-reviewer-action="open-inspector"',
     );
@@ -122,8 +126,10 @@ describe("Phase G3.2 — inline reviewer action UI (Reviewer Console)", () => {
   it("inline mutations route through the audited reviewer-ops endpoints", () => {
     expect(REVIEWER_CONSOLE).toContain("/v1/reviewer-ops/reviews/");
     expect(REVIEWER_CONSOLE).toContain("/assign");
-    expect(REVIEWER_CONSOLE).toContain("/request-info");
-    expect(REVIEWER_CONSOLE).toContain("/v1/reviewer-ops/escalations");
+    // TEAM-UI-SPEC §4 (round 3) — request-info and raise-escalation left the
+    // console rows (inspector only).
+    expect(REVIEWER_CONSOLE).not.toContain("/request-info");
+    expect(REVIEWER_CONSOLE).not.toContain("/v1/reviewer-ops/escalations");
     // TEAM-SPEC §3 (2026-11-23) — the console's Escalations tab (and its
     // inline Acknowledge) was removed; acknowledgement lives on the
     // Escalations page (/reviewer-ops/escalations), reached from the Review hub.
@@ -136,10 +142,12 @@ describe("Phase G3.2 — inline reviewer action UI (Reviewer Console)", () => {
     expect(REVIEWER_CONSOLE).toContain("StepUpModal");
   });
 
-  it("keyboard shortcuts wire a / e / m", () => {
-    expect(REVIEWER_CONSOLE).toMatch(/lower\s*===\s*"a"/);
-    expect(REVIEWER_CONSOLE).toMatch(/lower\s*===\s*"e"/);
-    expect(REVIEWER_CONSOLE).toMatch(/lower\s*===\s*"m"/);
+  // TEAM-UI-SPEC §4 (round 3) — only 'a' remains; e / m left with their row
+  // actions.
+  it("keyboard shortcut wires a (e / m removed with their row actions)", () => {
+    expect(REVIEWER_CONSOLE).toMatch(/toLowerCase\(\)\s*===\s*"a"/);
+    expect(REVIEWER_CONSOLE).not.toMatch(/===\s*"e"/);
+    expect(REVIEWER_CONSOLE).not.toMatch(/===\s*"m"/);
   });
 
   it("terminal rows (approved/rejected/cancelled/destroyed/tombstoned) disable inline actions", () => {

@@ -600,3 +600,24 @@ describe("SLA policy and reconcile entitlement", () => {
     expect(team.skippedReason).toBeUndefined();
   });
 });
+
+describe("the decisions door — the inspector's single verdict entry (TEAM-UI-SPEC §2)", () => {
+  it("screens the rationale for public-authenticity overclaims like the approve door, and writes nothing", async () => {
+    const o = ops(T);
+    const { workflowId } = await freshWorkflow(T.teamId, T.owner.userId, "trl-overclaim");
+    expect((await o.assign(T.owner, workflowId, T.member.userId)).status).toBe(200);
+    expect((await o.start(T.member, workflowId)).status).toBe(200);
+    const refused = await call(T.member.token, "POST", `/v1/reviewer-ops/workspace/${workflowId}/decisions`, {
+      teamId: T.teamId,
+      decision: "APPROVE",
+      rationale: "This record is legally admissible and tamper-proof.",
+    });
+    expect(refused.status, refused.raw).toBe(403);
+    expect(refused.body.error).toMatchObject({ code: "REVIEW_PERMISSION_DENIED", details: { reason: "forbidden_wording" } });
+    expect(await prisma.workflowReviewDecision.count({ where: { workflowId } })).toBe(0);
+    // The same assignee, with ordinary wording, is served through the same door.
+    const ok = await o.decide(T.member, workflowId, "APPROVE");
+    expect(ok.status, ok.raw).toBeLessThan(300);
+    expect(ok.body.outcome).toMatchObject({ stageRecorded: "FIRST" });
+  });
+});

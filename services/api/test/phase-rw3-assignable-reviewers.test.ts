@@ -63,6 +63,11 @@ const SERVICE_SRC = readSource(
 const PAGE_SRC = readSource(
   "../../../apps/web/app/(app)/review/queues/page.tsx",
 );
+// TEAM-UI-SPEC round 3 — the picker (fetch, 403 copy, warn log) is the shared
+// ReviewerPickerModal used by the queues page AND the /review console.
+const PICKER_SRC = readSource(
+  "../../../apps/web/components/reviewer-experience/ReviewerPickerModal.tsx",
+);
 
 // ---------------------------------------------------------------------------
 // Mocks — bound BEFORE the SUT import.
@@ -246,27 +251,30 @@ describe("Phase RW3-2 — frontend source contract", () => {
 
   it("queues page wires openReviewerPicker into the Bulk assign action", () => {
     expect(PAGE_SRC).toMatch(/openReviewerPicker/);
+    // TEAM-UI-SPEC round 3 — the picker serves bulk AND row assign.
     expect(PAGE_SRC).toMatch(
-      /onAssign=\{\s*\(\)\s*=>\s*\{\s*void\s+openReviewerPicker\(\)/,
+      /onAssign=\{\s*\(\)\s*=>\s*openReviewerPicker\(\{\s*kind:\s*"BULK"\s*\}\)/,
     );
+    expect(PAGE_SRC).toMatch(/useReviewerPicker\(teamId\)/);
   });
 
-  it("queues page fetches /v1/reviewer-ops/assignable-reviewers", () => {
-    expect(PAGE_SRC).toMatch(
+  it("queues page fetches /v1/reviewer-ops/assignable-reviewers (through the shared picker)", () => {
+    expect(PICKER_SRC).toMatch(
       /\/v1\/reviewer-ops\/assignable-reviewers/,
     );
   });
 
   it("queues page renders FORBIDDEN bounded copy on 403 (no prompt fallback)", () => {
-    expect(PAGE_SRC).toMatch(/REVIEW_PERMISSION_DENIED/);
-    expect(PAGE_SRC).toMatch(
+    expect(PICKER_SRC).toMatch(/REVIEW_PERMISSION_DENIED/);
+    expect(PICKER_SRC).toMatch(
       /You do not have permission to assign reviews in this workspace\./,
     );
+    expect(PICKER_SRC).not.toMatch(/window\.prompt\(/);
   });
 
   it("queues page wraps the picker fetch in try/catch with a warn log", () => {
-    expect(PAGE_SRC).toMatch(
-      /openReviewerPicker[\s\S]{0,2000}?console\.warn\(\s*"\[reviewer-workspace\] assignable-reviewers fetch failed"/,
+    expect(PICKER_SRC).toMatch(
+      /const open = useCallback[\s\S]{0,2000}?console\.warn\(\s*"\[reviewer-workspace\] assignable-reviewers fetch failed"/,
     );
   });
 });

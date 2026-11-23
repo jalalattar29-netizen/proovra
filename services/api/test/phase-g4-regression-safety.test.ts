@@ -226,10 +226,11 @@ describe("Phase G4.6 — Classic matter view retired safely (G4.2)", () => {
 describe("Phase G4.6 — Reviewer flows unchanged", () => {
   it("Reviewer Console still wires the G3.2 inline actions", () => {
     expect(REVIEWER_CONSOLE).toContain('data-reviewer-action="assign"');
-    expect(REVIEWER_CONSOLE).toContain('data-reviewer-action="escalate"');
-    // TEAM-SPEC §3 (2026-11-23) — acknowledge moved with the Escalations tab
-    // to /reviewer-ops/escalations; request-info stays inline.
-    expect(REVIEWER_CONSOLE).toContain('data-reviewer-action="request-info"');
+    // TEAM-UI-SPEC §4 (round 3) — rows are Open + at most one secondary
+    // (Assign); Escalate / Request info moved to the inspector.
+    expect(REVIEWER_CONSOLE).toContain('data-reviewer-action="open-inspector"');
+    expect(REVIEWER_CONSOLE).not.toContain('data-reviewer-action="escalate"');
+    expect(REVIEWER_CONSOLE).not.toContain('data-reviewer-action="request-info"');
   });
 
   it("Reviewer Console still routes mutations through useStepUpAction", () => {

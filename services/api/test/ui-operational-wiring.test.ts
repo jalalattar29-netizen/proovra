@@ -311,7 +311,10 @@ describe("Escalations page (proof-point wiring)", () => {
     // P7 — the page now renders through the shared <DataTable>, which shows
     // its `emptyState` slot when there are no rows. The empty preset is wired
     // into that slot (functionally equivalent to the old rows.length===0 gate).
-    expect(src).toMatch(/emptyState=\{[\s\S]*?NoEscalationsEmptyState/);
+    // TEAM-UI-SPEC §4 (round 3) — the list is an .app-table on the shared
+    // responsive card cutover (DataTable scrolled sideways on a phone); the
+    // empty preset renders on the explicit rows.length === 0 branch.
+    expect(src).toMatch(/rows\.length === 0 \?[\s\S]{0,200}NoEscalationsEmptyState/);
   });
 
   it("removed the old static 'No escalations match these filters' text", () => {
@@ -327,7 +330,8 @@ describe("Escalations page (proof-point wiring)", () => {
     // banner on being IN a workspace, which is a placement decision, not a
     // scope one — see the next test.
     const bannerIdx = src.indexOf("<RuntimeStatusBanner");
-    const tableIdx = src.indexOf("<DataTable");
+    // TEAM-UI-SPEC §4 (round 3) — the table is a canonical .app-table.
+    const tableIdx = src.indexOf('<table className="app-table');
     expect(bannerIdx).toBeGreaterThan(0);
     expect(tableIdx).toBeGreaterThan(0);
     expect(bannerIdx).toBeLessThan(tableIdx);

@@ -773,7 +773,9 @@ describe("Phase 32.8C FINAL-3 — no-regression invariants", () => {
   });
 
   it("reviewer-ops + governance UI gating fix preserves the SectionShell pattern", () => {
-    expect(REVIEWER_TSX).toMatch(/<PageSection/);
+    // TEAM-UI-SPEC §1 (round 3) — the console's sections are canonical
+    // app-panel cards (the Evidence Library pattern), not PageSection.
+    expect(REVIEWER_TSX).toMatch(/className="app-panel/);
     // The Governance Control Plane kept its sectioned tab navigation but moved
     // off the borrowed `case-tabs` class onto the canonical `app-tabs`
     // primitive. Assert the NAVIGATION CONTRACT (a labelled tablist), which is
