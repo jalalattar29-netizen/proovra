@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Phase 13 — Enterprise review operations queue.
+ * Phase 13 — review operations queue.
  *
  * Workflow-stage-driven view of all in-flight reviews in the workspace.
  * Sits next to the Phase 7 evidence-request queue at `/review` — that
@@ -29,9 +29,10 @@ import { statusTone } from "../../../../components/ui/StatusBadge";
 import { formatUserDate } from "../../../../lib/date";
 import { usePlatformContext, useTeamId } from "../../../../lib/platform-context";
 // Closure verification Part C — Phase 13 review operations queue is a
-// high-trust reviewer surface (REVIEWER_OPS_VIEW, ORGANIZATION_ONLY).
-// Wrap in the canonical PageRouteGate so the UX layer matches the
-// backend RBAC boundary.
+// reviewer surface. TEAM-SPEC §1 — `review.operations` is PERSONAL_OR_ORG +
+// reviewerOperationsIncluded and requires REVIEWER_OPS_ACT, the web key for
+// the `evidence_request.review` permission GET /v1/review/queue enforces, so a
+// Viewer is not offered it. The PageRouteGate matches the backend boundary.
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 type Stage =
   | "QUEUED"

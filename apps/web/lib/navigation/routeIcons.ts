@@ -157,6 +157,7 @@ export const ROUTE_ICONS: Readonly<Record<string, RouteIcon>> = {
   "review.sla": GaugeCircle,
   "review.escalations": ShieldAlert,
   "review.operations": Activity,
+  "review.settings": Settings,
   "workspace.review": Eye,
   "workspace.review_workspace": Eye,
   "workspace.review_queues": ListTodo,

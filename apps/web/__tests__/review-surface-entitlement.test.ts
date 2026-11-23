@@ -153,10 +153,14 @@ test("AUD-0049 — the route gate opens the reviewer operations pages on TEAM an
       assert.doesNotMatch(pro.reason, /Enterprise workspace experience/, id);
     }
   }
-  // The advanced surfaces are still Enterprise-workspace routes.
-  for (const id of ["workspace.review", "workspace.review_metrics"]) {
+  // TEAM-SPEC R1/R2 (2026-11-23) — the console and the advanced review
+  // surfaces are no longer Enterprise-workspace routes: they follow the active
+  // workspace's Team entitlement (reviewQueuesIncluded / reviewerOperationsIncluded).
+  // Was: workspace.review and workspace.review_metrics pinned as Enterprise-only.
+  for (const id of ["workspace.review", "workspace.review_metrics", "workspace.review_qc"]) {
     const route = ROUTE_REGISTRY.find((r) => r.id === id);
-    if (route) assert.equal(routeRequiresEnterpriseWorkspace(route), true, id);
+    assert.ok(route, id);
+    assert.equal(routeRequiresEnterpriseWorkspace(route!), false, id);
   }
 });
 

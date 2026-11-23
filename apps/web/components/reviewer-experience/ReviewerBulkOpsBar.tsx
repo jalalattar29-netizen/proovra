@@ -21,8 +21,11 @@
  *   - Permission gating happens server-side (REVIEWER_OPS_ACT +
  *     `review.bulk` + adaptive-runtime + step-up gates). The UI never
  *     predicts denial; it surfaces server errors honestly.
- *   - The bar is disabled outside a team workspace — bulk reassignment
- *     is a team-only operation and the backend rejects it there.
+ *   - TEAM-SPEC R1 — the bar is live only where the API serves bulk:
+ *     the active workspace's plan includes the Team review tools AND the
+ *     role holds the bulk capability (OWNER / ADMIN). The workspace KIND
+ *     is never asked — a Team-entitled Personal Workspace gets the bar.
+ *     Elsewhere it explains itself instead of disappearing.
  *   - Note-required actions (ESCALATE / PAUSE / REQUEST_INFO) do not
  *     submit without a note.
  */
@@ -63,7 +66,7 @@ export function ReviewerBulkOpsBar({
   teamId,
   selection,
   callerUserId,
-  isTeam,
+  enabled,
   onClearSelection,
   onMutated,
   onResult,
@@ -71,7 +74,8 @@ export function ReviewerBulkOpsBar({
   teamId: string | null;
   selection: ReadonlySet<string>;
   callerUserId: string | null;
-  isTeam: boolean;
+  /** Plan feature + role capability, decided by the caller (never workspace kind). */
+  enabled: boolean;
   onClearSelection: () => void;
   onMutated: () => void;
   onResult: (result: BulkResult | null) => void;
@@ -84,11 +88,10 @@ export function ReviewerBulkOpsBar({
   const [lastResult, setLastResult] = useState<BulkResult | null>(null);
 
   const someSelected = selection.size > 0;
-  // Personal-space envelopes carry a Team-shaped workspace id but are
-  // not team-mutation-capable (reviewer mutations require team scope
-  // server-side). Disable the bulk bar on personal so we don't ship
-  // requests that will always 403.
-  const bulkDisabled = !isTeam || !teamId;
+  // TEAM-SPEC R1 — eligibility is the caller's `enabled` (effective plan +
+  // role capability). Without it every submit would be refused, so the bar
+  // explains itself instead of offering actions.
+  const bulkDisabled = !enabled || !teamId;
 
   const submitBulk = useCallback(
     async (action: BulkAction, note?: string) => {
@@ -195,12 +198,12 @@ export function ReviewerBulkOpsBar({
   if (bulkDisabled) {
     return (
       <div
-        data-reviewer-bulk-personal-banner
+        data-reviewer-bulk-unavailable-banner
         data-reviewer-bulk-disabled="true"
         style={{ fontSize: 12, opacity: 0.8, margin: "0.4rem 0" }}
       >
-        Bulk reviewer operations require a workspace. In personal space,
-        open each workflow individually from the queue below.
+        Bulk review actions are available to workspace owners and admins on
+        the Team plan. Open each review individually from the list below.
       </div>
     );
   }

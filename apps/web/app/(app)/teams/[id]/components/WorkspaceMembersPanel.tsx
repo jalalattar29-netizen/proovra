@@ -44,6 +44,7 @@ import {
 import { formatUserDate } from "../../../../../lib/date";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+import { USER_FACING_ERRORS } from "@proovra/shared/user-facing-errors";
 
 export type WorkspaceMember = {
   id?: string;
@@ -83,6 +84,48 @@ const WORKSPACE_ROLE_LABEL: Record<string, string> = {
 
 export function workspaceRoleLabel(role: string): string {
   return WORKSPACE_ROLE_LABEL[role] ?? "Other role";
+}
+
+/**
+ * TEAM MEMBERSHIP (2026-11-23) — the rank rule the server enforces
+ * (`assertActorOutranks`, refusal `rank_insufficient`): a member's role and
+ * removal are managed only by someone who strictly OUTRANKS them. A peer
+ * ADMIN therefore cannot change or remove another ADMIN; only the OWNER can.
+ */
+export const WORKSPACE_ROLE_RANK: Record<string, number> = {
+  OWNER: 4,
+  ADMIN: 3,
+  MEMBER: 2,
+  VIEWER: 1,
+};
+
+/**
+ * Whether the viewer may manage (change role / remove) a member of
+ * `targetRole`. `canManageTeam` already proves the viewer is ADMIN or above,
+ * which outranks MEMBER and VIEWER; an ADMIN target needs the viewer's rank to
+ * be KNOWN and higher. An unknown viewer rank never unlocks an ADMIN target.
+ */
+export function viewerOutranksMember(
+  viewerRole: string | null | undefined,
+  targetRole: string,
+): boolean {
+  const target = WORKSPACE_ROLE_RANK[targetRole] ?? Number.POSITIVE_INFINITY;
+  if (viewerRole) {
+    return (WORKSPACE_ROLE_RANK[viewerRole] ?? 0) > target;
+  }
+  return target < (WORKSPACE_ROLE_RANK.ADMIN ?? 3);
+}
+
+/**
+ * Customer copy for the server's `rank_insufficient` refusal — the ONE
+ * registered sentence (shared with mobile), named explicitly here so a role
+ * change or removal never falls back to "Failed to update role".
+ */
+export const RANK_INSUFFICIENT_MESSAGE = USER_FACING_ERRORS.RANK_INSUFFICIENT.message;
+
+export function isRankInsufficient(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null)?.code;
+  return typeof code === "string" && code.toLowerCase() === "rank_insufficient";
 }
 
 /** A person's display name, never falling back to a raw id in the primary slot. */
@@ -139,9 +182,14 @@ export const WorkspaceMembersPanel = forwardRef<
     notify: (message: string, tone: "success" | "error") => void;
     /** PRO-T1-02 — called after the caller left this workspace. */
     onLeft?: () => void;
+    /**
+     * The viewer's own workspace role when the host knows it (e.g. the team
+     * payload's `currentUserRole`). Falls back to the viewer's loaded row.
+     */
+    viewerRole?: string | null;
   }
 >(function WorkspaceMembersPanel(
-  { teamId, currentUserId, canManageTeam, onInvite, onRemove, notify, onLeft },
+  { teamId, currentUserId, canManageTeam, onInvite, onRemove, notify, onLeft, viewerRole: viewerRoleProp },
   ref,
 ) {
   const [searchInput, setSearchInput] = useState("");
@@ -340,7 +388,12 @@ export const WorkspaceMembersPanel = forwardRef<
       );
     } catch (err) {
       setRoleSavingId(null);
-      notify(toSafeUserError(err, { message: "Failed to update role" }).message, "error");
+      notify(
+        isRankInsufficient(err)
+          ? RANK_INSUFFICIENT_MESSAGE
+          : toSafeUserError(err, { message: "Failed to update role" }).message,
+        "error",
+      );
       return;
     }
     const page = await loadFirst(rereadLimit());
@@ -359,7 +412,8 @@ export const WorkspaceMembersPanel = forwardRef<
   const rows = list.kind === "ready" ? list.rows : [];
   // PRO-T1-04 — the role ceiling the server enforces: an owner may grant up to
   // ADMIN; anyone else only roles strictly below their own.
-  const viewerRole = rows.find((m) => m.userId === currentUserId)?.role ?? null;
+  const viewerRole =
+    viewerRoleProp ?? rows.find((m) => m.userId === currentUserId)?.role ?? null;
   const roleOptionsForViewer = MANAGEABLE_ROLE_OPTIONS.filter(
     (r) => viewerRole !== "ADMIN" || r !== "ADMIN",
   );
@@ -502,7 +556,14 @@ export const WorkspaceMembersPanel = forwardRef<
                 // PRO-T1-09 — a removed or suspended membership is history, not
                 // a current member: no role or Remove controls on it.
                 const isCurrent = member.status === undefined || member.status === "ACTIVE";
-                const editable = canManageTeam && !isSelf && !isTeamOwner && isCurrent;
+                // TEAM MEMBERSHIP (2026-11-23) — and only where the viewer
+                // outranks the member: a peer ADMIN's row is read-only.
+                const editable =
+                  canManageTeam &&
+                  !isSelf &&
+                  !isTeamOwner &&
+                  isCurrent &&
+                  viewerOutranksMember(viewerRole, member.role);
                 const canLeave = isSelf && !isTeamOwner && isCurrent;
                 const rowKey = member.id ?? member.userId;
                 const st = statusText(member.status);
@@ -587,6 +648,16 @@ export const WorkspaceMembersPanel = forwardRef<
                         >
                           Leave workspace
                         </button>
+                      ) : canManageTeam && !isSelf && !isTeamOwner && isCurrent ? (
+                        // A peer (or higher) the viewer cannot manage: say why
+                        // instead of an unexplained gap.
+                        <span
+                          className="app-table__muted"
+                          data-testid={`member-rank-locked-${rowKey}`}
+                          title="Only the workspace owner can change or remove an admin."
+                        >
+                          Owner manages
+                        </span>
                       ) : (
                         <span className="app-table__muted" aria-hidden>
                           —

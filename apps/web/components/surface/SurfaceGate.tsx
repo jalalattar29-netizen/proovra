@@ -36,6 +36,37 @@ import { usePlatformContext } from "../../lib/platform-context/PlatformContextPr
 import { isContextResolving } from "../../lib/platform-context/types";
 import { ProovraSystemState } from "../feedback/ProovraSystemState";
 import { useActiveSpaceBillingAuthority } from "../../lib/billing/active-space-billing";
+import { findSurfaceTierRule } from "../../lib/surface/tiers";
+import { PLAN_RANK, type PlanType } from "@proovra/shared-billing";
+
+/**
+ * TEAM MEMBERSHIP (2026-11-23) — "switch, don't upgrade".
+ *
+ * An invitee working in somebody else's workspace is refused a plan-gated page
+ * because THAT workspace's plan lacks it, while their OWN plan — which applies
+ * to their own Personal Space — includes it. Telling them to "ask the owner to
+ * change the plan" (or to upgrade) is wrong: the fix is to switch.
+ *
+ * This decides only which REMEDY to SUGGEST on a refusal the gate already
+ * made; it grants nothing and never changes which plans pass. After the
+ * switch the gate re-decides on the server-projected entitlements of the
+ * Personal Space. The lowest plan rank that carries each server entitlement
+ * mirrors the commercial catalog (packages/shared-billing plan-catalog) and
+ * the tier rules' own `forbiddenMessage` wording. A key not listed here never
+ * offers a switch (the existing copy stands).
+ */
+const ENTITLEMENT_MIN_RANK: Partial<Record<string, number>> = {
+  externalReviewIncluded: PLAN_RANK.PRO,
+  professionalSurfacesIncluded: PLAN_RANK.PRO,
+  reviewQueuesIncluded: PLAN_RANK.TEAM,
+  reviewerOperationsIncluded: PLAN_RANK.TEAM,
+};
+
+function rankOf(plan: string | null | undefined): number | null {
+  if (!plan) return null;
+  const rank = (PLAN_RANK as Record<string, number | undefined>)[plan as PlanType];
+  return typeof rank === "number" ? rank : null;
+}
 
 export type SurfaceGateProps = {
   children: ReactNode;
@@ -61,7 +92,7 @@ export function SurfaceGate({
   const pathname = usePathname();
   const router = useRouter();
   const userCtx = useSurfaceUserContext();
-  const { state } = usePlatformContext();
+  const { state, envelope, switchWorkspace } = usePlatformContext();
   const billingAuthority = useActiveSpaceBillingAuthority();
   const effectivePath = pathnameOverride ?? pathname ?? "/";
 
@@ -205,6 +236,53 @@ export function SurfaceGate({
     notFound();
   }
   if (decision.kind === "forbidden") {
+    // TEAM MEMBERSHIP (2026-11-23) — switching is the fix: say so, and show
+    // no plan / upgrade / ask-the-owner copy. Only on a READY envelope, only
+    // for a plan-based rule, only when the caller HAS an allowed Personal
+    // Space that is not the active one, and only when their own account plan
+    // carries the rule's entitlement.
+    const rule = envelopeMayDecide ? findSurfaceTierRule(effectivePath) : null;
+    const minRank = rule?.entitlementOverride
+      ? ENTITLEMENT_MIN_RANK[rule.entitlementOverride]
+      : undefined;
+    const accountRank = rankOf(envelope?.account?.accountPlan);
+    const personalWorkspaceId = envelope?.contextOptions?.personalSpace?.workspaceId ?? null;
+    const active = envelope?.activeSpace ?? null;
+    const personalIsActive = active?.type === "PERSONAL" && active.shared !== true;
+    const switchFixesIt =
+      rule !== null &&
+      rule.tier !== "INTERNAL" &&
+      typeof minRank === "number" &&
+      accountRank !== null &&
+      accountRank >= minRank &&
+      personalWorkspaceId !== null &&
+      envelope?.personalSpaceAllowed !== false &&
+      !personalIsActive;
+    if (switchFixesIt) {
+      const here = active?.displayName ? ` You're working in ${active.displayName}, whose plan doesn't include it.` : "";
+      return (
+        <ProovraSystemState
+          kind="forbidden"
+          context="authenticated"
+          presentation="full-page"
+          minHeight="60vh"
+          testId="surface-gate-switch-personal"
+          title="Available in your Personal Space"
+          message={`Your own plan includes this, in your Personal Space.${here} Switch to your Personal Space to use it.`}
+          actions={[
+            {
+              label: "Switch to your Personal Space",
+              variant: "primary",
+              testId: "surface-gate-switch-personal-action",
+              onClick: () => {
+                void switchWorkspace(null);
+              },
+            },
+            { label: "Back to dashboard", href: "/home", variant: "secondary" },
+          ]}
+        />
+      );
+    }
     if (forbiddenFallback) return <>{forbiddenFallback}</>;
     // Canonical access-denied — never a bare "Forbidden" heading.
     return (

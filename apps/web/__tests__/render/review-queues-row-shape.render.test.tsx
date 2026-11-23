@@ -26,6 +26,13 @@ vi.mock("../../lib/platform-context", () => ({
   useTeamId: () => TEAM,
   useCan: () => true,
   useActiveSpace: () => ({ type: "ORGANIZATION", roleLabel: "ADMIN" }),
+  // TEAM-SPEC R1 / §3 — the page now asks the plan feature for bulk and
+  // resolves hub / QC destinations from the envelope (none here: no tabs, no
+  // QC row, which this row-shape test does not exercise).
+  usePlanFeatureGate: () => true,
+  usePlatformContext: () => ({ envelope: null, switchWorkspace: async () => true }),
+  useWorkspaceFragment: () => null,
+  usePersonalSpaceFragment: () => null,
 }));
 vi.mock("../../app/(app)/review/queues/_evidence-request-queue", () => ({
   EvidenceRequestReviewQueue: () => null,

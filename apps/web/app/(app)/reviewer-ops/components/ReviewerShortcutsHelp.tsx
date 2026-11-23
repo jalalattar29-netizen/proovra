@@ -1,49 +1,53 @@
 "use client";
 
 /**
- * Phase 2.5 — Reviewer keyboard shortcuts help overlay.
+ * Reviewer keyboard shortcuts help.
  *
- * Triggered by pressing `?` anywhere on a reviewer-ops page (except
- * while a text input is focused — input-safe gating is the caller's
- * responsibility via the `isShortcutTarget` helper exported from
- * this file).
+ * Opened with `?` on a reviewer page (never while typing — callers gate their
+ * own handlers with `isShortcutTarget`). Built on the canonical dialog
+ * (`components/cases-experience/matter-modals/Modal.tsx`: `.app-dialog*`,
+ * portal, focus trap, focus restore, Escape).
  *
- * The brief specifies these shortcuts for the reviewer queue:
- *   J / K     navigate
- *   A         assign / claim
- *   E         escalate
- *   R         request info
- *   C         close
- *   ?         this help overlay
+ * Two key sets, one per surface, so the help never lists a key the page does
+ * not handle:
  *
- * This component renders the help overlay. The actual J/K/A/E/R/C
- * handlers live on the page that hosts them — most usefully on the
- * single-review workspace where the three "reason" actions are
- * available. Queue-level J/K navigation is a separate concern handled
- * in the reviewer console (deferred to a follow-up; the brief
- * explicitly asks for shortcut HELP discoverability + the existing
- * structured-modal flow).
+ *   console    J / K move, Enter opens, A assigns, E escalates, M requests
+ *              information, / focuses the filter.
+ *   inspector  A starts the review, M requests information, C approves
+ *              (asks first). None of them navigates away from the review.
+ *
+ * There is no Ctrl/Cmd+K binding here: that key belongs to the app-wide
+ * "Jump to a page" palette.
  */
 
 import { useEffect } from "react";
+import { Modal } from "../../../../components/cases-experience/matter-modals/Modal";
 
-export type ShortcutKey = "?" | "j" | "k" | "a" | "e" | "r" | "c";
+export type ShortcutKey = "?" | "j" | "k" | "a" | "e" | "m" | "c" | "/" | "Enter";
 
-const ROWS: Array<{ key: string; label: string }> = [
-  { key: "?", label: "Show / hide this help" },
-  { key: "J / K", label: "Navigate queue (next / previous)" },
-  { key: "A", label: "Assign or claim (when allowed)" },
-  { key: "E", label: "Escalate" },
-  { key: "R", label: "Request info" },
-  { key: "C", label: "Close / approve flow" },
+export type ShortcutsVariant = "console" | "inspector";
+
+const CONSOLE_ROWS: ReadonlyArray<{ key: string; label: string }> = [
+  { key: "J / K", label: "Move to the next / previous review" },
+  { key: "Enter", label: "Open the selected review" },
+  { key: "A", label: "Assign the selected review (when allowed)" },
+  { key: "E", label: "Escalate the selected review" },
+  { key: "M", label: "Request more information" },
+  { key: "/", label: "Focus the filter" },
+  { key: "?", label: "Show or hide this help" },
+];
+
+const INSPECTOR_ROWS: ReadonlyArray<{ key: string; label: string }> = [
+  { key: "A", label: "Start the review (when allowed)" },
+  { key: "M", label: "Request more information (opens a dialog)" },
+  { key: "C", label: "Approve (internal) — asks you to confirm first" },
+  { key: "?", label: "Show or hide this help" },
+  { key: "Esc", label: "Close a dialog" },
 ];
 
 /**
- * Return `true` when the keyboard event's target is a text input,
- * textarea, contenteditable, or any element with role="textbox".
- * Shortcuts MUST NOT fire while typing — that would hijack normal
- * editing keys ("c", "e", "r", "a" are all common letters in reason
- * notes).
+ * `true` when the event's target is a text input, textarea, select,
+ * contenteditable or role="textbox". Shortcuts never fire while typing.
  */
 export function isShortcutTarget(e: KeyboardEvent): boolean {
   const t = e.target as HTMLElement | null;
@@ -55,10 +59,7 @@ export function isShortcutTarget(e: KeyboardEvent): boolean {
   return false;
 }
 
-/**
- * Reusable `?` keypress listener that toggles the help overlay's
- * visibility. Mount it on every reviewer page.
- */
+/** `?` toggles the help. Escape is handled by the dialog itself. */
 export function useReviewerHelpHotkey(opts: {
   open: boolean;
   onOpen: () => void;
@@ -67,8 +68,6 @@ export function useReviewerHelpHotkey(opts: {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isShortcutTarget(e)) return;
-      // Don't fire on Cmd-? or Ctrl-? — those collide with browser
-      // shortcuts.
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === "?" || (e.shiftKey && e.key === "/")) {
         e.preventDefault();
@@ -87,143 +86,73 @@ export function ReviewerShortcutsHelp({
   open,
   onClose,
   extraRows,
+  variant = "console",
 }: {
   open: boolean;
   onClose: () => void;
-  /**
-   * Optional additional shortcut rows the host page wants to show
-   * (e.g. page-specific keys). The base rows are always shown first.
-   */
+  /** Page-specific rows, shown after the base rows. */
   extraRows?: ReadonlyArray<{ key: string; label: string }>;
+  /** Which surface's keys to list. */
+  variant?: ShortcutsVariant;
 }) {
   if (!open) return null;
-  const rows = [...ROWS, ...(extraRows ?? [])];
+  const base = variant === "inspector" ? INSPECTOR_ROWS : CONSOLE_ROWS;
+  const rows = [...base, ...(extraRows ?? [])];
 
   return (
-    <div
-      role="presentation"
-      data-reviewer-shortcuts-overlay
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 1100,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 16,
-        background: "rgba(8,18,22,0.72)",
-        backdropFilter: "blur(6px)",
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+    <Modal
+      open={open}
+      title="Keyboard shortcuts"
+      onClose={onClose}
+      testid="reviewer-shortcuts"
+      footer={
+        <button type="button" className="app-secondary-action" onClick={onClose} data-reviewer-shortcuts-close>
+          Close
+        </button>
+      }
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="reviewer-shortcuts-title"
-        data-reviewer-shortcuts-modal
-        style={{
-          maxWidth: 480,
-          width: "100%",
-          background:
-            "linear-gradient(180deg, rgba(20,30,34,0.98) 0%, rgba(12,20,24,0.98) 100%)",
-          border: "1px solid rgba(255,255,255,0.10)",
-          borderRadius: 16,
-          color: "#dce1de",
-          boxShadow: "0 20px 50px rgba(0,0,0,0.4)",
-        }}
-      >
-        <header
-          style={{
-            padding: "14px 18px",
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
+      <div data-reviewer-shortcuts-modal={variant}>
+        <p className="app-dialog__subtitle" style={{ marginTop: 0 }}>
+          Shortcuts are off while you type in a field. Press <kbd>?</kbd> again or <kbd>Esc</kbd> to close.
+        </p>
+        <ul
+          data-reviewer-shortcuts-list
+          style={{ listStyle: "none", padding: 0, margin: "12px 0 0", display: "grid", gap: 4 }}
         >
-          <h2
-            id="reviewer-shortcuts-title"
-            style={{ margin: 0, fontSize: 16, fontWeight: 700 }}
-            data-reviewer-shortcuts-title
-          >
-            Keyboard shortcuts
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close shortcuts"
-            data-reviewer-shortcuts-close
-            style={{
-              padding: "2px 10px",
-              borderRadius: 999,
-              border: "1px solid rgba(255,255,255,0.16)",
-              background: "transparent",
-              color: "inherit",
-              fontSize: 18,
-              cursor: "pointer",
-              lineHeight: 1,
-            }}
-          >
-            ×
-          </button>
-        </header>
-        <div style={{ padding: "14px 18px" }}>
-          <p
-            style={{
-              margin: "0 0 12px",
-              fontSize: 12.5,
-              opacity: 0.7,
-              lineHeight: 1.5,
-            }}
-          >
-            Shortcuts are disabled while typing in any input or textarea.
-            Press <kbd>?</kbd> again or <kbd>Esc</kbd> to close.
-          </p>
-          <ul
-            data-reviewer-shortcuts-list
-            style={{
-              listStyle: "none",
-              padding: 0,
-              margin: 0,
-              display: "grid",
-              gap: 8,
-            }}
-          >
-            {rows.map((r) => (
-              <li
-                key={r.key}
-                data-reviewer-shortcut-row
+          {rows.map((r) => (
+            <li
+              key={r.key}
+              data-reviewer-shortcut-row
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                padding: "6px 0",
+                borderBottom: "1px solid var(--border-subtle)",
+                fontSize: 13.5,
+                minWidth: 0,
+              }}
+            >
+              <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{r.label}</span>
+              <kbd
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  padding: "6px 0",
-                  borderBottom: "1px solid rgba(255,255,255,0.04)",
-                  fontSize: 13.5,
+                  flexShrink: 0,
+                  fontFamily: "monospace",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: "2px 8px",
+                  borderRadius: 6,
+                  border: "1px solid var(--border-standard)",
+                  background: "var(--surface-muted)",
                 }}
               >
-                <span style={{ opacity: 0.85 }}>{r.label}</span>
-                <kbd
-                  style={{
-                    fontFamily: "monospace",
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    padding: "2px 8px",
-                    borderRadius: 6,
-                    border: "1px solid rgba(255,255,255,0.18)",
-                    background: "rgba(255,255,255,0.05)",
-                  }}
-                >
-                  {r.key}
-                </kbd>
-              </li>
-            ))}
-          </ul>
-        </div>
+                {r.key}
+              </kbd>
+            </li>
+          ))}
+        </ul>
       </div>
-    </div>
+    </Modal>
   );
 }

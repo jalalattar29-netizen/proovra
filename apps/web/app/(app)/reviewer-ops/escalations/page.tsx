@@ -1,17 +1,30 @@
 "use client";
 
 /**
- * Phase 25 — Escalation Console.
+ * Phase 25 — Escalation Console (Review hub → Monitoring → Escalations).
  *
  * Operator surface for the escalation lifecycle:
- *   - Filter by status / severity / reason
+ *   - Filter by status / severity
  *   - Acknowledge / reassign / resolve / suppress
- *   - Link back to the workflow workspace
- *   - Optional link to the Phase 21 operational incident
+ *   - Link back to the review
+ *   - Optional link to the operational incident
+ *
+ * TEAM-SPEC §2 item 7 / §3 (2026-11-23):
+ *   - The default filter is "Active" (`status=ACTIVE`: open, acknowledged and
+ *     reassigned), the same definition the SLA dashboard, analytics and the
+ *     inspector use for "open escalation". It used to be exactly OPEN, so an
+ *     acknowledged escalation counted on the SLA page and was missing here.
+ *   - The API returns `total` under the same filters; the page says
+ *     "Showing N of total".
+ *   - The empty state names the filter ("No active escalations").
+ *   - `?escalationId=` (from notifications and Operations rows) is honoured:
+ *     the list opens on All, and the row is highlighted and scrolled to.
+ *   - Links go through `reviewDestination`; no worker jargon in the copy.
  */
 
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { apiFetch } from "../../../../lib/api";
 import { useActiveSpaceId } from "../../../../lib/platform-context";
@@ -34,6 +47,12 @@ import { DataTable } from "../../../../components/ui/DataTable";
 import { FilterBar } from "../../../../components/ui/FilterBar";
 import { identifierLabel } from "@proovra/shared";
 import { escalationReasonLabel } from "../../../../lib/labels/governanceReviewLabels";
+import { ReviewHubNav } from "../../../../components/reviewer-experience/ReviewHubNav";
+import { useReviewDestinationResolver } from "../../../../components/reviewer-experience/reviewDestination";
+import {
+  ESCALATION_STATUS_FILTERS,
+  type EscalationStatusFilter,
+} from "../../../../components/reviewer-experience/monitoringDisplay";
 
 type EscalationStatus =
   | "OPEN"
@@ -41,6 +60,7 @@ type EscalationStatus =
   | "REASSIGNED"
   | "RESOLVED"
   | "SUPPRESSED";
+
 
 type EscalationProjection = {
   id: string;
@@ -62,21 +82,28 @@ type EscalationProjection = {
   incidentId: string | null;
 };
 
-const STATUS_FILTERS: (EscalationStatus | "ALL")[] = [
-  "OPEN",
-  "ACKNOWLEDGED",
-  "REASSIGNED",
-  "RESOLVED",
-  "SUPPRESSED",
-  "ALL",
+
+const SEVERITY_FILTERS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "", label: "All severities" },
+  { value: "INFO", label: "Info" },
+  { value: "WARNING", label: "Warning" },
+  { value: "HIGH", label: "High" },
+  { value: "CRITICAL", label: "Critical" },
 ];
 
-const SEVERITY_FILTERS = ["", "INFO", "WARNING", "HIGH", "CRITICAL"];
+const STATUS_LABEL: Record<EscalationStatus, string> = {
+  OPEN: "Open",
+  ACKNOWLEDGED: "Acknowledged",
+  REASSIGNED: "Reassigned",
+  RESOLVED: "Resolved",
+  SUPPRESSED: "Suppressed",
+};
 
-// Phase 38.10 — wrap in canonical PageRouteGate. `review.escalations`
-// is organization-only; the gate renders the structured "Create or
-// switch organization" panel for personal-space users, so the inner
-// component is guaranteed an active organization id.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// PageRouteGate resolves `review.escalations`: PERSONAL_OR_ORG + the
+// workspace's reviewer-operations entitlement (TEAM-SPEC R1). The inner
+// component may run in a Team-entitled Personal Workspace or an organization.
 export default function EscalationsConsolePage() {
   return (
     <PageRouteGate routeId="review.escalations">
@@ -86,11 +113,21 @@ export default function EscalationsConsolePage() {
 }
 
 function EscalationsConsolePageInner() {
-  // PageRouteGate guarantees an active ORGANIZATION space at this
-  // point. We still read the id from the canonical envelope.
+  // The ACTIVE workspace (personal or organization), from the canonical envelope.
   const teamId = useActiveSpaceId();
+  const searchParams = useSearchParams();
+  const rawEscalationId = searchParams?.get("escalationId") ?? null;
+  const focusEscalationId =
+    rawEscalationId && UUID_RE.test(rawEscalationId) ? rawEscalationId : null;
+  const resolveDestination = useReviewDestinationResolver();
+  const inspectorDestination = resolveDestination("review.queue_detail");
+  const operationsDestination = resolveDestination("workspace.operations");
   const [rows, setRows] = useState<EscalationProjection[] | null>(null);
-  const [status, setStatus] = useState<EscalationStatus | "ALL">("OPEN");
+  const [total, setTotal] = useState<number | null>(null);
+  // A deep link opens on All so the linked escalation is found whatever its state.
+  const [status, setStatus] = useState<EscalationStatusFilter>(
+    focusEscalationId ? "ALL" : "ACTIVE",
+  );
   const [severity, setSeverity] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -101,9 +138,12 @@ function EscalationsConsolePageInner() {
     kind: ReviewerReasonKind;
     escalationId: string;
   } | null>(null);
+  // Every read carries a generation; a slower response for an older filter is dropped.
+  const loadGenerationRef = useRef(0);
 
   const load = useCallback(() => {
     if (!teamId) return;
+    const generation = ++loadGenerationRef.current;
     const qs = new URLSearchParams();
     qs.set("teamId", teamId);
     qs.set("status", status);
@@ -112,18 +152,32 @@ function EscalationsConsolePageInner() {
     apiFetch(`/v1/reviewer-ops/escalations?${qs.toString()}`, {
       method: "GET",
     })
-      .then((r: { escalations: EscalationProjection[] }) => {
-        setRows(r.escalations ?? []);
+      .then((r: { escalations?: EscalationProjection[]; total?: number }) => {
+        if (generation !== loadGenerationRef.current) return;
+        const list = r.escalations ?? [];
+        setRows(list);
+        setTotal(typeof r.total === "number" && Number.isFinite(r.total) ? r.total : list.length);
         setError(null);
       })
-      .catch((err: { message?: string }) =>
-        setError(toSafeUserError(err, { message: "Could not load escalations." }).message),
-      );
+      .catch((err: { message?: string }) => {
+        if (generation !== loadGenerationRef.current) return;
+        setError(toSafeUserError(err, { message: "Could not load escalations." }).message);
+      });
   }, [teamId, status, severity]);
 
   useEffect(() => {
+    setRows(null);
     load();
   }, [load]);
+
+  // Scroll the linked escalation into view once it is rendered.
+  useEffect(() => {
+    if (!focusEscalationId || !rows) return;
+    const el = document.getElementById(`escalation-${focusEscalationId}`);
+    if (el && typeof el.scrollIntoView === "function") {
+      el.scrollIntoView({ block: "center" });
+    }
+  }, [focusEscalationId, rows]);
 
   const act = useCallback(
     async (
@@ -148,7 +202,7 @@ function EscalationsConsolePageInner() {
         return true;
       } catch (err) {
         setError(
-          toSafeUserError(err, { message: `Action "${label}" failed.` }).message,
+          toSafeUserError(err, { message: `Could not ${label} the escalation.` }).message,
         );
         return false;
       } finally {
@@ -158,31 +212,33 @@ function EscalationsConsolePageInner() {
     [teamId, load],
   );
 
-  // PageRouteGate guarantees ALLOWED state here. If the envelope is
-  // still loading and teamId hasn't resolved yet, render the
-  // bounded loading shell rather than crashing.
+  // While the envelope is still hydrating, render the bounded loading shell.
   if (!teamId) {
     return (
       <PageShell
         data-escalations-loading
         header={
           <PageHeader
-            eyebrow="Review operations"
-            title="Escalation Console"
-            subtitle="Loading organization workspace…"
+            eyebrow="Review"
+            title="Escalations"
+            subtitle="Loading workspace…"
           />
         }
       />
     );
   }
 
+  const shown = rows?.length ?? 0;
+  const linkedMissing =
+    focusEscalationId !== null && rows !== null && !rows.some((r) => r.id === focusEscalationId);
+
   return (
     <PageShell
       header={
         <PageHeader
-          eyebrow="Review operations"
-          title="Escalation Console"
-          subtitle="Operator escalation lifecycle. Open / acknowledged / reassigned escalations affect workspace SLA pressure; resolved / suppressed escalations remain in history."
+          eyebrow="Review"
+          title="Escalations"
+          subtitle="Reviews that passed their SLA deadline or were raised by a person. Active escalations (open, acknowledged or reassigned) count toward SLA pressure; resolved and suppressed ones stay in the history."
           primaryAction={
             <Button
               variant="secondary"
@@ -195,34 +251,44 @@ function EscalationsConsolePageInner() {
         />
       }
     >
+      <ReviewHubNav active="monitoring" monitoringView="escalations" />
+
       <FilterBar>
         <FilterBar.Select
           label="Status"
           value={status}
-          onChange={(v) => setStatus(v as EscalationStatus | "ALL")}
-          options={STATUS_FILTERS.map((s) => ({ value: s, label: s }))}
+          onChange={(v) => setStatus(v as EscalationStatusFilter)}
+          options={ESCALATION_STATUS_FILTERS.map((s) => ({ value: s.value, label: s.label }))}
         />
         <FilterBar.Select
           label="Severity"
           value={severity}
           onChange={setSeverity}
-          options={SEVERITY_FILTERS.map((s) => ({
-            value: s,
-            label: s || "All severities",
-          }))}
+          options={SEVERITY_FILTERS.map((s) => ({ value: s.value, label: s.label }))}
         />
       </FilterBar>
 
+      {rows !== null && total !== null ? (
+        <p className="app-field-help" data-escalations-count role="status">
+          Showing {shown} of {total} escalation{total === 1 ? "" : "s"}.
+        </p>
+      ) : null}
+
+      {linkedMissing ? (
+        <Card variant="status" tone="info" data-escalation-link-missing>
+          The linked escalation is not in this list. It may belong to another
+          workspace or no longer be visible to you.
+        </Card>
+      ) : null}
+
       {error ? (
-        <Card variant="status" tone="risk">
+        <Card variant="status" tone="risk" role="alert">
           {error}
         </Card>
       ) : null}
 
-      {/* Review automation only: this page's SLA and escalation figures are
-          produced by the reviewer reconcile sweep, so a stale sweep is said
-          here, in one line. Unrelated platform checks are not. Global service
-          status lives in the header indicator. */}
+      {/* Review automation only: a stale review automation pass is said here,
+          in one line. Global service status lives in the header indicator. */}
       <RuntimeStatusBanner requires={["reviewAutomation"]} />
 
       <DataTable
@@ -235,9 +301,23 @@ function EscalationsConsolePageInner() {
             key: "severity",
             header: "Severity",
             render: (e) => (
-              <Badge tone={severityTone(e.severity)} subtle>
-                {identifierLabel(e.severity)}
-              </Badge>
+              <span
+                id={`escalation-${e.id}`}
+                data-escalation-row={e.id}
+                data-escalation-highlighted={e.id === focusEscalationId ? "true" : undefined}
+                style={
+                  e.id === focusEscalationId
+                    ? { display: "inline-flex", gap: 6, alignItems: "center" }
+                    : undefined
+                }
+              >
+                <Badge tone={severityTone(e.severity)} subtle>
+                  {identifierLabel(e.severity)}
+                </Badge>
+                {e.id === focusEscalationId ? (
+                  <Badge tone="info">Linked</Badge>
+                ) : null}
+              </span>
             ),
           },
           {
@@ -252,7 +332,7 @@ function EscalationsConsolePageInner() {
             header: "Status",
             render: (e) => (
               <Badge tone={statusTone(e.status)} subtle>
-                {identifierLabel(e.status)}
+                {STATUS_LABEL[e.status] ?? identifierLabel(e.status)}
               </Badge>
             ),
           },
@@ -261,12 +341,10 @@ function EscalationsConsolePageInner() {
             header: "Summary",
             render: (e) => (
               <>
-                <div style={{ maxWidth: 360, fontSize: 12 }}>
-                  {e.safeSummary}
-                </div>
-                {e.incidentId ? (
-                  <a href="/operations" style={{ fontSize: 12, color: "var(--ink-link)" }}>
-                    incident {e.incidentId.slice(0, 8)}…
+                <div style={{ maxWidth: 360, fontSize: 12 }}>{e.safeSummary}</div>
+                {e.incidentId && operationsDestination ? (
+                  <a href={operationsDestination.href} style={{ fontSize: 12, color: "var(--ink-link)" }}>
+                    View the related incident
                   </a>
                 ) : null}
               </>
@@ -274,21 +352,18 @@ function EscalationsConsolePageInner() {
           },
           {
             key: "workflow",
-            header: "Workflow",
-            render: (e) => (
-              <a
-                href={`/reviewer-ops/${encodeURIComponent(e.workflowId)}`}
-                style={{
-                  color: "var(--ink-link)",
-                  textDecoration: "none",
-                  fontFamily:
-                    "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                  fontSize: 12,
-                }}
-              >
-                {e.workflowId.slice(0, 8)}…
-              </a>
-            ),
+            header: "Review",
+            render: (e) =>
+              inspectorDestination ? (
+                <a
+                  href={`/reviewer-ops/${encodeURIComponent(e.workflowId)}`}
+                  style={{ color: "var(--ink-link)", textDecoration: "none", fontSize: 12 }}
+                >
+                  Open review
+                </a>
+              ) : (
+                <span className="app-table__muted">—</span>
+              ),
           },
           {
             key: "created",
@@ -306,7 +381,7 @@ function EscalationsConsolePageInner() {
                 variant="secondary"
                 size="sm"
                 disabled={busy !== null}
-                onClick={() => act("ack", e.id, "acknowledge", {})}
+                onClick={() => act("acknowledge", e.id, "acknowledge", {})}
               >
                 Acknowledge
               </Button>
@@ -360,9 +435,8 @@ function EscalationsConsolePageInner() {
           </div>
         )}
         emptyState={
-          // Phase 28-G — actionable enterprise empty state.
           <div style={{ padding: 20 }}>
-            <NoEscalationsEmptyState />
+            <NoEscalationsEmptyState filter={status} severityFiltered={severity !== ""} />
           </div>
         }
       />

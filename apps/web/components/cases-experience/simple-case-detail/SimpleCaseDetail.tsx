@@ -184,6 +184,7 @@ type LoadState =
       isReloading?: boolean;
     }
   | { status: "auth_error" }
+  | { status: "forbidden" }
   | { status: "not_found" }
   | { status: "unavailable"; message: string };
 
@@ -254,8 +255,14 @@ export function SimpleCaseDetail({
       });
     } catch (err) {
       const e = err as { message?: string; statusCode?: number };
+      // TEAM MEMBERSHIP (2026-11-23) — three different answers, three
+      // different next steps: 401 = the session ended (sign in again); 403 =
+      // the actor's role can't open cases; 404 = absent OR not on the case's
+      // access list, kept deliberately indistinguishable (anti-enumeration).
       if (e.statusCode === 401) {
         setState({ status: "auth_error" });
+      } else if (e.statusCode === 403) {
+        setState({ status: "forbidden" });
       } else if (e.statusCode === 404) {
         setState({ status: "not_found" });
       } else {
@@ -299,8 +306,35 @@ export function SimpleCaseDetail({
     return (
       <CaseDetailPlane data-simple-case-detail-auth>
         <div className="app-empty" data-tone="restricted">
-          <strong>You don&apos;t have access to this case.</strong>
-          <p>Ask a workspace owner or administrator if you need access.</p>
+          <strong>Your session has ended.</strong>
+          <p>Sign in again to open this case.</p>
+          <div className="app-empty__actions">
+            <Link
+              href={`/login?next=${encodeURIComponent(`/cases/${caseId}`)}`}
+              className="app-secondary-action"
+              data-simple-case-detail-reauth
+            >
+              Sign in again
+            </Link>
+          </div>
+        </div>
+      </CaseDetailPlane>
+    );
+  }
+  if (state.status === "forbidden") {
+    return (
+      <CaseDetailPlane data-simple-case-detail-forbidden>
+        <div className="app-empty" data-tone="restricted">
+          <strong>Your role can&apos;t open this case.</strong>
+          <p>
+            Your role in this workspace doesn&apos;t include opening cases. Ask a
+            workspace owner or administrator to change your role.
+          </p>
+          <div className="app-empty__actions">
+            <Link href="/cases" className="app-secondary-action">
+              Back to cases
+            </Link>
+          </div>
         </div>
       </CaseDetailPlane>
     );
@@ -309,8 +343,11 @@ export function SimpleCaseDetail({
     return (
       <CaseDetailPlane data-simple-case-detail-not-found>
         <div className="app-empty">
-          <strong>Case not found</strong>
-          <p>The case may have been deleted or moved.</p>
+          <strong>Case not found, or you aren&apos;t on its access list</strong>
+          <p>
+            It may have been deleted, or it hasn&apos;t been shared with you. If
+            you expected to see it, ask the case owner to add you.
+          </p>
           <div className="app-empty__actions">
             <Link href="/cases" className="app-secondary-action">
               Back to cases

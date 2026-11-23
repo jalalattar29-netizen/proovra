@@ -345,8 +345,11 @@ function TeamDetail() {
   const externalReviewIncluded = usePlanFeature("externalReviewIncluded");
   const teamTasksIncluded = usePlanFeature("reviewQueuesIncluded");
   const canOpenExternalReviewConsole = useCanOpenRoute("workspace.review_external");
+  // TEAM-SPEC R4 — the console's own registry gate (externalReviewIncluded +
+  // EVIDENCE_MANAGE) is what useCanOpenRoute evaluates; the Team-only
+  // REVIEWER_OPS_VIEW no longer hides it from a Pro owner the console serves.
   const canManageExternalReviewers =
-    useCan("REVIEWER_OPS_VIEW") &&
+    useCan("EVIDENCE_MANAGE") &&
     externalReviewIncluded === true &&
     canOpenExternalReviewConsole;
 

@@ -7,12 +7,17 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
  * Phase 25 — Review Workspace (single review).
  *
  * Full-page reviewer workspace surface. Loads `/workspace/:workflowId`,
- * shows lifecycle / SLA / escalation panels and the same reviewer action
- * surface as the queue inspector but in a wider layout (left =
- * lifecycle + SLA + escalation; right = actions + evidence pointer).
+ * shows lifecycle / SLA / escalation panels and the reviewer action surface.
  *
- * Wording: operator-safe only. Never composes legal / forensic
- * overclaim phrases.
+ * Actions come from the server's `viewer.actions` (who may do what now, and
+ * why not); the old lifecycle-only rule is a fallback for an API that does
+ * not send them. Decision copy comes from the server's `outcome`, so a FIRST
+ * decision under a second-review requirement never reads as an approval.
+ * After any action the workspace AND the decision lineage / notes panels
+ * reload, and a lineage decision reloads the workspace.
+ *
+ * Wording: operator-safe only. Approvals and rejections are INTERNAL review
+ * decisions. Never composes legal / forensic overclaim phrases.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -56,34 +61,44 @@ import { identifierLabel } from "@proovra/shared";
 import { escalationReasonLabel } from "../../../../lib/labels/governanceReviewLabels";
 import { describeArtifactDownloadFailure } from "../../../../lib/evidence/report-download-feedback";
 import { ARTIFACT_WINDOW_BLOCKED_MESSAGE, openPendingArtifactWindow } from "../../../../lib/evidence/artifact-window";
-
-type LifecycleState =
-  | "DRAFT"
-  | "SUBMITTED"
-  | "QUEUED"
-  | "ASSIGNED"
-  | "IN_REVIEW"
-  | "NEEDS_INFORMATION"
-  | "ESCALATED"
-  | "APPROVED"
-  | "REJECTED"
-  | "ARCHIVED";
-
-type SlaState =
-  | "HEALTHY"
-  | "DUE_SOON"
-  | "BREACHED"
-  | "ESCALATED"
-  | "BLOCKED"
-  | "PAUSED"
-  | "COMPLETED";
+import { recordReference } from "../../../../lib/short-id";
+import { CopyIdButton } from "./_components/CopyIdButton";
+import { InspectorActions } from "./_components/InspectorActions";
+import { AdjudicationPanel, type AdjudicationKind } from "./_components/AdjudicationPanel";
+import {
+  DECISION_KIND_LABELS,
+  DECISION_OPTION_LABELS,
+  REASON_CODE_LABELS,
+  SECOND_REVIEW_TRIGGER_LABELS,
+  STAGE_LABELS,
+  approveConfirmDescription,
+  deriveActions,
+  describeOutcome,
+  describeRefusal,
+  headerSlaLabel,
+  lifecycleLabel,
+  slaDimensionLabel,
+  slaStateLabel,
+  teamRoleLabel,
+  type DecisionOutcome,
+  type LifecycleActionKind,
+  type LifecycleState,
+  type Refusal,
+  type SlaState,
+  type Viewer,
+  type ViewerActionName,
+} from "./_components/inspector-model";
 
 type WorkspaceResponse = {
   projection: {
     workflowId: string;
     evidenceId: string;
+    /** Optional readable evidence name, when the API projects one. */
+    evidenceTitle?: string | null;
     lifecycleState: LifecycleState;
     assignedToUserId: string | null;
+    /** Optional readable assignee name, when the API projects one. */
+    assignedToDisplayName?: string | null;
     assignedAtUtc: string | null;
     priority: string;
     slaPausedAtUtc: string | null;
@@ -104,7 +119,14 @@ type WorkspaceResponse = {
     createdAt: string;
     assignedToUserId: string | null;
   };
+  /** Kept by the API for compatibility; the page renders `viewer.actions`. */
   allowedLifecycleTransitions: LifecycleState[];
+  /**
+   * Who may do what now, computed by the server from lifecycle, role,
+   * assignment, stage and independence. Optional: an older API omits it and
+   * the page falls back to the lifecycle-only rule.
+   */
+  viewer?: Viewer | null;
   /**
    * The opaque analysis revision for this review's evidence.
    *
@@ -143,7 +165,62 @@ type ReviewerOpsAction =
   | "reject"
   | "pause"
   | "resume"
-  | "request-info";
+  | "request-info"
+  | "response-received";
+
+/** What the decision lineage panel last read, lifted for the page. */
+type DecisionsSummary = {
+  state: ReviewState;
+  secondRequired: boolean;
+  nextAction: NextAction;
+  teamRole: string | null;
+  decisions: DecisionRow[];
+};
+
+/**
+ * Read a refusal from a thrown apiFetch error.
+ *
+ * ApiError carries the nested envelope (`err.body?.error?.code`,
+ * `details.reason`); a lost answer is a plain Error with code NETWORK_ERROR.
+ */
+function readRefusal(err: unknown): Refusal {
+  const e = (err ?? {}) as {
+    statusCode?: number;
+    code?: string;
+    details?: { reason?: unknown } | null;
+    flatReason?: string;
+    body?: { error?: { code?: string; reason?: string; details?: { reason?: unknown } | null } };
+  };
+  const code = e.body?.error?.code ?? e.code ?? null;
+  const rawReason =
+    e.details?.reason ?? e.body?.error?.details?.reason ?? e.body?.error?.reason ?? e.flatReason ?? null;
+  return {
+    status: typeof e.statusCode === "number" ? e.statusCode : 0,
+    code: typeof code === "string" ? code : null,
+    reason: typeof rawReason === "string" ? rawReason : null,
+  };
+}
+
+function refusalMessage(err: unknown, fallback: string): string {
+  if (isPlanRefusal(err)) return PLAN_REFUSAL_COPY;
+  const refusal = readRefusal(err);
+  const mapped = describeRefusal(refusal, "");
+  return mapped || toSafeUserError(err, { message: fallback }).message;
+}
+
+function reviewerName(r: { userId: string; email: string | null; displayName: string | null }): string {
+  return r.displayName || r.email || recordReference("Reviewer", r.userId);
+}
+
+const ACTION_ROUTE: Record<"start" | "pause" | "resume" | "request_info" | "record_response" | "approve" | "reject", ReviewerOpsAction> = {
+  start: "start",
+  pause: "pause",
+  resume: "resume",
+  request_info: "request-info",
+  record_response: "response-received",
+  approve: "approve",
+  reject: "reject",
+};
 
 // Phase 38.12 — wrap in canonical PageRouteGate.
 export default function ReviewWorkspacePage() {
@@ -170,11 +247,18 @@ function deriveSignature(r: WorkspaceResponse | null): string | null {
 function ReviewWorkspacePageInner() {
   const params = useParams<{ reviewId: string }>();
   const workflowId = params?.reviewId ?? "";
-  // PageRouteGate guarantees an active ORGANIZATION space here.
+  // PageRouteGate guarantees an entitled active workspace here.
   const teamId = useActiveSpaceId();
   const [data, setData] = useState<WorkspaceResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
+  // A failed READ of the workspace, kept apart from an action refusal so a
+  // reload after a refusal never wipes the refusal off the screen.
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState<ViewerActionName | null>(null);
+  // Bumped after every action so the lineage and notes panels reread.
+  const [panelsVersion, setPanelsVersion] = useState(0);
+  const [decisions, setDecisions] = useState<DecisionsSummary | null>(null);
   // Phase G3.2 — collision detection. The reviewer workspace
   // projection doesn't surface `updatedAt` directly, so we derive a
   // stable signature from the fields that mutating actions move
@@ -183,11 +267,13 @@ function ReviewWorkspacePageInner() {
   // ISO timestamp — both modes are honest, neither claims false
   // precision.
   const [initialSignature, setInitialSignature] = useState<string | null>(null);
-  // Phase 2.4 — replace 3 `window.prompt` calls with a structured modal.
-  // `reasonModal` holds the kind currently open, or null when closed.
+  // Phase 2.4 — structured reason dialog. `reasonModal` holds the kind
+  // currently open, or null when closed; `dialogError` is a refusal shown
+  // inside it.
   const [reasonModal, setReasonModal] = useState<ReviewerReasonKind | null>(
     null,
   );
+  const [dialogError, setDialogError] = useState<string | null>(null);
   // Phase 2.5 — keyboard shortcuts + help overlay.
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   useReviewerHelpHotkey({
@@ -206,13 +292,13 @@ function ReviewWorkspacePageInner() {
     )
       .then((r: WorkspaceResponse) => {
         setData(r);
-        setError(null);
+        setLoadError(null);
         // Capture the first signature; subsequent reloads update
         // `data` (the current side) but never overwrite this snapshot.
         setInitialSignature((prev) => prev ?? deriveSignature(r));
       })
       .catch((err: { message?: string }) =>
-        setError(toSafeUserError(err, { message: "Could not load workspace." }).message),
+        setLoadError(toSafeUserError(err, { message: "Could not load workspace." }).message),
       );
   }, [teamId, workflowId]);
 
@@ -220,28 +306,34 @@ function ReviewWorkspacePageInner() {
     load();
   }, [load]);
 
+  /** Reload the workspace AND the lineage / notes panels. */
+  const reloadAll = useCallback(() => {
+    load();
+    setPanelsVersion((v) => v + 1);
+  }, [load]);
+
   const post = useCallback(
     // `action` is the TRAILING SEGMENT of a reviewer-ops action route, and the
-    // set is CLOSED — typed as the union rather than as `string`.
+    // set is CLOSED — typed as the union rather than as `string`, so the
+    // route-consumer analyzer can prove which routes the page consumes and a
+    // typo is a compile error rather than a 404 discovered by a reviewer.
     //
-    // Two things were wrong with `path: string`. It collided by name with the
-    // unrelated `const path` in `ReviewerCrossSurfaceLinks` below, and the
-    // route-consumer analyzer — which resolves interpolated calls by
-    // identifier — read that other variable's literal union and spliced the
-    // two into a route that does not exist. Renaming it removed the accident
-    // and exposed the real problem underneath: as a bare `string` this call
-    // site is genuinely unresolvable, so the analyzer cannot prove which
-    // routes the page consumes.
-    //
-    // The union fixes both, and makes a typo a compile error rather than a
-    // 404 discovered by a reviewer.
     // PRO-R2-16 — resolves true only when the action succeeded, so a caller
-    // holding typed input (the reason modal) keeps it on a refusal.
-    async (label: string, action: ReviewerOpsAction, body: Record<string, unknown>): Promise<boolean> => {
+    // holding typed input (the reason dialog) keeps it on a refusal. A refusal
+    // from a dialog is shown inside that dialog.
+    async (
+      name: ViewerActionName & keyof typeof ACTION_ROUTE,
+      body: Record<string, unknown>,
+      opts: { kind?: LifecycleActionKind; inDialog?: boolean } = {},
+    ): Promise<boolean> => {
       if (!teamId) return false;
-      setBusy(label);
+      const action: ReviewerOpsAction = ACTION_ROUTE[name];
+      setBusy(name);
+      setNotice(null);
+      if (opts.inDialog) setDialogError(null);
+      else setError(null);
       try {
-        await apiFetch(
+        const resp = (await apiFetch(
           `/v1/reviewer-ops/reviews/${encodeURIComponent(
             workflowId,
           )}/${action}`,
@@ -250,23 +342,26 @@ function ReviewWorkspacePageInner() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ teamId, ...body }),
           },
-        );
-        load();
+        )) as { outcome?: DecisionOutcome | null } | null;
+        if (opts.kind) setNotice(describeOutcome(opts.kind, resp?.outcome ?? null));
+        reloadAll();
         return true;
       } catch (err) {
-        setError(
-          toSafeUserError(err, { message: `Action "${label}" failed.` }).message,
-        );
+        const message = refusalMessage(err, "The action could not be completed. Nothing was changed.");
+        if (opts.inDialog) setDialogError(message);
+        else setError(message);
+        // A stale or out-of-stage refusal means the page is behind: reread.
+        reloadAll();
         return false;
       } finally {
         setBusy(null);
       }
     },
-    [teamId, workflowId, load],
+    [teamId, workflowId, reloadAll],
   );
 
-  // PRO-R2-05 — an approval is an immutable verdict that can release held
-  // outputs: the key and the button both ask first, through the shared
+  // PRO-R2-05 — an approval is a permanent internal decision that can release
+  // held outputs: the key and the button both ask first, through the shared
   // confirm dialog. A second press while the dialog is open opens nothing.
   const { confirm } = useConfirmAction();
   const approvePending = useRef(false);
@@ -274,69 +369,98 @@ function ReviewWorkspacePageInner() {
     if (approvePending.current) return;
     approvePending.current = true;
     try {
+      const firstOnly = decisions?.state === "first_required" && decisions.secondRequired;
       const ok = await confirm({
-        title: "Approve this review?",
-        description: "The approval is recorded as an immutable decision and may release outputs held for review. Reopening starts a new round; it does not remove this decision.",
-        confirmLabel: "Approve",
+        title: firstOnly ? "Record the first review as approved (internal)?" : "Approve this review (internal)?",
+        description: approveConfirmDescription({
+          state: decisions?.state ?? null,
+          secondRequired: decisions?.secondRequired ?? false,
+        }),
+        confirmLabel: firstOnly ? "Record first review" : "Approve (internal)",
         tone: "warning",
       });
-      if (ok) await post("approve", "approve", {});
+      if (ok) await post("approve", {}, { kind: "approve" });
     } finally {
       approvePending.current = false;
     }
-  }, [confirm, post]);
+  }, [confirm, post, decisions]);
 
-  // Phase 2.5 — action shortcuts. Fire ONLY when no input/textarea is
-  // focused (isShortcutTarget) and when the review is in a state that
-  // accepts the action (mirrors the per-button `disabled` gates so the
-  // shortcut never bypasses backend transition rules). Destructive
-  // text-input actions open the structured ReviewerReasonModal rather
-  // than triggering a bare network call — preserving the Phase 2.4
-  // "no raw prompts" contract.
+  const actions = data
+    ? deriveActions({
+        viewer: data.viewer,
+        lifecycleState: data.projection.lifecycleState,
+        paused: Boolean(data.projection.slaPausedAtUtc),
+        assigned: Boolean(data.projection.assignedToUserId),
+      })
+    : null;
+
+  const openReason = useCallback((kind: ReviewerReasonKind) => {
+    setDialogError(null);
+    setReasonModal(kind);
+  }, []);
+
+  // Phase 2.5 — action shortcuts, aligned with the reviewer console's keys:
+  // A starts, M requests information, C approves (asks first). They fire
+  // ONLY when no field is focused and only when the action map allows the
+  // action, so a shortcut never bypasses what the buttons enforce. None of
+  // them navigates away from the review.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isShortcutTarget(e)) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      // Ignore while the shortcuts overlay is itself open — the
-      // overlay manages its own Esc handler.
       if (shortcutsOpen) return;
-      // Ignore while a reason modal is open — we don't want
-      // double-triggers while the user is typing a reason.
       if (reasonModal !== null) return;
-      // Need a loaded projection to check lifecycle state.
-      if (!data) return;
-      const lifecycleState = data.projection.lifecycleState;
-      const requestableStates = ["IN_REVIEW", "NEEDS_INFORMATION", "ESCALATED"];
-
+      if (!actions || busy !== null) return;
       const k = e.key.toLowerCase();
-      if (k === "r") {
-        if (busy !== null) return;
-        if (!requestableStates.includes(lifecycleState)) return;
+      if (k === "m") {
+        if (!actions.request_info.allowed) return;
         e.preventDefault();
-        setReasonModal("REQUEST_INFO");
-      } else if (k === "e") {
-        // E opens the escalations console (review-detail page has no
-        // direct "escalate" mutation; the link is the canonical
-        // operator path).
-        e.preventDefault();
-        window.location.href = "/reviewer-ops/escalations";
+        openReason("REQUEST_INFO");
       } else if (k === "c") {
-        // C = approve (the "close-positive" terminal for a review).
-        if (busy !== null) return;
-        if (!requestableStates.includes(lifecycleState)) return;
+        if (!actions.approve.allowed) return;
         e.preventDefault();
         void confirmAndApprove();
       } else if (k === "a") {
-        // A = start review (claim it for the current reviewer).
-        if (busy !== null) return;
-        if (lifecycleState !== "ASSIGNED") return;
+        if (!actions.start.allowed) return;
         e.preventDefault();
-        void post("start", "start", {});
+        void post("start", {});
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [data, busy, shortcutsOpen, reasonModal, post, confirmAndApprove]);
+  }, [actions, busy, shortcutsOpen, reasonModal, post, confirmAndApprove, openReason]);
+
+  /** A lineage decision or adjudication: POST, then reload everything. */
+  const postDecision = useCallback(
+    async (body: { decision: string; reasonCode?: string; rationale: string }): Promise<string | null> => {
+      if (!teamId) return "No active workspace.";
+      try {
+        const resp = (await apiFetch(
+          `/v1/reviewer-ops/workspace/${encodeURIComponent(workflowId)}/decisions`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ teamId, ...body }),
+          },
+        )) as { outcome?: DecisionOutcome | null } | null;
+        const outcome = resp?.outcome ?? null;
+        setNotice(
+          outcome
+            ? describeOutcome(
+                body.decision === "APPROVE" ? "approve" : body.decision === "REJECT" ? "reject" : "decision",
+                outcome,
+              )
+            : "Decision recorded.",
+        );
+        reloadAll();
+        return null;
+      } catch (err) {
+        reloadAll();
+        return refusalMessage(err, "The decision could not be recorded. Nothing was changed.");
+      }
+    },
+    [teamId, workflowId, reloadAll],
+  );
 
   // PageRouteGate already guaranteed ALLOWED. If the envelope is
   // still hydrating, render the bounded loading shell.
@@ -349,14 +473,14 @@ function ReviewWorkspacePageInner() {
           <PageHeader
             eyebrow="Reviewer operations"
             title="Review workspace"
-            subtitle="Loading organization workspace…"
+            subtitle="Loading workspace…"
           />
         }
       />
     );
   }
 
-  if (!data) {
+  if (!data || !actions) {
     return (
       <PageShell
         width="full"
@@ -364,9 +488,9 @@ function ReviewWorkspacePageInner() {
           <PageHeader eyebrow="Reviewer operations" title="Review workspace" />
         }
       >
-        {error ? (
+        {loadError ? (
           <Card variant="status" tone="risk">
-            {error}
+            {loadError}
           </Card>
         ) : null}
         <EmptyState variant="inline" title="Loading workspace…" />
@@ -375,6 +499,23 @@ function ReviewWorkspacePageInner() {
   }
 
   const p = data.projection;
+  const evidenceName = p.evidenceTitle?.trim() || recordReference("Evidence", p.evidenceId);
+  const inConflict =
+    decisions?.state === "conflict_detected" || decisions?.state === "adjudication_required";
+  const canAdjudicate =
+    decisions?.nextAction === "submit_adjudication" ||
+    (data.viewer ? actions.adjudicate.allowed : false);
+  const adjudicationBlockedReason =
+    data.viewer && !actions.adjudicate.allowed
+      ? actions.adjudicate.reason
+      : decisions?.nextAction === "blocked_not_adjudicator"
+        ? "Adjudication needs a workspace owner or admin who made neither decision."
+        : null;
+  const assignee = p.assignedToUserId
+    ? data.viewer?.isAssignee
+      ? "You"
+      : p.assignedToDisplayName?.trim() || recordReference("Reviewer", p.assignedToUserId)
+    : "Unassigned";
 
   return (
     <PageShell
@@ -384,27 +525,26 @@ function ReviewWorkspacePageInner() {
           eyebrow="Reviewer operations"
           title="Review workspace"
           subtitle={
-            <>
-              Workflow {p.workflowId.slice(0, 12)}… · Evidence{" "}
+            <span style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: 6, minWidth: 0 }}>
               <a
                 href={`/evidence/${p.evidenceId}`}
-                style={{ color: "var(--ink-link)", textDecoration: "none" }}
+                style={{ color: "var(--ink-link)", textDecoration: "none", overflowWrap: "anywhere" }}
+                data-reviewer-evidence-link
               >
-                {p.evidenceId}
+                {evidenceName}
               </a>
-            </>
+              <CopyIdButton value={p.evidenceId} label="Evidence" />
+            </span>
           }
           contextStrip={
             <>
-              {/* Both states carry their word as well as their tone: the
-                  lifecycle badge was purple in the palette this replaces, and
-                  canonical purple is reserved for primary actions and
-                  selection, never for a status. */}
-              <Badge tone={statusTone(p.lifecycleState)} dot>
-                {p.lifecycleState.toLowerCase().replace(/_/g, " ")}
+              {/* ONE lifecycle badge and ONE SLA badge, each with its word.
+                  The header used to read "escalated • escalated". */}
+              <Badge tone={statusTone(p.lifecycleState)} dot data-reviewer-lifecycle-badge>
+                {lifecycleLabel(p.lifecycleState)}
               </Badge>
-              <Badge tone={statusTone(p.slaRollupState)} dot>
-                {p.slaRollupState.toLowerCase().replace(/_/g, " ")}
+              <Badge tone={statusTone(p.slaRollupState)} dot data-reviewer-sla-badge>
+                {headerSlaLabel(p.slaRollupState, p.lifecycleState)}
               </Badge>
             </>
           }
@@ -423,12 +563,22 @@ function ReviewWorkspacePageInner() {
         />
       }
     >
+      {notice ? (
+        <p role="status" className="app-alert app-alert--ok" data-reviewer-action-notice style={{ marginTop: 0 }}>
+          {notice}
+        </p>
+      ) : null}
       {error ? (
-        <Card variant="status" tone="risk">
+        <p role="alert" className="app-alert app-alert--danger" data-reviewer-action-error style={{ marginTop: 0 }}>
           {error}
-        </Card>
+        </p>
       ) : null}
 
+      {loadError ? (
+        <p role="alert" className="app-alert app-alert--danger" data-reviewer-load-error style={{ marginTop: 0 }}>
+          {loadError}
+        </p>
+      ) : null}
       {/* Phase G3.2 — Presence + collision wiring for the inspector. */}
       <div
         style={{
@@ -449,7 +599,7 @@ function ReviewWorkspacePageInner() {
         entityLabel="Review workflow"
         initialUpdatedAtUtc={initialSignature}
         currentUpdatedAtUtc={deriveSignature(data)}
-        onReload={() => load()}
+        onReload={() => reloadAll()}
       />
 
       {/* Phase B-2 — governance signals strip. Surfaces ACTIVE legal
@@ -484,6 +634,7 @@ function ReviewWorkspacePageInner() {
                  product's, not two alpha values invented here. */
               borderColor: "var(--warning-border)",
               background: "var(--warning-subtle-bg)",
+              minWidth: 0,
             }}
           >
             <h3 className="app-panel__title">Governance signals</h3>
@@ -504,9 +655,10 @@ function ReviewWorkspacePageInner() {
                     background: "rgba(239, 68, 68, 0.1)",
                     borderRadius: 4,
                     fontWeight: 600,
+                    overflowWrap: "anywhere",
                   }}
                 >
-                  Legal hold ACTIVE ({data.governance.legalHold.activeCount})
+                  Legal hold active ({data.governance.legalHold.activeCount})
                   {data.governance.legalHold.mostRecent
                     ? ` — “${data.governance.legalHold.mostRecent.title}”`
                     : ""}
@@ -540,32 +692,141 @@ function ReviewWorkspacePageInner() {
               }}
             >
               {data.governance.legalHold.activeCount > 0
-                ? "Evidence under legal hold cannot be deleted or purged. Export gating applies; package downloads remain subject to workspace policy. Open /governance/lifecycle for full hold lifecycle. "
+                ? "Evidence under legal hold cannot be deleted or purged. Export gating applies; package downloads remain subject to workspace policy. See Governance → Lifecycle for the full hold history. "
                 : ""}
               {data.governance.requiresRedaction
-                ? "One or more visibility decisions for this evidence flag fields requiring redaction before report/package export. The export gate enforces this server-side; this strip is the operator-visible signal."
+                ? "One or more visibility decisions for this evidence flag fields that need redaction before a report or package is exported. The export gate enforces this on the server."
                 : ""}
             </p>
           </section>
         )}
 
-      {/* Phase D3 — Reviewer Copilot (advisory only; final decision stays human). */}
-      <div style={{ marginBottom: 12 }}>
-        <ReviewerCopilotPanel
-          reviewId={workflowId}
-          evidence={[
-            {
-              id: p.evidenceId,
-              title: `Evidence ${p.evidenceId.slice(0, 8)}…`,
-              // THE PROJECTED REVISION. This was a literal `0`, so the panel
-              // asserted a version it had never been told and the route it
-              // fed had no guard to check it against.
-              analysisRevision: data.analysisRevision ?? undefined,
-              status: p.lifecycleState,
-            },
-          ]}
-        />
+      <div style={twoColStyle}>
+        <Card padding="comfortable">
+          <InspectorActions
+            actions={actions}
+            fromViewer={Boolean(data.viewer)}
+            busy={busy}
+            paused={Boolean(p.slaPausedAtUtc)}
+            handlers={{
+              start: () => void post("start", {}),
+              approve: () => void confirmAndApprove(),
+              reject: () => openReason("REJECT"),
+              request_info: () => openReason("REQUEST_INFO"),
+              record_response: () => openReason("RECORD_RESPONSE"),
+              pause: () => openReason("PAUSE"),
+              resume: () => void post("resume", {}),
+            }}
+          />
+        </Card>
+
+        <Card padding="comfortable">
+          <h3 className="app-panel__title">Assignment</h3>
+          <div style={{ fontSize: 13 }}>
+            <KV k="Assigned to" v={assignee} />
+            <KV k="Assigned at" v={formatCellDateTime(p.assignedAtUtc)} />
+            <KV k="Priority" v={identifierLabel(p.priority)} />
+            {p.slaPausedAtUtc ? (
+              <KV k="Paused" v={p.pausedReason?.trim() || "Paused"} />
+            ) : null}
+          </div>
+
+          <h3 className="app-panel__title">SLA</h3>
+          <div style={{ overflowX: "auto", maxWidth: "100%" }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: 13,
+              }}
+            >
+              <thead>
+                <tr>
+                  <th style={thLight}>Clock</th>
+                  <th style={thLight}>State</th>
+                  <th style={thLight}>Due</th>
+                </tr>
+              </thead>
+              <tbody>
+                {p.slaDimensions.map((d) => (
+                  <tr key={d.dimension}>
+                    <td style={tdLight}>{slaDimensionLabel(d.dimension)}</td>
+                    <td style={tdLight}>
+                      <Badge tone={statusTone(d.state)} subtle>
+                        {slaStateLabel(d.state)}
+                      </Badge>
+                    </td>
+                    <td style={tdLight}>
+                      <span className="app-field-help">
+                        {formatRelativeDeadline(d.dueAtUtc)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {data.openEscalation ? (
+            <>
+              <h3 className="app-panel__title">Open escalation</h3>
+              <div className="app-alert app-alert--danger" style={{ fontSize: 13 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 6,
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    marginBottom: 6,
+                  }}
+                >
+                  <Badge tone={severityTone(data.openEscalation.severity)} subtle>
+                    {identifierLabel(data.openEscalation.severity)}
+                  </Badge>
+                  <span className="app-field-help" style={{ margin: 0 }}>
+                    {escalationReasonLabel(data.openEscalation.reason)}
+                  </span>
+                  <span style={{ marginLeft: "auto", fontSize: 12 }}>
+                    {formatCellDateTime(data.openEscalation.createdAt)}
+                  </span>
+                </div>
+                <div style={{ overflowWrap: "anywhere" }}>{data.openEscalation.safeSummary}</div>
+              </div>
+            </>
+          ) : null}
+        </Card>
       </div>
+
+      {inConflict && decisions ? (
+        <AdjudicationPanel
+          decisions={decisions.decisions.map((d) => ({
+            id: d.id,
+            stage: d.stage,
+            decision: d.decision,
+            reasonCode: d.reasonCode,
+            rationale: d.rationale,
+            decidedAt: d.decidedAt,
+            reviewerName: reviewerName(d.reviewer),
+          }))}
+          canAdjudicate={canAdjudicate}
+          blockedReason={adjudicationBlockedReason}
+          onSubmit={(body: { decision: AdjudicationKind; reasonCode: string; rationale: string }) => postDecision(body)}
+        />
+      ) : null}
+
+      {/* Phase B.2 — multi-stage review governance panel.
+          Server-enforced state machine. Caller's next allowed action
+          is computed by the API based on existing decision rows +
+          policy triggers (escalated / legal hold / redaction
+          required) + caller's team role (OWNER/ADMIN required for
+          adjudication). */}
+      <ReviewerDecisionLineagePanel
+        workflowId={workflowId}
+        teamId={teamId}
+        refreshKey={panelsVersion}
+        onLoaded={setDecisions}
+        onSubmitDecision={postDecision}
+      />
 
       {/* Phase A.1D — review workflow continuity. Surface the related
           artifacts + cross-surface links the reviewer needs without
@@ -579,6 +840,7 @@ function ReviewWorkspacePageInner() {
           borderRadius: "var(--radius-md)",
           padding: 16,
           marginBottom: 12,
+          minWidth: 0,
         }}
         data-section="reviewer-workflow-continuity"
       >
@@ -586,257 +848,81 @@ function ReviewWorkspacePageInner() {
         <ReviewerCrossSurfaceLinks evidenceId={p.evidenceId} />
       </section>
 
-      {/* Phase B.2 — multi-stage review governance panel.
-          Server-enforced state machine. Caller's next allowed action
-          is computed by the API based on existing decision rows +
-          policy triggers (escalated / legal hold / redaction
-          required) + caller's team role (OWNER/ADMIN required for
-          adjudication). */}
-      {teamId ? (
-        <ReviewerDecisionLineagePanel
-          workflowId={workflowId}
-          teamId={teamId}
-        />
-      ) : null}
-
       {/* Phase B.1-1 — structured reviewer notes. Wired to
           /v1/reviewer-ops/workspace/:workflowId/notes. Notes carry
           one of seven structured types and are audited via
           TeamActivity (REVIEWER_NOTE_CREATED). */}
-      {teamId ? (
-        <ReviewerNotesPanel
-          workflowId={workflowId}
-          teamId={teamId}
-        />
-      ) : null}
+      <ReviewerNotesPanel
+        workflowId={workflowId}
+        teamId={teamId}
+        refreshKey={panelsVersion}
+      />
 
-      {/* Phase B.1-3 — Honest deferred-features panel. The brief
-          explicitly told us to "show honest unavailable state" rather
-          than fake second-review, conflict-resolution, or evidence-
-          compare. This panel documents the precise truth so an
-          enterprise reviewer is never misled. */}
-      <ReviewerDeferredFeaturesPanel />
+      {/* Phase D3 — Reviewer Copilot (advisory only; final decision stays human). */}
+      <div style={{ marginBottom: 12, minWidth: 0 }}>
+        <ReviewerCopilotPanel
+          reviewId={workflowId}
+          evidence={[
+            {
+              id: p.evidenceId,
+              title: evidenceName,
+              // THE PROJECTED REVISION. This was a literal `0`, so the panel
+              // asserted a version it had never been told and the route it
+              // fed had no guard to check it against.
+              analysisRevision: data.analysisRevision ?? undefined,
+              status: p.lifecycleState,
+            },
+          ]}
+        />
+      </div>
 
       <CodingSchemaBindingPanel teamId={teamId} workflowId={workflowId} />
 
-      <div style={twoColStyle}>
-        <Card padding="comfortable">
-          <h3 className="app-panel__title">SLA dimensions</h3>
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              fontSize: 13,
-            }}
-          >
-            <thead>
-              <tr>
-                <th style={thLight}>Dimension</th>
-                <th style={thLight}>State</th>
-                <th style={thLight}>Due</th>
-              </tr>
-            </thead>
-            <tbody>
-              {p.slaDimensions.map((d) => (
-                <tr key={d.dimension}>
-                  <td style={tdLight}>
-                    {d.dimension.toLowerCase().replace("_", " ")}
-                  </td>
-                  <td style={tdLight}>
-                    <Badge tone={statusTone(d.state)} subtle>
-                      {d.state.toLowerCase().replace(/_/g, " ")}
-                    </Badge>
-                  </td>
-                  <td style={tdLight}>
-                    <span className="app-field-help">
-                      {formatRelativeDeadline(d.dueAtUtc)}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Phase B.1-3 — Honest deferred-features panel. The brief
+          explicitly told us to "show honest unavailable state" rather
+          than fake features. This panel documents the precise truth so a
+          reviewer is never misled. */}
+      <ReviewerDeferredFeaturesPanel />
 
-          <h3 className="app-panel__title">Assignment</h3>
-          <div style={{ fontSize: 13 }}>
-            <KV
-              k="Assigned to"
-              v={
-                p.assignedToUserId
-                  ? p.assignedToUserId.slice(0, 12) + "…"
-                  : "Unassigned"
-              }
-            />
-            <KV k="Assigned at" v={formatCellDateTime(p.assignedAtUtc)} />
-            <KV k="Priority" v={identifierLabel(p.priority)} />
-          </div>
-
-          {data.openEscalation ? (
-            <>
-              <h3 className="app-panel__title">Open escalation</h3>
-              <div
-                style={{
-                  border: "1px solid #fecaca",
-                  background: "#fef2f2",
-                  borderRadius: 6,
-                  padding: 10,
-                  fontSize: 13,
-                  color: "#7f1d1d",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 6,
-                    alignItems: "center",
-                    marginBottom: 6,
-                  }}
-                >
-                  <Badge tone={severityTone(data.openEscalation.severity)} subtle>
-                    {identifierLabel(data.openEscalation.severity)}
-                  </Badge>
-                  <span className="app-field-help">
-                    {escalationReasonLabel(data.openEscalation.reason)}
-                  </span>
-                  <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--silver-ink)" }}>
-                    {formatCellDateTime(data.openEscalation.createdAt)}
-                  </span>
-                </div>
-                <div>{data.openEscalation.safeSummary}</div>
-              </div>
-            </>
-          ) : null}
-        </Card>
-
-        <Card padding="comfortable">
-          <h3 className="app-panel__title">Allowed lifecycle transitions</h3>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {data.allowedLifecycleTransitions.map((s) => (
-              <Badge key={s} tone={statusTone(s)} subtle>
-                {s.toLowerCase().replace(/_/g, " ")}
-              </Badge>
-            ))}
-            {data.allowedLifecycleTransitions.length === 0 ? (
-              <span className="app-field-help">Terminal state</span>
-            ) : null}
-          </div>
-
-          <h3 className="app-panel__title">Reviewer actions</h3>
-          <div style={actionGridStyle}>
-            <button
-              type="button"
-              style={buttonSurfaceStyle("primary", "sm")}
-              disabled={busy !== null || p.lifecycleState !== "ASSIGNED"}
-              onClick={() => post("start", "start", {})}
-            >
-              Start review
-            </button>
-            <button
-              type="button"
-              style={buttonSurfaceStyle("secondary", "sm")}
-              disabled={
-                busy !== null ||
-                !["IN_REVIEW", "NEEDS_INFORMATION", "ESCALATED"].includes(
-                  p.lifecycleState,
-                )
-              }
-              onClick={() => setReasonModal("REQUEST_INFO")}
-              data-reviewer-action-request-info
-            >
-              Request info
-            </button>
-            <button
-              type="button"
-              style={buttonSurfaceStyle("primary", "sm")}
-              disabled={
-                busy !== null ||
-                !["IN_REVIEW", "NEEDS_INFORMATION", "ESCALATED"].includes(
-                  p.lifecycleState,
-                )
-              }
-              onClick={() => void confirmAndApprove()}
-            >
-              Approve
-            </button>
-            <button
-              type="button"
-              style={buttonSurfaceStyle("secondary", "sm")}
-              disabled={
-                busy !== null ||
-                !["IN_REVIEW", "NEEDS_INFORMATION", "ESCALATED"].includes(
-                  p.lifecycleState,
-                )
-              }
-              onClick={() => setReasonModal("REJECT")}
-              data-reviewer-action-reject
-            >
-              Reject
-            </button>
-            {p.slaPausedAtUtc ? (
-              <button
-                type="button"
-                style={buttonSurfaceStyle("secondary", "sm")}
-                disabled={busy !== null}
-                onClick={() => post("resume", "resume", {})}
-                title={p.pausedReason ?? undefined}
-                data-reviewer-action-resume
-              >
-                Resume
-              </button>
-            ) : (
-              <button
-                type="button"
-                style={buttonSurfaceStyle("secondary", "sm")}
-                disabled={busy !== null || ["APPROVED", "REJECTED", "ARCHIVED"].includes(p.lifecycleState)}
-                onClick={() => setReasonModal("PAUSE")}
-                data-reviewer-action-pause
-              >
-                Pause
-              </button>
-            )}
-            <a
-              href="/reviewer-ops/escalations"
-              style={{
-                ...buttonSurfaceStyle("secondary", "sm"),
-                textDecoration: "none",
-                display: "inline-block",
-              }}
-            >
-              Escalation log
-            </a>
-          </div>
-        </Card>
-      </div>
-
-      {/* Phase 2.5 — Keyboard shortcuts help overlay. Triggered by `?`
-          (input-safe; ignored while typing). Mounted last so its
-          z-index renders above other modals if both ever stack. */}
+      {/* Phase 2.5 — Keyboard shortcuts help (`?`, ignored while typing). */}
       <ReviewerShortcutsHelp
         open={shortcutsOpen}
         onClose={() => setShortcutsOpen(false)}
+        variant="inspector"
       />
 
-      {/* Phase 2.4 — Structured reason modal. Replaces the three
-          window.prompt calls that previously gathered request-info /
-          reject / pause reasons. The modal validates + truncates and
-          delegates the POST to the existing `post()` helper. */}
+      {/* Phase 2.4 — Structured reason dialog. A refusal stays inside the
+          dialog with the typed reason kept for the retry. */}
       <ReviewerReasonModal
         kind={reasonModal}
         open={reasonModal !== null}
-        onCancel={() => setReasonModal(null)}
+        error={dialogError}
+        onCancel={() => {
+          setReasonModal(null);
+          setDialogError(null);
+        }}
         onSubmit={async (reason) => {
           if (!reasonModal) return;
           let ok = false;
           if (reasonModal === "REQUEST_INFO") {
-            ok = await post("request-info", "request-info", { note: reason });
+            ok = await post("request_info", { note: reason }, { kind: "request_info", inDialog: true });
           } else if (reasonModal === "REJECT") {
-            ok = await post("reject", "reject", { note: reason });
+            ok = await post("reject", { note: reason }, { kind: "reject", inDialog: true });
           } else if (reasonModal === "PAUSE") {
-            ok = await post("pause", "pause", { pausedReason: reason });
+            ok = await post("pause", { pausedReason: reason }, { inDialog: true });
+          } else if (reasonModal === "RECORD_RESPONSE") {
+            ok = await post(
+              "record_response",
+              reason ? { note: reason } : {},
+              { kind: "record_response", inDialog: true },
+            );
           }
-          // PRO-R2-16 — close only on success; a refusal keeps the modal and
-          // the typed reason open for the retry (the page shows the error).
-          if (ok) setReasonModal(null);
+          // PRO-R2-16 — close only on success; a refusal keeps the dialog,
+          // its message and the typed reason for the retry.
+          if (ok) {
+            setReasonModal(null);
+            setDialogError(null);
+          }
         }}
       />
     </PageShell>
@@ -849,21 +935,28 @@ function KV({ k, v }: { k: string; v: React.ReactNode }) {
       style={{
         display: "flex",
         justifyContent: "space-between",
+        gap: 12,
         padding: "2px 0",
+        flexWrap: "wrap",
+        minWidth: 0,
       }}
     >
-      <span className="app-field-help">{k}</span>
-      <span>{v}</span>
+      <span className="app-field-help" style={{ margin: 0 }}>{k}</span>
+      <span style={{ overflowWrap: "anywhere", minWidth: 0 }}>{v}</span>
     </div>
   );
 }
 
 const twoColStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "1fr 1fr",
+  // Two columns where there is room, one stacked column on a phone: a fixed
+  // `1fr 1fr` overflowed at 320 px.
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))",
   gap: 16,
   marginTop: 16,
+  marginBottom: 12,
   alignItems: "flex-start",
+  minWidth: 0,
 };
 
 const thLight: React.CSSProperties = {
@@ -873,21 +966,14 @@ const thLight: React.CSSProperties = {
   color: "var(--ink-secondary)",
   textTransform: "uppercase",
   letterSpacing: 0.3,
-  padding: "6px 0",
+  padding: "6px 8px 6px 0",
   borderBottom: "1px solid var(--border-standard)",
 };
 
 const tdLight: React.CSSProperties = {
-  padding: "6px 0",
+  padding: "6px 8px 6px 0",
   borderBottom: "1px solid var(--border-subtle)",
   fontSize: 12,
-};
-
-const actionGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: 6,
-  marginTop: 8,
 };
 
 // ---------------------------------------------------------------------------
@@ -947,82 +1033,99 @@ function ReviewerCrossSurfaceLinks({ evidenceId }: { evidenceId: string }) {
     }
   };
 
+  const groupStyle: React.CSSProperties = {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    alignItems: "center",
+    minWidth: 0,
+  };
+  const groupTitle: React.CSSProperties = {
+    fontSize: 12,
+    fontWeight: 600,
+    margin: "0 0 6px",
+    color: "var(--app-ink-label, var(--ink-secondary))",
+  };
+
   return (
     <div
       data-reviewer-cross-surface-links
       style={{
-        display: "flex",
-        gap: 8,
-        flexWrap: "wrap",
-        alignItems: "center",
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))",
+        gap: 16,
         fontSize: 13,
+        minWidth: 0,
       }}
     >
-      <a
-        href={`/evidence/${evidenceId}`}
-        data-reviewer-link="open-evidence"
-        style={{
-          ...buttonSurfaceStyle("secondary", "sm"),
-          textDecoration: "none",
-          display: "inline-block",
-        }}
-      >
-        Open evidence detail
-      </a>
-      <button
-        type="button"
-        onClick={() => void open("report")}
-        disabled={busy !== null}
-        data-reviewer-link="download-report"
-        style={buttonSurfaceStyle("secondary", "sm")}
-      >
-        {busy === "report" ? "Opening…" : "Download latest report"}
-      </button>
-      <button
-        type="button"
-        onClick={() => void open("package")}
-        disabled={busy !== null}
-        data-reviewer-link="download-package"
-        style={buttonSurfaceStyle("secondary", "sm")}
-      >
-        {busy === "package" ? "Opening…" : "Download verification package"}
-      </button>
-      <a
-        href="/reports"
-        data-reviewer-link="open-reports"
-        style={{
-          ...buttonSurfaceStyle("secondary", "sm"),
-          textDecoration: "none",
-          display: "inline-block",
-        }}
-      >
-        Reports queue
-      </a>
-      <a
-        href="/reviewer-ops/escalations"
-        data-reviewer-link="open-escalations"
-        style={{
-          ...buttonSurfaceStyle("secondary", "sm"),
-          textDecoration: "none",
-          display: "inline-block",
-        }}
-      >
-        Escalations
-      </a>
-      {error ? (
-        <span
-          role="alert"
-          data-reviewer-cross-surface-error
-          style={{
-            color: "#f6c8c8",
-            fontSize: 12,
-            width: "100%",
-            marginTop: 4,
-          }}
-        >
-          {error}
-        </span>
-      ) : null}
+      {/* Evidence: the record under review and its outputs. One primary.
+          Downloads keep the existing gated endpoints; nothing here adds a
+          privilege. */}
+      <div role="group" aria-labelledby="reviewer-links-evidence" data-reviewer-links-group="evidence" style={{ minWidth: 0 }}>
+        <p id="reviewer-links-evidence" style={groupTitle}>Evidence</p>
+        <div style={groupStyle}>
+          <a
+            href={`/evidence/${evidenceId}`}
+            data-reviewer-link="open-evidence"
+            className="app-primary-action"
+            style={{ textDecoration: "none" }}
+          >
+            Open evidence detail
+          </a>
+          <button
+            type="button"
+            onClick={() => void open("report")}
+            disabled={busy !== null}
+            aria-busy={busy === "report" || undefined}
+            data-reviewer-link="download-report"
+            className="app-secondary-action"
+          >
+            {busy === "report" ? "Opening…" : "Download latest report"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void open("package")}
+            disabled={busy !== null}
+            aria-busy={busy === "package" || undefined}
+            data-reviewer-link="download-package"
+            className="app-secondary-action"
+          >
+            {busy === "package" ? "Opening…" : "Download verification package"}
+          </button>
+        </div>
+        {error ? (
+          <p
+            role="alert"
+            data-reviewer-cross-surface-error
+            className="app-alert app-alert--danger"
+            style={{ margin: "8px 0 0" }}
+          >
+            {error}
+          </p>
+        ) : null}
+      </div>
+      {/* Go to: other review surfaces. Navigation only, no primary. */}
+      <nav aria-labelledby="reviewer-links-goto" data-reviewer-links-group="goto" style={{ minWidth: 0 }}>
+        <p id="reviewer-links-goto" style={groupTitle}>Go to</p>
+        <div style={groupStyle}>
+          <a
+            href="/reports"
+            data-reviewer-link="open-reports"
+            className="app-secondary-action"
+            style={{ textDecoration: "none" }}
+          >
+            Reports queue
+          </a>
+          <a
+            href="/reviewer-ops/escalations"
+            data-reviewer-link="open-escalations"
+            className="app-secondary-action"
+            style={{ textDecoration: "none" }}
+          >
+            Escalations
+          </a>
+        </div>
+      </nav>
     </div>
   );
 }
@@ -1128,9 +1231,12 @@ type NotesEnvelope = {
 function ReviewerNotesPanel({
   workflowId,
   teamId,
+  refreshKey = 0,
 }: {
   workflowId: string;
   teamId: string;
+  /** Bumped by the page after any action, so the notes reread. */
+  refreshKey?: number;
 }) {
   const [state, setState] = useState<
     | { kind: "loading" }
@@ -1146,7 +1252,9 @@ function ReviewerNotesPanel({
   const [composeError, setComposeError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setState({ kind: "loading" });
+    // A refresh keeps the current list on screen instead of flashing to a
+    // loading state.
+    setState((prev) => (prev.kind === "ready" ? prev : { kind: "loading" }));
     try {
       const data = (await apiFetch(
         `/v1/reviewer-ops/workspace/${encodeURIComponent(workflowId)}/notes?teamId=${encodeURIComponent(teamId)}`,
@@ -1166,7 +1274,7 @@ function ReviewerNotesPanel({
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, refreshKey]);
 
   const submitNote = useCallback(async () => {
     const trimmed = composeBody.trim();
@@ -1500,9 +1608,7 @@ function ReviewerNotesPanel({
                       {NOTE_TYPE_LABELS[n.type] ?? identifierLabel(n.type)}
                     </span>
                     <span style={{ fontWeight: 600 }}>
-                      {n.author.displayName ||
-                        n.author.email ||
-                        n.author.userId.slice(0, 8)}
+                      {n.author.displayName || n.author.email || recordReference("Author", n.author.userId)}
                     </span>
                   </div>
                   <time dateTime={n.createdAt} style={{ opacity: 0.75 }}>
@@ -1679,8 +1785,8 @@ type DecisionsEnvelope = {
 const STATE_LABELS: Record<ReviewState, string> = {
   first_required: "First review required",
   second_required: "Second review required",
-  conflict_detected: "Conflict detected — adjudication required",
-  adjudication_required: "Adjudication required",
+  conflict_detected: "The reviews disagree — adjudication needed",
+  adjudication_required: "Adjudication needed",
   resolved: "Review resolved",
 };
 
@@ -1726,12 +1832,6 @@ const DECISION_KIND_OPTIONS_FIRST_SECOND: DecisionKind[] = [
   "REQUEST_INFO",
   "NEEDS_MORE_INFO",
 ];
-const DECISION_KIND_OPTIONS_ADJUDICATION: DecisionKind[] = [
-  "UPHOLD_FIRST",
-  "UPHOLD_SECOND",
-  "NEEDS_MORE_INFO",
-  "UNRESOLVED",
-];
 const REASON_CODE_OPTIONS: ReasonCode[] = [
   "EVIDENCE_INCOMPLETE",
   "REPORT_FAILED",
@@ -1747,9 +1847,21 @@ const REASON_CODE_OPTIONS: ReasonCode[] = [
 function ReviewerDecisionLineagePanel({
   workflowId,
   teamId,
+  refreshKey = 0,
+  onLoaded,
+  onSubmitDecision,
 }: {
   workflowId: string;
   teamId: string;
+  /** Bumped by the page after any action, so the lineage rereads. */
+  refreshKey?: number;
+  /** Lifts what was read, for the approve confirmation and adjudication. */
+  onLoaded?: (summary: DecisionsSummary | null) => void;
+  /**
+   * The page's decisions POST: maps refusals and reloads the workspace and
+   * this panel. Resolves to an error message, or null on success.
+   */
+  onSubmitDecision: (body: { decision: string; reasonCode?: string; rationale: string }) => Promise<string | null>;
 }) {
   const [state, setState] = useState<
     | { kind: "loading" }
@@ -1764,19 +1876,30 @@ function ReviewerDecisionLineagePanel({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // The page's lift callback, read through a ref so a new arrow on every
+  // page render does not re-run the load.
+  const onLoadedRef = useRef(onLoaded);
+  useEffect(() => {
+    onLoadedRef.current = onLoaded;
+  });
+
   const load = useCallback(async () => {
-    setState({ kind: "loading" });
+    // A refresh keeps the current lineage on screen instead of flashing to a
+    // loading state.
+    setState((prev) => (prev.kind === "ready" ? prev : { kind: "loading" }));
     try {
       const data = (await apiFetch(
         `/v1/reviewer-ops/workspace/${encodeURIComponent(workflowId)}/decisions?teamId=${encodeURIComponent(teamId)}`,
         { method: "GET" },
       )) as DecisionsEnvelope;
       setState({ kind: "ready", data });
-      // Reset compose state on reload.
-      setComposeDecision("");
-      setComposeReason("");
-      setComposeRationale("");
-      setSubmitError(null);
+      onLoadedRef.current?.({
+        state: data.state,
+        secondRequired: Boolean(data.secondReviewRequirement?.required),
+        nextAction: data.callerContext.nextAction,
+        teamRole: data.callerContext.teamRole,
+        decisions: data.decisions,
+      });
     } catch (err: unknown) {
       const status =
         typeof (err as { statusCode?: number }).statusCode === "number"
@@ -1785,16 +1908,17 @@ function ReviewerDecisionLineagePanel({
       const message =
         toSafeUserError(err, { message: "Could not load decisions." }).message;
       setState({ kind: "error", status, message });
+      onLoadedRef.current?.(null);
     }
   }, [workflowId, teamId]);
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, refreshKey]);
 
   const submit = useCallback(async () => {
     if (!composeDecision) {
-      setSubmitError("Pick a decision.");
+      setSubmitError("Choose a decision.");
       return;
     }
     if (composeRationale.trim().length === 0) {
@@ -1803,55 +1927,23 @@ function ReviewerDecisionLineagePanel({
     }
     setSubmitting(true);
     setSubmitError(null);
-    try {
-      await apiFetch(
-        `/v1/reviewer-ops/workspace/${encodeURIComponent(workflowId)}/decisions`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            teamId,
-            decision: composeDecision,
-            reasonCode: composeReason || undefined,
-            rationale: composeRationale.trim(),
-          }),
-        },
-      );
-      await load();
-    } catch (err: unknown) {
-      const e = err as {
-        statusCode?: number;
-        message?: string;
-        body?: { error?: { code?: string; reason?: string } };
-      };
-      const status = e.statusCode ?? 0;
-      const code = e.body?.error?.code;
-      const reason = e.body?.error?.reason;
-      if (status === 409 && code === "same_reviewer_blocked") {
-        setSubmitError(
-          "Same-reviewer guard fired — you submitted the FIRST decision; a different reviewer must submit the SECOND.",
-        );
-      } else if (status === 409 && code === "adjudicator_not_independent") {
-        setSubmitError(
-          "You decided one of the two reviews, so you cannot adjudicate them. Another owner or admin must.",
-        );
-      } else if (status === 403 && code === "adjudicator_role_required") {
-        setSubmitError(
-          "Adjudication requires team OWNER or ADMIN role on this workspace.",
-        );
-      } else if (status === 409 && code === "decision_not_allowed") {
-        setSubmitError(
-          "This review is already resolved; no further decisions are accepted.",
-        );
-      } else if (status === 400) {
-        setSubmitError(reason ?? toSafeUserError(e, { message: "Request rejected." }).message);
-      } else {
-        setSubmitError(toSafeUserError(e, { message: "Submit failed." }).message);
-      }
-    } finally {
-      setSubmitting(false);
+    // The page POSTs, maps the refusal by reason (a stale or out-of-stage
+    // decision is never reported as "already resolved") and reloads both the
+    // workspace and this panel.
+    const failure = await onSubmitDecision({
+      decision: composeDecision,
+      reasonCode: composeReason || undefined,
+      rationale: composeRationale.trim(),
+    });
+    if (failure) {
+      setSubmitError(failure);
+    } else {
+      setComposeDecision("");
+      setComposeReason("");
+      setComposeRationale("");
     }
-  }, [composeDecision, composeReason, composeRationale, workflowId, teamId, load]);
+    setSubmitting(false);
+  }, [composeDecision, composeReason, composeRationale, onSubmitDecision]);
 
   if (state.kind === "loading") {
     return (
@@ -1866,7 +1958,7 @@ function ReviewerDecisionLineagePanel({
         data-section="reviewer-decision-lineage"
         data-decision-state="loading"
       >
-        <h3 className="app-panel__title">Multi-stage review governance</h3>
+        <h3 className="app-panel__title">Review decisions</h3>
         <div className="app-field-help">Loading review state…</div>
       </section>
     );
@@ -1885,7 +1977,7 @@ function ReviewerDecisionLineagePanel({
         data-section="reviewer-decision-lineage"
         data-decision-state="error"
       >
-        <h3 className="app-panel__title">Multi-stage review governance</h3>
+        <h3 className="app-panel__title">Review decisions</h3>
         <div role="alert" style={{ fontSize: 13, opacity: 0.85 }}>
           {/* raw-identifier-ok: state.status here is the HTTP status number of a failed read */}
           {state.status === 404
@@ -1899,15 +1991,13 @@ function ReviewerDecisionLineagePanel({
   }
 
   const data = state.data;
-  const tone = STATE_TONE[data.state];
-  const stageOptions =
-    data.callerContext.nextAction === "submit_adjudication"
-      ? DECISION_KIND_OPTIONS_ADJUDICATION
-      : DECISION_KIND_OPTIONS_FIRST_SECOND;
-  const canSubmit =
-    data.callerContext.nextAction === "submit_first" ||
-    data.callerContext.nextAction === "submit_second" ||
-    data.callerContext.nextAction === "submit_adjudication";
+  const tone = STATE_TONE[data.state] ?? STATE_TONE.first_required;
+  const nextAction = data.callerContext.nextAction;
+  // First and second decisions only. Adjudication is its own panel, so this
+  // form never offers an adjudication kind.
+  const canSubmit = nextAction === "submit_first" || nextAction === "submit_second";
+  const formStage = nextAction === "submit_first" ? "FIRST" : "SECOND";
+  const trigger = data.secondReviewRequirement.reason;
 
   return (
     <section
@@ -1918,10 +2008,11 @@ function ReviewerDecisionLineagePanel({
         marginBottom: 12,
         background: tone.bg,
         borderColor: tone.border,
+        minWidth: 0,
       }}
       data-section="reviewer-decision-lineage"
       data-decision-state={data.state}
-      data-decision-next-action={data.callerContext.nextAction}
+      data-decision-next-action={nextAction}
       data-decision-requires-second={
         data.secondReviewRequirement.required ? "true" : "false"
       }
@@ -1932,8 +2023,8 @@ function ReviewerDecisionLineagePanel({
         data.callerContext.isAdjudicator ? "true" : "false"
       }
     >
-      <h3 className="app-panel__title">
-        Multi-stage review governance{" "}
+      <h3 className="app-panel__title" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+        Review decisions
         <span
           data-decision-state-chip={data.state}
           style={{
@@ -1944,28 +2035,23 @@ function ReviewerDecisionLineagePanel({
             borderRadius: 999,
             background: tone.chipBg,
             color: tone.chipFg,
-            marginLeft: 6,
           }}
         >
-          {STATE_LABELS[data.state]}
+          {STATE_LABELS[data.state] ?? "Review in progress"}
         </span>
       </h3>
 
       {data.secondReviewRequirement.required ? (
         <div
-          data-decision-second-review-reason={data.secondReviewRequirement.reason}
-          style={{ fontSize: 12, opacity: 0.8, marginTop: 2 }}
+          data-decision-second-review-reason={trigger ?? undefined}
+          style={{ fontSize: 12, marginTop: 2 }}
         >
-          Second review required —{" "}
-          <strong>
-            {data.secondReviewRequirement.reason?.replace(/_/g, " ") ??
-              "policy-required"}
-          </strong>
-          .
+          A second review is required because{" "}
+          {(trigger && SECOND_REVIEW_TRIGGER_LABELS[trigger]) || "workspace policy requires it"}.
         </div>
       ) : (
-        <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
-          Single-stage review (no policy trigger for second review).
+        <div style={{ fontSize: 12, marginTop: 2, color: "var(--silver-ink)" }}>
+          One review decides this review (no policy requires a second review).
         </div>
       )}
 
@@ -1973,13 +2059,7 @@ function ReviewerDecisionLineagePanel({
       {canSubmit ? (
         <form
           data-decision-form
-          data-decision-form-stage={
-            data.callerContext.nextAction === "submit_first"
-              ? "FIRST"
-              : data.callerContext.nextAction === "submit_second"
-                ? "SECOND"
-                : "ADJUDICATION"
-          }
+          data-decision-form-stage={formStage}
           onSubmit={(e) => {
             e.preventDefault();
             void submit();
@@ -1989,78 +2069,70 @@ function ReviewerDecisionLineagePanel({
             gap: 6,
             marginTop: 10,
             padding: "0.6rem 0.75rem",
-            border: "1px solid currentColor",
+            border: "1px solid var(--border-standard)",
             borderRadius: 6,
-            background: "rgba(255,255,255,0.04)",
+            background: "var(--surface-standard)",
+            minWidth: 0,
           }}
         >
           <div style={{ fontSize: 12, fontWeight: 700 }}>
-            Submit{" "}
-            {data.callerContext.nextAction === "submit_first"
-              ? "FIRST"
-              : data.callerContext.nextAction === "submit_second"
-                ? "SECOND"
-                : "ADJUDICATION"}{" "}
-            decision
+            Record the {formStage === "FIRST" ? "first" : "second"} review decision
           </div>
-          <label style={{ fontSize: 12 }}>
+          <label style={{ fontSize: 12 }} className="app-field-label">
             Decision
             <AppListbox
               value={composeDecision}
               options={[
-                { value: "", label: "— pick —" },
-                ...stageOptions.map((d) => ({ value: d, label: d.replace(/_/g, " ") })),
+                { value: "", label: "Choose a decision…" },
+                ...DECISION_KIND_OPTIONS_FIRST_SECOND.map((d) => ({ value: d, label: DECISION_OPTION_LABELS[d] ?? d })),
               ]}
               onChange={(next) => setComposeDecision(next as DecisionKind | "")}
               disabled={submitting}
-              style={{ marginLeft: 6 }}
+              style={{ marginLeft: 6, maxWidth: "100%" }}
               triggerProps={{ "aria-required": true, "data-decision-form-decision": "" }}
             />
           </label>
-          <label style={{ fontSize: 12 }}>
-            Reason code (optional but recommended)
+          <label style={{ fontSize: 12 }} className="app-field-label">
+            Reason (optional but recommended)
             <AppListbox
               value={composeReason}
               options={[
-                { value: "", label: "— none —" },
-                ...REASON_CODE_OPTIONS.map((r) => ({ value: r, label: r.replace(/_/g, " ") })),
+                { value: "", label: "No reason" },
+                ...REASON_CODE_OPTIONS.map((r) => ({ value: r, label: REASON_CODE_LABELS[r] ?? r })),
               ]}
               onChange={(next) => setComposeReason(next as ReasonCode | "")}
               disabled={submitting}
-              style={{ marginLeft: 6 }}
+              style={{ marginLeft: 6, maxWidth: "100%" }}
               triggerProps={{ "data-decision-form-reason": "" }}
             />
           </label>
-          <textarea
-            value={composeRationale}
-            onChange={(e) => setComposeRationale(e.target.value)}
-            disabled={submitting}
-            maxLength={4000}
-            rows={3}
-            placeholder="Rationale (required; 1–4000 chars). Captured in the audit chain and visible to subsequent reviewers."
-            data-decision-form-rationale
-            style={{
-              fontSize: 13,
-              padding: "0.4rem 0.5rem",
-              border: "1px solid currentColor",
-              borderRadius: 4,
-              background: "transparent",
-              color: "inherit",
-              resize: "vertical",
-              minHeight: 60,
-            }}
-          />
+          <label className="app-field-label" style={{ fontSize: 12 }}>
+            Rationale
+            <textarea
+              className="app-textarea"
+              value={composeRationale}
+              onChange={(e) => setComposeRationale(e.target.value)}
+              disabled={submitting}
+              maxLength={4000}
+              rows={3}
+              required
+              placeholder="Required, up to 4,000 characters. Recorded in the audit log and visible to later reviewers."
+              data-decision-form-rationale
+              style={{ width: "100%", boxSizing: "border-box", resize: "vertical", minHeight: 60, display: "block", marginTop: 4 }}
+            />
+          </label>
           {submitError ? (
-            <div
+            <p
               role="alert"
               data-decision-form-error
-              style={{ fontSize: 12, color: "#d44" }}
+              className="app-alert app-alert--danger"
+              style={{ margin: 0 }}
             >
               {submitError}
-            </div>
+            </p>
           ) : null}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
-            <span style={{ fontSize: 11, opacity: 0.6 }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span className="app-field-help" style={{ margin: 0 }}>
               {composeRationale.length}/4000
             </span>
             <button
@@ -2071,42 +2143,48 @@ function ReviewerDecisionLineagePanel({
                 composeRationale.trim().length === 0
               }
               data-decision-form-submit
-              style={buttonSurfaceStyle("primary", "sm")}
+              className="app-secondary-action app-secondary-action--filled"
             >
-              {submitting ? "Submitting…" : "Submit decision"}
+              {submitting ? "Recording…" : "Record decision"}
             </button>
           </div>
         </form>
       ) : (
         <div
-          data-decision-blocked-banner={data.callerContext.nextAction}
+          data-decision-blocked-banner={nextAction}
           style={{
             marginTop: 10,
             padding: "0.5rem 0.7rem",
-            border: "1px dashed currentColor",
+            border: "1px dashed var(--border-strong, currentColor)",
             borderRadius: 6,
             fontSize: 12.5,
           }}
         >
-          {data.callerContext.nextAction === "blocked_same_reviewer" && (
+          {nextAction === "blocked_same_reviewer" && (
             <>
-              <strong>Same-reviewer guard:</strong> you submitted the FIRST
-              decision. A different reviewer must submit the SECOND review
-              for independence.
+              <strong>A different reviewer must decide.</strong> You made the
+              first decision, so the second review needs another reviewer —
+              reassign it.
             </>
           )}
-          {data.callerContext.nextAction === "blocked_not_adjudicator" && (
+          {nextAction === "blocked_not_adjudicator" && (
             <>
-              <strong>Adjudicator role required:</strong> a conflict was
-              detected between the FIRST and SECOND decisions. Only team
-              OWNER or ADMIN can adjudicate (your role:{" "}
-              <code>{data.callerContext.teamRole ?? "—"}</code>).
+              <strong>Adjudication needed.</strong> The first and second
+              reviews disagree. Only a workspace owner or admin who made
+              neither decision can adjudicate (your role:{" "}
+              {teamRoleLabel(data.callerContext.teamRole)}).
             </>
           )}
-          {data.callerContext.nextAction === "no_action_resolved" && (
+          {nextAction === "submit_adjudication" && (
             <>
-              <strong>Review resolved:</strong> the audit chain is closed
-              for this workflow. No further decisions are accepted.
+              <strong>Adjudication needed.</strong> The first and second
+              reviews disagree. Record the outcome in the adjudication panel.
+            </>
+          )}
+          {nextAction === "no_action_resolved" && (
+            <>
+              <strong>Review resolved.</strong> No further decisions are
+              accepted for this round.
             </>
           )}
         </div>
@@ -2177,7 +2255,7 @@ function ReviewerDecisionLineagePanel({
                         background: "rgba(127,127,127,0.18)",
                       }}
                     >
-                      #{idx + 1} · {identifierLabel(d.stage)}
+                      #{idx + 1} · {STAGE_LABELS[d.stage] ?? identifierLabel(d.stage)}
                     </span>
                     <span
                       data-decision-kind-chip={d.decision}
@@ -2197,7 +2275,7 @@ function ReviewerDecisionLineagePanel({
                               : "rgba(245,158,11,0.22)",
                       }}
                     >
-                      {d.decision.replace(/_/g, " ")}
+                      {DECISION_KIND_LABELS[d.decision] ?? identifierLabel(d.decision)}
                     </span>
                     {d.reasonCode ? (
                       <span
@@ -2210,13 +2288,11 @@ function ReviewerDecisionLineagePanel({
                           background: "rgba(127,127,127,0.12)",
                         }}
                       >
-                        {d.reasonCode.replace(/_/g, " ")}
+                        {REASON_CODE_LABELS[d.reasonCode] ?? identifierLabel(d.reasonCode)}
                       </span>
                     ) : null}
                     <span style={{ fontWeight: 600 }}>
-                      {d.reviewer.displayName ||
-                        d.reviewer.email ||
-                        d.reviewer.userId.slice(0, 8)}
+                      {reviewerName(d.reviewer)}
                     </span>
                   </div>
                   <time dateTime={d.decidedAt} style={{ opacity: 0.75 }}>

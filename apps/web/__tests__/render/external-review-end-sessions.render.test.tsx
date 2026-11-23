@@ -91,7 +91,13 @@ function reply(path: string, init?: RequestInit): unknown {
   if (ended && rereadFails && (path === LIST || path === ACTIVITY)) {
     throw Object.assign(new Error("down"), { statusCode: 503 });
   }
-  if (path === LIST) return { invitations: [ROW] };
+  // TEAM-SPEC §2.11 (rebaselined 2026-11-23) — the console follows the list's
+  // viewerCanIssue / viewerCanRevoke; `canAct` now models what the API projects.
+  if (path === LIST)
+    return {
+      invitations: [{ ...ROW, viewerCanRevoke: mocks.canAct.value }],
+      viewerCanIssue: mocks.canAct.value,
+    };
   if (path === ACTIVITY) {
     return {
       activity: ended

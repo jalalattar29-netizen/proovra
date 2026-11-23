@@ -6,6 +6,17 @@
  * Workspace-level SLA telemetry: backlog totals, breached counts,
  * reviewer workload snapshot, top reviewers by load, escalation
  * pressure. Operator-readable only — no per-reviewer private text.
+ *
+ * TEAM-SPEC §2 item 8 / §3 (2026-11-23) — no fabricated figures:
+ *   - `slaComplianceRate` is null when no review completed in the range; it
+ *     reads "No completed reviews in range", never 100% or 0%.
+ *   - a null mean resolution or capacity reads "No data", never 0 h.
+ *   - the by-stage "escalated" row counts reviews whose stored stage is
+ *     ESCALATED (a manual escalation decision). An "open escalation" is an
+ *     escalation record that is open, acknowledged or reassigned — the
+ *     Escalations page's "Active" filter — so the two numbers can differ.
+ *   - a failed dashboard read renders an error with Retry, never an endless
+ *     "Loading…".
  */
 
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
@@ -28,6 +39,17 @@ import {
 import { Card } from "../../../../components/ui/Card";
 import { Badge } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
+import { Button } from "../../../../components/ui/Button";
+import { escalationReasonLabel } from "../../../../lib/labels/governanceReviewLabels";
+import { ReviewHubNav } from "../../../../components/reviewer-experience/ReviewHubNav";
+import { useReviewDestination } from "../../../../components/reviewer-experience/reviewDestination";
+import { ReviewDestinationLink } from "../../../../components/reviewer-experience/ReviewDestinationLink";
+import {
+  OPEN_ESCALATION_DEFINITION,
+  complianceLabel,
+  hoursOrNoData,
+  stageRowLabel,
+} from "../../../../components/reviewer-experience/monitoringDisplay";
 
 type EscalationAnalytics = {
   range: { startUtc: string; endUtc: string };
@@ -60,8 +82,9 @@ type ReviewerPerformance = {
     overdue: number;
     escalated: number;
     meanResolutionMs: number | null;
-    slaComplianceRate: number;
-    capacityScore: number;
+    /** TEAM-SPEC §2 item 8 — null when no review completed in the range. */
+    slaComplianceRate: number | null;
+    capacityScore: number | null;
   }>;
 };
 
@@ -95,7 +118,8 @@ type DashboardResponse = {
 };
 
 // Phase 38.11 — wrap in canonical PageRouteGate. `review.sla` is
-// organization-only; the gate renders the structured recovery panel.
+// PERSONAL_OR_ORG + the workspace's reviewer-operations entitlement
+// (TEAM-SPEC R1); the gate renders the structured refusal otherwise.
 export default function SlaDashboardPage() {
   return (
     <PageRouteGate routeId="review.sla">
@@ -120,8 +144,12 @@ const REMINDER_STATUS_LABEL: Record<ReviewReminder["status"], string> = {
 };
 
 function SlaDashboardPageInner() {
-  // PageRouteGate guarantees an active ORGANIZATION space here.
+  // The ACTIVE workspace (personal or organization) from the envelope.
   const teamId = useActiveSpaceId();
+  const policyDestination = useReviewDestination("review.settings", {
+    label: "Review settings",
+  });
+  const [dashboardAttempt, setDashboardAttempt] = useState(0);
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [analytics, setAnalytics] = useState<EscalationAnalytics | null>(null);
@@ -135,6 +163,7 @@ function SlaDashboardPageInner() {
 
   const load = useCallback(() => {
     if (!teamId) return;
+    setError(null);
     apiFetch(
       `/v1/reviewer-ops/dashboard?teamId=${encodeURIComponent(teamId)}`,
       { method: "GET" },
@@ -146,7 +175,8 @@ function SlaDashboardPageInner() {
       .catch((err: { message?: string }) =>
         setError(toSafeUserError(err, { message: "Could not load dashboard." }).message),
       );
-  }, [teamId]);
+    // `dashboardAttempt` re-runs the read when Retry is pressed.
+  }, [teamId, dashboardAttempt]);
 
   useEffect(() => {
     load();
@@ -212,8 +242,8 @@ function SlaDashboardPageInner() {
         header={
           <PageHeader
             eyebrow="Reviewer operations"
-            title="SLA Operations Dashboard"
-            subtitle="Loading organization workspace…"
+            title="SLA monitoring"
+            subtitle="Loading workspace…"
           />
         }
       />
@@ -225,11 +255,12 @@ function SlaDashboardPageInner() {
         width="full"
         header={
           <PageHeader
-            eyebrow="Reviewer operations"
-            title="SLA Operations"
+            eyebrow="Review"
+            title="SLA monitoring"
           />
         }
       >
+        <ReviewHubNav active="monitoring" monitoringView="sla" />
         {reminders && reminders.length > 0 ? (
         <PageSection>
           <Card padding="comfortable">
@@ -257,11 +288,22 @@ function SlaDashboardPageInner() {
       ) : null}
 
       {error ? (
-          <Card variant="status" tone="risk">
-            {error}
+          <Card variant="status" tone="risk" role="alert" data-sla-dashboard-error>
+            <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <span>{error}</span>
+              <Button
+                variant="secondary"
+                size="sm"
+                data-sla-dashboard-retry
+                onClick={() => setDashboardAttempt((n) => n + 1)}
+              >
+                Retry
+              </Button>
+            </div>
           </Card>
-        ) : null}
-        <EmptyState variant="inline" title="Loading SLA dashboard…" />
+        ) : (
+          <EmptyState variant="inline" title="Loading SLA dashboard…" />
+        )}
       </PageShell>
     );
   }
@@ -271,20 +313,25 @@ function SlaDashboardPageInner() {
       width="full"
       header={
         <PageHeader
-          eyebrow="Reviewer operations"
-          title="SLA Operations"
+          eyebrow="Review"
+          title="SLA monitoring"
           subtitle={
             <span data-sla-dashboard-intro>
               Read-only operations dashboard reflecting current SLA pressure
-              across the workspace — backlog, breached counts, reviewer
-              workload, and escalation hotspots. SLA policy is administered at
-              /governance/policy; this surface never mutates it.
-              Operator-readable only — no private review notes.
+              across the workspace — backlog, overdue reviews, reviewer
+              workload and escalation hotspots. Review deadlines are set in{" "}
+              {policyDestination ? (
+                <ReviewDestinationLink destination={policyDestination} />
+              ) : (
+                "the workspace's review settings"
+              )}
+              . No private review notes are shown.
             </span>
           }
         />
       }
     >
+      <ReviewHubNav active="monitoring" monitoringView="sla" />
       {/* Review automation only: this page's SLA and escalation figures are
           produced by the reviewer reconcile sweep, so a stale sweep is said
           here, in one line. Unrelated platform checks are not. Global service
@@ -321,11 +368,10 @@ function SlaDashboardPageInner() {
           />
                   </div>
         <p style={{ marginTop: 10, fontSize: 12, color: "var(--silver-ink)" }}>
-          Workload and assignment suggestions depend on reconcile snapshots.
-          Escalation analytics refresh separately from the queue snapshot. When
-          the runtime banner is degraded and the latest workload snapshot is
-          missing, operators should treat workload sections as stale rather than
-          assuming a true zero.
+          Workload and assignment suggestions refresh every few minutes.
+          Escalation analytics refresh separately. When the status banner says
+          review automation is delayed and no workload snapshot is shown, treat
+          the workload sections as out of date rather than as zero.
         </p>
         </Card>
       </PageSection>
@@ -356,6 +402,7 @@ function SlaDashboardPageInner() {
             label="Open escalations"
             value={data.openEscalations}
             tone={data.openEscalations > 0 ? "warn" : ""}
+            title={OPEN_ESCALATION_DEFINITION}
           />
           <Stat
             label="Critical escalations"
@@ -369,6 +416,11 @@ function SlaDashboardPageInner() {
       <PageSection>
         <Card padding="comfortable">
         <h3 className="app-panel__title">By stage</h3>
+        <p className="app-field-help" data-sla-by-stage-definition>
+          Counts reviews by their recorded stage. &ldquo;Escalated (manual
+          decision)&rdquo; counts reviews a reviewer moved to the escalated
+          stage. It is not the same as open escalations: {OPEN_ESCALATION_DEFINITION}
+        </p>
         <table className="app-table">
           <thead>
             <tr>
@@ -379,8 +431,11 @@ function SlaDashboardPageInner() {
           <tbody>
             {Object.entries(data.counts.byStage).map(([stage, count]) => (
               <tr key={stage}>
-                <td>
-                  {stage.toLowerCase().replace(/_/g, " ")}
+                <td
+                  data-sla-stage={stage}
+                  title={stage.toUpperCase() === "ESCALATED" ? OPEN_ESCALATION_DEFINITION : undefined}
+                >
+                  {stageRowLabel(stage)}
                 </td>
                 <td>{count}</td>
               </tr>
@@ -395,7 +450,7 @@ function SlaDashboardPageInner() {
         <h3 className="app-panel__title">Reviewer workload (latest snapshots)</h3>
         {data.workloadTop.length === 0 ? (
           <p className="app-field-help">
-            No workload snapshots yet — run the reconcile job to populate.
+            No workload snapshot yet. It appears a few minutes after reviews are assigned.
           </p>
         ) : (
           <table className="app-table">
@@ -445,7 +500,7 @@ function SlaDashboardPageInner() {
         <h3 className="app-panel__title">Assignment suggestions</h3>
         {data.suggestions.length === 0 ? (
           <p className="app-field-help">
-            No suggestions available. Run reconcile to compute workload first.
+            No suggestions yet. They appear once reviewer workload has been measured.
           </p>
         ) : (
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
@@ -463,8 +518,7 @@ function SlaDashboardPageInner() {
           </ul>
         )}
         <p style={{ marginTop: 8, fontSize: 12, color: "var(--silver-ink)" }}>
-          Suggestions are advisory. The reviewer-ops engine never
-          auto-assigns; operators decide.
+          Suggestions are advisory. Nothing is assigned automatically; you decide.
         </p>
         </Card>
       </PageSection>
@@ -505,7 +559,7 @@ function SlaDashboardPageInner() {
         ) : (
           <>
             <div style={statGridStyle}>
-              <Stat label="Open now" value={analytics.totalOpen} tone="" />
+              <Stat label="Open now" value={analytics.totalOpen} tone="" title={OPEN_ESCALATION_DEFINITION} />
               <Stat
                 label="Opened in range"
                 value={analytics.totalOpenedInRange}
@@ -518,11 +572,7 @@ function SlaDashboardPageInner() {
               />
               <Stat
                 label="Mean resolution (h)"
-                value={
-                  analytics.meanResolutionMs
-                    ? Math.round(analytics.meanResolutionMs / 3_600_000)
-                    : 0
-                }
+                value={hoursOrNoData(analytics.meanResolutionMs)}
                 tone=""
               />
             </div>
@@ -552,15 +602,13 @@ function SlaDashboardPageInner() {
                     <tr key={h.reason}>
                       <td>
                         <span style={{ fontSize: 12, color: "var(--silver-ink)" }}>
-                          {h.reason}
+                          {escalationReasonLabel(h.reason)}
                         </span>
                       </td>
                       <td>{h.openCount}</td>
                       <td>{h.resolvedCount}</td>
                       <td>
-                        {h.meanResolutionMs
-                          ? Math.round(h.meanResolutionMs / 3_600_000)
-                          : "—"}
+                        {hoursOrNoData(h.meanResolutionMs)}
                       </td>
                     </tr>
                   ))}
@@ -618,18 +666,18 @@ function SlaDashboardPageInner() {
                   <td>{r.rejectedInRange}</td>
                   <td>{r.overdue}</td>
                   <td>{r.escalated}</td>
-                  <td>
-                    {Math.round(r.slaComplianceRate * 100)}%
+                  <td data-sla-compliance={r.slaComplianceRate === null ? "none" : "value"}>
+                    {complianceLabel(r.slaComplianceRate)}
                   </td>
+                  <td>{hoursOrNoData(r.meanResolutionMs)}</td>
                   <td>
-                    {r.meanResolutionMs
-                      ? Math.round(r.meanResolutionMs / 3_600_000)
-                      : "—"}
-                  </td>
-                  <td>
-                    <Badge tone={capacityTone(r.capacityScore)} subtle>
-                      {r.capacityScore}
-                    </Badge>
+                    {typeof r.capacityScore === "number" ? (
+                      <Badge tone={capacityTone(r.capacityScore)} subtle>
+                        {r.capacityScore}
+                      </Badge>
+                    ) : (
+                      "No data"
+                    )}
                   </td>
                 </tr>
               ))}
@@ -708,10 +756,13 @@ function Stat({
   label,
   value,
   tone,
+  title,
 }: {
   label: string;
   value: number | string;
   tone: "" | "warn" | "alert";
+  /** Optional definition, shown as a tooltip. */
+  title?: string;
 }) {
   const palette = {
     "": {
@@ -741,6 +792,7 @@ function Stat({
         borderRadius: "var(--radius-md)",
       }}
       data-sla-stat-tone={tone === "" ? "neutral" : tone}
+      title={title}
     >
       <div style={{ fontSize: 22, fontWeight: 700 }}>{value}</div>
       <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.3 }}>

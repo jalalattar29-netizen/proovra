@@ -143,7 +143,11 @@ const TYPE_LABEL: Record<PreferenceType, string> = {
   // SLA_NEAR_BREACH, but what it actually maps to is the mandatory
   // evidence-integrity failure set (TSA/OTS timestamping, report and
   // verification-package failures) — the label says so.
-  SLA_NEAR_BREACH: "Evidence integrity & verification failures",
+  // TEAM-SPEC (2026-11-23) — the same key ALSO controls review SLA deadline
+  // alerts (near-breach / breached review deadlines). Splitting them needs a
+  // new preference key (a schema change, out of scope), so the label states
+  // both rather than describing half of what the toggle does.
+  SLA_NEAR_BREACH: "Evidence integrity failures & review SLA deadlines",
   EVIDENCE_REQUEST_UPDATE: "Evidence request updates",
   GOVERNANCE_UPDATE: "Governance / destruction updates",
 };
@@ -155,7 +159,7 @@ const TYPE_LABEL: Record<PreferenceType, string> = {
  */
 const IN_APP_LOCK_REASON: Partial<Record<PreferenceType, string>> = {
   SLA_NEAR_BREACH:
-    "Required for evidence integrity — always shown in the app",
+    "Required for evidence integrity and review deadlines — always shown in the app",
   GOVERNANCE_UPDATE:
     "Required governance duty — always shown in the app",
 };
@@ -175,7 +179,7 @@ const TYPE_HELP: Record<PreferenceType, string> = {
     "Notified when a reviewer-ops workflow is assigned to you.",
   ESCALATION: "Notified when an escalation is routed to you.",
   SLA_NEAR_BREACH:
-    "Evidence-integrity failures on records you can access — failed trusted timestamps (TSA/OTS), and, where your plan includes them, report generation and verification-package failures. Always shown in the app; email delivery is your choice.",
+    "One setting covers two kinds of alert: evidence-integrity failures on records you can access — failed trusted timestamps (TSA/OTS), and, where your plan includes them, report generation and verification-package failures — and review SLA deadline reminders for reviews you're responsible for (due soon, overdue, or inactive). Always shown in the app; email delivery is your choice and applies to both.",
   EVIDENCE_REQUEST_UPDATE:
     "Notified when an evidence request you own has new activity.",
   GOVERNANCE_UPDATE:

@@ -38,6 +38,7 @@ import {
   identifierLabel,
 } from "@proovra/shared";
 
+import { useReviewDestination } from "../../../../components/reviewer-experience/reviewDestination";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalEmptyState } from "../../../../components/operational";
 import { formatUserDateTime } from "../../../../lib/date";
@@ -1400,12 +1401,9 @@ function QueueRail({ workspace }: { workspace: ReviewerWorkspaceProjection }) {
       >
         Disagreements
       </Link>
-      <Link
-        href="/review/metrics"
-        style={{ fontSize: 11, color: "var(--ink-primary, #0f172a)", textDecoration: "underline" }}
-      >
-        Metrics
-      </Link>
+      {/* TEAM-SPEC §3 — metrics needs the review.assign permission (owners / admins);
+          the link renders only when the page opens for this actor. */}
+      <MetricsRailLink />
     </aside>
   );
 }
@@ -2030,5 +2028,18 @@ function DecisionBtn({
         </>
       ) : null}
     </button>
+  );
+}
+
+function MetricsRailLink() {
+  const destination = useReviewDestination("workspace.review_metrics", { label: "Metrics" });
+  if (!destination || destination.kind !== "link") return null;
+  return (
+    <Link
+      href={destination.href}
+      style={{ fontSize: 11, color: "var(--ink-primary, #0f172a)", textDecoration: "underline" }}
+    >
+      Metrics
+    </Link>
   );
 }

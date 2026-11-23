@@ -32,6 +32,7 @@
 import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+import { isRankInsufficient, RANK_INSUFFICIENT_MESSAGE } from "./WorkspaceMembersPanel";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "../../../../../components/cases-experience/matter-modals/Modal";
 import { Button } from "../../../../../components/ui";
@@ -135,7 +136,9 @@ export function MemberRemovalDialog({
           teamId,
           memberId: member.memberId,
         });
-        if (e.statusCode === 403) {
+        if (isRankInsufficient(err)) {
+          setLoadError(RANK_INSUFFICIENT_MESSAGE);
+        } else if (e.statusCode === 403) {
           setLoadError(
             "You don't have permission to view this member's removal impact.",
           );
@@ -232,6 +235,9 @@ export function MemberRemovalDialog({
         setSubmitError(
           "That transfer target isn't eligible anymore — refresh and try again.",
         );
+      } else if (isRankInsufficient(e)) {
+        // TEAM MEMBERSHIP (2026-11-23) — a peer ADMIN cannot remove an ADMIN.
+        setSubmitError(RANK_INSUFFICIENT_MESSAGE);
       } else if (e.statusCode === 403 && !e.code) {
         setSubmitError(
           "You don't have permission to remove members from this workspace.",

@@ -252,27 +252,27 @@ test("SCOPE K — self-serve/personal plans keep collaboration Teams but NOT ent
 // SCOPE J — External-reviewer console REUSE + deep-link + gate.
 // ===========================================================================
 
-test("SCOPE J — /review/external console is registered as REUSE surface (ORG + REVIEWER_OPS_VIEW), not a new portal", () => {
+// TEAM-SPEC R4 (2026-11-23) — was "ORG + REVIEWER_OPS_VIEW". External Review is
+// Pro and above on any workspace kind, so the console follows
+// externalReviewIncluded on PERSONAL_OR_ORG, and its capability is the writer
+// ladder GET /v1/external-review/grants enforces (audit.read → EVIDENCE_MANAGE),
+// not the Team-only REVIEWER_OPS_VIEW.
+test("SCOPE J — /review/external console is registered as REUSE surface (PERSONAL_OR_ORG + externalReviewIncluded), not a new portal", () => {
   const ext = (ROUTE_REGISTRY as unknown as ReadonlyArray<{
     id: string;
     href: string;
     requiredCapabilities: string[];
     requiredActiveSpace: string;
+    requiredPlanFeature?: string;
   }>).find((r) => r.id === "workspace.review_external");
   assert.ok(ext, "external-reviewer console must be registered");
   assert.equal(ext.href, EXTERNAL_REVIEW_CONSOLE);
-  assert.ok(
-    ext.requiredCapabilities.includes("REVIEWER_OPS_VIEW"),
-    "external console must require REVIEWER_OPS_VIEW",
-  );
-  assert.equal(
-    ext.requiredActiveSpace,
-    "ORGANIZATION_ONLY",
-    "external console is an org-anchored governance surface",
-  );
+  assert.equal(ext.requiredPlanFeature, "externalReviewIncluded");
+  assert.ok(ext.requiredCapabilities.includes("EVIDENCE_MANAGE"));
+  assert.equal(ext.requiredActiveSpace, "PERSONAL_OR_ORG");
 });
 
-test("SCOPE J — collaboration Team-detail deep-links to the external-reviewer console gated on REVIEWER_OPS_VIEW", () => {
+test("SCOPE J — collaboration Team-detail deep-links to the external-reviewer console gated on the console's own capability", () => {
   const src = readFileSync(
     resolve(APP_ROOT, "app/(app)/collaboration-teams/[teamId]/page.tsx"),
     "utf8",
@@ -289,8 +289,8 @@ test("SCOPE J — collaboration Team-detail deep-links to the external-reviewer 
   // Gated on the same capability the console enforces — never rendered
   // unconditionally (which would only redirect for non-reviewers).
   assert.ok(
-    src.includes('useCan("REVIEWER_OPS_VIEW")'),
-    "the deep-link must be gated on REVIEWER_OPS_VIEW (matches the console gate)",
+    src.includes('useCan("EVIDENCE_MANAGE")') && src.includes('useCanOpenRoute("workspace.review_external")'),
+    "the deep-link must be gated on the console's registry capability (EVIDENCE_MANAGE) and useCanOpenRoute — TEAM-SPEC R4",
   );
   // No second portal: the link must not introduce a new /portal or
   // collaboration-teams-scoped external-review route.

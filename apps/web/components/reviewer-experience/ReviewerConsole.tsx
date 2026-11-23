@@ -3,18 +3,25 @@
 /**
  * Phase C0 — Reviewer Console.
  *
- * Canonical reviewer workspace consumed by `/review`. Wraps the
+ * The "My reviews" tab of the Review hub (`/review`). Wraps the
  * existing reviewer-ops surface with:
  *
  *   * one aggregator request (`/v1/reviewer-ops/console`) that
- *     returns Queue / Mine / Escalations / SLA / Workload + saved
- *     views in one envelope (Phase C0 server change),
- *   * five operational sub-tabs (Queue · Mine · Escalations · SLA
- *     · Workload),
+ *     returns the queue slices + saved views in one envelope,
+ *   * two slices: Unassigned (`queue`) and Assigned to me (`mine`).
+ *     TEAM-SPEC §3 removed the console's Escalations, SLA and Workload
+ *     tabs — they duplicated the Monitoring pages
+ *     (`/reviewer-ops/sla`, `/reviewer-ops/escalations`), which the
+ *     hub tabs now lead to,
  *   * keyboard-first navigation: `j` / `k` to move selection,
  *     `Enter` to open the focused row, `a` to assign, `e` to
  *     escalate, `m` to request more info, `/` to focus the in-tab
- *     filter input, `Cmd/Ctrl + K` to open the command palette,
+ *     filter input. Ctrl/Cmd+K belongs to the app-wide "Jump to a
+ *     page" palette alone; the console binds no handler for it,
+ *   * rows mapped once through the shared `toQueueRow` — the same
+ *     mapping `/review/queues` uses — because the API sends
+ *     `workflowId` / `lifecycleState` / `legacy.stage` /
+ *     `legacy.dueAt`, not `id` / `stage` / `status` / `dueAtUtc`,
  *   * inline degraded-section badges per the server's
  *     `diagnostics.sectionStatus` so a single failed sub-query
  *     never breaks the rest of the console.
@@ -22,13 +29,10 @@
  * Phase G3.2 closure — inline actions live HERE, not in a
  * downstream inspector page:
  *
- *   * Queue + Mine rows expose Assign / Escalate / Request info /
- *     Open inspector buttons.
- *   * Escalations rows expose Acknowledge / Open inspector.
+ *   * Rows expose Assign / Escalate / Request info / Open inspector.
  *   * Mutations go through the existing audited reviewer-ops
  *     endpoints (`/v1/reviewer-ops/reviews/:workflowId/assign`,
- *     `/request-info`, `/v1/reviewer-ops/escalations`,
- *     `/v1/reviewer-ops/escalations/:id/acknowledge`).
+ *     `/request-info`, `/v1/reviewer-ops/escalations`).
  *   * Sensitive mutations route through `useStepUpAction` so the
  *     backend's `enforceStepUpIfFlagged` gate is honoured. No
  *     frontend-only authorization — every action is gated by
@@ -36,7 +40,7 @@
  *   * Approve / Reject remain OFF the inline surface. They live in
  *     the inspector where the full risk + adaptive gate context
  *     renders.
- *   * Rows whose status is terminal (APPROVED / REJECTED / CANCELLED)
+ *   * Rows whose lifecycle is terminal (APPROVED / REJECTED / ARCHIVED)
  *     have actions disabled — the inspector remains reachable.
  *
  * Saved-view CRUD (also G3.2) — the saved views sidebar now
@@ -67,18 +71,19 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode,
 } from "react";
 import type { ReviewerOpsQueueType } from "@proovra/shared";
 
 import { apiFetch } from "../../lib/api";
-// Canonical server-projected active space — bulk reviewer mutations are
-// team-only, and the frontend must never re-derive tenancy itself.
-import { useActiveSpace } from "../../lib/platform-context";
+// TEAM-SPEC R1 — bulk eligibility is the active workspace's effective plan
+// plus the role capability, never the workspace KIND.
+import { useCan, usePlanFeatureGate } from "../../lib/platform-context";
 import { useOptionalPlatformContext } from "../../lib/platform-context/PlatformContextProvider";
 import { roleInWorkspace } from "../../lib/platform-context/actorRole";
 import { mayDeleteReviewerSavedView } from "../../lib/evidence/saved-view-sharing";
 import { useHealthDestination } from "../../lib/navigation/healthDestination";
+import { Modal } from "../cases-experience/matter-modals/Modal";
+import { toQueueRows, isQueueRowActionable, type QueueRow } from "./queueRow";
 import { resolveSavedViewQueue } from "../../lib/reviewer-workspace/reviewer-api";
 import {
   ReviewerBulkOpsBar,
@@ -106,73 +111,26 @@ const DEFAULT_TEAM_PLACEHOLDER = "00000000-0000-0000-0000-000000000000";
 
 type ConsoleSectionStatus = "ok" | "degraded";
 
+/**
+ * The aggregator envelope as the console reads it. The escalations / SLA /
+ * workload sections are still sent by the server and are deliberately not
+ * read here (their pages are the Monitoring tab).
+ */
 type ConsoleEnvelope = {
   generatedAt: string;
   teamId: string;
   reviewer: { userId: string; isReviewerCapable: boolean };
-  queue: { rows: ReadonlyArray<ConsoleRow>; status: ConsoleSectionStatus; count: number };
-  mine: { rows: ReadonlyArray<ConsoleRow>; status: ConsoleSectionStatus; count: number };
-  escalations: {
-    rows: ReadonlyArray<EscalationRow>;
-    status: ConsoleSectionStatus;
-    count: number;
-  };
-  sla: {
-    snapshot: SlaSnapshot | null;
-    status: ConsoleSectionStatus;
-  };
-  workload: {
-    rows: ReadonlyArray<WorkloadRow>;
-    status: ConsoleSectionStatus;
-    count: number;
-  };
+  queue: { rows: ReadonlyArray<unknown>; status: ConsoleSectionStatus; count: number };
+  mine: { rows: ReadonlyArray<unknown>; status: ConsoleSectionStatus; count: number };
   savedViews: {
     rows: ReadonlyArray<SavedViewRow>;
     status: ConsoleSectionStatus;
     count: number;
   };
   diagnostics: {
-    sectionStatus: Record<TabId, ConsoleSectionStatus>;
+    sectionStatus: Partial<Record<string, ConsoleSectionStatus>>;
     sectionLimit: number;
   };
-};
-
-type ConsoleRow = {
-  // We avoid asserting the exact shape — reviewer-ops queue rows
-  // already have a stable projection on the wire. The console
-  // renders a minimal column set; the full inspector lives at
-  // `/reviewer-ops/[reviewId]`.
-  id?: string;
-  evidenceId?: string | null;
-  reviewerSummary?: string | null;
-  priority?: string | null;
-  stage?: string | null;
-  status?: string | null;
-  dueAtUtc?: string | null;
-  assignedToUserId?: string | null;
-};
-
-type EscalationRow = {
-  id?: string;
-  workflowId?: string | null;
-  reason?: string | null;
-  severity?: string | null;
-  status?: string | null;
-  createdAt?: string | null;
-};
-
-type SlaSnapshot = {
-  unassigned: number;
-  overdue: number;
-  dueSoon: number;
-  openEscalations: number;
-  criticalEscalationsOpen: number;
-};
-
-type WorkloadRow = {
-  reviewerUserId?: string | null;
-  activeAssignments?: number;
-  overdueAssignments?: number;
 };
 
 type SavedViewRow = {
@@ -188,37 +146,11 @@ type SavedViewRow = {
   };
 };
 
-type TabId = "queue" | "mine" | "escalations" | "sla" | "workload";
+type TabId = "queue" | "mine";
 const TABS: ReadonlyArray<{ id: TabId; label: string; description: string }> = [
-  { id: "queue", label: "Queue", description: "Unassigned reviews" },
-  { id: "mine", label: "Mine", description: "Assigned to you" },
-  {
-    id: "escalations",
-    label: "Escalations",
-    description: "Open + acknowledged",
-  },
-  { id: "sla", label: "Sla", description: "Breach + due-soon rollup" },
-  { id: "workload", label: "Workload", description: "Reviewer capacity" },
+  { id: "queue", label: "Unassigned", description: "Reviews waiting for an owner" },
+  { id: "mine", label: "Assigned to me", description: "Reviews you own" },
 ];
-
-/**
- * Terminal workflow statuses — no inline mutation buttons render
- * for these. The inspector remains reachable so reviewers can still
- * audit the closed item.
- */
-const TERMINAL_STATUSES = new Set([
-  "APPROVED",
-  "REJECTED",
-  "CANCELLED",
-  "DESTROYED",
-  "TOMBSTONED",
-]);
-
-function isRowActionable(row: ConsoleRow): boolean {
-  if (!row.id) return false;
-  const s = (row.status ?? "").toUpperCase();
-  return !TERMINAL_STATUSES.has(s);
-}
 
 // ---------------------------------------------------------------------------
 // Phase 7D — presentational tone mapping for the shared <Badge>. These map
@@ -226,20 +158,6 @@ function isRowActionable(row: ConsoleRow): boolean {
 // system's semantic tones. They never change WHICH value renders — a null
 // value still renders the honest "—" placeholder, never a fabricated chip.
 // ---------------------------------------------------------------------------
-
-function severityTone(severity: string | null | undefined): BadgeTone {
-  switch ((severity ?? "").toUpperCase()) {
-    case "CRITICAL":
-    case "HIGH":
-      return "risk";
-    case "WARNING":
-      return "pending";
-    case "INFO":
-      return "info";
-    default:
-      return "neutral";
-  }
-}
 
 function priorityTone(priority: string | null | undefined): BadgeTone {
   switch ((priority ?? "").toUpperCase()) {
@@ -259,16 +177,20 @@ function priorityTone(priority: string | null | undefined): BadgeTone {
 function statusTone(status: string | null | undefined): BadgeTone {
   const s = (status ?? "").toUpperCase();
   if (s === "APPROVED") return "verified";
-  if (s === "REJECTED" || s === "CANCELLED" || s === "DESTROYED" || s === "TOMBSTONED") {
-    return "risk";
-  }
-  if (s === "ACKNOWLEDGED" || s === "RESOLVED" || s === "SUPPRESSED") {
-    return "verified";
-  }
-  if (s === "OPEN" || s.includes("PENDING") || s.includes("PROGRESS")) {
-    return "pending";
+  if (s === "REJECTED" || s === "ARCHIVED") return "risk";
+  if (s === "ESCALATED" || s === "NEEDS_INFORMATION") return "pending";
+  if (s === "ASSIGNED" || s === "IN_REVIEW" || s === "QUEUED" || s === "SUBMITTED") {
+    return "info";
   }
   return "neutral";
+}
+
+/** A due date as a person reads it; "—" when there is none. */
+function formatDue(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
 /**
@@ -299,15 +221,21 @@ export type ReviewerConsoleProps = {
    * a request with a placeholder.
    */
   teamId: string | null;
-  /** Open the upstream evidence detail surface in a new view. */
-  onOpenRow?: (row: ConsoleRow | EscalationRow) => void;
+  /** Open the per-workflow inspector for a row. */
+  onOpenRow?: (row: QueueRow) => void;
 };
 
 export function ReviewerConsole({
   teamId,
   onOpenRow,
 }: ReviewerConsoleProps) {
-  const activeSpace = useActiveSpace();
+  // TEAM-SPEC R1 — the bulk bar is offered where the API serves bulk review:
+  // the active workspace's plan includes the Team review tools AND the role
+  // holds the bulk capability (OWNER / ADMIN). The workspace kind is not asked:
+  // POST /v1/reviewer-ops/reviews/bulk has no kind refusal.
+  const bulkPlanIncluded = usePlanFeatureGate("reviewQueuesIncluded");
+  const bulkRoleAllowed = useCan("BULK_ACTIONS");
+  const bulkEnabled = bulkPlanIncluded && bulkRoleAllowed;
   // Operator deep-links are gated on the canonical capability, never on
   // a client-side role or plan string.
   // ADM-013 PHASE 1 — `useHealthDestination()` is the ONE authority for where
@@ -320,7 +248,6 @@ export function ReviewerConsole({
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("queue");
   const [selectionIndex, setSelectionIndex] = useState(0);
-  const [paletteOpen, setPaletteOpen] = useState(false);
   const [actionState, setActionState] = useState<ActionState>({ kind: "idle" });
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionBusyKey, setActionBusyKey] = useState<string | null>(null);
@@ -400,37 +327,13 @@ export function ReviewerConsole({
     void reload();
   }, [reload]);
 
-  const unfilteredActiveRows = useMemo<
-    ReadonlyArray<ConsoleRow | EscalationRow | WorkloadRow>
-  >(() => {
+  const unfilteredActiveRows = useMemo<ReadonlyArray<QueueRow>>(() => {
     if (!envelope) return [];
     // Phase G3.2 — once the operator paginates, the per-tab extended
     // row set replaces the aggregator's bounded slice for that tab.
-    if (activeTab === "queue") {
-      return (
-        (pagination.queue.extendedRows as ReadonlyArray<ConsoleRow>) ??
-        envelope.queue.rows
-      );
-    }
-    if (activeTab === "mine") {
-      return (
-        (pagination.mine.extendedRows as ReadonlyArray<ConsoleRow>) ??
-        envelope.mine.rows
-      );
-    }
-    if (activeTab === "escalations") {
-      return (
-        (pagination.escalations.extendedRows as ReadonlyArray<EscalationRow>) ??
-        envelope.escalations.rows
-      );
-    }
-    if (activeTab === "workload") {
-      return (
-        (pagination.workload.extendedRows as ReadonlyArray<WorkloadRow>) ??
-        envelope.workload.rows
-      );
-    }
-    return [];
+    const extended = pagination[activeTab].extendedRows;
+    if (extended) return extended;
+    return toQueueRows(activeTab === "queue" ? envelope.queue.rows : envelope.mine.rows);
   }, [envelope, activeTab, pagination]);
   const activeRows = useMemo(
     () => applyRowFilter(unfilteredActiveRows),
@@ -584,34 +487,13 @@ export function ReviewerConsole({
         [tab]: { ...p[tab], loading: true, error: null, limit: capped },
       }));
       try {
-        let extendedRows:
-          | ReadonlyArray<ConsoleRow>
-          | ReadonlyArray<EscalationRow>
-          | ReadonlyArray<WorkloadRow> = [];
-        let hasMore = false;
-        if (tab === "queue" || tab === "mine") {
-          const queueType = tab === "queue" ? "UNASSIGNED" : "MY_REVIEWS";
-          const json = (await apiFetch(
-            `/v1/reviewer-ops/queue?teamId=${encodeURIComponent(teamId)}&queue=${queueType}&limit=${capped}`,
-          )) as { rows: ReadonlyArray<ConsoleRow>; nextCursor: string | null };
-          extendedRows = json.rows ?? [];
-          hasMore =
-            json.nextCursor !== null && capped < TAB_LIMIT_CAPS[tab];
-        } else if (tab === "escalations") {
-          const json = (await apiFetch(
-            `/v1/reviewer-ops/escalations?teamId=${encodeURIComponent(teamId)}&limit=${capped}`,
-          )) as { escalations: ReadonlyArray<EscalationRow> };
-          extendedRows = json.escalations ?? [];
-          // No cursor on this endpoint — pagination is purely
-          // limit-driven and bounded by TAB_LIMIT_CAPS.
-          hasMore = extendedRows.length >= capped && capped < TAB_LIMIT_CAPS[tab];
-        } else if (tab === "workload") {
-          const json = (await apiFetch(
-            `/v1/reviewer-ops/workload?teamId=${encodeURIComponent(teamId)}&limit=${capped}`,
-          )) as { snapshots: ReadonlyArray<WorkloadRow> };
-          extendedRows = json.snapshots ?? [];
-          hasMore = extendedRows.length >= capped && capped < TAB_LIMIT_CAPS[tab];
-        }
+        const queueType = tab === "queue" ? "UNASSIGNED" : "MY_REVIEWS";
+        const json = (await apiFetch(
+          `/v1/reviewer-ops/queue?teamId=${encodeURIComponent(teamId)}&queue=${queueType}&limit=${capped}`,
+        )) as { rows: ReadonlyArray<unknown>; nextCursor: string | null };
+        const extendedRows = toQueueRows(json.rows);
+        const hasMore =
+          json.nextCursor !== null && capped < TAB_LIMIT_CAPS[tab];
         setPagination((p) => ({
           ...p,
           [tab]: {
@@ -656,41 +538,6 @@ export function ReviewerConsole({
     setPagination((p) => ({ ...p, [tab]: emptyPagination() }));
   }, []);
 
-  const runAcknowledge = useCallback(
-    async (escalationId: string) => {
-      if (!teamId) return;
-      const key = `ack:${escalationId}`;
-      setActionBusyKey(key);
-      setActionError(null);
-      try {
-        await stepUp.runStepUpAction(async (headers) => {
-          return await apiFetch(
-            `/v1/reviewer-ops/escalations/${encodeURIComponent(escalationId)}/acknowledge`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json", ...(headers ?? {}) },
-              body: JSON.stringify({ teamId }),
-            },
-          );
-        });
-        flash("Escalation acknowledged.");
-        await reload();
-      } catch (err) {
-        const code = (err as { code?: string }).code;
-        if (code === "STEP_UP_CANCEL") {
-          setActionError("Step-up cancelled — acknowledgement not saved.");
-        } else {
-          setActionError(
-            toSafeUserError(err, { message: "Could not acknowledge escalation." }).message,
-          );
-        }
-      } finally {
-        setActionBusyKey(null);
-      }
-    },
-    [flash, reload, stepUp, teamId],
-  );
-
   /**
    * Keyboard navigation. Bounded action list:
    *   * j / k         — move selection within the active tab
@@ -701,7 +548,10 @@ export function ReviewerConsole({
    *   * m             — request more info on the focused
    *                     queue/mine row
    *   * /             — focus the in-tab filter input
-   *   * Cmd/Ctrl + K  — open the reviewer command palette
+   *
+   * Ctrl/Cmd+K is NOT handled here (TEAM-SPEC §3): it opens the app-wide
+   * "Jump to a page" palette only. The console's own command palette bound
+   * the same chord on window and both opened at once.
    *
    * Approve / Reject are intentionally NOT inline-keyboard-bound —
    * those flows live in the inspector where the full risk + adaptive
@@ -710,34 +560,18 @@ export function ReviewerConsole({
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       // Avoid swallowing keys that the user is typing into a real
-      // input — the filter / palette / action modals / future inline edits.
+      // input — the filter / action modals / future inline edits.
       const tgt = e.target as HTMLElement | null;
       const inField =
         tgt &&
         (tgt.tagName === "INPUT" ||
           tgt.tagName === "TEXTAREA" ||
           tgt.isContentEditable);
-      if (actionState.kind !== "idle") {
-        // While a modal is open, only Escape closes it; let the modal
-        // forms own their own input keys.
-        if (e.key === "Escape") {
-          setActionState({ kind: "idle" });
-          e.preventDefault();
-        }
-        return;
-      }
-      if (paletteOpen) {
-        if (e.key === "Escape") {
-          setPaletteOpen(false);
-          e.preventDefault();
-        }
-        return;
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setPaletteOpen(true);
-        return;
-      }
+      // While an action dialog is open the canonical Modal owns the keyboard
+      // (Escape, focus trap); the console's shortcuts stay quiet.
+      if (actionState.kind !== "idle") return;
+      // Chords belong to the app (Ctrl/Cmd+K is the global page palette).
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (inField) return;
       if (e.key === "j") {
         setSelectionIndex((i) => Math.min(i + 1, activeRows.length - 1));
@@ -752,7 +586,7 @@ export function ReviewerConsole({
       if (e.key === "Enter") {
         const row = activeRows[selectionIndex];
         if (row && onOpenRow) {
-          onOpenRow(row as ConsoleRow);
+          onOpenRow(row);
         }
         e.preventDefault();
         return;
@@ -767,9 +601,8 @@ export function ReviewerConsole({
       // row is actionable (not terminal).
       const lower = e.key.toLowerCase();
       if (lower === "a" || lower === "e" || lower === "m") {
-        if (activeTab !== "queue" && activeTab !== "mine") return;
-        const row = activeRows[selectionIndex] as ConsoleRow | undefined;
-        if (!row || !row.id || !isRowActionable(row)) return;
+        const row = activeRows[selectionIndex];
+        if (!row || !isQueueRowActionable(row)) return;
         e.preventDefault();
         if (lower === "a") {
           setActionState({ kind: "assign", workflowId: row.id });
@@ -780,7 +613,7 @@ export function ReviewerConsole({
         }
       }
     },
-    [activeRows, activeTab, actionState.kind, onOpenRow, paletteOpen, selectionIndex],
+    [activeRows, actionState.kind, onOpenRow, selectionIndex],
   );
 
   useEffect(() => {
@@ -824,47 +657,22 @@ export function ReviewerConsole({
           title="Review Operations Console"
           subtitle={
             <>
-              Monitor and manage review operations here. Daily evidence
-              decisions happen in Reviewer Workspace. Keyboard:{" "}
-              <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>Enter</kbd> open ·{" "}
+              Reviews waiting for an owner and reviews assigned to you.
+              Keyboard: <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>Enter</kbd> open ·{" "}
               <kbd>a</kbd> assign · <kbd>e</kbd> escalate · <kbd>m</kbd>{" "}
-              request info · <kbd>/</kbd> filter · <kbd>Cmd</kbd>+<kbd>K</kbd>{" "}
-              palette.
+              request info · <kbd>/</kbd> filter.
             </>
           }
           contextStrip={
-            <div
-              className="reviewer-console__ia-strip"
-              data-reviewer-console-ia
-              style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
-            >
-              <a href="/review/workspace">Work: Reviewer Workspace</a>
-              <a href="/review/queues?queue=UNASSIGNED">
-                Manage: Reviewer Queues
-              </a>
-              <a href="/reviewer-ops/sla">Monitor: SLA Operations</a>
-              <a href="/reviewer-ops/escalations">Respond: Escalations</a>
-              {/* Reviewer SLA / step-up / inactivity policy is edited on
-                  the canonical Governance Policy surface — the console
-                  never edits policy itself. */}
-              <a href="/governance/policy">Configure: Reviewer policy</a>
-              {/* ADM-013 PHASE 1 — a reviewer who is not platform staff used
-                  to get NO link here, because the only branch tested a platform
-                  key. They now get their own workspace's health, labelled as
-                  such. An actor with neither authority still gets nothing. */}
-              {healthDestination ? (
+            /* TEAM-SPEC §3 — the six chips (Work / Manage / Monitor / Respond /
+               Configure) linked to destinations with no visibility check; the
+               Review hub tabs above replace them, each shown only when it
+               opens. Workspace health keeps its own resolver (ADM-013). */
+            healthDestination ? (
+              <div className="reviewer-console__ia-strip" data-reviewer-console-ia>
                 <a href={healthDestination.href}>{healthDestination.label}</a>
-              ) : null}
-            </div>
-          }
-          primaryAction={
-            <Button
-              variant="primary"
-              onClick={() => setPaletteOpen(true)}
-              data-reviewer-command-palette-open
-            >
-              Command palette
-            </Button>
+              </div>
+            ) : undefined
           }
         />
       }
@@ -889,13 +697,9 @@ export function ReviewerConsole({
       ) : null}
 
       <nav
-        className="reviewer-console__tabs"
+        className="reviewer-console__tabs app-tabs"
         role="tablist"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-          gap: 10,
-        }}
+        aria-label="Review slice"
       >
         {TABS.map((t) => {
           const status =
@@ -916,39 +720,19 @@ export function ReviewerConsole({
               }}
               data-section-status={status}
               data-tab-id={t.id}
-              style={{
-                textAlign: "left",
-                border: active
-                  ? "1px solid var(--ink-primary, #0f172a)"
-                  : "1px solid var(--border-default, rgba(15,23,42,0.09))",
-                boxShadow: active
-                  ? "inset 0 0 0 1px var(--ink-primary, #0f172a)"
-                  : "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))",
-                background: "var(--surface-card, #fff)",
-                borderRadius: "var(--radius-card, 14px)",
-                padding: "10px 12px",
-                display: "grid",
-                gap: 4,
-                cursor: "pointer",
-                color: "var(--ink-primary, #0f172a)",
-              }}
+              className={active ? "app-tab is-active" : "app-tab"}
+              title={t.description}
             >
-              <strong>{t.label}</strong>
-              <span
-                style={{
-                  color: "var(--ink-muted, #64748b)",
-                  fontSize: 12,
-                }}
-              >
-                {t.description}
-              </span>
+              {t.label}
+              {envelope ? (
+                <span className="app-tab__count">{envelope[t.id].count}</span>
+              ) : null}
               {status === "degraded" ? (
                 <Badge
                   tone="pending"
-                  style={{ justifySelf: "start" }}
-                  title="This section failed to load; other tabs are unaffected."
+                  title="This section failed to load; the other slice is unaffected."
                 >
-                  Degraded
+                  Not loaded
                 </Badge>
               ) : null}
             </button>
@@ -1033,128 +817,54 @@ export function ReviewerConsole({
             />
           </div>
 
-          {activeTab === "sla" ? (
-            <SlaPanel snapshot={envelope.sla.snapshot} />
-          ) : activeTab === "workload" ? (
-            <>
-              <WorkloadTable
-                rows={applyRowFilter(
-                  (pagination.workload.extendedRows as
-                    | ReadonlyArray<WorkloadRow>
-                    | null) ?? envelope.workload.rows,
-                )}
-                rowPad={rowPad}
-                selectionIndex={selectionIndex}
-              />
-              <PaginationFooter
-                tab="workload"
-                state={pagination.workload}
-                cap={TAB_LIMIT_CAPS.workload}
-                onLoadMore={() => loadMore("workload")}
-                onViewAll={() => viewAll("workload")}
-                onReset={() => resetPagination("workload")}
-              />
-            </>
-          ) : activeTab === "escalations" ? (
-            <>
-              <EscalationsTable
-                rows={applyRowFilter(
-                  (pagination.escalations.extendedRows as
-                    | ReadonlyArray<EscalationRow>
-                    | null) ?? envelope.escalations.rows,
-                )}
-                rowPad={rowPad}
-                selectionIndex={selectionIndex}
-                onOpen={onOpenRow}
-                busyKey={actionBusyKey}
-                onAcknowledge={(row) => {
-                  if (row.id) void runAcknowledge(row.id);
-                }}
-              />
-              <PaginationFooter
-                tab="escalations"
-                state={pagination.escalations}
-                cap={TAB_LIMIT_CAPS.escalations}
-                onLoadMore={() => loadMore("escalations")}
-                onViewAll={() => viewAll("escalations")}
-                onReset={() => resetPagination("escalations")}
-              />
-            </>
-          ) : (
-            <>
-              {/* Phase 12 Point 4 — bulk triage over the visible queue
-                  rows. Server-side authority is unchanged: the backend
-                  enforces REVIEWER_OPS_ACT + `review.bulk` + adaptive
-                  runtime + step-up on every submitted workflow. */}
-              <ReviewerBulkOpsBar
-                teamId={teamId}
-                selection={bulkSelection}
-                callerUserId={envelope.reviewer.userId ?? null}
-                isTeam={activeSpace?.type === "ORGANIZATION"}
-                onClearSelection={() => setBulkSelection(new Set<string>())}
-                onMutated={() => void reload()}
-                onResult={setBulkResult}
-              />
-              <QueueTable
-                rows={applyRowFilter(
-                  activeTab === "queue"
-                    ? ((pagination.queue.extendedRows as
-                        | ReadonlyArray<ConsoleRow>
-                        | null) ?? envelope.queue.rows)
-                    : ((pagination.mine.extendedRows as
-                        | ReadonlyArray<ConsoleRow>
-                        | null) ?? envelope.mine.rows),
-                )}
-                rowPad={rowPad}
-                selectionIndex={selectionIndex}
-                onOpen={onOpenRow}
-                busyKey={actionBusyKey}
-                bulkSelection={bulkSelection}
-                bulkResult={bulkResult}
-                onToggleRow={(wid) =>
-                  setBulkSelection((s) => {
-                    const next = new Set(s);
-                    if (next.has(wid)) next.delete(wid);
-                    else next.add(wid);
-                    return next;
-                  })
-                }
-                onToggleAll={(ids, allSelected) =>
-                  setBulkSelection(allSelected ? new Set<string>() : new Set(ids))
-                }
-                onAssign={(row) => {
-                  if (row.id) setActionState({ kind: "assign", workflowId: row.id });
-                }}
-                onEscalate={(row) => {
-                  if (row.id) setActionState({ kind: "escalate", workflowId: row.id });
-                }}
-                onRequestInfo={(row) => {
-                  if (row.id)
-                    setActionState({ kind: "requestInfo", workflowId: row.id });
-                }}
-              />
-              <PaginationFooter
-                tab={activeTab === "queue" ? "queue" : "mine"}
-                state={
-                  activeTab === "queue" ? pagination.queue : pagination.mine
-                }
-                cap={
-                  activeTab === "queue"
-                    ? TAB_LIMIT_CAPS.queue
-                    : TAB_LIMIT_CAPS.mine
-                }
-                onLoadMore={() =>
-                  loadMore(activeTab === "queue" ? "queue" : "mine")
-                }
-                onViewAll={() =>
-                  viewAll(activeTab === "queue" ? "queue" : "mine")
-                }
-                onReset={() =>
-                  resetPagination(activeTab === "queue" ? "queue" : "mine")
-                }
-              />
-            </>
-          )}
+          {/* Phase 12 Point 4 — bulk triage over the visible queue rows.
+              Server-side authority is unchanged: the backend enforces the
+              plan, `review.bulk`, adaptive runtime and step-up on every
+              submitted workflow. TEAM-SPEC R1 — the bar is offered on the
+              plan feature plus the role capability, never on workspace kind. */}
+          <ReviewerBulkOpsBar
+            teamId={teamId}
+            selection={bulkSelection}
+            callerUserId={envelope.reviewer.userId ?? null}
+            enabled={bulkEnabled}
+            onClearSelection={() => setBulkSelection(new Set<string>())}
+            onMutated={() => void reload()}
+            onResult={setBulkResult}
+          />
+          <QueueTable
+            rows={activeRows}
+            rowPad={rowPad}
+            selectionIndex={selectionIndex}
+            onOpen={onOpenRow}
+            busyKey={actionBusyKey}
+            selectable={bulkEnabled}
+            bulkSelection={bulkSelection}
+            bulkResult={bulkResult}
+            onToggleRow={(wid) =>
+              setBulkSelection((s) => {
+                const next = new Set(s);
+                if (next.has(wid)) next.delete(wid);
+                else next.add(wid);
+                return next;
+              })
+            }
+            onToggleAll={(ids, allSelected) =>
+              setBulkSelection(allSelected ? new Set<string>() : new Set(ids))
+            }
+            onAssign={(row) => setActionState({ kind: "assign", workflowId: row.id })}
+            onEscalate={(row) => setActionState({ kind: "escalate", workflowId: row.id })}
+            onRequestInfo={(row) =>
+              setActionState({ kind: "requestInfo", workflowId: row.id })
+            }
+          />
+          <PaginationFooter
+            tab={activeTab}
+            state={pagination[activeTab]}
+            cap={TAB_LIMIT_CAPS[activeTab]}
+            onLoadMore={() => loadMore(activeTab)}
+            onViewAll={() => viewAll(activeTab)}
+            onReset={() => resetPagination(activeTab)}
+          />
 
           {/* Phase B.3 — multi-stage review summary. Workspace-scoped
               counts of workflows by derived review state (first /
@@ -1207,19 +917,6 @@ export function ReviewerConsole({
         />
       ) : null}
 
-      {paletteOpen ? (
-        <CommandPalette
-          onClose={() => setPaletteOpen(false)}
-          onSwitchTab={(t) => {
-            setActiveTab(t);
-            setSelectionIndex(0);
-            setBulkSelection(new Set<string>());
-            setBulkResult(null);
-            setPaletteOpen(false);
-          }}
-        />
-      ) : null}
-
       {/* Step-up modal — surfaces only when a mutation hits the
           backend's STEP_UP_REQUIRED gate. Otherwise it stays
           dormant. */}
@@ -1244,7 +941,7 @@ type ActionState =
 // once the operator chooses to look past the aggregator's 25-row cap.
 // ---------------------------------------------------------------------------
 
-type PaginatedTab = "queue" | "mine" | "escalations" | "workload";
+type PaginatedTab = TabId;
 
 type TabPagination = {
   /**
@@ -1252,11 +949,7 @@ type TabPagination = {
    * means the operator has not paginated — the aggregator's bounded
    * 25-row sample is in effect.
    */
-  extendedRows:
-    | ReadonlyArray<ConsoleRow>
-    | ReadonlyArray<EscalationRow>
-    | ReadonlyArray<WorkloadRow>
-    | null;
+  extendedRows: ReadonlyArray<QueueRow> | null;
   limit: number;
   hasMore: boolean;
   loading: boolean;
@@ -1267,16 +960,12 @@ const PAGE_STEP = 25;
 const TAB_LIMIT_CAPS: Record<PaginatedTab, number> = {
   queue: 100,
   mine: 100,
-  escalations: 200,
-  workload: 200,
 };
 
 function buildInitialPagination(): Record<PaginatedTab, TabPagination> {
   return {
     queue: emptyPagination(),
     mine: emptyPagination(),
-    escalations: emptyPagination(),
-    workload: emptyPagination(),
   };
 }
 
@@ -1291,7 +980,7 @@ function emptyPagination(): TabPagination {
 }
 
 // ---------------------------------------------------------------------------
-// Tables — now with an Actions column on queue/mine + escalations.
+// Queue table — rows are `QueueRow` (shared `toQueueRow` mapping).
 // ---------------------------------------------------------------------------
 
 function QueueTable({
@@ -1303,19 +992,22 @@ function QueueTable({
   onEscalate,
   onRequestInfo,
   busyKey,
+  selectable,
   bulkSelection,
   bulkResult,
   onToggleRow,
   onToggleAll,
 }: {
-  rows: ReadonlyArray<ConsoleRow>;
+  rows: ReadonlyArray<QueueRow>;
   rowPad: string;
   selectionIndex: number;
-  onOpen?: (row: ConsoleRow) => void;
-  onAssign: (row: ConsoleRow) => void;
-  onEscalate: (row: ConsoleRow) => void;
-  onRequestInfo: (row: ConsoleRow) => void;
+  onOpen?: (row: QueueRow) => void;
+  onAssign: (row: QueueRow) => void;
+  onEscalate: (row: QueueRow) => void;
+  onRequestInfo: (row: QueueRow) => void;
   busyKey: string | null;
+  /** Bulk checkboxes render only where bulk is offered (TEAM-SPEC R1). */
+  selectable: boolean;
   bulkSelection: ReadonlySet<string>;
   bulkResult: BulkResult | null;
   onToggleRow: (workflowId: string) => void;
@@ -1326,15 +1018,13 @@ function QueueTable({
       <Card variant="empty" padding="none" className="reviewer-console__empty">
         <EmptyState
           title="No reviews in this slice"
-          purpose="No reviews match this slice right now. Use the queue links above to switch between daily work, unassigned triage, and escalations, or save a queue view once this workspace has active reviews."
+          purpose="No reviews match this slice right now. Switch slice above, or open Queues for every filter."
         />
       </Card>
     );
   }
   // Bulk selection operates on the workflow ids actually rendered.
-  const selectableIds = rows
-    .map((r) => r.id)
-    .filter((id): id is string => typeof id === "string" && id.length > 0);
+  const selectableIds = rows.map((r) => r.id).filter((id) => id.length > 0);
   const allSelected =
     selectableIds.length > 0 &&
     selectableIds.every((id) => bulkSelection.has(id));
@@ -1344,6 +1034,7 @@ function QueueTable({
       <table role="grid" style={reviewerTableStyle}>
         <thead>
           <tr>
+            {selectable ? (
             <th style={reviewerThStyle}>
               <input
                 type="checkbox"
@@ -1357,6 +1048,7 @@ function QueueTable({
                 disabled={selectableIds.length === 0}
               />
             </th>
+            ) : null}
             <th style={reviewerThStyle}>Evidence</th>
             <th style={reviewerThStyle}>Stage</th>
             <th style={reviewerThStyle}>Status</th>
@@ -1368,8 +1060,8 @@ function QueueTable({
         <tbody>
           {rows.map((row, idx) => {
             const selected = idx === selectionIndex;
-            const actionable = isRowActionable(row);
-            const wid = row.id ?? "";
+            const actionable = isQueueRowActionable(row);
+            const wid = row.id;
             const assignBusy = busyKey === `assign:${wid}`;
             const escalateBusy = busyKey === `escalate:${wid}`;
             const reqInfoBusy = busyKey === `request-info:${wid}`;
@@ -1382,7 +1074,7 @@ function QueueTable({
               : null;
             return (
               <tr
-                key={row.id ?? `row-${idx}`}
+                key={row.id || `row-${idx}`}
                 data-selected={selected}
                 data-reviewer-row-actionable={actionable ? "true" : "false"}
                 data-reviewer-workflow-id={wid}
@@ -1392,21 +1084,23 @@ function QueueTable({
                 }
                 style={reviewerRowStyle(selected)}
               >
+                {selectable ? (
                 <td style={{ padding: rowPad, ...reviewerTdStyle }}>
                   <input
                     type="checkbox"
-                    aria-label={`Select workflow ${wid.slice(0, 8)}`}
+                    aria-label={`Select review of ${row.evidenceId ? recordReference("Evidence", row.evidenceId) : recordReference("Review", wid)}`}
                     data-reviewer-bulk-row-checkbox={wid}
                     checked={bulkSelected}
                     onChange={() => onToggleRow(wid)}
                     disabled={wid.length === 0}
                   />
                 </td>
+                ) : null}
                 <td style={{ padding: rowPad, ...reviewerTdStyle }}>
-                  {row.reviewerSummary ?? (row.evidenceId ? recordReference("Evidence", row.evidenceId) : row.id ? recordReference("Review", row.id) : "—")}
+                  {row.evidenceId ? recordReference("Evidence", row.evidenceId) : recordReference("Review", row.id)}
                 </td>
-                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
-                  {identifierLabel(row.stage ?? "—")}
+                <td style={{ padding: rowPad, ...reviewerTdStyle }} data-reviewer-row-stage>
+                  {row.stage ? identifierLabel(row.stage) : "—"}
                 </td>
                 <td style={{ padding: rowPad, ...reviewerTdStyle }}>
                   {row.status ? (
@@ -1426,8 +1120,8 @@ function QueueTable({
                     "—"
                   )}
                 </td>
-                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
-                  {row.dueAtUtc ?? "—"}
+                <td style={{ padding: rowPad, ...reviewerTdStyle }} data-reviewer-row-due>
+                  {formatDue(row.dueAt)}
                 </td>
                 <td style={{ padding: rowPad, ...reviewerTdStyle }}>
                   <div
@@ -1496,8 +1190,8 @@ function QueueTable({
                         }}
                       >
                         {outcome.ok
-                          ? "applied"
-                          : `failed: ${outcome.errorCode ?? "error"}`}
+                          ? "Applied"
+                          : `Not applied: ${outcome.message ?? identifierLabel(outcome.errorCode ?? "error")}`}
                       </span>
                     ) : null}
                   </div>
@@ -1507,237 +1201,6 @@ function QueueTable({
           })}
         </tbody>
       </table>
-    </div>
-  );
-}
-
-function EscalationsTable({
-  rows,
-  rowPad,
-  selectionIndex,
-  onOpen,
-  onAcknowledge,
-  busyKey,
-}: {
-  rows: ReadonlyArray<EscalationRow>;
-  rowPad: string;
-  selectionIndex: number;
-  onOpen?: (row: EscalationRow) => void;
-  onAcknowledge: (row: EscalationRow) => void;
-  busyKey: string | null;
-}) {
-  if (rows.length === 0) {
-    return (
-      <Card variant="empty" padding="none" className="reviewer-console__empty">
-        <EmptyState
-          title="No open escalations"
-          purpose="No escalations are open. This usually means no review is currently blocked, overdue enough to escalate, or manually raised by an operator."
-        />
-      </Card>
-    );
-  }
-  return (
-    <div style={reviewerTableScrollStyle}>
-      <table role="grid" style={reviewerTableStyle}>
-        <thead>
-          <tr>
-            <th style={reviewerThStyle}>Workflow</th>
-            <th style={reviewerThStyle}>Severity</th>
-            <th style={reviewerThStyle}>Status</th>
-            <th style={reviewerThStyle}>Reason</th>
-            <th style={reviewerThStyle}>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, idx) => {
-            const selected = idx === selectionIndex;
-            const eid = row.id ?? "";
-            const ackBusy = busyKey === `ack:${eid}`;
-            const ackable =
-              !!row.id &&
-              (row.status ?? "OPEN").toUpperCase() !== "ACKNOWLEDGED" &&
-              (row.status ?? "OPEN").toUpperCase() !== "RESOLVED" &&
-              (row.status ?? "OPEN").toUpperCase() !== "SUPPRESSED";
-            return (
-              <tr
-                key={row.id ?? `esc-${idx}`}
-                data-selected={selected}
-                style={reviewerRowStyle(selected)}
-              >
-                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
-                  {row.workflowId ?? row.id ?? "—"}
-                </td>
-                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
-                  {row.severity ? (
-                    <Badge tone={severityTone(row.severity)} subtle>
-                      {identifierLabel(row.severity)}
-                    </Badge>
-                  ) : (
-                    "—"
-                  )}
-                </td>
-                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
-                  {row.status ? (
-                    <Badge tone={statusTone(row.status)} subtle>
-                      {identifierLabel(row.status)}
-                    </Badge>
-                  ) : (
-                    "—"
-                  )}
-                </td>
-                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
-                  {row.reason ?? "—"}
-                </td>
-                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
-                  <div
-                    data-reviewer-row-actions={eid}
-                    style={{ display: "flex", gap: 6, flexWrap: "wrap" }}
-                  >
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      data-reviewer-action="acknowledge"
-                      data-reviewer-escalation-id={eid}
-                      disabled={!ackable}
-                      loading={ackBusy}
-                      onClick={() => onAcknowledge(row)}
-                      title="Acknowledge escalation"
-                    >
-                      {ackBusy ? "Acknowledging…" : "Acknowledge"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      data-reviewer-action="open-inspector"
-                      data-reviewer-escalation-id={eid}
-                      onClick={() => onOpen?.(row)}
-                      title="Open inspector (Enter)"
-                    >
-                      Open inspector
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function WorkloadTable({
-  rows,
-  rowPad,
-  selectionIndex,
-}: {
-  rows: ReadonlyArray<WorkloadRow>;
-  rowPad: string;
-  selectionIndex: number;
-}) {
-  if (rows.length === 0) {
-    return (
-      <Card variant="empty" padding="none" className="reviewer-console__empty">
-        <EmptyState
-          title="No workload snapshots yet"
-          purpose="No workload snapshots are available yet. Reconcile must run before this tab can show reviewer capacity."
-        />
-      </Card>
-    );
-  }
-  return (
-    <div style={reviewerTableScrollStyle}>
-      <table role="grid" style={reviewerTableStyle}>
-        <thead>
-          <tr>
-            <th style={reviewerThStyle}>Reviewer</th>
-            <th style={reviewerThStyle}>Active</th>
-            <th style={reviewerThStyle}>Overdue</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, idx) => {
-            const selected = idx === selectionIndex;
-            return (
-              <tr
-                key={row.reviewerUserId ?? `wl-${idx}`}
-                data-selected={selected}
-                style={reviewerRowStyle(selected)}
-              >
-                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
-                  {row.reviewerUserId ?? "—"}
-                </td>
-                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
-                  {row.activeAssignments ?? 0}
-                </td>
-                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
-                  {row.overdueAssignments ?? 0}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function SlaPanel({ snapshot }: { snapshot: SlaSnapshot | null }) {
-  if (!snapshot) {
-    return (
-      <Card variant="empty" padding="none" className="reviewer-console__empty">
-        <EmptyState
-          title="SLA snapshot unavailable"
-          purpose="Use the SLA Operations page for runtime and freshness details when the console has not received a snapshot."
-        />
-      </Card>
-    );
-  }
-  const tiles: ReadonlyArray<{ label: string; value: number; tone: BadgeTone }> = [
-    { label: "Unassigned", value: snapshot.unassigned, tone: "neutral" },
-    { label: "Due soon", value: snapshot.dueSoon, tone: "pending" },
-    { label: "Overdue", value: snapshot.overdue, tone: "risk" },
-    { label: "Open escalations", value: snapshot.openEscalations, tone: "info" },
-    {
-      label: "Critical escalations",
-      value: snapshot.criticalEscalationsOpen,
-      tone: "risk",
-    },
-  ];
-  return (
-    <div
-      className="reviewer-console__sla"
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-        gap: 12,
-      }}
-    >
-      {tiles.map((t) => (
-        <Card key={t.label} variant="status" tone={t.tone} padding="comfortable">
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: "0.04em",
-              textTransform: "uppercase",
-              color: "var(--ink-muted, #64748b)",
-              marginBottom: 6,
-            }}
-          >
-            {t.label}
-          </div>
-          <div
-            style={{
-              fontSize: 22,
-              fontWeight: 700,
-              color: "var(--ink-primary, #0f172a)",
-            }}
-          >
-            {t.value}
-          </div>
-        </Card>
-      ))}
     </div>
   );
 }
@@ -1859,11 +1322,9 @@ function PaginationFooter({
  * PRO-R2Z-05 — the queue slice a console tab stands for, saved with the view
  * so applying it opens that slice. A tab with no queue slice saves nothing.
  */
-const TAB_SAVED_VIEW_QUEUE: Readonly<Partial<Record<TabId, "UNASSIGNED" | "MY_REVIEWS" | "ESCALATED" | "OVERDUE">>> = {
+const TAB_SAVED_VIEW_QUEUE: Readonly<Record<TabId, "UNASSIGNED" | "MY_REVIEWS">> = {
   queue: "UNASSIGNED",
   mine: "MY_REVIEWS",
-  escalations: "ESCALATED",
-  sla: "OVERDUE",
 };
 
 export function SavedViewsPanel({
@@ -1907,7 +1368,7 @@ export function SavedViewsPanel({
     if (!name.trim()) return;
     const queue = TAB_SAVED_VIEW_QUEUE[activeTab];
     if (!queue) {
-      setError("This tab has no queue slice to save. Switch to Queue, Mine, Escalations or SLA first.");
+      setError("This slice cannot be saved. Switch to Unassigned or Assigned to me first.");
       return;
     }
     setBusy(true);
@@ -2125,7 +1586,7 @@ export function SavedViewsPanel({
                     }}
                   >
                     {v.name ?? `View ${idx + 1}`}
-                    {v.queueType ? ` · ${v.queueType}` : ""}
+                    {v.queueType ? ` · ${identifierLabel(v.queueType)}` : ""}
                   </button>
                   {mayDeleteReviewerSavedView(v, viewerUserId, viewerRole) ? (
                   <Button
@@ -2181,13 +1642,16 @@ function AssignModal({
   const [assigneeUserId, setAssigneeUserId] = useState("");
   const [note, setNote] = useState("");
   return (
-    <ModalShell
+    <Modal
+      open
       title="Assign reviewer"
-      subtitle={`Workflow ${shortId(workflowId)}`}
-      onCancel={onCancel}
-      dataAttr={{ "data-reviewer-modal": "assign" }}
+      description={`Review ${shortId(workflowId)}`}
+      onClose={onCancel}
+      dismissDisabled={busy}
+      testid="reviewer-modal-assign"
     >
       <form
+        data-reviewer-modal="assign"
         onSubmit={(e) => {
           e.preventDefault();
           if (assigneeUserId.trim().length > 0)
@@ -2224,7 +1688,7 @@ function AssignModal({
           submitDisabled={!assigneeUserId.trim()}
         />
       </form>
-    </ModalShell>
+    </Modal>
   );
 }
 
@@ -2243,13 +1707,16 @@ function EscalateModal({
   const [severity, setSeverity] = useState("WARNING");
   const [summary, setSummary] = useState("");
   return (
-    <ModalShell
+    <Modal
+      open
       title="Raise escalation"
-      subtitle={`Workflow ${shortId(workflowId)}`}
-      onCancel={onCancel}
-      dataAttr={{ "data-reviewer-modal": "escalate" }}
+      description={`Review ${shortId(workflowId)}`}
+      onClose={onCancel}
+      dismissDisabled={busy}
+      testid="reviewer-modal-escalate"
     >
       <form
+        data-reviewer-modal="escalate"
         onSubmit={(e) => {
           e.preventDefault();
           if (summary.trim().length > 0)
@@ -2297,7 +1764,7 @@ function EscalateModal({
           submitDisabled={!summary.trim()}
         />
       </form>
-    </ModalShell>
+    </Modal>
   );
 }
 
@@ -2314,13 +1781,16 @@ function RequestInfoModal({
 }) {
   const [note, setNote] = useState("");
   return (
-    <ModalShell
+    <Modal
+      open
       title="Request more information"
-      subtitle={`Workflow ${shortId(workflowId)}`}
-      onCancel={onCancel}
-      dataAttr={{ "data-reviewer-modal": "request-info" }}
+      description={`Review ${shortId(workflowId)}`}
+      onClose={onCancel}
+      dismissDisabled={busy}
+      testid="reviewer-modal-request-info"
     >
       <form
+        data-reviewer-modal="request-info"
         onSubmit={(e) => {
           e.preventDefault();
           if (note.trim().length > 0) onSubmit(note.trim());
@@ -2345,84 +1815,7 @@ function RequestInfoModal({
           submitDisabled={!note.trim()}
         />
       </form>
-    </ModalShell>
-  );
-}
-
-function ModalShell({
-  title,
-  subtitle,
-  children,
-  onCancel,
-  dataAttr,
-}: {
-  title: string;
-  subtitle: string;
-  children: ReactNode;
-  onCancel: () => void;
-  dataAttr?: Record<string, string>;
-}) {
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-      {...dataAttr}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(15, 23, 42, 0.45)",
-        zIndex: 1050,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
-      }}
-    >
-      <div
-        style={{
-          position: "relative",
-          background: "#fff",
-          borderRadius: 12,
-          maxWidth: 460,
-          width: "100%",
-          padding: "1.25rem 1.5rem",
-          boxShadow: "0 24px 64px rgba(15, 23, 42, 0.3)",
-        }}
-      >
-        <header style={{ marginBottom: 12 }}>
-          <strong style={{ fontSize: 15 }}>{title}</strong>
-          <p
-            style={{
-              margin: "4px 0 0",
-              fontSize: 12,
-              color: "#475569",
-              lineHeight: 1.4,
-            }}
-          >
-            {subtitle}
-          </p>
-        </header>
-        {children}
-        <button
-          type="button"
-          aria-label="Close"
-          onClick={onCancel}
-          style={{
-            position: "absolute",
-            top: 12,
-            right: 16,
-            background: "transparent",
-            border: 0,
-            color: "#475569",
-            cursor: "pointer",
-            fontSize: 18,
-          }}
-        >
-          ×
-        </button>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -2472,72 +1865,6 @@ function ModalActions({
 function shortId(id: string): string {
   if (id.length <= 12) return id;
   return `${id.slice(0, 8)}…${id.slice(-4)}`;
-}
-
-function CommandPalette({
-  onClose,
-  onSwitchTab,
-}: {
-  onClose: () => void;
-  onSwitchTab: (t: TabId) => void;
-}) {
-  const [paletteQuery, setPaletteQuery] = useState("");
-  // Bounded action set. Adding an action requires touching this
-  // component AND the C0 test suite's vocabulary contract.
-  const actions: ReadonlyArray<{ id: string; label: string; run: () => void }> = [
-    { id: "tab.queue", label: "Switch to Queue", run: () => onSwitchTab("queue") },
-    { id: "tab.mine", label: "Switch to Mine", run: () => onSwitchTab("mine") },
-    {
-      id: "tab.escalations",
-      label: "Switch to Escalations",
-      run: () => onSwitchTab("escalations"),
-    },
-    { id: "tab.sla", label: "Switch to SLA rollup", run: () => onSwitchTab("sla") },
-    {
-      id: "tab.workload",
-      label: "Switch to Workload",
-      run: () => onSwitchTab("workload"),
-    },
-  ];
-  return (
-    <div
-      role="dialog"
-      aria-label="Reviewer command palette"
-      className="reviewer-console__palette"
-      onKeyDown={(e) => {
-        if (e.key === "Escape") onClose();
-      }}
-    >
-      <input
-        autoFocus
-        type="text"
-        placeholder="Reviewer commands — type to filter"
-        aria-label="Reviewer commands"
-        value={paletteQuery}
-        onChange={(e) => setPaletteQuery(e.target.value)}
-      />
-      <ul>
-        {/* PRO-R2Z-04 — typing narrows the command list. */}
-        {actions
-          .filter((a) => a.label.toLowerCase().includes(paletteQuery.trim().toLowerCase()))
-          .map((a) => (
-          <li key={a.id}>
-            <button type="button" onClick={a.run}>
-              {a.label}
-            </button>
-          </li>
-        ))}
-      </ul>
-      <button
-        type="button"
-        className="reviewer-console__palette-close"
-        onClick={onClose}
-        aria-label="Close palette"
-      >
-        Close
-      </button>
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -2615,9 +1942,9 @@ const modalInputStyle = {
   color: "var(--ink-primary, #0f172a)",
 } as const;
 
-// Only the IA-strip anchors and the command palette still rely on
-// scoped CSS — every other surface migrated to PageShell / Card /
-// Button / Badge / EmptyState and is styled inline with design tokens.
+// Only the IA-strip anchor still relies on scoped CSS — every other
+// surface migrated to PageShell / Card / Button / Badge / EmptyState and
+// is styled inline with design tokens.
 const reviewerConsoleStyles = `
   .reviewer-console__ia-strip a {
     text-decoration: none;
@@ -2628,21 +1955,6 @@ const reviewerConsoleStyles = `
     padding: 6px 10px;
     font-size: 12px;
     font-weight: 600;
-  }
-  .reviewer-console__palette {
-    position: fixed;
-    inset: 10% 50% auto 50%;
-    transform: translateX(-50%);
-    width: min(560px, calc(100vw - 32px));
-    background: var(--surface-card, #fff);
-    border: 1px solid var(--border-default, rgba(15,23,42,0.09));
-    border-radius: var(--radius-card, 14px);
-    padding: 16px;
-    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18);
-    z-index: 70;
-  }
-  .reviewer-console__palette-close {
-    margin-top: 12px;
   }
 `;
 

@@ -236,11 +236,15 @@ test("QC READY-positive surfaces the real pendingCount", () => {
 // ---------------------------------------------------------------------------
 
 test("QC card renders a link to /review/qc (discovery hint, not duplicate)", () => {
+  // TEAM-SPEC §3 (2026-11-23) — the link is resolved by reviewDestination
+  // (rendered only when /review/qc opens, or as a workspace switch), no
+  // longer a constant href that dead-ended for Team.
   assert.match(
     PAGE_SOURCE,
-    /href="\/review\/qc"/,
-    "QC card must link to /review/qc — the canonical QC samples surface.",
+    /useReviewDestination\("workspace\.review_qc"/,
+    "QC card must resolve the /review/qc destination through reviewDestination.",
   );
+  assert.match(PAGE_SOURCE, /<ReviewDestinationLink/);
   assert.match(
     PAGE_SOURCE,
     /data-reviewer-queue-qc-link/,

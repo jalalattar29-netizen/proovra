@@ -122,7 +122,7 @@ test("/reviewer-ops/sla intro mentions current SLA pressure", () => {
   );
 });
 
-test("/reviewer-ops/sla intro points to /governance/policy for policy administration", () => {
+test("/reviewer-ops/sla intro points to Review settings for policy administration", () => {
   /*
    * Whitespace-insensitive, because the assertion is about the SENTENCE and
    * the previous pattern was about where the line happened to wrap. Reflowing
@@ -130,12 +130,15 @@ test("/reviewer-ops/sla intro points to /governance/policy for policy administra
    * copy was untouched — a test that fails for a line break is a test that
    * gets edited rather than read. Removing the sentence still fails it.
    */
+  // TEAM-SPEC §3 (2026-11-23) — the reviewer SLA policy moved to Review
+  // settings (/review/settings); /governance/policy is Enterprise-only and
+  // 404'd for Team. The intro now points there through reviewDestination.
   assert.match(
     SLA_PAGE_SOURCE.replace(/\s+/g, " "),
-    /SLA policy is administered at \/governance\/policy/,
-    "Intro must redirect policy administration to /governance/policy " +
-      "so operators do not look here for the wrong control.",
+    /deadlines are set in/i,
+    "Intro must say where review deadlines are administered.",
   );
+  assert.match(SLA_PAGE_SOURCE, /useReviewDestination\("review\.settings"/);
 });
 
 // ---------------------------------------------------------------------------

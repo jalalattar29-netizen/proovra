@@ -1516,6 +1516,7 @@ function TeamDetailPageBody() {
             teamId={teamId}
             currentUserId={currentUserId}
             canManageTeam={canManageTeam}
+            viewerRole={currentRole}
             onInvite={() => setInviteOpen(true)}
             onRemove={(member) => handleRemoveMember(member)}
             notify={notifyRoster}

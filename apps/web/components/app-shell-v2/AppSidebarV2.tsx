@@ -81,7 +81,8 @@ import { SidebarStorageWidget } from "./SidebarStorageWidget";
 // =============================================================================
 
 const BADGE_KEY_BY_ROUTE_ID: Record<string, string> = {
-  "review.queue": "escalations_open",
+  // TEAM-SPEC §3 — the escalation badge sits on the ONE Review entry.
+  "workspace.review": "escalations_open",
   "workspace.operations": "ops_center_runtime",
   "platform.observability": "observability_runtime",
   "governance.hub": "governance_incidents",
@@ -528,9 +529,13 @@ export function AppSidebarV2() {
   const capabilities = envelope?.capabilities ?? {};
   const accountPlan = envelope?.account?.accountPlan ?? null;
 
+  // TEAM-SPEC R1 — a Team-entitled Personal Workspace runs reviewer
+  // operations too, so its Review entry carries the escalation badge. Each
+  // source inside the hook is still gated on its own capability.
   const teamId =
     envelope?.workspace?.status === "active" &&
-    envelope.workspace.scope === "TEAM"
+    (envelope.workspace.scope === "TEAM" ||
+      envelope.planFeatures?.reviewerOperationsIncluded === true)
       ? envelope.workspace.id
       : null;
   // Canonical runtime integration point — the sidebar loads all

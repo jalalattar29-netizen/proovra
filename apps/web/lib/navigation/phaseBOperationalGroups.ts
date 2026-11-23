@@ -105,6 +105,7 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "review.queue_detail",
       "review.escalations",
       "review.sla",
+      "review.settings",
       "review.operations",
       // Phase C — `workspace.workflows` moved from WORKSPACE/secondary
       // to SYSTEM/secondary. It administers workflow templates, not

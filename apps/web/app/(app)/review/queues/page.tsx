@@ -46,6 +46,25 @@
  *     bounded reviewer projection on open. On 403 the modal surfaces
  *     the denial message rather than falling back to the prompt.
  *
+ * TEAM-SPEC (2026-11-23):
+ *
+ *   - Bulk eligibility (R1): the bar and the row checkboxes are offered only
+ *     where the API serves the action — the active workspace's plan includes
+ *     the Team review tools (`reviewQueuesIncluded`) AND the role holds the
+ *     bulk capability plus the action's own: REVIEW_ASSIGN for assign
+ *     (`review.bulk` + `review.assign`), REVIEWER_OPS_ACT for coded
+ *     verdicts (`review.bulk` + `review.decide`). The workspace KIND is
+ *     not asked; the API accepts an entitled Personal Workspace.
+ *   - Per-item results: a bulk call reports each item; failures are listed
+ *     with a human reason and marked on their rows.
+ *   - Filter race: every first-page read carries a generation number; a
+ *     response for an older filter (or workspace) is discarded.
+ *   - The QC samples row is rendered through `reviewDestination` — only
+ *     when /review/qc opens for this actor (or a workspace switch would open
+ *     it), never as a dead link.
+ *   - Picker and confirmation use the canonical `Modal` (portal, focus trap,
+ *     focus restore).
+ *
  * Phase RW3 delta (honest cursor pagination):
  *
  *   - The route now accepts a `cursor` query parameter and threads
@@ -83,7 +102,7 @@ import { EmptyState } from "../../../../components/ui/EmptyState";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
-import { useActiveSpaceId } from "../../../../lib/platform-context";
+import { useActiveSpaceId, useCan, usePlanFeatureGate } from "../../../../lib/platform-context";
 import {
   bulkAssign,
   bulkDecide,
@@ -98,7 +117,14 @@ import {
   useQueueIntelligence,
 } from "./_queue-intelligence";
 import { EvidenceRequestReviewQueue } from "./_evidence-request-queue";
-import { toQueueRow, type QueueRow } from "./_queue-row";
+import { toQueueRows, type QueueRow } from "../../../../components/reviewer-experience/queueRow";
+import { ReviewHubNav } from "../../../../components/reviewer-experience/ReviewHubNav";
+import { ReviewDestinationLink } from "../../../../components/reviewer-experience/ReviewDestinationLink";
+import {
+  useReviewDestination,
+  type ReviewDestination,
+} from "../../../../components/reviewer-experience/reviewDestination";
+import { Modal } from "../../../../components/cases-experience/matter-modals/Modal";
 
 
 // -----------------------------------------------------------------------------
@@ -192,10 +218,44 @@ type QcDiscoveryState =
   | { kind: "ERROR"; message: string }
   | { kind: "READY"; pendingCount: number };
 
+/** A bulk denial / per-item refusal, as a person reads it. */
+function bulkReasonLabel(code: string | null | undefined): string {
+  switch (code) {
+    case "NOT_PERMITTED":
+    case "FORBIDDEN":
+      return "your role cannot do this";
+    case "WORKSPACE_NOT_FOUND":
+      return "not available in this workspace";
+    case "NOT_FOUND":
+    case "WORKFLOW_NOT_FOUND":
+      return "review not found";
+    case "ENTITLEMENT_REQUIRED":
+    case "REVIEW_CAPABILITY_NOT_INCLUDED":
+      return "not included in this workspace's plan";
+    case "ASSIGNEE_NOT_ELIGIBLE":
+      return "that reviewer cannot take this review";
+    default:
+      return code ? identifierLabel(code).toLowerCase() : "not applied";
+  }
+}
+
 function QueuesShell() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const teamId = useActiveSpaceId();
+  // TEAM-SPEC R1 — bulk is offered on the effective plan + role capability.
+  const bulkPlanIncluded = usePlanFeatureGate("reviewQueuesIncluded");
+  const canBulk = useCan("BULK_ACTIONS");
+  const canAssignRole = useCan("REVIEW_ASSIGN");
+  const canDecideRole = useCan("REVIEWER_OPS_ACT");
+  const bulkAssignAllowed = bulkPlanIncluded && canBulk && canAssignRole;
+  const bulkCodeAllowed = bulkPlanIncluded && canBulk && canDecideRole;
+  const bulkAllowed = bulkAssignAllowed || bulkCodeAllowed;
+  // The QC row renders only where /review/qc opens (or a switch would open it).
+  const qcDestination = useReviewDestination("workspace.review_qc", { label: "Open QC samples" });
+  // Filter-race guard: bumped by every FIRST-page read; a response carrying an
+  // older generation belongs to a filter or workspace the reviewer has left.
+  const queueGenerationRef = useRef(0);
   // PHASE 12B — stale-context rejection. Every async read captures the
   // teamId it was issued for and compares it against this ref when it
   // resolves, so a response belonging to a previous workspace generation
@@ -225,6 +285,8 @@ function QueuesShell() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [lastIndex, setLastIndex] = useState<number | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
+  // Per-item outcome of the most recent bulk call, keyed by workflow id.
+  const [bulkOutcomes, setBulkOutcomes] = useState<ReadonlyMap<string, BulkOutcome> | null>(null);
   const [pendingConfirmation, setPendingConfirmation] = useState<
     | null
     | {
@@ -258,15 +320,20 @@ function QueuesShell() {
       // using `teamId` directly so the tenant-scoping contract stays
       // literally visible in the request template.
       const requestTeamId = teamId;
+      const generation =
+        cursor === null ? ++queueGenerationRef.current : queueGenerationRef.current;
+      const isStale = () =>
+        requestTeamId !== activeTeamRef.current ||
+        generation !== queueGenerationRef.current;
       const url =
         cursor === null
           ? `/v1/reviewer-ops/queue?teamId=${encodeURIComponent(teamId)}&queue=${encodeURIComponent(filter)}&limit=${QUEUE_PAGE_LIMIT}`
           : `/v1/reviewer-ops/queue?teamId=${encodeURIComponent(teamId)}&queue=${encodeURIComponent(filter)}&limit=${QUEUE_PAGE_LIMIT}&cursor=${encodeURIComponent(cursor)}`;
       try {
         const res = await apiFetch(url, { method: "GET" });
-        // Stale-context rejection — the workspace changed mid-flight.
-        if (requestTeamId !== activeTeamRef.current) return;
-        const pageRows = ((res?.rows ?? []) as Parameters<typeof toQueueRow>[0][]).map(toQueueRow);
+        // Stale rejection — the workspace or the filter changed mid-flight.
+        if (isStale()) return;
+        const pageRows = toQueueRows(res?.rows as ReadonlyArray<unknown> | undefined);
         const nextCursorValue =
           typeof res?.nextCursor === "string" && res.nextCursor.length > 0
             ? res.nextCursor
@@ -291,7 +358,7 @@ function QueuesShell() {
         setRefreshError(null);
         setLastRefreshedAt(new Date().toISOString());
       } catch (err) {
-        if (requestTeamId !== activeTeamRef.current) return;
+        if (isStale()) return;
         // eslint-disable-next-line no-console
         console.warn("[reviewer-workspace] queue list refresh failed", {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -340,6 +407,13 @@ function QueuesShell() {
   const refresh = useCallback(async () => {
     await loadPage(null);
   }, [loadPage]);
+  // A new filter shows "Loading…" until ITS rows arrive, never the previous
+  // filter's rows under the new label.
+  useEffect(() => {
+    setRows(null);
+    setNextCursor(null);
+    setBulkOutcomes(null);
+  }, [filter, teamId]);
 
   async function loadMore() {
     if (nextCursor === null) return;
@@ -358,7 +432,10 @@ function QueuesShell() {
   // The READY state surfaces the real pendingCount (which may be 0 —
   // we render that as an honest "no pending QC samples", NOT as a fake
   // success banner).
+  const qcOpens = qcDestination?.kind === "link";
   const refreshQc = useCallback(async () => {
+    // Only ask for the count where the QC page opens for this actor.
+    if (!qcOpens) return;
     setQcState({ kind: "LOADING" });
     try {
       if (!teamId) {
@@ -413,7 +490,7 @@ function QueuesShell() {
     // `teamId` MUST be a dependency: with `[]` the callback captured the
     // workspace id from first render and kept querying the previous
     // tenant after a workspace switch (defect fixed in Phase 12B).
-  }, [teamId]);
+  }, [teamId, qcOpens]);
 
   useEffect(() => {
     void refresh();
@@ -490,7 +567,8 @@ function QueuesShell() {
       teamId,
     });
     // PRO-R2-02 — this writes a coded verdict VALUE, not a review decision.
-    setBanner(summariseOutcome(`Coded verdict ${verdict}`, ids.length, res));
+    setBanner(summariseOutcome(`Coded verdict "${identifierLabel(verdict)}"`, ids.length, res));
+    setBulkOutcomes(outcomeMap(res));
     setSelected(new Set());
     setPendingConfirmation(null);
     await refresh();
@@ -504,6 +582,7 @@ function QueuesShell() {
       teamId,
     });
     setBanner(summariseOutcome(`Assign`, ids.length, res));
+    setBulkOutcomes(outcomeMap(res));
     setSelected(new Set());
     setPendingConfirmation(null);
     await refresh();
@@ -636,6 +715,7 @@ function QueuesShell() {
         />
       }
     >
+      <ReviewHubNav active="queues" />
       <Card variant="admin" padding="compact">
         <div
           style={{
@@ -666,7 +746,13 @@ function QueuesShell() {
         </div>
       </Card>
 
-      <QcDiscoveryCard state={qcState} onRetry={() => void refreshQc()} />
+      {qcDestination ? (
+        <QcDiscoveryCard
+          state={qcState}
+          destination={qcDestination}
+          onRetry={() => void refreshQc()}
+        />
+      ) : null}
 
       {/* PHASE 12B — evidence-request review queue (GET /v1/review/queue).
           A sibling domain to the workflow queue below, not a duplicate:
@@ -678,16 +764,20 @@ function QueuesShell() {
         onRetry={refreshIntelligence}
       />
 
-      <BulkBar
-        selectedCount={selected.size}
-        onDecide={(verdict) =>
-          setPendingConfirmation({ kind: "DECIDE", verdict })
-        }
-        onAssign={() => {
-          void openReviewerPicker();
-        }}
-        onClear={() => setSelected(new Set())}
-      />
+      {bulkAllowed ? (
+        <BulkBar
+          selectedCount={selected.size}
+          canAssign={bulkAssignAllowed}
+          canCode={bulkCodeAllowed}
+          onDecide={(verdict) =>
+            setPendingConfirmation({ kind: "DECIDE", verdict })
+          }
+          onAssign={() => {
+            void openReviewerPicker();
+          }}
+          onClear={() => setSelected(new Set())}
+        />
+      ) : null}
 
       {banner ? (
         <div
@@ -702,6 +792,23 @@ function QueuesShell() {
           }}
         >
           {banner}
+          {bulkOutcomes && [...bulkOutcomes.values()].some((o) => !o.ok) ? (
+            <ul data-bulk-failures style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+              {[...bulkOutcomes.values()]
+                .filter((o) => !o.ok)
+                .map((o) => {
+                  const row = rows?.find((r) => r.id === o.workflowId);
+                  return (
+                    <li key={o.workflowId} data-bulk-failure={o.workflowId}>
+                      {row?.evidenceId
+                        ? `Evidence ${row.evidenceId.slice(0, 8)}`
+                        : `Review ${o.workflowId.slice(0, 8)}`}
+                      : {bulkReasonLabel(o.denial)}
+                    </li>
+                  );
+                })}
+            </ul>
+          ) : null}
         </div>
       ) : null}
 
@@ -756,14 +863,17 @@ function QueuesShell() {
           >
             <thead>
               <tr>
-                <th style={th}>
-                  <input
-                    type="checkbox"
-                    data-reviewer-queue-select-all
-                    checked={allSelected}
-                    onChange={toggleAll}
-                  />
-                </th>
+                {bulkAllowed ? (
+                  <th style={th}>
+                    <input
+                      type="checkbox"
+                      aria-label="Select all visible reviews"
+                      data-reviewer-queue-select-all
+                      checked={allSelected}
+                      onChange={toggleAll}
+                    />
+                  </th>
+                ) : null}
                 <th style={th}>Workflow</th>
                 <th style={th}>Evidence</th>
                 <th style={th}>Status</th>
@@ -784,18 +894,24 @@ function QueuesShell() {
                     background: selected.has(r.id)
                       ? "var(--surface-muted, #f1f4f9)"
                       : "transparent",
-                    cursor: "pointer",
+                    cursor: bulkAllowed ? "pointer" : undefined,
                   }}
-                  onClick={(e) => toggleOne(idx, e)}
+                  data-reviewer-queue-bulk-outcome={
+                    bulkOutcomes?.get(r.id) ? (bulkOutcomes.get(r.id)!.ok ? "ok" : "failed") : undefined
+                  }
+                  onClick={bulkAllowed ? (e) => toggleOne(idx, e) : undefined}
                 >
-                  <td style={td}>
-                    <input
-                      type="checkbox"
-                      data-reviewer-queue-checkbox={r.id}
-                      checked={selected.has(r.id)}
-                      onChange={() => null}
-                    />
-                  </td>
+                  {bulkAllowed ? (
+                    <td style={td}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Select review of evidence ${r.evidenceId.slice(0, 8)}`}
+                        data-reviewer-queue-checkbox={r.id}
+                        checked={selected.has(r.id)}
+                        onChange={() => null}
+                      />
+                    </td>
+                  ) : null}
                   <td style={td}>
                     <code>{r.id.slice(0, 8)}…</code>
                   </td>
@@ -839,7 +955,7 @@ function QueuesShell() {
               {rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={bulkAllowed ? 9 : 8}
                     data-reviewer-queue-empty={filter}
                     style={{ padding: 0, border: "none" }}
                   >
@@ -960,38 +1076,30 @@ function ReviewerPickerModal({
   }, [state, query]);
 
   return (
-    <div
-      data-reviewer-picker-modal
-      data-reviewer-picker-state={state.kind}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(15, 23, 42, 0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 70,
-      }}
+    <Modal
+      open
+      title="Assign to reviewer"
+      onClose={onCancel}
+      testid="reviewer-picker-modal"
+      footer={
+        <Button
+          variant="secondary"
+          size="sm"
+          data-reviewer-picker-cancel
+          onClick={onCancel}
+        >
+          Cancel
+        </Button>
+      }
     >
       <div
-        style={{
-          background: "var(--surface-card, #ffffff)",
-          borderRadius: "var(--radius-card, 14px)",
-          padding: 20,
-          maxWidth: 520,
-          width: "92vw",
-          maxHeight: "78vh",
-          display: "flex",
-          flexDirection: "column",
-          gap: 10,
-          boxShadow: "0 24px 48px rgba(15,23,42,0.25)",
-          color: "var(--ink-primary, #0f172a)",
-        }}
+        data-reviewer-picker-modal
+        data-reviewer-picker-state={state.kind}
+        style={{ display: "flex", flexDirection: "column", gap: 10 }}
       >
-        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Assign to reviewer</h3>
 
         {state.kind === "LOADING" ? (
-          <div data-reviewer-picker-loading style={{ color: "#475569", fontSize: 13 }}>
+          <div data-reviewer-picker-loading style={{ color: "var(--ink-secondary, #475569)", fontSize: 13 }}>
             Loading reviewer list…
           </div>
         ) : null}
@@ -1088,7 +1196,7 @@ function ReviewerPickerModal({
                   >
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, color: "var(--ink-primary, #0f172a)" }}>
-                        {r.displayName ?? `Reviewer ${r.userId.slice(0, 8)}`}
+                        {r.displayName ?? "Unnamed reviewer"}
                       </div>
                       <div style={{ color: "var(--ink-secondary, #475569)" }}>
                         <code>{r.userId.slice(0, 8)}…</code>
@@ -1118,25 +1226,8 @@ function ReviewerPickerModal({
           </>
         ) : null}
 
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            justifyContent: "flex-end",
-            marginTop: 4,
-          }}
-        >
-          <button
-            type="button"
-            data-reviewer-picker-cancel
-            onClick={onCancel}
-            style={ghostBtn}
-          >
-            Cancel
-          </button>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -1170,28 +1261,28 @@ const pickerBtn = {
 // ---------------------------------------------------------------------------
 function QcDiscoveryCard({
   state,
+  destination,
   onRetry,
 }: {
   state: QcDiscoveryState;
+  destination: NonNullable<ReviewDestination>;
   onRetry: () => void;
 }) {
+  // A switch destination: the count belongs to another workspace, so the card
+  // says only where QC lives and offers the switch (never upgrade copy).
+  if (destination.kind === "switch") {
+    return (
+      <div data-reviewer-queue-qc-card data-reviewer-queue-qc-state="SWITCH" style={qcCardStyle}>
+        <strong style={{ color: "var(--ink-primary, #0f172a)" }}>QC samples</strong>
+        <ReviewDestinationLink destination={destination} testId="reviewer-queue-qc-switch" />
+      </div>
+    );
+  }
   return (
     <div
       data-reviewer-queue-qc-card
       data-reviewer-queue-qc-state={state.kind}
-      style={{
-        padding: "12px 16px",
-        background: "var(--surface-card, #ffffff)",
-        border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-        boxShadow: "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))",
-        borderRadius: "var(--radius-card, 14px)",
-        fontSize: 13,
-        display: "flex",
-        gap: 12,
-        alignItems: "center",
-        justifyContent: "space-between",
-        flexWrap: "wrap",
-      }}
+      style={qcCardStyle}
     >
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <strong style={{ color: "var(--ink-primary, #0f172a)" }}>QC samples</strong>
@@ -1256,17 +1347,17 @@ function QcDiscoveryCard({
             Retry
           </button>
         ) : null}
-        <a
-          data-reviewer-queue-qc-link
-          href="/review/qc"
+        <ReviewDestinationLink
+          destination={destination}
+          testId="reviewer-queue-qc-link"
           style={{
             color: "var(--ink-primary, #0f172a)",
             textDecoration: "underline",
             fontWeight: 600,
           }}
         >
-          Open QC samples
-        </a>
+          <span data-reviewer-queue-qc-link>Open QC samples</span>
+        </ReviewDestinationLink>
       </div>
     </div>
   );
@@ -1274,11 +1365,17 @@ function QcDiscoveryCard({
 
 function BulkBar({
   selectedCount,
+  canAssign,
+  canCode,
   onDecide,
   onAssign,
   onClear,
 }: {
   selectedCount: number;
+  /** review.bulk + review.assign (REVIEW_ASSIGN). */
+  canAssign: boolean;
+  /** review.bulk + review.decide (REVIEWER_OPS_ACT). */
+  canCode: boolean;
   onDecide: (
     verdict: "APPROVE" | "REJECT" | "ESCALATE" | "NEEDS_INFO",
   ) => void;
@@ -1329,15 +1426,17 @@ function BulkBar({
           (first {cappedCount} will be applied; server cap is {BULK_ACTION_CAP})
         </span>
       ) : null}
-      <button
-        type="button"
-        data-bulk-action="ASSIGN"
-        onClick={onAssign}
-        style={bulkBtn}
-      >
-        Bulk assign
-      </button>
-      {REVIEWER_VERDICTS.filter((v) => v !== "PENDING").map((v) => (
+      {canAssign ? (
+        <button
+          type="button"
+          data-bulk-action="ASSIGN"
+          onClick={onAssign}
+          style={bulkBtn}
+        >
+          Bulk assign
+        </button>
+      ) : null}
+      {(canCode ? REVIEWER_VERDICTS.filter((v) => v !== "PENDING") : []).map((v) => (
         <button
           key={v}
           type="button"
@@ -1349,7 +1448,7 @@ function BulkBar({
           title="Sets the coded verdict field only; it does not approve, reject or close the review."
         >
           {/* PRO-R2-02 — named for what it does: a coded value, not a decision. */}
-          Code verdict: {v.toLowerCase()}
+          Code verdict: {identifierLabel(v)}
         </button>
       ))}
       <span style={{ flex: 1 }} />
@@ -1381,36 +1480,46 @@ function ConfirmModal({
   // PRO-R2-11 — one submission per confirmation: Apply is busy-guarded.
   const [applying, setApplying] = useState(false);
   return (
-    <div
-      data-bulk-confirm
-      data-bulk-confirm-kind={confirmation.kind}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(15, 23, 42, 0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 60,
-      }}
+    <Modal
+      open
+      title={
+        confirmation.kind === "DECIDE"
+          ? `Set the coded verdict "${identifierLabel(confirmation.verdict)}"`
+          : "Confirm bulk assign"
+      }
+      onClose={onCancel}
+      dismissDisabled={applying}
+      testid="bulk-confirm"
+      footer={
+        <>
+          <Button
+            variant="secondary"
+            size="sm"
+            data-bulk-confirm-cancel
+            disabled={applying}
+            onClick={onCancel}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            data-bulk-confirm-go
+            disabled={applying}
+            loading={applying}
+            onClick={() => {
+              if (applying) return;
+              setApplying(true);
+              void Promise.resolve(onConfirm()).finally(() => setApplying(false));
+            }}
+          >
+            {applying ? "Applying…" : "Apply"}
+          </Button>
+        </>
+      }
     >
-      <div
-        style={{
-          background: "var(--surface-card, #ffffff)",
-          borderRadius: "var(--radius-card, 14px)",
-          padding: 20,
-          maxWidth: 440,
-          width: "92vw",
-          boxShadow: "0 24px 48px rgba(15,23,42,0.25)",
-          color: "var(--ink-primary, #0f172a)",
-        }}
-      >
-        <h3 style={{ marginTop: 0, fontSize: 16, fontWeight: 700 }}>
-          {confirmation.kind === "DECIDE"
-            ? `Set the coded verdict "${confirmation.verdict.toLowerCase()}"`
-            : "Confirm bulk assign"}
-        </h3>
-        <p style={{ color: "var(--ink-secondary, #475569)", fontSize: 13 }}>
+      <div data-bulk-confirm data-bulk-confirm-kind={confirmation.kind}>
+        <p style={{ color: "var(--ink-secondary, #475569)", fontSize: 13, marginTop: 0 }}>
           This will apply the action to{" "}
           <strong>{Math.min(count, BULK_ACTION_CAP)}</strong>{" "}
           workflows. The audit trail records each per-item outcome.
@@ -1418,38 +1527,8 @@ function ConfirmModal({
             ? " It records a coded verdict value only: no review is approved, rejected, escalated or closed."
             : null}
         </p>
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            justifyContent: "flex-end",
-            marginTop: 12,
-          }}
-        >
-          <button
-            type="button"
-            data-bulk-confirm-cancel
-            onClick={onCancel}
-            style={ghostBtn}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            data-bulk-confirm-go
-            disabled={applying}
-            onClick={() => {
-              if (applying) return;
-              setApplying(true);
-              void Promise.resolve(onConfirm()).finally(() => setApplying(false));
-            }}
-            style={primaryBtn}
-          >
-            {applying ? "Applying…" : "Apply"}
-          </button>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -1467,12 +1546,38 @@ function summariseOutcome(
 ): string {
   if (res && typeof res === "object" && "denial" in (res as object)) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return `${action} refused: ${(res as any).denial}`;
+    return `${action} refused: ${bulkReasonLabel((res as any).denial)}.`;
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const r = res as any;
-  return `${action}: ${r?.succeeded ?? 0} of ${r?.total ?? requested} succeeded.`;
+  return `${action}: ${r?.succeeded ?? 0} of ${r?.total ?? requested} applied.`;
 }
+
+/** Per-item outcomes of a bulk response, keyed by workflow id (null on a whole-call refusal). */
+function outcomeMap(res: unknown): ReadonlyMap<string, BulkOutcome> | null {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const outcomes = (res as any)?.outcomes;
+  if (!Array.isArray(outcomes)) return null;
+  const m = new Map<string, BulkOutcome>();
+  for (const o of outcomes as BulkOutcome[]) {
+    if (o && typeof o.workflowId === "string") m.set(o.workflowId, o);
+  }
+  return m;
+}
+
+const qcCardStyle = {
+  padding: "12px 16px",
+  background: "var(--surface-card, #ffffff)",
+  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+  boxShadow: "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))",
+  borderRadius: "var(--radius-card, 14px)",
+  fontSize: 13,
+  display: "flex",
+  gap: 12,
+  alignItems: "center",
+  justifyContent: "space-between",
+  flexWrap: "wrap",
+} as const;
 
 const th = {
   padding: "10px 12px",
@@ -1498,16 +1603,6 @@ const bulkBtn = {
   fontSize: 12,
   padding: "5px 11px",
   borderRadius: 8,
-  cursor: "pointer",
-  fontWeight: 600,
-} as const;
-const ghostBtn = {
-  background: "transparent",
-  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-  color: "var(--ink-primary, #0f172a)",
-  fontSize: 13,
-  padding: "6px 14px",
-  borderRadius: "var(--radius-md, 8px)",
   cursor: "pointer",
   fontWeight: 600,
 } as const;

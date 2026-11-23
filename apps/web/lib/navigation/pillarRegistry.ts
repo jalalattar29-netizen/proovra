@@ -200,6 +200,7 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["review.operations", "REVIEW"],
   ["review.escalations", "REVIEW"],
   ["review.sla", "REVIEW"],
+  ["review.settings", "REVIEW"],
   ["investigation.reviewers", "REVIEW"],
   // Phase 2A — reviewer workspace + adjacent surfaces.
   ["workspace.review_workspace", "REVIEW"],

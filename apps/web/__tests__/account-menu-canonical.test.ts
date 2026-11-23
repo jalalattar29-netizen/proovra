@@ -189,10 +189,18 @@ test("Organization Settings is HIDDEN for a personal-only user (0 orgs)", () => 
   assert.equal(m.organization.length, 0);
 });
 
-test("Organization Settings appears with ≥1 ACTIVE membership — on ANY plan", () => {
+// TEAM-SPEC §3 (2026-11-23) — rebaselined: the membership must be in a
+// CUSTOMER organization, i.e. a workspace the server groups under
+// `contextOptions.organizations` (a legacy OWNED workspace's parent is the
+// internal SYSTEM organization and never earns the link).
+test("Organization Settings appears with ≥1 ACTIVE CUSTOMER-organization membership — on ANY plan", () => {
   for (const plan of ["FREE", "PAYG", "PRO", "TEAM"]) {
     const m = resolveAccountMenu(
-      input({ accountPlan: plan, organizations: [activeOrg("org-1")] }),
+      input({
+        accountPlan: plan,
+        organizations: [activeOrg("org-1")],
+        contextOptions: ctxWithOrgs([{ id: "org-1", name: "Org 1" }]),
+      }),
     );
     assert.equal(
       m.organization.length,

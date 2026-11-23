@@ -35,7 +35,12 @@ import type {
   PlanOffer,
 } from "../../../../lib/api/billing-accounts";
 import { BillingDrawer } from "./BillingDrawer";
-import { downgradeAddonNote } from "./billingMessages";
+import {
+  downgradeAddonNote,
+  readEndsReviewerOperations,
+  reviewerOperationsEndingNote,
+  type EndsReviewerOperations,
+} from "./billingMessages";
 import { formatDate, formatMoney, presentLifecycle } from "./format";
 
 export function ManagePlanDrawer({
@@ -48,6 +53,7 @@ export function ManagePlanDrawer({
   onManagePayment,
   changeBusyPlan,
   cancelBusy,
+  reviewerOperationsEnding,
 }: {
   open: boolean;
   projection: BillingAccountProjection;
@@ -65,6 +71,13 @@ export function ManagePlanDrawer({
   onManagePayment?: () => void;
   changeBusyPlan: string | null;
   cancelBusy: boolean;
+  /**
+   * TEAM-SPEC §0/R1 — the server's `endsReviewerOperations` for a plan move,
+   * by target plan key, when the host has it (e.g. from a plan-change answer
+   * that asked for confirmation). An offer that carries the field itself is
+   * read too. Informational only.
+   */
+  reviewerOperationsEnding?: Partial<Record<string, EndsReviewerOperations | null>>;
 }) {
   const { plan, actions, planOffers } = projection;
   const lifecycle = presentLifecycle(plan.lifecycle, {
@@ -252,6 +265,17 @@ export function ManagePlanDrawer({
             <ul className="bill-move-list">
               {offers.map((offer) => {
                 const addonNote = downgradeAddonNote(projection, offer);
+                // TEAM-SPEC §0/R1 — said BEFORE the move is chosen, and only
+                // when the server says this move ends reviewer operations.
+                const reviewNote =
+                  offer.action === "DOWNGRADE"
+                    ? reviewerOperationsEndingNote(
+                        readEndsReviewerOperations(
+                          (offer as PlanOffer & { endsReviewerOperations?: unknown }).endsReviewerOperations ??
+                            reviewerOperationsEnding?.[offer.planKey],
+                        ),
+                      )
+                    : null;
                 return (
                 <li
                   key={offer.planKey}
@@ -305,6 +329,15 @@ export function ManagePlanDrawer({
                   {addonNote ? (
                     <p className="bill-move__meta" data-billing-manage-addon-note={offer.planKey}>
                       {addonNote}
+                    </p>
+                  ) : null}
+                  {reviewNote ? (
+                    <p
+                      className="bill-move__meta"
+                      role="note"
+                      data-billing-manage-review-ops-note={offer.planKey}
+                    >
+                      {reviewNote}
                     </p>
                   ) : null}
                 </li>
@@ -418,6 +451,18 @@ export function ManagePlanDrawer({
                   Your existing evidence and custody records remain available
                   under the applicable retention and access rules.
                 </p>
+                {(() => {
+                  // TEAM-SPEC §0/R1 — moving to Free (cancelling) ends reviewer
+                  // operations too, when the server says so (key "FREE").
+                  const note = reviewerOperationsEndingNote(
+                    readEndsReviewerOperations(reviewerOperationsEnding?.FREE),
+                  );
+                  return note ? (
+                    <p className="bill-choice__meta" role="note" data-billing-manage-review-ops-note="FREE">
+                      {note}
+                    </p>
+                  ) : null;
+                })()}
                 <div className="bill-stacked-actions" style={{ marginBlockStart: 12 }}>
                   <Button
                     /*

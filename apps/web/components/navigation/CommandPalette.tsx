@@ -162,6 +162,14 @@ export function CommandPalette() {
       ) {
         continue;
       }
+      // TEAM-SPEC §3 — a row this actor cannot open is not offered. A DENIED
+      // row (role, plan or setup refusal) used to stay in the list and, on
+      // Enter, silently sent the user to /home. Only the organization-gated
+      // state survives (for the actors the rule above lets through), and it
+      // opens the page's own explanation.
+      if (!access.canLoad && access.accessState !== "NEEDS_ORGANIZATION") {
+        continue;
+      }
       /*
        * No pre-ranking here any more.
        *
@@ -193,6 +201,15 @@ export function CommandPalette() {
     );
     return dedupeByDestination(ordered.map((c) => c.item)).slice(0, MAX_RESULTS);
   }, [indexed, query]);
+
+  /**
+   * Open a result. Every listed row loads, except an organization-gated one,
+   * which opens the page itself so its gate explains what is needed — never a
+   * silent redirect to /home (TEAM-SPEC §3).
+   */
+  const openPaletteResult = (item: IndexedItem) => {
+    router.push(item.route.href);
+  };
 
   // Reset highlight when the result set changes.
   useEffect(() => {
@@ -257,21 +274,7 @@ export function CommandPalette() {
       e.preventDefault();
       const target = results[highlight];
       if (!target) return;
-      // If access is denied, route to the access resolver's primary
-      // action (e.g. /teams to create an org). Never bypass.
-      if (target.access.canLoad) {
-        router.push(target.route.href);
-      } else if (target.access.primaryAction) {
-        router.push(target.access.primaryAction.href);
-      } else {
-        // Phase IA-self-serve-regression-fix — fallback was
-        // `/tools`, but `/tools` is INTERNAL (notFound for non-
-        // admins). For self-serve users this fallback rendered the
-        // 404 page. Route to `/home` instead — every user can reach
-        // home, so the palette never lands the user on a blank
-        // page.
-        router.push("/home");
-      }
+      openPaletteResult(target);
       close();
     }
   };
@@ -383,19 +386,7 @@ export function CommandPalette() {
                   data-command-palette-operational-group={opGroup?.id ?? ""}
                   onMouseEnter={() => setHighlight(idx)}
                   onClick={() => {
-                    if (item.access.canLoad) {
-                      router.push(item.route.href);
-                    } else if (item.access.primaryAction) {
-                      router.push(item.access.primaryAction.href);
-                    } else {
-                      // Phase IA-self-serve-regression-fix — fallback was
-        // `/tools`, but `/tools` is INTERNAL (notFound for non-
-        // admins). For self-serve users this fallback rendered the
-        // 404 page. Route to `/home` instead — every user can reach
-        // home, so the palette never lands the user on a blank
-        // page.
-        router.push("/home");
-                    }
+                    openPaletteResult(item);
                     close();
                   }}
                   style={{

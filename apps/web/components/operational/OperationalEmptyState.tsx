@@ -27,6 +27,10 @@
 import Link from "next/link";
 
 import { useHealthDestination } from "../../lib/navigation/healthDestination";
+import {
+  useReviewDestinationResolver,
+  type ReviewDestination,
+} from "../reviewer-experience/reviewDestination";
 import { useCan } from "../../lib/platform-context";
 import { OPS_INK, OPS_SURFACE, OPS_TONES } from "./tokens";
 
@@ -449,18 +453,76 @@ function runbookActions(
   return canRunbooks ? [{ label, href: "/admin/platform/runbooks" }] : [];
 }
 
-export function NoEscalationsEmptyState() {
+/**
+ * TEAM-SPEC §3 — reviewer-ops empty-state links go through
+ * `reviewDestination`: a link is offered only when its page opens for this
+ * actor. The old constants (`/reviewer-ops`, a redirect; `/reviewer-ops/policy`,
+ * an Enterprise-only page that 404'd for Team) are gone.
+ */
+function reviewActions(
+  destinations: ReadonlyArray<ReviewDestination>,
+): OperationalEmptyStateAction[] {
+  const out: OperationalEmptyStateAction[] = [];
+  for (const d of destinations) {
+    if (d && d.kind === "link") out.push({ label: d.label, href: d.href });
+  }
+  return out;
+}
+
+/** Escalation list filters the empty state can describe. */
+export type EscalationEmptyFilter =
+  | "ACTIVE"
+  | "OPEN"
+  | "ACKNOWLEDGED"
+  | "REASSIGNED"
+  | "RESOLVED"
+  | "SUPPRESSED"
+  | "ALL";
+
+const ESCALATION_EMPTY_TITLE: Record<EscalationEmptyFilter, string> = {
+  ACTIVE: "No active escalations",
+  OPEN: "No open escalations",
+  ACKNOWLEDGED: "No acknowledged escalations",
+  REASSIGNED: "No reassigned escalations",
+  RESOLVED: "No resolved escalations",
+  SUPPRESSED: "No suppressed escalations",
+  ALL: "No escalations yet",
+};
+
+const ESCALATION_EMPTY_REASON: Record<EscalationEmptyFilter, string> = {
+  ACTIVE:
+    "Nothing is open, acknowledged or reassigned right now. An escalation appears here when a review passes its SLA deadline or someone raises one.",
+  OPEN: "No escalation is waiting for acknowledgement. Choose Active to include acknowledged and reassigned ones.",
+  ACKNOWLEDGED: "No escalation has been acknowledged and left unresolved.",
+  REASSIGNED: "No escalation is currently reassigned to another person.",
+  RESOLVED: "No escalation has been resolved yet.",
+  SUPPRESSED: "No escalation has been suppressed.",
+  ALL: "This workspace has never had an escalation. One appears when a review passes its SLA deadline or someone raises one.",
+};
+
+export function NoEscalationsEmptyState({
+  filter = "ACTIVE",
+  severityFiltered = false,
+}: {
+  /** The status filter the list was read with; the copy names it. */
+  filter?: EscalationEmptyFilter;
+  /** True when a severity filter is also applied. */
+  severityFiltered?: boolean;
+} = {}) {
   const healthDestination = useHealthDestination();
+  const resolve = useReviewDestinationResolver();
+  const title = ESCALATION_EMPTY_TITLE[filter] + (severityFiltered ? " at this severity." : ".");
   return (
     <OperationalEmptyState
-      kicker="Reviewer Ops"
+      kicker="Escalations"
       emptyStateCode="no_escalations"
-      title="No escalations open."
-      reason="No reviews are currently overdue or otherwise flagged for operator attention. New escalations appear here automatically when the reviewer-reconciliation worker flips a workflow to BREACHED."
-      runtimeDependency="Reviewer reconciliation worker (interval default 5 min). Reviewer SLA policy must be configured for SLA-driven escalations to fire."
+      title={title}
+      reason={ESCALATION_EMPTY_REASON[filter]}
       actions={[
-        { label: "Check reviewer ops queue", href: "/reviewer-ops" },
-        { label: "View SLA policy", href: "/reviewer-ops/policy" },
+        ...reviewActions([
+          resolve("review.queue", { label: "Open my reviews" }),
+          resolve("review.settings", { label: "View the review SLA policy" }),
+        ]),
         ...healthActions(healthDestination),
       ]}
     />
@@ -468,17 +530,19 @@ export function NoEscalationsEmptyState() {
 }
 
 export function NoWorkloadSnapshotsEmptyState() {
+  const resolve = useReviewDestinationResolver();
   return (
     <OperationalEmptyState
-      kicker="Reviewer Ops"
+      kicker="Reviewers"
       emptyStateCode="no_workload_snapshots"
-      title="No workload snapshots yet."
-      reason="Workload snapshots are written by the reviewer reconciliation worker on each pass. If no reviewers are assigned to any active workflow, the snapshot row count stays at zero."
-      runtimeDependency="Reviewer reconciliation worker. Assignments via /reviewer-ops/reviews/:id/assign."
-      actions={[
-        { label: "Assign reviewers", href: "/reviewer-ops" },
-        { label: "Open Operations Center", href: "/operations" },
-      ]}
+      title="No reviewer activity in this range."
+      reason="No reviewer holds active work or completed a review in the selected range. Assigning reviews fills this table."
+      actions={reviewActions([
+        resolve("workspace.review_queues", {
+          label: "Assign reviews",
+          href: "/review/queues?queue=UNASSIGNED",
+        }),
+      ])}
     />
   );
 }
@@ -501,14 +565,14 @@ export function NoGovernanceIncidentsEmptyState() {
 }
 
 export function NoSlaBreachesEmptyState() {
+  const resolve = useReviewDestinationResolver();
   return (
     <OperationalEmptyState
       kicker="SLA"
       emptyStateCode="no_sla_breaches"
       title="No SLA breaches detected."
-      reason="All active reviewer workflows are within their configured SLA window. Breached workflows appear here once the next reconcile pass flips them."
-      runtimeDependency="Reviewer reconciliation worker. Workspace SLA policy must be configured."
-      actions={[{ label: "View SLA policy", href: "/reviewer-ops/policy" }]}
+      reason="Every active review is within its SLA window. A review that passes its deadline appears here within a few minutes."
+      actions={reviewActions([resolve("review.settings", { label: "View the review SLA policy" })])}
     />
   );
 }

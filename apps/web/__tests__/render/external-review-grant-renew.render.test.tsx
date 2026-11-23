@@ -91,7 +91,9 @@ beforeEach(() => {
       });
       calls.push({ method, path, body: init?.body ? JSON.parse(String(init.body)) : null, headers });
       if (path === RENEW) return json(renewReply.status, renewReply.body);
-      if (path.startsWith("/v1/external-review/grants?")) return json(200, { grants: [grant()] });
+      // TEAM-SPEC §2.11 (rebaselined 2026-11-23) — a manager: the API projects
+      // viewerCanRevoke on a live grant, and the panel offers Revoke on it.
+      if (path.startsWith("/v1/external-review/grants?")) return json(200, { grants: [{ ...grant(), viewerCanRevoke: true }], viewerCanIssue: true });
       if (path === "/v1/external-review/invitations") return json(200, { invitations: [invitation()] });
       if (path.endsWith("/activity")) return json(200, { activity: [] });
       if (path.endsWith("/delivery")) return json(200, { deliveries: [] });

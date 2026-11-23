@@ -740,3 +740,38 @@ export function safePayPalResumeUrl(href: string | null | undefined): string | n
     return null;
   }
 }
+
+/**
+ * TEAM-SPEC §0/R1 (2026-11-23) — what lowering a Team plan does to review
+ * work. The API attaches `endsReviewerOperations: { openWorkflows,
+ * activeEscalations }` to a plan-change answer (the 409 refusals that ask for
+ * confirmation, and the result) when the move ends reviewer operations; a
+ * plan-change offer may carry it too. Informational only: it never blocks and
+ * never changes what the change does. Absent → nothing is said.
+ */
+export type EndsReviewerOperations = { openWorkflows: number; activeEscalations: number };
+
+export function readEndsReviewerOperations(value: unknown): EndsReviewerOperations | null {
+  if (!value || typeof value !== "object") return null;
+  const v = value as { openWorkflows?: unknown; activeEscalations?: unknown };
+  const count = (n: unknown): number | null =>
+    typeof n === "number" && Number.isFinite(n) && n >= 0 ? Math.floor(n) : null;
+  const openWorkflows = count(v.openWorkflows);
+  const activeEscalations = count(v.activeEscalations);
+  if (openWorkflows === null || activeEscalations === null) return null;
+  return { openWorkflows, activeEscalations };
+}
+
+/** The warning shown before a change that ends reviewer operations is confirmed. */
+export function reviewerOperationsEndingNote(ends: EndsReviewerOperations | null): string | null {
+  if (!ends) return null;
+  const reviews =
+    ends.openWorkflows === 0
+      ? "Reviews already recorded stay readable."
+      : `${ends.openWorkflows} open review${ends.openWorkflows === 1 ? "" : "s"} stay${ends.openWorkflows === 1 ? "s" : ""} readable.`;
+  const escalations =
+    ends.activeEscalations > 0
+      ? ` ${ends.activeEscalations} active escalation${ends.activeEscalations === 1 ? "" : "s"} will no longer be tracked.`
+      : "";
+  return `Review queues, assignments, escalations and SLA tracking stop; ${reviews}${escalations} Nothing is deleted.`;
+}

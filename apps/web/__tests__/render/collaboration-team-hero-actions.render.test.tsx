@@ -122,9 +122,11 @@ function envelope(plan: Plan): unknown {
     authoritySchemaVersion: AUTHORITY_SCHEMA_VERSION,
     capabilitySchemaVersion: CAPABILITY_SCHEMA_VERSION,
     navigationSchemaVersion: NAVIGATION_SCHEMA_VERSION,
-    // The role holds the console capability in every case: the plan and the
-    // Workspace kind are what decide.
-    capabilities: { REVIEWER_OPS_VIEW: true },
+    // TEAM-SPEC R4 (2026-11-23) — the capabilities follow capability-registry:
+    // REVIEWER_OPS_VIEW only where the plan includes reviewer operations, and
+    // the writer key (EVIDENCE_MANAGE, the audit.read ladder the grants list
+    // enforces) that /review/external now requires.
+    capabilities: { EVIDENCE_MANAGE: true, ...(plan.reviewerOperationsIncluded ? { REVIEWER_OPS_VIEW: true } : {}) },
     diagnostics: { requestId: "hero-actions" },
     user: { id: VIEWER_ID, email: "lead@meridian.test", displayName: "Lead" },
     workspace: { id: WORKSPACE_ID, name: "Meridian", status: "active", scope: plan.space },
@@ -167,16 +169,22 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("External reviewers — rendered only where /review/external opens", () => {
-  it("TEAM on a Personal Workspace: role + PRO+ entitlement, and still no link (the console would 404)", async () => {
+  // TEAM-SPEC R4 (2026-11-23) — INVERTED. /review/external is no longer an
+  // Organization + Enterprise route: External Review is Pro and above on any
+  // workspace kind, so the console opens here and the link renders.
+  it("TEAM on a Personal Workspace: the console opens (R4), so the link renders", async () => {
     const view = await mount(TEAM_PERSONAL);
-    await waitFor(() => expect(view.getByTestId("collaboration-hub-link")).toBeTruthy());
-    expect(view.queryByTestId("external-reviewers-link")).toBeNull();
+    const link = await view.findByTestId("external-reviewers-link");
+    expect(link.getAttribute("href")).toBe("/review/external");
   });
 
-  it("PRO on a Personal Workspace: no link", async () => {
+  // TEAM-SPEC R4 (2026-11-23) — External Review is included on Pro and the
+  // console now opens wherever the plan includes it, so a Pro owner gets the
+  // link (was: "no link", when the console was Enterprise-only).
+  it("PRO on a Personal Workspace: the link renders (External Review is a Pro feature)", async () => {
     const view = await mount(PRO_PERSONAL);
-    await waitFor(() => expect(view.getByTestId("collaboration-hub-link")).toBeTruthy());
-    expect(view.queryByTestId("external-reviewers-link")).toBeNull();
+    const link = await view.findByTestId("external-reviewers-link");
+    expect(link.getAttribute("href")).toBe("/review/external");
   });
 
   it("an Enterprise Organization Workspace: the link renders and points at the real console", async () => {

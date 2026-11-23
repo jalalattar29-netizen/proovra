@@ -26,6 +26,8 @@
 
 import { planLabel, orgRoleLabel } from "../../lib/labels/adminPlatformLabels";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useCallback, useRef, useState } from "react";
 
 import {
   useAccount,
@@ -45,13 +47,65 @@ export function WorkspaceAdministrationHome() {
   // PRO-T1C-05 (WS-ENT) — envelope.organizations holds WORKSPACE ids (ARCH-003);
   // the organization id lives in contextOptions.organizations. An OWNED
   // workspace has only a SYSTEM organization and no governance surface.
-  const { envelope } = usePlatformContext();
+  const { envelope, switchWorkspace } = usePlatformContext();
+  const router = useRouter();
   const organizationIdByWorkspace = new Map<string, string>();
   for (const org of envelope?.contextOptions?.organizations ?? []) {
     for (const w of org.workspaces ?? []) organizationIdByWorkspace.set(w.workspaceId, org.organizationId);
   }
   const activeSpace = useActiveSpace();
   const duplicates = useDuplicatePersonalCandidates();
+
+  // TEAM MEMBERSHIP (2026-11-23) — every workspace the server lists for the
+  // caller is reachable from here. Team collaboration happens inside the
+  // OWNER's Personal Workspace, so an invited member's workspace arrives in
+  // `sharedWorkspaces`; legacy OWNED workspaces arrive in `ownedWorkspaces`.
+  // The page groups and renders them; it never invents a choice.
+  const sharedWorkspaces = envelope?.contextOptions?.sharedWorkspaces ?? [];
+  const ownedWorkspaces = envelope?.contextOptions?.ownedWorkspaces ?? [];
+  const activeWorkspaceId =
+    envelope?.contextOptions?.activeContext?.workspaceId ?? activeSpace?.id ?? null;
+  const personalIsActive =
+    activeSpace?.type === "PERSONAL" && activeSpace.shared !== true;
+
+  // SWITCH, THEN OPEN. A plain link would open whatever workspace is active
+  // (an invitee who last worked in a shared workspace landed there from
+  // "Open Personal Space"). The switch goes through the canonical
+  // `switchWorkspace` — `null` is the caller's own Personal Space — and the
+  // page navigates only once the server has accepted it.
+  const [opening, setOpening] = useState<string | null>(null);
+  const [openError, setOpenError] = useState<string | null>(null);
+  const openInFlight = useRef(false);
+  const openWorkspace = useCallback(
+    (key: string, workspaceId: string | null, alreadyActive: boolean, destination: string) => {
+      if (openInFlight.current) return;
+      setOpenError(null);
+      if (alreadyActive) {
+        router.push(destination);
+        return;
+      }
+      openInFlight.current = true;
+      setOpening(key);
+      void (async () => {
+        let switched: boolean | void = false;
+        try {
+          switched = await switchWorkspace(workspaceId);
+        } catch {
+          switched = false;
+        }
+        openInFlight.current = false;
+        setOpening(null);
+        if (switched === false) {
+          setOpenError(
+            "We couldn't open that workspace. Your access may have changed — refresh and try again.",
+          );
+          return;
+        }
+        router.push(destination);
+      })();
+    },
+    [router, switchWorkspace],
+  );
 
   return (
     <div className="cc-page" data-workspace-administration-home>
@@ -60,10 +114,19 @@ export function WorkspaceAdministrationHome() {
           <div className="cc-kicker">Workspace Administration</div>
           <h1 className="cc-title">Spaces</h1>
           <p className="cc-subtitle">
-            Your Personal Space is private to you. Organizations are
-            collaborative tenants — members, roles, governance, and billing
-            live there. For org-level governance (members, invites,
-            audit timeline), open{" "}
+            Your Personal Space is your own workspace — your plan applies to
+            it, and the people you invite join it. When someone invites you
+            into their Personal Workspace, it appears under Shared with you.
+            Manage who can access your workspace in{" "}
+            <Link
+              href="/people"
+              data-action="cross-link-members-access"
+              data-workspace-admin-cross-link="people"
+            >
+              Members &amp; Access
+            </Link>
+            . Organizations come with an Enterprise agreement; their
+            governance lives in{" "}
             <Link
               href="/organizations"
               data-action="cross-link-organizations"
@@ -79,6 +142,12 @@ export function WorkspaceAdministrationHome() {
       {/* Contextual help, collapsed by default so the spaces list
           stays primary. */}
       <ContextualHelp surface="teams" collapsedByDefault />
+
+      {openError ? (
+        <p role="alert" className="cases-empty" data-workspace-open-error>
+          {openError}
+        </p>
+      ) : null}
 
       {/* ============================ PERSONAL ============================ */}
       <section
@@ -107,9 +176,14 @@ export function WorkspaceAdministrationHome() {
               envelope that had resolved no plan displayed a confident "Plan:
               FREE" for a workspace whose plan was simply unknown.
             */}
-            <span data-personal-space-plan={personalSpace?.plan ?? "unknown"}>
-              Plan: {planLabel(personalSpace?.plan ?? "—")}
-            </span>
+            {personalSpace?.plan ? (
+              <span data-personal-space-plan={personalSpace.plan}>
+                Plan: {planLabel(personalSpace.plan)}
+              </span>
+            ) : null}
+            {personalIsActive ? (
+              <span data-personal-space-active-chip>Active</span>
+            ) : null}
             <Link
               href="/billing"
               data-personal-space-billing
@@ -117,16 +191,127 @@ export function WorkspaceAdministrationHome() {
             >
               Manage billing
             </Link>
-            <Link
-              href="/evidence"
+            <button
+              type="button"
               data-personal-space-open
               className="cc-quick-action"
+              disabled={opening !== null}
+              aria-busy={opening === "personal"}
+              onClick={() =>
+                openWorkspace("personal", null, personalIsActive, "/evidence")
+              }
             >
-              Open Personal Space
-            </Link>
+              {opening === "personal" ? "Opening…" : "Open Personal Space"}
+            </button>
           </div>
         </div>
       </section>
+
+      {/* ========================= SHARED WITH YOU ========================= */}
+      {sharedWorkspaces.length > 0 ? (
+        <section
+          className="cc-section"
+          data-workspace-admin-section="shared-workspaces"
+        >
+          <header className="cc-section-header">
+            <h2 className="cc-section-title">
+              Shared with you · {sharedWorkspaces.length}
+            </h2>
+          </header>
+          <ul className="cases-list" data-shared-workspaces-list>
+            {sharedWorkspaces.map((w) => {
+              const isActive = !personalIsActive && activeWorkspaceId === w.workspaceId;
+              const key = `shared:${w.workspaceId}`;
+              return (
+                <li
+                  key={w.workspaceId}
+                  className="cases-row"
+                  data-shared-workspace-id={w.workspaceId}
+                  data-shared-workspace-active={isActive ? "true" : "false"}
+                >
+                  <div className="cases-row-main">
+                    <span className="cases-row-title">{w.name}</span>
+                    <span className="cases-row-scope">
+                      A Personal Workspace you were invited into
+                    </span>
+                  </div>
+                  <div className="cases-row-meta">
+                    {w.role ? (
+                      <span data-shared-workspace-role={w.role}>
+                        Your role: {orgRoleLabel(w.role)}
+                      </span>
+                    ) : null}
+                    {isActive ? <span data-shared-workspace-active-chip>Active</span> : null}
+                    <button
+                      type="button"
+                      className="cc-quick-action"
+                      data-shared-workspace-open={w.workspaceId}
+                      disabled={opening !== null}
+                      aria-busy={opening === key}
+                      aria-label={`Open ${w.name}`}
+                      onClick={() => openWorkspace(key, w.workspaceId, isActive, "/home")}
+                    >
+                      {opening === key ? "Opening…" : "Open"}
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
+
+      {/* ========================= YOUR WORKSPACES ========================= */}
+      {ownedWorkspaces.length > 0 ? (
+        <section
+          className="cc-section"
+          data-workspace-admin-section="owned-workspaces"
+        >
+          <header className="cc-section-header">
+            <h2 className="cc-section-title">
+              Your workspaces · {ownedWorkspaces.length}
+            </h2>
+          </header>
+          <ul className="cases-list" data-owned-workspaces-list>
+            {ownedWorkspaces.map((w) => {
+              const isActive = !personalIsActive && activeWorkspaceId === w.workspaceId;
+              const key = `owned:${w.workspaceId}`;
+              const label = w.name ?? "Workspace";
+              return (
+                <li
+                  key={w.workspaceId}
+                  className="cases-row"
+                  data-owned-workspace-id={w.workspaceId}
+                  data-owned-workspace-active={isActive ? "true" : "false"}
+                >
+                  <div className="cases-row-main">
+                    <span className="cases-row-title">{label}</span>
+                  </div>
+                  <div className="cases-row-meta">
+                    {w.role ? (
+                      <span data-owned-workspace-role={w.role}>
+                        Your role: {orgRoleLabel(w.role)}
+                      </span>
+                    ) : null}
+                    {isActive ? <span data-owned-workspace-active-chip>Active</span> : null}
+                    <button
+                      type="button"
+                      className="cc-quick-action"
+                      data-owned-workspace-open={w.workspaceId}
+                      disabled={opening !== null}
+                      aria-busy={opening === key}
+                      aria-label={`Open ${label}`}
+                      onClick={() => openWorkspace(key, w.workspaceId, isActive, "/home")}
+                    >
+                      {opening === key ? "Opening…" : "Open"}
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
 
       {/* ========================== ORGANIZATIONS ========================== */}
       <section
@@ -155,11 +340,14 @@ export function WorkspaceAdministrationHome() {
            * always failed, above copy that explained the wrong product.
            */
           <div className="cases-empty" data-organizations-empty>
-            <strong>You're not in any organizations yet.</strong>
+            <strong>You're not in any organizations.</strong>
             <p>
               An organization is set up with our team as part of an Enterprise
-              agreement. Everything else — your evidence, your collaboration
-              teams and your plan — lives in your Personal Workspace.
+              agreement. Collaborating doesn't need one: the people you work
+              with are invited into the owner's Personal Workspace. Everything else —
+              your evidence, your collaboration teams and your plan — lives in
+              your Personal Workspace, and a workspace you were invited into
+              appears under Shared with you.
             </p>
           </div>
         ) : (
@@ -190,9 +378,13 @@ export function WorkspaceAdministrationHome() {
                         Role: {orgRoleLabel(org.role)}
                       </span>
                     ) : null}
-                    <span data-organization-plan={org.plan ?? "FREE"}>
-                      Plan: {planLabel(org.plan ?? "FREE")}
-                    </span>
+                    {/* The server-resolved plan, or nothing — never a
+                        fabricated FREE for a plan the envelope didn't project. */}
+                    {org.plan ? (
+                      <span data-organization-plan={org.plan}>
+                        Plan: {planLabel(org.plan)}
+                      </span>
+                    ) : null}
                     {isActive ? (
                       <span data-organization-active-chip>Active</span>
                     ) : null}
@@ -254,6 +446,13 @@ export function WorkspaceAdministrationHome() {
               hub. The two surfaces are intentionally distinct: this
               page is workspace administration, /organizations is
               org-level governance (members / invites / audit). */}
+          <Link
+            href="/people"
+            className="cc-quick-action"
+            data-workspace-action="members_access"
+          >
+            Members &amp; Access
+          </Link>
           <Link
             href="/organizations"
             className="cc-quick-action"

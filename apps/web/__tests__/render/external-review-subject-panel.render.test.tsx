@@ -74,13 +74,24 @@ const grant = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 const LIST = "/v1/external-review/grants?teamId=team-1&evidenceId=ev-1";
+/**
+ * TEAM-SPEC R4 / §2.11 (rebaselined 2026-11-23) — the panel offers Issue and
+ * Revoke on the API's own answer, so these OWNER/ADMIN journeys carry what
+ * the API projects for such a viewer: `viewerCanIssue: true` and
+ * `viewerCanRevoke` on every grant that is still revocable.
+ */
+const asManager = (grants: Array<ReturnType<typeof grant>>) => ({
+  grants: grants.map((g) => ({ ...g, viewerCanRevoke: g.state === "INVITED" || g.state === "ACTIVE" })),
+  viewerCanIssue: true,
+  viewerActions: { workspaceId: "team-1", sameWorkspace: true },
+});
 const posts = (path: string) => calls.filter((c) => c.method === "POST" && c.path === path);
 
 describe("PRO-R1-01 — External Review on the record", () => {
   it("an entitled workspace issues one invitation for this record and rereads the list", async () => {
     let issued = false;
     handler = (method, path) => {
-      if (method === "GET" && path === LIST) return { status: 200, body: { grants: issued ? [grant({ state: "INVITED" })] : [] } };
+      if (method === "GET" && path === LIST) return { status: 200, body: asManager(issued ? [grant({ state: "INVITED" })] : []) };
       if (method === "POST" && path === "/v1/external-review/invitations/bulk") {
         issued = true;
         return { status: 201, body: { bulkBatchId: "b1", rows: [{ inviteEmail: "reviewer@outside.test", outcome: "ISSUED", grantId: grant().id }], summary: {} } };
@@ -108,7 +119,7 @@ describe("PRO-R1-01 — External Review on the record", () => {
   it("a live invitation is inspected and revoked only after confirmation", async () => {
     let state = "ACTIVE";
     handler = (method, path) => {
-      if (method === "GET" && path === LIST) return { status: 200, body: { grants: [grant({ state })] } };
+      if (method === "GET" && path === LIST) return { status: 200, body: asManager([grant({ state })]) };
       if (method === "GET" && path === `/v1/external-review/invitations/${grant().id}/feedback`) {
         return { status: 200, body: { decisions: [{ id: "d1", verdict: "REJECT", rationale: "Hash chain gap", submittedAtUtc: "2029-06-01T10:00:00.000Z" }], comments: [] } };
       }
@@ -145,7 +156,9 @@ describe("PRO-R1-01 — External Review on the record", () => {
   it("a plan without External Review offers no issue form, says why, and keeps revoke", async () => {
     gates.included = false;
     handler = (method, path) =>
-      method === "GET" && path === LIST ? { status: 200, body: { grants: [grant()] } } : { status: 404, body: { error: { code: "NOT_FOUND" } } };
+      method === "GET" && path === LIST
+        ? { status: 200, body: { ...asManager([grant()]), viewerCanIssue: false } }
+        : { status: 404, body: { error: { code: "NOT_FOUND" } } };
     render(<ExternalReviewSubjectPanel teamId="team-1" subject={{ kind: "EVIDENCE", evidenceId: "ev-1" }} />);
     await screen.findByRole("button", { name: "Revoke" });
     expect(document.querySelector("[data-external-review-issue]")).toBeNull();

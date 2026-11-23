@@ -68,13 +68,13 @@ const elementWith = (attr: string): string =>
 // 1. Capability hook + active-space role read from canonical envelope.
 // ---------------------------------------------------------------------------
 
-test("page imports useCan + useActiveSpace from platform-context", () => {
-  assert.match(
-    PAGE_SOURCE,
-    /import\s*\{[^}]*useCan[^}]*\}\s*from\s*"[^"]*platform-context"/,
-    "Page must derive capability from the canonical useCan hook — " +
-      "Phase 0 had no capability check at all.",
-  );
+// TEAM-SPEC R4 (2026-11-23) — the console opens wherever the plan includes
+// External Review (Pro, Team, Enterprise). Its mutations no longer read the
+// Team-tier REVIEWER_OPS_ACT capability (a Pro owner lacks it); they follow the
+// server-projected `viewerCanIssue` / per-row `viewerCanRevoke`, the same
+// answer the issue/revoke doors enforce, with the active-space role as the
+// fallback for an API that predates those fields.
+test("page reads the active-space role from platform-context", () => {
   assert.match(
     PAGE_SOURCE,
     /import\s*\{[^}]*useActiveSpace[^}]*\}\s*from\s*"[^"]*platform-context"/,
@@ -83,26 +83,27 @@ test("page imports useCan + useActiveSpace from platform-context", () => {
   );
 });
 
-test("capability hook is declared and consumes REVIEWER_OPS_ACT", () => {
+test("capability hook is declared and consumes the server-projected permissions", () => {
   assert.match(
     PAGE_SOURCE,
     /function\s+useExternalReviewCapabilities\(/,
     "Page must declare a useExternalReviewCapabilities hook so the " +
       "capability set is bounded and observable.",
   );
-  assert.match(
+  assert.match(PAGE_SOURCE, /viewerCanIssue/, "issue must follow the list's viewerCanIssue");
+  assert.match(PAGE_SOURCE, /viewerCanRevoke/, "revoke must follow each row's viewerCanRevoke");
+  assert.doesNotMatch(
     PAGE_SOURCE,
     /useCan\("REVIEWER_OPS_ACT"\)/,
-    "Capability hook must read REVIEWER_OPS_ACT — the canonical " +
-      "reviewer-ops mutation cap.",
+    "the Team-tier reviewer-ops capability must not gate a Pro-and-above console",
   );
 });
 
-test("reveal-token requires OWNER role on top of REVIEWER_OPS_ACT", () => {
+test("reveal-token requires OWNER role on top of manage permission", () => {
   assert.match(
     PAGE_SOURCE,
-    /canRevealToken:\s*canAct\s*&&\s*isOwner/,
-    "canRevealToken must AND `canAct` with `isOwner` — workspace " +
+    /canRevealToken:\s*canManage\s*&&\s*isOwner/,
+    "canRevealToken must AND `canManage` with `isOwner` — workspace " +
       "ADMIN / SUPERVISOR must not get the reveal capability.",
   );
   assert.match(

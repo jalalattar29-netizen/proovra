@@ -66,9 +66,9 @@ import {
 } from "../../../../lib/labels/governanceReviewLabels";
 import {
   useActiveSpace,
-  useCan,
   useTeamId,
 } from "../../../../lib/platform-context";
+import { EXTERNAL_REVIEW_MANAGE_EXPLANATION } from "../../../../components/external-review/ExternalReviewSubjectPanel";
 
 import {
   ReviewScopePicker,
@@ -118,23 +118,56 @@ type ExternalReviewCapabilities = {
   canRevealToken: boolean;
 };
 
-function useExternalReviewCapabilities(): ExternalReviewCapabilities {
-  const canAct = useCan("REVIEWER_OPS_ACT");
+/**
+ * TEAM-SPEC R4 (2026-11-23) — the console is reachable wherever the active
+ * workspace's plan includes External Review (Pro, Team, Enterprise — personal
+ * workspaces included), so its actions can no longer key on the reviewer-ops
+ * capability (REVIEWER_OPS_ACT is a Team-tier capability a Pro owner lacks,
+ * while the API accepts their issue/revoke). They follow the SAME answer the
+ * record panel uses: the list's `viewerCanIssue` and each row's
+ * `viewerCanRevoke`, projected by the API from the one predicate the
+ * issue/revoke doors enforce (OWNER or ADMIN). An API that predates those
+ * fields falls back to the active role from the envelope.
+ *
+ *   issue / bulk issue        viewerCanIssue
+ *   revoke (row)              row.viewerCanRevoke
+ *   bulk revoke / resend /
+ *   end portal sessions       may manage (viewerCanIssue, or any row revocable)
+ *   reveal token              may manage ∧ workspace OWNER (break-glass)
+ *
+ * No function on this page calls an Enterprise-only entitlement: every door
+ * is gated by the External Review entitlement plus role (see the report of
+ * TEAM-SPEC R4), so nothing here is individually hidden as Enterprise-only.
+ */
+function useExternalReviewCapabilities(
+  listCanIssue: boolean | undefined,
+  rows: ReadonlyArray<InvitationRow> | null,
+): ExternalReviewCapabilities {
   const activeSpace = useActiveSpace();
-  // Reveal-token is split-of-duty: require workspace OWNER role on
-  // top of REVIEWER_OPS_ACT. ADMIN / MEMBER never get this even
-  // when they otherwise have the act capability.
+  const role = activeSpace?.roleLabel ?? null;
+  const roleAllowsManage = role === "Owner" || role === "OWNER" || role === "ADMIN";
+  const rowAnswers = (rows ?? [])
+    .map((r) => r.viewerCanRevoke)
+    .filter((v): v is boolean => typeof v === "boolean");
+  const projected = listCanIssue !== undefined || rowAnswers.length > 0;
+  const canManage = projected
+    ? listCanIssue === true || rowAnswers.some(Boolean)
+    : roleAllowsManage;
+  const canIssue = listCanIssue !== undefined ? listCanIssue : roleAllowsManage;
+  // Reveal-token is split-of-duty: the workspace OWNER only (the caller's
+  // own Personal Space reads "Owner"; an organization reads "OWNER").
   const isOwner =
-    activeSpace?.type === "ORGANIZATION" && activeSpace.roleLabel === "OWNER";
+    activeSpace?.roleLabel === "OWNER" ||
+    (activeSpace?.type === "PERSONAL" && activeSpace.shared !== true && activeSpace.roleLabel === "Owner");
   return {
-    canInvite: canAct,
-    canBulkInvite: canAct,
-    canBulkRevoke: canAct,
-    canResend: canAct,
-    canRevoke: canAct,
+    canInvite: canIssue,
+    canBulkInvite: canIssue,
+    canBulkRevoke: canManage,
+    canResend: canManage,
+    canRevoke: canManage,
     // Same tier as revoke on the server (review.assign + administrative tier).
-    canEndSessions: canAct,
-    canRevealToken: canAct && isOwner,
+    canEndSessions: canManage,
+    canRevealToken: canManage && isOwner,
   };
 }
 
@@ -229,6 +262,8 @@ type InvitationRow = {
   latestDelivery: LatestDelivery | null;
   /** EP-0450 — the API's answer: this viewer could renew this grant now. */
   viewerCanRenew?: boolean;
+  /** TEAM-SPEC §2.11 — the API's answer: this viewer could revoke this grant now. */
+  viewerCanRevoke?: boolean;
 };
 
 type ActivityRow = {
@@ -297,7 +332,6 @@ export default function ExternalInvitationsPage() {
 }
 
 function ExternalReviewManagementConsole() {
-  const caps = useExternalReviewCapabilities();
   const teamId = useTeamId();
   // Reuse the canonical step-up flow (same hook + modal as
   // admin/provisioning). Sensitive external-review mutations (bulk
@@ -308,6 +342,9 @@ function ExternalReviewManagementConsole() {
   const stepUp = useStepUpAction({ teamId });
   const [rows, setRows] = useState<InvitationRow[] | null>(null);
   const [listDenied, setListDenied] = useState(false);
+  /** The list's `viewerCanIssue`; undefined = not projected (older API). */
+  const [listCanIssue, setListCanIssue] = useState<boolean | undefined>(undefined);
+  const caps = useExternalReviewCapabilities(listCanIssue, rows);
   const [tab, setTab] = useState<TabId>("active");
   const [selected, setSelected] = useState<string | null>(null);
   const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set());
@@ -325,6 +362,7 @@ function ExternalReviewManagementConsole() {
         method: "GET",
       });
       setRows((res?.invitations ?? []) as InvitationRow[]);
+      setListCanIssue(typeof res?.viewerCanIssue === "boolean" ? res.viewerCanIssue : undefined);
       setListDenied(false);
       return true;
     } catch (err) {
@@ -439,9 +477,11 @@ function ExternalReviewManagementConsole() {
       data-external-review-console
       header={
         <PageHeader
-          eyebrow="Enterprise"
+          eyebrow="External Review"
           title="External Review Management Console"
-          subtitle="Bounded enterprise surface for external reviewer invitations, delivery, federation, and audit. Workspace-anchored — every action you take here is recorded on the grant's audit timeline."
+          subtitle={`External reviewer invitations, delivery and audit for this workspace — included on Pro, Team and Enterprise. Every action you take here is recorded on the grant's audit timeline.${
+            caps.canInvite || caps.canRevoke ? "" : ` ${EXTERNAL_REVIEW_MANAGE_EXPLANATION}`
+          }`}
           primaryAction={
             <button
               type="button"
@@ -613,7 +653,13 @@ function ExternalReviewManagementConsole() {
           {selectedRow ? (
             <InvitationDetailDrawer
               row={selectedRow}
-              caps={caps}
+              caps={
+                // The row's own answer decides its Revoke (never a live
+                // control the API would refuse); older API → the page tier.
+                typeof selectedRow.viewerCanRevoke === "boolean"
+                  ? { ...caps, canRevoke: selectedRow.viewerCanRevoke }
+                  : caps
+              }
               stepUp={stepUp}
               teamId={teamId}
               onClose={() => setSelected(null)}

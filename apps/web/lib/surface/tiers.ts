@@ -363,6 +363,13 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   { pathPrefix: "/review/disagreements", tier: "ENTERPRISE", entitlementOverride: "reviewQueuesIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "Reviewer disagreements are part of the Team plan and above.", reason: "disagreements (per reviewQueuesIncluded)" },
   { pathPrefix: "/review/metrics", tier: "ENTERPRISE", entitlementOverride: "reviewQueuesIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "Reviewer metrics are part of the Team plan and above.", reason: "reviewer metrics (per reviewQueuesIncluded)" },
   { pathPrefix: "/review/external", tier: "ENTERPRISE", entitlementOverride: "externalReviewIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "External Review is part of the Pro plan and above.", reason: "external review (per externalReviewIncluded)" },
+  // TEAM-SPEC §3 (2026-11-23) — Review settings: the reviewer SLA policy, moved
+  // out of the Enterprise /governance/policy page (which keeps its own rule
+  // below), plus reviewer criteria and coding schema links. It follows the
+  // same reviewer-operations entitlement as the rest of the Review hub, on any
+  // workspace kind; the edit form inside is offered only to roles holding
+  // governance.policy.manage, and the API enforces that independently.
+  { pathPrefix: "/review/settings", tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "Review settings are part of the Team plan and above.", reason: "review settings (per reviewerOperationsIncluded)" },
   { pathPrefix: "/reviewer-workspace", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "reviewer workspace" },
   { pathPrefix: "/review", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "review surfaces" },
   // Free audit B5B-F-205 — one authority for redaction: the server's

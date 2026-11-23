@@ -524,9 +524,13 @@ function OrganizationsListPageInner() {
           opacity: 0.75,
         }}
       >
-        Looking for evidence, cases, reviewer queues, or per-workspace
-        billing? Those are workspace-scoped. Open the relevant workspace
-        from{" "}
+        Looking for evidence, cases or review queues? Those are
+        workspace-scoped. Your plan and billing belong to your account (
+        <Link href="/billing" data-action="footer-account-billing">
+          Billing
+        </Link>
+        ), and Team members are invited into your Personal Workspace. Open a
+        workspace from{" "}
         <Link href="/workspaces" data-action="footer-workspace-admin">
           Workspace administration
         </Link>

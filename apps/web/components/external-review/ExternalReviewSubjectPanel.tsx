@@ -18,8 +18,13 @@
  * is offered — invitations a workspace already issued stay listed and
  * revocable after a downgrade (DEC-09).
  *
- * The Enterprise console at /review/external is unchanged and stays where it
- * is (ENT-01); this is the surface a Pro workspace reaches.
+ * TEAM-SPEC R4 (2026-11-23) — Issue and Revoke follow the API's own answer:
+ * the grants list projects `viewerCanIssue` (response) and `viewerCanRevoke`
+ * (per grant) from the one predicate the issue/revoke doors enforce (OWNER or
+ * ADMIN). An API that predates the fields falls back to the active role from
+ * the envelope (OWNER/ADMIN). Issue/revoke act on the ACTIVE workspace, so a
+ * record that belongs to another workspace says so instead of claiming a role
+ * gap. The /review/external console applies the same permissions.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -30,6 +35,7 @@ import { apiFetch } from "../../lib/api";
 import { formatUserDateTime } from "../../lib/date";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { usePlanFeature } from "../../lib/platform-context/useServerProjectionGates";
+import { useOptionalPlatformContext } from "../../lib/platform-context/PlatformContextProvider";
 import { AppListbox } from "../app-primitives/AppListbox";
 import { StepUpModal, useStepUpAction } from "../identity-security/StepUpModal";
 import { useConfirmAction } from "../ui/ConfirmActionModal";
@@ -53,7 +59,37 @@ type GrantRow = {
   lastAccessedAtUtc: string | null;
   /** EP-0450 — the API's answer: this viewer could renew this grant now. */
   viewerCanRenew?: boolean;
+  /** TEAM-SPEC §2.11 — the API's answer: this viewer could revoke this grant now. */
+  viewerCanRevoke?: boolean;
 };
+
+/**
+ * TEAM-SPEC R4 — the active workspace and the viewer's role in it, from the
+ * envelope. Used only as the FALLBACK for an API that does not yet project
+ * `viewerCanIssue` / `viewerCanRevoke`, and to tell a record of another
+ * workspace apart from a role refusal.
+ */
+export function useExternalReviewViewer(): {
+  activeWorkspaceId: string | null;
+  roleAllowsManage: boolean | null;
+} {
+  const ctx = useOptionalPlatformContext();
+  const envelope = ctx?.envelope ?? null;
+  if (!envelope) return { activeWorkspaceId: null, roleAllowsManage: null };
+  const active = envelope.activeSpace ?? null;
+  const activeWorkspaceId =
+    envelope.contextOptions?.activeContext?.workspaceId ?? active?.id ?? null;
+  const role = active?.roleLabel ?? null;
+  const roleAllowsManage =
+    role === null ? null : role === "Owner" || role === "OWNER" || role === "ADMIN";
+  return { activeWorkspaceId, roleAllowsManage };
+}
+
+/** Copy shared with the /review/external console. */
+export const EXTERNAL_REVIEW_MANAGE_EXPLANATION =
+  "Issuing and revoking invitations needs an owner or admin of this workspace.";
+export const EXTERNAL_REVIEW_OTHER_WORKSPACE =
+  "This belongs to a workspace other than the one you're working in. Switch to that workspace to manage its external review invitations.";
 
 type Feedback = {
   decisions: Array<{ id: string; verdict: string; rationale: string | null; submittedAtUtc: string }>;
@@ -80,8 +116,15 @@ export function ExternalReviewSubjectPanel({
   const { confirm } = useConfirmAction();
   const subjectId = subject.kind === "EVIDENCE" ? subject.evidenceId : subject.caseId;
 
+  const viewer = useExternalReviewViewer();
   const [grants, setGrants] = useState<GrantRow[] | null>(null);
-  const [listState, setListState] = useState<"loading" | "ready" | "refused" | "failed">("loading");
+  const [listState, setListState] = useState<
+    "loading" | "ready" | "refused" | "failed" | "no_workspace"
+  >("loading");
+  /** The list's `viewerCanIssue`; undefined = not projected (older API) or not loaded. */
+  const [listCanIssue, setListCanIssue] = useState<boolean | undefined>(undefined);
+  /** The list's `viewerActions.sameWorkspace`, when projected. */
+  const [listSameWorkspace, setListSameWorkspace] = useState<boolean | undefined>(undefined);
   const [email, setEmail] = useState("");
   const [days, setDays] = useState<number>(7);
   const [busy, setBusy] = useState(false);
@@ -91,7 +134,8 @@ export function ExternalReviewSubjectPanel({
 
   const load = useCallback(async () => {
     if (!teamId) {
-      setListState("refused");
+      // No owning workspace is known for this record — not a role refusal.
+      setListState("no_workspace");
       return;
     }
     try {
@@ -101,10 +145,21 @@ export function ExternalReviewSubjectPanel({
         { method: "GET" },
       );
       setGrants((Array.isArray(res?.grants) ? res.grants : []) as GrantRow[]);
+      setListCanIssue(typeof res?.viewerCanIssue === "boolean" ? res.viewerCanIssue : undefined);
+      // `sameWorkspace: false` with no `workspaceId` means "no manage context
+      // at all" (e.g. a Viewer), not "another workspace" — ignore it then.
+      const va = res?.viewerActions as { sameWorkspace?: unknown; workspaceId?: unknown } | undefined;
+      setListSameWorkspace(
+        typeof va?.sameWorkspace === "boolean" && (va.sameWorkspace || typeof va.workspaceId === "string")
+          ? va.sameWorkspace
+          : undefined,
+      );
       setListState("ready");
     } catch (err) {
       const status = (err as { statusCode?: number })?.statusCode ?? 0;
       setGrants(null);
+      setListCanIssue(undefined);
+      setListSameWorkspace(undefined);
       setListState(status === 403 || status === 404 ? "refused" : "failed");
     }
   }, [teamId, subject.kind, subjectId]);
@@ -223,7 +278,30 @@ export function ExternalReviewSubjectPanel({
 
   // A viewer the list refuses and whose plan does not include the feature has
   // nothing to do here: no panel rather than a dead control.
-  if (listState === "refused" && included !== true) return null;
+  if ((listState === "refused" || listState === "no_workspace") && included !== true) return null;
+
+  // TEAM-SPEC R4 — is this record in the workspace the viewer is acting in?
+  // The server's `sameWorkspace` wins; otherwise compare ids when both known.
+  const otherWorkspace =
+    listState === "no_workspace" ||
+    listSameWorkspace === false ||
+    (listSameWorkspace === undefined &&
+      teamId !== null &&
+      viewer.activeWorkspaceId !== null &&
+      teamId !== viewer.activeWorkspaceId);
+  // Issue: the list's answer; an older API → the active role. Unknown while
+  // the list loads, so no form flashes in and out.
+  const canIssue: boolean | null = otherWorkspace
+    ? false
+    : listState === "loading"
+      ? null
+      : listCanIssue !== undefined
+        ? listCanIssue
+        : viewer.roleAllowsManage;
+  const canRevoke = (g: GrantRow): boolean =>
+    !otherWorkspace &&
+    LIVE_STATES.has(g.state) &&
+    (typeof g.viewerCanRevoke === "boolean" ? g.viewerCanRevoke : viewer.roleAllowsManage === true);
 
   const muted = { color: "var(--ink-secondary, #475569)", fontSize: 12 } as const;
   return (
@@ -245,7 +323,17 @@ export function ExternalReviewSubjectPanel({
         receive an emailed link to a reviewer portal and the disclosure package, never the original files.
       </p>
 
-      {included === true ? (
+      {included === true && otherWorkspace ? (
+        <p data-external-review-other-workspace style={{ ...muted, margin: 0 }}>
+          {listState === "no_workspace"
+            ? "This isn't in a workspace you're working in, so external review can't be managed here."
+            : EXTERNAL_REVIEW_OTHER_WORKSPACE}
+        </p>
+      ) : included === true && canIssue === false ? (
+        <p data-external-review-issue-not-permitted style={{ ...muted, margin: 0 }}>
+          {EXTERNAL_REVIEW_MANAGE_EXPLANATION}
+        </p>
+      ) : included === true && canIssue === null ? null : included === true ? (
         <form
           data-external-review-issue
           onSubmit={(e) => {
@@ -282,7 +370,7 @@ export function ExternalReviewSubjectPanel({
       ) : included === false ? (
         <p data-external-review-not-included style={{ ...muted, margin: 0 }}>
           External Review is not included on this workspace&apos;s plan, so no new invitation can be sent.
-          Invitations already issued stay listed below and can still be revoked.
+          Invitations already issued stay listed below and an owner or admin can still revoke them.
         </p>
       ) : null}
 
@@ -305,9 +393,11 @@ export function ExternalReviewSubjectPanel({
             Try again
           </button>
         </p>
-      ) : listState === "refused" ? (
+      ) : listState === "no_workspace" ? null : listState === "refused" ? (
         <p data-external-review-list-refused style={{ ...muted, margin: 0 }}>
-          Your role does not include reading this workspace&apos;s external-review invitations.
+          {otherWorkspace
+            ? "Open this record's workspace to see its external review invitations."
+            : "Your role doesn't include viewing this workspace's external review invitations — an owner or admin manages them."}
         </p>
       ) : (grants ?? []).length === 0 ? (
         <p data-external-review-empty style={{ ...muted, margin: 0 }}>
@@ -337,7 +427,7 @@ export function ExternalReviewSubjectPanel({
                     Renew
                   </button>
                 ) : null}
-                {LIVE_STATES.has(g.state) ? (
+                {canRevoke(g) ? (
                   <button type="button" className="ui-link" onClick={() => void onRevoke(g)} data-external-review-revoke={g.id}>
                     Revoke
                   </button>

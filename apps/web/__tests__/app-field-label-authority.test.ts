@@ -121,6 +121,14 @@ const EXPECTED_CONSUMERS = [
   // styles with their own ink; they now name the one authority like every
   // other field label in the product.
   "app/(app)/operations/reliability/page.tsx",
+  // TEAM-SPEC (2026-11-23) — the review inspector's decision form, the
+  // adjudication panel and the canonical-Modal reason dialog (Reject, Pause,
+  // Request info, Record response, escalation actions) label their fields with
+  // the one authority instead of inline dark-theme styles. The review-layout
+  // browser gate opens these dialogs and measures them.
+  "app/(app)/reviewer-ops/[reviewId]/_components/AdjudicationPanel.tsx",
+  "app/(app)/reviewer-ops/[reviewId]/page.tsx",
+  "app/(app)/reviewer-ops/components/ReviewerReasonModal.tsx",
   // The platform-admin evidence-credit grant. Its three fields carry the
   // canonical label, and the contrast of that label ON THE ADMIN SHELL is
   // asserted below rather than assumed — see the dark-surface test.

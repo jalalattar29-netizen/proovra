@@ -12,7 +12,11 @@
  *   - tenant service status, from the app-wide `useServiceStatus` store
  *     (GET /v1/runtime/status — one poll shared with every other consumer)
  *   - GET /v1/ops/incidents?teamId=…&status=OPEN
- *   - GET /v1/reviewer-ops/escalations?teamId=…&status=OPEN
+ *   - GET /v1/reviewer-ops/escalations?teamId=…&status=ACTIVE&limit=1
+ *     (TEAM-SPEC §2 item 7 / §3: the badge needs a COUNT, so it asks for one
+ *     row and reads the server's `total` under the same filter. "Active" is
+ *     open ∪ acknowledged ∪ reassigned — the definition the SLA dashboard and
+ *     the Escalations page use — not the narrower OPEN it used to ask for.)
  *
  * FAIL-CLOSED:
  *   - Any subset of the three endpoints failing → the hook reports the
@@ -34,7 +38,9 @@
  *                  AND zero hook fetch errors
  *
  * Polling cadence: default 45 s. Bounded by [15s, 5 min] in the runtime
- * to avoid melting the API.
+ * to avoid melting the API. Polling PAUSES while the tab is hidden
+ * (`document.hidden`) and catches up once when it becomes visible again —
+ * a background tab no longer polls every 45 seconds for a badge nobody sees.
  *
  * CAPABILITY BOUNDARY (closure pass).
  * ---------------------------------------------------------------------------
@@ -120,7 +126,10 @@ export type GlobalRuntimeState = {
   service: TenantServiceStatus | null;
   /** Open incidents (status in OPEN | ACKNOWLEDGED) — bounded list. */
   incidents: ReadonlyArray<GlobalRuntimeIncident>;
-  /** Open reviewer escalations. */
+  /**
+   * Active reviewer escalations — at most ONE sample row (the badge's tone);
+   * the count is `counts.escalations`, read from the server's `total`.
+   */
   escalations: ReadonlyArray<GlobalRuntimeEscalation>;
   /** Counters surfaced to the topbar pill + sidebar badges. */
   counts: {
@@ -207,6 +216,9 @@ export function useGlobalRuntimeState(
   const [escalations, setEscalations] = useState<
     ReadonlyArray<GlobalRuntimeEscalation>
   >([]);
+  // The server's `total` for status=ACTIVE (falls back to the rows returned
+  // by an API that predates `total`).
+  const [escalationTotal, setEscalationTotal] = useState(0);
   const [sourceErrors, setSourceErrors] = useState<{
     incidents: boolean;
     escalations: boolean;
@@ -253,6 +265,7 @@ export function useGlobalRuntimeState(
       refusedRef.current = new Set();
       setIncidents([]);
       setEscalations([]);
+      setEscalationTotal(0);
       setSourceErrors({ incidents: false, escalations: false });
       setRefreshedAtUtc(null);
       setLoading(false);
@@ -263,6 +276,7 @@ export function useGlobalRuntimeState(
     if (!teamId) {
       setIncidents([]);
       setEscalations([]);
+      setEscalationTotal(0);
       setSourceErrors({ incidents: false, escalations: false });
       setRefreshedAtUtc(null);
       setLoading(false);
@@ -284,6 +298,7 @@ export function useGlobalRuntimeState(
     // severity correctly maps to UNKNOWN during the transition.
     setIncidents([]);
     setEscalations([]);
+    setEscalationTotal(0);
     setSourceErrors({ incidents: false, escalations: false });
     setRefreshedAtUtc(null);
     setLoading(true);
@@ -328,6 +343,7 @@ export function useGlobalRuntimeState(
        */
       let nextIncidents: ReadonlyArray<GlobalRuntimeIncident> = [];
       let nextEscalations: ReadonlyArray<GlobalRuntimeEscalation> = [];
+      let nextEscalationTotal = 0;
 
       /*
        * `allSettled` rather than `all`: one source failing must not discard
@@ -350,14 +366,18 @@ export function useGlobalRuntimeState(
           }
         })(),
 
-        // 3) Escalations (OPEN)
+        // 3) Escalations (ACTIVE) — one row plus the server's total.
         (async () => {
           if (!access.escalations || refusedRef.current.has("escalations")) return;
           try {
             const r = (await apiFetch(
-              `/v1/reviewer-ops/escalations?teamId=${enc}&status=OPEN&limit=100`,
-            )) as { escalations: ReadonlyArray<GlobalRuntimeEscalation> };
+              `/v1/reviewer-ops/escalations?teamId=${enc}&status=ACTIVE&limit=1`,
+            )) as { escalations?: ReadonlyArray<GlobalRuntimeEscalation>; total?: number };
             nextEscalations = r.escalations ?? [];
+            nextEscalationTotal =
+              typeof r.total === "number" && Number.isFinite(r.total)
+                ? r.total
+                : nextEscalations.length;
           } catch (err) {
             nextErrors.escalations = true;
             if (isSettledRefusal(err)) refusedRef.current.add("escalations");
@@ -374,6 +394,7 @@ export function useGlobalRuntimeState(
       if (generationRef.current !== myGeneration) return;
       setIncidents(nextIncidents);
       setEscalations(nextEscalations);
+      setEscalationTotal(nextEscalationTotal);
       setSourceErrors(nextErrors);
       setRefreshedAtUtc(new Date().toISOString());
       setLoading(false);
@@ -427,9 +448,24 @@ export function useGlobalRuntimeState(
       timeoutHandle = window.setTimeout(startFirstTick, FIRST_TICK_DEADLINE_MS);
     }
 
-    const handle = window.setInterval(tickOnce, clampedPoll);
+    // Pause while the tab is hidden; catch up once when it is shown again.
+    const isHidden = () =>
+      typeof document !== "undefined" && document.visibilityState === "hidden";
+    const handle = window.setInterval(() => {
+      if (isHidden()) return;
+      void tickOnce();
+    }, clampedPoll);
+    const onVisibility = () => {
+      if (!cancelled && !isHidden()) void tickOnce();
+    };
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVisibility);
+    }
     return () => {
       cancelled = true;
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisibility);
+      }
       if (idleHandle !== null) {
         (
           window as unknown as {
@@ -500,13 +536,13 @@ export function useGlobalRuntimeState(
       incidents: incidents.length,
       incidentsCritical,
       incidentsHigh,
-      escalations: escalations.length,
+      escalations: escalationTotal,
       degradedSubsystems,
     };
     // `readiness` is gone from the deps because it is gone from the body:
     // the shell no longer receives a subsystem list to count. Leaving it in
     // would recompute this memo on every status poll for no reason.
-  }, [incidents, escalations]);
+  }, [incidents, escalationTotal]);
 
   return {
     loading,

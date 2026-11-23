@@ -115,6 +115,12 @@ export type AccountMenuOrganizationInput = {
   displayName: string | null;
   role: WorkspaceRole | null;
   membershipStatus: "ACTIVE" | "PENDING" | "INACTIVE";
+  /**
+   * TEAM MEMBERSHIP (2026-11-23) — the parent organization's kind when the
+   * envelope projects it. Only CUSTOMER is a customer Organization; SYSTEM is
+   * the internal container every legacy OWNED workspace has.
+   */
+  organizationKind?: "SYSTEM" | "CUSTOMER" | null;
 };
 
 /** Mirror of the envelope's canonical contextOptions section. */
@@ -275,8 +281,24 @@ export function resolveAccountMenu(input: AccountMenuInput): AccountMenuModel {
         }
       : null;
 
+  // TEAM MEMBERSHIP (2026-11-23) — the Organizations link counts CUSTOMER
+  // organizations only. `organizations` also carries legacy OWNED workspaces
+  // (their parent is the internal SYSTEM organization), and a member of one
+  // used to get an "Organizations" link to a list that is empty for them.
+  // The server's own grouping is the CUSTOMER signal: a workspace it places
+  // under `contextOptions.organizations` is an ORGANIZATION-kind workspace;
+  // OWNED ones go to `ownedWorkspaces`. An explicit `organizationKind`, when
+  // projected, wins.
+  const customerWorkspaceIds = new Set<string>();
+  for (const group of input.contextOptions?.organizations ?? []) {
+    for (const w of group.workspaces) customerWorkspaceIds.add(w.workspaceId);
+  }
   const activeOrganizations = input.organizations.filter(
-    (org) => org.membershipStatus === "ACTIVE",
+    (org) =>
+      org.membershipStatus === "ACTIVE" &&
+      (org.organizationKind
+        ? org.organizationKind === "CUSTOMER"
+        : customerWorkspaceIds.has(org.id)),
   );
 
   // P3 — SERVER-AUTHORIZED grouping by explicit workspaceKind. The client

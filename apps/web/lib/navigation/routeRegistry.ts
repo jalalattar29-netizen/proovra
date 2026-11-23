@@ -265,21 +265,17 @@ export const ENTERPRISE_ONLY_ROUTE_IDS: ReadonlySet<string> = new Set([
   "workspace.workflows",
   "workspace.communications",
   "workspace.packaging",
-  // Reviewer operations. The reviewer queue, operations, escalations, queue
-  // detail and SLA pages (review.*) are NOT here (AUD-0049): the Team plan
-  // includes reviewer operations, so they are gated on the server-projected
-  // `reviewerOperationsIncluded` (requiredPlanFeature) — the answer the API
-  // serves them by. The advanced review surfaces below stay Enterprise.
-  "workspace.review",
-  "workspace.review_workspace",
-  "workspace.coding_schemas",
-  "workspace.review_qc",
-  "workspace.review_disagreements",
-  "workspace.review_metrics",
-  // `workspace.review_queues` (/review/queues) is NOT here (AUD-0049): the
-  // shared queues are REVIEW_TASKS_AND_QUEUES, which the Team plan includes;
-  // it is gated on the server-projected `reviewQueuesIncluded` below.
-  "workspace.review_external",
+  // Reviewer operations. NONE of the review hub surfaces is here.
+  //   * AUD-0049 — the reviewer queue, operations, escalations, queue detail,
+  //     SLA and shared queues follow `reviewerOperationsIncluded` /
+  //     `reviewQueuesIncluded` (requiredPlanFeature).
+  //   * TEAM-SPEC R1/R2/R4 (2026-11-23) — the console (`workspace.review`),
+  //     Reviewer Workspace, coding schemas, QC, disagreements and metrics are
+  //     Team tools in the ACTIVE Team-entitled workspace of any kind
+  //     (`reviewQueuesIncluded`, the REVIEW_TASKS_AND_QUEUES ladder the API
+  //     serves them by), and External Review is Pro and above
+  //     (`externalReviewIncluded`). Enterprise-only workflow capabilities stay
+  //     individually gated inside those pages and on the API.
   "workspace.review_redaction",
   // Governance / compliance.
   "governance.hub",
@@ -1069,7 +1065,9 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
-    sidebarEligible: true,
+    // TEAM-SPEC §3 — reached from the Review hub (Monitoring → Escalations)
+    // and the command palette, not from its own sidebar row.
+    sidebarEligible: false,
   },
   {
     id: "governance.policy",
@@ -1629,9 +1627,14 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     id: "workspace.review",
     href: "/review",
     label: "Review",
-    description: "Canonical reviewer console — queue, escalations, SLA, workload.",
+    description: "Review hub — my reviews, queues, monitoring and review settings.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
+    // TEAM-SPEC §3 — the ONE sidebar entry for review, shown wherever the
+    // active workspace includes reviewer operations (Team and above, any
+    // workspace kind). It replaces "Reviewer queues" and the More entries for
+    // Escalations and SLA.
+    requiredPlanFeature: "reviewerOperationsIncluded",
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "CREATE_ORG",
 
@@ -1674,11 +1677,15 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     label: "Review operations",
     description: "Per-evidence review stage queue (Phase 13).",
     domain: "REVIEW_OPERATIONS",
-    requiredCapabilities: ["REVIEWER_OPS_VIEW"],
+    // TEAM-SPEC §1 defaults — GET /v1/review/queue requires
+    // `evidence_request.review` (OWNER / ADMIN / MEMBER, never VIEWER). The web
+    // key on the same role ladder under the same plan is REVIEWER_OPS_ACT, so a
+    // Viewer is not offered a page whose API refuses them.
+    requiredCapabilities: ["REVIEWER_OPS_VIEW", "REVIEWER_OPS_ACT"],
     // AUD-0049 — the plan's reviewer-operations entitlement, as the API decides it.
     requiredPlanFeature: "reviewerOperationsIncluded",
     requiredActiveSpace: "PERSONAL_OR_ORG",
-    fallbackBehavior: "CREATE_ORG",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
 
     advancedByDefault: true,
     commandPaletteVisible: true,
@@ -1726,7 +1733,9 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
-    sidebarEligible: true,
+    // TEAM-SPEC §3 — reached from the Review hub (Monitoring), not from its
+    // own sidebar row.
+    sidebarEligible: false,
   },
   {
     id: "governance.hub",
@@ -2477,13 +2486,18 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
       "Reviewer operational surface — coding panel, hotkeys, evidence + coding side-by-side.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
-    requiredActiveSpace: "ORGANIZATION_ONLY",
+    // TEAM-SPEC R1/R2/R4 — the active workspace's effective plan decides,
+    // whatever its kind; the API asks the same entitlement.
+    requiredPlanFeature: "reviewQueuesIncluded",
+    requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "REQUEST_ACCESS",
 
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
-    sidebarEligible: true,
+    // TEAM-SPEC §3 — one sidebar entry ("Review" → /review); this page is
+    // reached from the Review hub tabs, the command palette and All Tools.
+    sidebarEligible: false,
   },
   {
     id: "workspace.coding_schemas",
@@ -2492,7 +2506,10 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description: "Coding schema admin — fields, versioning, workflow binding.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
-    requiredActiveSpace: "ORGANIZATION_ONLY",
+    // TEAM-SPEC R1/R2/R4 — the active workspace's effective plan decides,
+    // whatever its kind; the API asks the same entitlement.
+    requiredPlanFeature: "reviewQueuesIncluded",
+    requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "REQUEST_ACCESS",
 
     advancedByDefault: true,
@@ -2507,7 +2524,10 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description: "QC sample queue + verdict capture + accuracy metrics.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
-    requiredActiveSpace: "ORGANIZATION_ONLY",
+    // TEAM-SPEC R1/R2/R4 — the active workspace's effective plan decides,
+    // whatever its kind; the API asks the same entitlement.
+    requiredPlanFeature: "reviewQueuesIncluded",
+    requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "REQUEST_ACCESS",
 
     advancedByDefault: true,
@@ -2522,7 +2542,10 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description: "Challenge → second review → supervisor → resolution queue.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
-    requiredActiveSpace: "ORGANIZATION_ONLY",
+    // TEAM-SPEC R1/R2/R4 — the active workspace's effective plan decides,
+    // whatever its kind; the API asks the same entitlement.
+    requiredPlanFeature: "reviewQueuesIncluded",
+    requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "REQUEST_ACCESS",
 
     advancedByDefault: true,
@@ -2537,9 +2560,14 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description:
       "Reviewer throughput, approval/escalation rates, QC accuracy, rework.",
     domain: "REVIEW_OPERATIONS",
-    requiredCapabilities: ["REVIEWER_OPS_VIEW"],
-    requiredActiveSpace: "ORGANIZATION_ONLY",
-    fallbackBehavior: "REQUEST_ACCESS",
+    // GET /v1/reviewer/metrics requires the reviewer capability
+    // `review.assign` (workspace OWNER / ADMIN): REVIEW_ASSIGN on the web.
+    requiredCapabilities: ["REVIEWER_OPS_VIEW", "REVIEW_ASSIGN"],
+    // TEAM-SPEC R1/R2/R4 — the active workspace's effective plan decides,
+    // whatever its kind; the API asks the same entitlement.
+    requiredPlanFeature: "reviewQueuesIncluded",
+    requiredActiveSpace: "PERSONAL_OR_ORG",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
 
     advancedByDefault: true,
     commandPaletteVisible: true,
@@ -2566,7 +2594,30 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
-    sidebarEligible: true,
+    // TEAM-SPEC §3 — one sidebar entry ("Review" → /review); this page is
+    // reached from the Review hub tabs, the command palette and All Tools.
+    sidebarEligible: false,
+  },
+  // TEAM-SPEC §3 — Review settings: the reviewer SLA policy (moved out of the
+  // Enterprise /governance/policy page, which is unchanged), reviewer criteria
+  // and coding schemas. Every member who can read the policy sees it; the
+  // edit form is offered only to roles holding `governance.policy.manage`,
+  // the permission POST /v1/reviewer-ops/sla-policy enforces.
+  {
+    id: "review.settings",
+    href: "/review/settings",
+    label: "Review settings",
+    description: "Reviewer SLA policy, step-up rules, reviewer criteria and coding schemas.",
+    domain: "REVIEW_OPERATIONS",
+    requiredCapabilities: ["REVIEWER_OPS_VIEW"],
+    requiredPlanFeature: "reviewerOperationsIncluded",
+    requiredActiveSpace: "PERSONAL_OR_ORG",
+    fallbackBehavior: "REQUEST_ACCESS",
+
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
   },
 
   // ---------------------------------------------------------------------------
@@ -2581,14 +2632,23 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description:
       "Issue, resend, revoke external reviewer invitations + monitor portal sessions.",
     domain: "REVIEW_OPERATIONS",
-    requiredCapabilities: ["REVIEWER_OPS_VIEW"],
-    requiredActiveSpace: "ORGANIZATION_ONLY",
-    fallbackBehavior: "REQUEST_ACCESS",
+    // TEAM-SPEC R4 — External Review is Pro and above, so it cannot ride on
+    // REVIEWER_OPS_VIEW (a Team key). GET /v1/external-review/grants requires
+    // `audit.read` (OWNER / ADMIN / MEMBER, never VIEWER); EVIDENCE_MANAGE is
+    // the web key on that same writer ladder.
+    requiredCapabilities: ["EVIDENCE_MANAGE"],
+    // TEAM-SPEC R1/R2/R4 — the active workspace's effective plan decides,
+    // whatever its kind; the API asks the same entitlement.
+    requiredPlanFeature: "externalReviewIncluded",
+    requiredActiveSpace: "PERSONAL_OR_ORG",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
 
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
-    sidebarEligible: true,
+    // Separate from internal review (TEAM-SPEC R4); reached from the evidence
+    // External Review panel, the command palette and All Tools.
+    sidebarEligible: false,
   },
 
   // ---------------------------------------------------------------------------

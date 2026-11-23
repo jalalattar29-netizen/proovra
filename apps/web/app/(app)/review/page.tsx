@@ -1,15 +1,16 @@
 /**
- * Phase C0 — Canonical reviewer workspace.
+ * Review hub — "My reviews" (TEAM-SPEC §3).
  *
- * `/review` is the new operational reviewer surface. It consolidates
- * the fragmented `/reviewer-ops`, `/reviewer-ops/escalations`,
- * `/reviewer-ops/sla` surfaces into a single keyboard-first console
- * (Queue · Mine · Escalations · SLA · Workload).
+ * `/review` is the hub's default tab: the keyboard-first console over the
+ * Unassigned and Assigned-to-me slices. The hub's other tabs keep their URLs
+ * (`/review/queues`, `/reviewer-ops/sla` + `/reviewer-ops/escalations`,
+ * `/review/settings`) and `ReviewHubNav` renders each only when it opens for
+ * this actor. The per-workflow inspector at `/reviewer-ops/[reviewId]` is
+ * still the canonical action surface; the console is the navigation +
+ * keyboard layer above it.
  *
- * The legacy `/reviewer-ops*` routes are NOT removed in C0 — they
- * continue to work, and the per-workflow inspector at
- * `/reviewer-ops/[reviewId]` is still the canonical action surface.
- * The console here is the navigation + keyboard layer above them.
+ * Gate: `review.queue` — PERSONAL_OR_ORG + `reviewerOperationsIncluded`, so a
+ * Team-entitled Personal Workspace opens it (TEAM-SPEC R1).
  */
 
 "use client";
@@ -19,6 +20,7 @@ import { useRouter } from "next/navigation";
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { ReviewerConsole } from "../../../components/reviewer-experience/ReviewerConsole";
+import { ReviewHubNav } from "../../../components/reviewer-experience/ReviewHubNav";
 import { usePlatformContext } from "../../../lib/platform-context/PlatformContextProvider";
 // PHASE 7 §10.5 — owning-context banner (the console + inspector already
 // re-scope on switch via their teamId-keyed reload).
@@ -44,17 +46,15 @@ export default function ReviewPage() {
   return (
     <PageRouteGate routeId="review.queue">
       <WorkspaceContextBanner action="Reviewing evidence in" />
+      <ReviewHubNav active="my-reviews" />
       <ReviewerConsole
         teamId={teamId}
         onOpenRow={(row) => {
           // Delegate to the existing per-workflow inspector. The
           // inspector is the canonical mutation surface (assign,
-          // escalate, decide). The console is a navigation +
-          // keyboard layer above it.
-          const candidate =
-            (row as { workflowId?: string | null }).workflowId ??
-            (row as { id?: string }).id ??
-            null;
+          // escalate, decide). Rows are the shared QueueRow, whose
+          // `id` IS the workflow id.
+          const candidate = row.id || null;
           if (candidate) {
             router.push(`/reviewer-ops/${candidate}`);
           }
