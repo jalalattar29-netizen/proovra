@@ -289,13 +289,17 @@ test.describe("Phase B.2 — multi-stage review governance @critical", () => {
   test("Reviewer detail page ships the Phase B.2 decision lineage panel", async () => {
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
-    const src = await fs.readFile(
-      path.resolve(
-        process.cwd(),
-        "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-      ),
-      "utf8",
-    );
+    // TEAM-UI-SPEC §2 (round 3): the single verdict entry lives in the
+    // inspector's DecisionPanel component, so the pin reads the page and the
+    // panel together.
+    const read = (rel: string) =>
+      fs.readFile(path.resolve(process.cwd(), rel), "utf8");
+    const src =
+      (await read("apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx")) +
+      "\n" +
+      (await read(
+        "apps/web/app/(app)/reviewer-ops/[reviewId]/_components/DecisionPanel.tsx",
+      ));
     // Section root + state attrs
     expect(src).toContain('data-section="reviewer-decision-lineage"');
     expect(src).toContain("data-decision-state");
