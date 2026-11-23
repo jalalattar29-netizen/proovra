@@ -317,9 +317,10 @@ test.describe("Phase B.2 — multi-stage review governance @critical", () => {
     expect(src).toContain("data-decision-rationale");
     // Blocked banners
     expect(src).toContain("data-decision-blocked-banner");
-    // Phase B.1 promoted-to-available items
-    expect(src).toContain('data-reviewer-deferred-item="multi-stage-review"');
-    expect(src).toContain('data-reviewer-deferred-item="decision-lineage"');
+    // TEAM-SPEC (2026-11-23) — the product-facing "Reviewer collaboration
+    // scope" roadmap panel (AVAILABLE NOW / DEFERRED) was removed from the
+    // inspector; its markers must not come back.
+    expect(src).not.toContain("data-reviewer-deferred-item");
   });
 
   // ---------------------------------------------------------------------------

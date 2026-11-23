@@ -156,7 +156,11 @@ test.describe("Phase B — reviewer operations enterprise depth @critical", () =
     expect(bar).toContain('data-reviewer-bulk-action="PRIORITY_NORMAL"');
     expect(bar).toContain('data-reviewer-bulk-action="PRIORITY_URGENT"');
     expect(bar).toContain("data-reviewer-bulk-last-result");
-    expect(bar).toContain("data-reviewer-bulk-personal-banner");
+    // TEAM-SPEC R1 (2026-11-23) — bulk follows the workspace's plan and the
+    // actor's role, not its kind: the personal-space banner became the
+    // plan/role "unavailable" banner.
+    expect(bar).toContain("data-reviewer-bulk-unavailable-banner");
+    expect(bar).not.toContain("data-reviewer-bulk-personal-banner");
     // POST path is unchanged from Phase 25.5; the UI must point at it.
     expect(bar).toContain("/v1/reviewer-ops/reviews/bulk");
 
