@@ -169,7 +169,9 @@ describe("Escalations page", () => {
         : null;
     mount(<EscalationsPage />);
     await settle();
-    expect(document.querySelector("[data-escalations-count]")!.textContent).toBe("Showing 2 of 7 escalations.");
+    expect(document.querySelector("[data-escalations-count]")!.textContent).toBe(
+      "Showing 2 of 7 escalations. Active means open, acknowledged or reassigned.",
+    );
     // Human status labels, never raw enums.
     expect(document.body.textContent).toContain("Acknowledged");
     expect(document.body.textContent).not.toContain("ACKNOWLEDGED");

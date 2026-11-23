@@ -271,6 +271,7 @@ function EscalationsConsolePageInner() {
       {rows !== null && total !== null ? (
         <p className="app-field-help" data-escalations-count role="status">
           Showing {shown} of {total} escalation{total === 1 ? "" : "s"}.
+          {status === "ACTIVE" ? " Active means open, acknowledged or reassigned." : ""}
         </p>
       ) : null}
 

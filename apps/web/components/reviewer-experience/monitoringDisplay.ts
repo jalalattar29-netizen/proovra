@@ -46,7 +46,8 @@ export const ESCALATION_STATUS_FILTERS: ReadonlyArray<{
   value: EscalationStatusFilter;
   label: string;
 }> = [
-  { value: "ACTIVE", label: "Active (open, acknowledged, reassigned)" },
+  // Short so the filter fits a 320px phone; the page states the definition.
+  { value: "ACTIVE", label: "Active" },
   { value: "OPEN", label: "Open" },
   { value: "ACKNOWLEDGED", label: "Acknowledged" },
   { value: "REASSIGNED", label: "Reassigned" },

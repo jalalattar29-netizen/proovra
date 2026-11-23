@@ -531,6 +531,11 @@ function ExternalReviewManagementConsole() {
           display: "flex",
           gap: 4,
           borderBottom: "1px solid var(--border-default, #e2e8f0)",
+          // Scrolls instead of spilling: on a 390px phone the last tab
+          // ("Bulk Invite") was past the clipped page edge and unreachable
+          // (review-layout gate, 2026-11-23).
+          overflowX: "auto",
+          maxWidth: "100%",
         }}
       >
         {TAB_ORDER.map((t) => (

@@ -35,6 +35,7 @@ export const EV = "a557dc83-6863-4536-8b8d-2ae5d69a0b1c";
 
 export type ReviewContext =
   | "team-owner"
+  | "team-solo"
   | "team-member"
   | "team-viewer"
   | "enterprise-owner"
@@ -51,6 +52,9 @@ type Shape = {
 
 const SHAPES: Record<ReviewContext, Shape> = {
   "team-owner": { type: "PERSONAL", plan: "TEAM", role: "OWNER", shared: false, name: "Personal Space", actorId: OWNER_ID },
+  // A Team owner with no one else in the workspace, after recording the FIRST
+  // decision on a review that requires a second one (second-review handoff).
+  "team-solo": { type: "PERSONAL", plan: "TEAM", role: "OWNER", shared: false, name: "Personal Space", actorId: OWNER_ID },
   "team-member": { type: "PERSONAL", plan: "TEAM", role: "MEMBER", shared: true, name: "Rivera Legal (shared)", actorId: PEER_ID },
   "team-viewer": { type: "PERSONAL", plan: "TEAM", role: "VIEWER", shared: true, name: "Rivera Legal (shared)", actorId: PEER_ID },
   "enterprise-owner": { type: "ORGANIZATION", plan: "ENTERPRISE", role: "OWNER", shared: false, name: "Meridian Compliance", actorId: OWNER_ID },
@@ -288,6 +292,20 @@ function respond(ctx: ReviewContext, url: URL): unknown {
       openEscalation: escalation("ACKNOWLEDGED"),
       allowedLifecycleTransitions: ["IN_REVIEW", "APPROVED", "REJECTED", "NEEDS_INFORMATION", "ARCHIVED"],
       viewer: viewerActions(ctx),
+      ...(ctx === "team-solo"
+        ? {
+            // The workspace-projection handoff block (TEAM-SPEC R3).
+            handoff: {
+              requirement: "second_review",
+              firstReviewerUserId: OWNER_ID,
+              firstReviewerDisplayName: "Fixture Reviewer",
+              secondReviewerUserId: null,
+              awaitingAssignment: true,
+              eligibleReviewerCount: 0,
+              staffing: "no_eligible_reviewer",
+            },
+          }
+        : {}),
     };
   }
   if (p.endsWith("/v1/reviewer-ops/sla-policy")) {
@@ -392,9 +410,16 @@ export const VIEWPORTS = [
   { name: "zoom200-640x400", width: 640, height: 400 },
 ] as const;
 
+/**
+ * How far content reaches past the viewport. The app clips horizontal overflow
+ * (`overflow-x: clip` on html/body), so the document never scrolls sideways
+ * and `scrollingElement.scrollWidth` alone reports 0 while a tab or chip is
+ * cut off and unreachable. The body's own scroll width still counts clipped
+ * content, so both are measured.
+ */
 export async function horizontalOverflow(page: Page): Promise<number> {
   return page.evaluate(() => {
     const el = document.scrollingElement ?? document.documentElement;
-    return el.scrollWidth - window.innerWidth;
+    return Math.max(el.scrollWidth, document.body.scrollWidth) - window.innerWidth;
   });
 }

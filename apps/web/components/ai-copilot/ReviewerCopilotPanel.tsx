@@ -320,7 +320,7 @@ export function ReviewerCopilotPanel({
         ) : (
           <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}>
             {evidence.map((e) => (
-              <li key={e.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 0", opacity: e.stale || e.analysisRevision === undefined ? 0.5 : 1 }}>
+              <li key={e.id} style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", padding: "4px 0", opacity: e.stale || e.analysisRevision === undefined ? 0.5 : 1 }}>
                 <input
                   type="checkbox"
                   checked={selected.has(e.id)}
@@ -331,7 +331,7 @@ export function ReviewerCopilotPanel({
                   onChange={() => toggle(e.id)}
                   aria-label={`Select ${e.title}`}
                 />
-                <span style={{ flex: 1 }}>{e.title}</span>
+                <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{e.title}</span>
                 <span className="app-chip">{identifierLabel(e.status)}</span>
                 {/*
                   The revision itself is never shown: it is a digest, and an
@@ -483,7 +483,9 @@ function Header({ criteriaVersion }: { criteriaVersion: string }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
       <h3 style={{ margin: 0 }}>Reviewer Copilot</h3>
-      <span style={{ display: "flex", gap: 6 }}>
+      {/* Wraps: at 390px the four chips were wider than the panel and the
+          last one was clipped (review-layout gate, 2026-11-23). */}
+      <span style={{ display: "flex", flexWrap: "wrap", gap: 6, minWidth: 0 }}>
         <span className="app-chip app-chip--ai">AI-generated</span>
         <span className="app-chip">Advisory only</span>
         <span className="app-chip">Metadata only</span>

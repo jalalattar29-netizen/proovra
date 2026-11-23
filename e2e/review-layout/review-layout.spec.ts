@@ -178,6 +178,21 @@ for (const vp of [
   });
 }
 
+test("single-occupant Team workspace: the second-review requirement is explained, not waived", async ({ page }) => {
+  const errors: string[] = [];
+  await installApi(page, "team-solo", errors);
+  for (const vp of [{ w: 1440, h: 900, n: "1440" }, { w: 390, h: 844, n: "390" }]) {
+    await page.setViewportSize({ width: vp.w, height: vp.h });
+    await open(page, `/reviewer-ops/${WF}`, "[data-reviewer-actions]");
+    const banner = page.getByText(/second, independent reviewer is required/i);
+    await expect(banner).toBeVisible();
+    await expect(page.getByText(/can.t be waived/i)).toBeVisible();
+    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
+    await shot(page, `after-inspector-handoff-solo-${vp.n}`);
+  }
+  expect(errors, errors.join("\n")).toEqual([]);
+});
+
 test("Ctrl+K on the review hub opens only the global Jump-to-a-page palette", async ({ page }) => {
   await installApi(page, "team-owner");
   await page.setViewportSize({ width: 1440, height: 900 });

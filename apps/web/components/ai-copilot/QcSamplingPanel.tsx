@@ -132,7 +132,8 @@ export function QcSamplingPanel() {
     <section className="app-panel app-panel__body" style={{ marginTop: 16 }} aria-label="AI QC sampling">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <h3 style={{ margin: 0 }}>AI QC sampling</h3>
-        <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        {/* Wraps on a 320px phone instead of widening the page. */}
+        <span style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", minWidth: 0 }}>
           <span className="app-chip">Human quality control</span>
           <label style={{ fontSize: 13, display: "flex", gap: 6, alignItems: "center" }}>
             Strategy
