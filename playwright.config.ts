@@ -146,6 +146,12 @@ const SETTINGS_LAYOUT_BASE = `http://127.0.0.1:${SETTINGS_LAYOUT_PORT}`;
  * locale and in RTL, is a layout-engine question jsdom answers 0 to.
  */
 const REPORTS_LAYOUT_PORT = 3019;
+/**
+ * REVIEW — the Team review hub, inspector and dialogs (TEAM-SPEC 2026-11-23).
+ * Its own port so it can run beside the other layout gates.
+ */
+const REVIEW_LAYOUT_PORT = 3020;
+const REVIEW_LAYOUT_BASE = `http://127.0.0.1:${REVIEW_LAYOUT_PORT}`;
 const REPORTS_LAYOUT_BASE = `http://127.0.0.1:${REPORTS_LAYOUT_PORT}`;
 
 export default defineConfig({
@@ -444,6 +450,21 @@ export default defineConfig({
         baseURL: REPORTS_LAYOUT_BASE,
       },
     },
+    /**
+     * REVIEW — whether the Team review surfaces hold together in a real engine:
+     * no horizontal overflow from 320px to 1920px, dialogs inside a short
+     * viewport, one Review entry, the hub tabs per context, and the light
+     * canonical dialog. Synthetic fixtures; the API is intercepted.
+     */
+    {
+      name: "review-layout",
+      testDir: "./e2e/review-layout",
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: LAYOUT_STORAGE_STATE,
+        baseURL: REVIEW_LAYOUT_BASE,
+      },
+    },
   ],
   /**
    * Started only for the opt-in layout projects, each on its own port.
@@ -537,6 +558,17 @@ export default defineConfig({
           {
             command: `pnpm --filter proovra-web exec next start -p ${ATTENTION_LAYOUT_PORT} -H 127.0.0.1`,
             url: `${ATTENTION_LAYOUT_BASE}/login`,
+            reuseExistingServer: true,
+            timeout: 180_000,
+            env: { NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1" },
+          },
+        ]
+      : []),
+    ...(process.env.REVIEW_LAYOUT
+      ? [
+          {
+            command: `pnpm --filter proovra-web exec next start -p ${REVIEW_LAYOUT_PORT} -H 127.0.0.1`,
+            url: `${REVIEW_LAYOUT_BASE}/login`,
             reuseExistingServer: true,
             timeout: 180_000,
             env: { NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1" },
