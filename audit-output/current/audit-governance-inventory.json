@@ -66,7 +66,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 531,
+    "AuditFilesInventoried": 534,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -115,7 +115,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 438
+    "ProductBehaviorTestsInventoried": 441
   },
   "reportRoles": {
     "counts": {
@@ -132,7 +132,7 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 438,
+    "PRODUCT_BEHAVIOR_TEST": 441,
     "DOMAIN_AUTHORITY": 61,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "CURRENT_GENERATED_REPORT": 1,
@@ -1147,6 +1147,21 @@
     },
     {
       "path": "apps/web/__tests__/render/surface-gate-state-machine.render.test.tsx",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "apps/web/__tests__/render/team-membership-surface-gate.render.test.tsx",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
@@ -7968,6 +7983,36 @@
       "path": "services/api/test/support/local-tsa-authority.ts",
       "role": "DOMAIN_AUTHORITY",
       "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/team-external-review-manage-authority.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/team-review-eligibility-plan-gates.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
       "importedBy": [],
       "spawns": [],
