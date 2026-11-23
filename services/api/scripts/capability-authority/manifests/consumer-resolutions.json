@@ -66,16 +66,18 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:201",
-      "helper": "post(label, path, body) -> `/v1/reviewer-ops/reviews/${workflowId}/${path}`",
+      "site": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:336",
+      "helper": "post(name, body, opts) -> `/v1/reviewer-ops/reviews/${workflowId}/${ACTION_ROUTE[name]}` (ACTION_ROUTE is a closed literal map)",
       "callSitesRead": [
-        "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:262",
-        "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:268",
-        "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:623",
-        "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:650",
-        "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:710",
+        "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:215-223",
+        "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:382",
+        "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:426",
         "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:712",
-        "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:714"
+        "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:718",
+        "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:908",
+        "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:910",
+        "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:912",
+        "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:914"
       ],
       "routes": [
         "POST /v1/reviewer-ops/reviews/:workflowId/approve",
@@ -83,10 +85,16 @@
         "POST /v1/reviewer-ops/reviews/:workflowId/request-info",
         "POST /v1/reviewer-ops/reviews/:workflowId/reject",
         "POST /v1/reviewer-ops/reviews/:workflowId/pause",
-        "POST /v1/reviewer-ops/reviews/:workflowId/resume"
+        "POST /v1/reviewer-ops/reviews/:workflowId/resume",
+        "POST /v1/reviewer-ops/reviews/:workflowId/response-received"
       ],
-      "evidence": "The call sites pass exactly these six literals: \"approve\", \"start\", \"request-info\", \"reject\", \"pause\", \"resume\".",
-      "reviewedAtUtc": "2026-08-15"
+      "evidence": "ACTION_ROUTE (page.tsx:215-223) maps the seven action names to exactly these seven literals: start, pause, resume, request-info, response-received, approve, reject. TEAM-SPEC 2026-11-23 added response-received.",
+      "reviewedAtUtc": "2026-11-23",
+      "match": {
+        "method": "POST",
+        "caller": "ReviewWorkspacePageInner",
+        "path": "/v1/reviewer-ops/reviews/<interp>/<interp>"
+      }
     },
     {
       "site": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:140",
