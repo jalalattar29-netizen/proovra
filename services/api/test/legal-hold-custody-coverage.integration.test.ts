@@ -40,6 +40,21 @@ describe("legal hold coverage on the custody chain (live PostgreSQL 16)", () => 
       })
     ).id;
   }
+  /**
+   * The sweep pages every non-historical hold by a durable id cursor, at most
+   * `maxHolds` (200) per run, and wraps. On CI's ONE shared integration
+   * database other suites' holds are on the same cursor, so "two runs reach my
+   * hold" held only while the database had few holds. Sweep until the cursor
+   * has covered every hold once (each record's event is written once, so extra
+   * passes are harmless) — the property under test, scoped correctly.
+   */
+  async function sweepAllHolds(): Promise<void> {
+    const total = await prisma.evidenceLegalHold.count({
+      where: { historical: false, status: { in: ["ACTIVE", "RELEASED"] } },
+    });
+    const passes = Math.ceil(total / 200) + 1;
+    for (let i = 0; i < passes; i += 1) await runtime.reconcileLegalHoldCustody(prisma as never);
+  }
   const events = async (evidenceId: string, holdId: string) =>
     (
       await prisma.custodyEvent.findMany({
@@ -71,10 +86,13 @@ describe("legal hold coverage on the custody chain (live PostgreSQL 16)", () => 
     const late = await record(A.teamId, A.ownerUserId);
     await prisma.caseEvidenceLink.create({ data: { teamId: A.teamId, caseId: kase.id, evidenceId: late, role: "PRIMARY", source: "USER" } as never });
     expect(await events(late, hold.id)).toEqual([]);
+    // Two concurrent sweeps first (the once-each property under a race), then
+    // enough passes to cover every hold on the shared cursor.
     await Promise.all([
       runtime.reconcileLegalHoldCustody(prisma as never),
       runtime.reconcileLegalHoldCustody(prisma as never),
     ]);
+    await sweepAllHolds();
     expect(await events(late, hold.id)).toEqual(["CASE_LEGAL_HOLD_APPLIED"]);
     for (const id of linked) expect(await events(id, hold.id)).toEqual(["CASE_LEGAL_HOLD_APPLIED"]);
 
@@ -90,7 +108,7 @@ describe("legal hold coverage on the custody chain (live PostgreSQL 16)", () => 
     const hold = await holds.placeCanonicalLegalHold({ teamId: B.teamId, scope: "WORKSPACE", actorUserId: B.ownerUserId, title: "Workspace hold" });
     expect(await events(before, hold.id)).toEqual(["LEGAL_HOLD_PLACED"]);
     const after = await record(B.teamId, B.ownerUserId);
-    await runtime.reconcileLegalHoldCustody(prisma as never);
+    await sweepAllHolds();
     expect(await events(after, hold.id)).toEqual(["LEGAL_HOLD_PLACED"]);
     // Nothing outside the workspace.
     const other = await record(h.fixtures.teamA.teamId, h.fixtures.teamA.ownerUserId);

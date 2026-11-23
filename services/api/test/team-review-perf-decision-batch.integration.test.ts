@@ -335,6 +335,14 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // This suite seeds hundreds of holds directly. CI runs every integration
+  // suite on ONE shared database, where global sweeps (legal-hold custody
+  // reconcile) page every hold — so the seeded holds leave that sweep when done.
+  if (prisma && A && B) {
+    // Holds are append-only (DELETE is refused by the database), so they are
+    // marked historical, which takes them off the custody sweep.
+    await prisma.evidenceLegalHold.updateMany({ where: { teamId: { in: [A.teamId, B.teamId] } }, data: { historical: true } as never });
+  }
   if (harness) await harness.cleanup();
 });
 

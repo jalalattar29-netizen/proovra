@@ -2239,6 +2239,8 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         ok: boolean;
         result?: Awaited<ReturnType<typeof runReconcile>>;
         error?: string;
+        /** Reached by the cursor but not reconciled (no reviewer operations). */
+        skippedReason?: "reviewer_operations_not_included";
       }> = [];
       let totalEscalationsCreated = 0;
       let totalFlippedBreached = 0;
@@ -2259,7 +2261,12 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         // Checked between teams: a run already in progress finishes.
         if (Date.now() - startedAtMs >= maxDurationMs) break;
         teamsVisited += 1;
-        if (!entitled.has(t.id)) continue;
+        // Reported, not reconciled: the cursor reached it (fairness stays
+        // observable per workspace), and nothing in it is flipped or mailed.
+        if (!entitled.has(t.id)) {
+          perTeam.push({ teamId: t.id, ok: true, skippedReason: "reviewer_operations_not_included" });
+          continue;
+        }
         const teamResult = await runReconcileSafely({
           teamId: t.id,
           batchSize: body.batchSize,
