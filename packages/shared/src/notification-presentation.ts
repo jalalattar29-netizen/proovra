@@ -517,6 +517,16 @@ const MSG = {
     "Zwei prüfende Personen waren sich bei diesem Ablauf uneinig. Als Inhaber oder Administrator des Teams können Sie dies im mehrstufigen Prüfbereich klären.",
     "اختلف مراجعان بشأن هذا المسار. بصفتك مالك الفريق أو مسؤوله يمكنك حسمه عبر لوحة المراجعة متعددة المراحل.",
   ),
+  assignSecondTitle: t(
+    "Assign an independent second reviewer",
+    "Weisen Sie eine unabhängige zweite Prüfung zu",
+    "عيّن مراجعًا ثانيًا مستقلًا",
+  ),
+  assignSecondBody: t(
+    "A first review decision is recorded and this review needs a second decision by a different reviewer. Reassign it to start the second review.",
+    "Eine erste Prüfentscheidung liegt vor; diese Prüfung braucht eine zweite Entscheidung durch eine andere Person. Weisen Sie sie neu zu, um die zweite Prüfung zu starten.",
+    "تم تسجيل قرار المراجعة الأولى، وتحتاج هذه المراجعة إلى قرار ثانٍ من مراجع مختلف. أعد إسنادها لبدء المراجعة الثانية.",
+  ),
   awaitingSecondTitle: t("Your first-stage decision is awaiting peer review", "Ihre Entscheidung der ersten Stufe wartet auf die Gegenprüfung", "قرارك في المرحلة الأولى بانتظار مراجعة النظير"),
   awaitingSecondBody: t(
     "Independence policy requires a different reviewer to submit the second-stage decision. No action needed from you.",
@@ -642,6 +652,9 @@ export const NOTIFICATION_MESSAGE_KEYS = [
   "org_admin.pending_invites",
   "review.conflict",
   "review.awaiting_second",
+  // TEAM-SPEC R3 — to assignment managers: a FIRST decision is recorded and an
+  // independent second reviewer must be assigned.
+  "review.assign_second",
   "governance",
   "discussion.mention",
   "discussion.assigned",
@@ -728,6 +741,8 @@ export function renderNotificationMessage(
       return { title: f(MSG.conflictTitle), body: f(MSG.conflictBody) };
     case "review.awaiting_second":
       return { title: f(MSG.awaitingSecondTitle), body: f(MSG.awaitingSecondBody) };
+    case "review.assign_second":
+      return { title: f(MSG.assignSecondTitle), body: f(MSG.assignSecondBody) };
     case "governance":
       return {
         title: f(MSG.dashJoin, { a: word(GOVERNANCE_TITLES, l, p.kind, GOVERNANCE_TITLE_FALLBACK), b: team }),

@@ -105,6 +105,9 @@ export const NOTIFICATION_EVENT_TYPES = [
   "REVIEW_INACTIVITY_REMINDER",
   "REVIEW_NEEDS_MORE_INFO",
   "REVIEW_RESPONSE_RECEIVED",
+  // TEAM-SPEC R3 — a first decision was recorded and an independent second
+  // reviewer must be assigned. Addressed to the workspace's assignment managers.
+  "REVIEW_SECOND_REVIEW_REQUIRED",
   // Phase 16 — collaboration notifications. Internal-only; bodies
   // never include the message text or thread internals.
   "DISCUSSION_MENTION_RECEIVED",

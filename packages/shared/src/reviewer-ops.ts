@@ -1128,8 +1128,10 @@ export type ReviewerPerformanceRow = {
   overdue: number;
   escalated: number;
   meanResolutionMs: number | null;
-  slaComplianceRate: number; // 0..1
-  capacityScore: number;
+  /** 0..1; null when the reviewer completed nothing in the range (TEAM-SPEC §2.8). */
+  slaComplianceRate: number | null;
+  /** 0..100; null when no workload snapshot exists for the reviewer. */
+  capacityScore: number | null;
 };
 
 export type ReviewerPerformanceProjection = {

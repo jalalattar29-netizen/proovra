@@ -164,8 +164,8 @@ export const NATIVE_NAV_ROUTES: readonly NativeNavRoute[] = [
  */
 export const WEB_SIDEBAR_ROUTES_WITHOUT_NATIVE_SCREEN: Readonly<Record<string, string>> = {
   "workspace.review": "Reviewer console has no native screen (RC-15 / T-13 scope).",
-  "workspace.review_workspace": "Reviewer workspace has no native screen (RC-15 / T-13 scope).",
-  "workspace.review_queues": "Reviewer queues have no native screen (RC-15 / T-13 scope).",
+  // TEAM-SPEC (2026-11-23) — the web sidebar shows ONE Review entry; Reviewer
+  // queues and the Reviewer workspace are reached inside the web review hub.
   "governance.hub": "Governance is an Enterprise surface with no native screen.",
 };
 

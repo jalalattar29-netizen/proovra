@@ -34,6 +34,7 @@ const CASES = {
   "org_admin.pending_invites": [{ org: "Acme Legal", count: 3 }, "3 pending invites in Acme Legal", "As an admin you can resend or revoke open invites from this organization's detail page."],
   "review.conflict": [{}, "Reviewer conflict — adjudication required", "Two reviewers disagreed on this workflow. As team OWNER/ADMIN you can resolve it via the multi-stage review panel."],
   "review.awaiting_second": [{}, "Your first-stage decision is awaiting peer review", "Independence policy requires a different reviewer to submit the second-stage decision. No action needed from you."],
+  "review.assign_second": [{}, "Assign an independent second reviewer", "A first review decision is recorded and this review needs a second decision by a different reviewer. Reassign it to start the second review."],
   governance: [{ kind: "LEGAL_HOLD_PLACED", team: "Claims", occurrences: 4 }, "Legal hold placed — Claims", "A legal hold has been placed on evidence in this workspace. Seen 4 times."],
   "discussion.mention": [{ thread: "Please review this record" }, 'You were mentioned in "Please review this record"', "A reviewer or investigator @-mentioned you in a workspace discussion. Open the thread to respond."],
   "discussion.assigned": [{ thread: "Gap in custody", status: "IN_PROGRESS", escalated: 1 }, 'Discussion assigned to you: "Gap in custody"', "An escalated discussion is assigned to you. Status: In progress."],
