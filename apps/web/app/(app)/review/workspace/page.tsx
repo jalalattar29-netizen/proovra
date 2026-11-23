@@ -56,7 +56,7 @@ import {
 } from "../../../../components/reviewer-experience/ReviewPageHeader";
 import { CanonicalActionButton } from "../../../../components/external-review/CanonicalActionButton";
 import { Modal } from "../../../../components/cases-experience/matter-modals/Modal";
-import "./review-workspace.css";
+import "../../../../components/reviewer-experience/review-surfaces.css";
 import { Badge } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 

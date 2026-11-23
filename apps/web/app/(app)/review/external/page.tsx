@@ -43,7 +43,7 @@ import {
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { CanonicalActionButton } from "../../../../components/external-review/CanonicalActionButton";
-import "./external-review.css";
+import "../../../../components/reviewer-experience/review-surfaces.css";
 import {
   StepUpModal,
   useStepUpAction,

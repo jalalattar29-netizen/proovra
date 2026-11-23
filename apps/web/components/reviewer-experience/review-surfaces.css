@@ -299,3 +299,64 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ==== Reviewer workspace (/review/workspace) — folded in from review/workspace/review-workspace.css ==== */
+/*
+ * Reviewer workspace layout (TEAM-UI-SPEC §4).
+ *
+ * Desktop: queue rail · evidence viewer · decision column. The fixed column
+ * minimums (180 px + 320 px) used to push the page sideways on a phone, and
+ * the app shell clips horizontal overflow, so the decision column was cut off
+ * at 320/390 px. Below 1100 px the columns stack; every column may shrink.
+ */
+.review-workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr) minmax(320px, 380px);
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.review-workspace-grid > * {
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .review-workspace-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ==== External Review console (/review/external) — folded in from review/external/external-review.css ==== */
+/*
+ * External Review console layout (TEAM-UI-SPEC §4).
+ *
+ * The invitation list and its detail drawer sit side by side on a wide
+ * screen. The app shell clips horizontal overflow, so at ≤ 1100 px they stack
+ * and every column may shrink; the list itself collapses to labelled cards at
+ * ≤ 720 px through the shared `.app-table[data-responsive]` cutover.
+ */
+.external-review-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  min-width: 0;
+}
+
+.external-review-split > * {
+  min-width: 0;
+}
+
+@media (min-width: 1101px) {
+  .external-review-split.has-drawer {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  }
+}
+
+/* The selected invitation uses the canonical selection wash (the Evidence
+   Library's selected row), not an ad-hoc grey. */
+.external-review-split [data-invitations-table] tbody tr.is-selected {
+  background: var(--surface-translucent-selected);
+  box-shadow: inset 3px 0 0 var(--accent-500);
+}

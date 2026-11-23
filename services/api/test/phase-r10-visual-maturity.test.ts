@@ -772,10 +772,21 @@ describe("R10 Group 14 — CSS hygiene", () => {
     //     ~30 inline arbitrary-value declarations, and it is the only way this
     //     route can carry its own media queries and reduced-motion rule.
     //
-    // Thirty stylesheets for a product with this many routes is a stylesheet
-    // per surface, which is the intended shape. What the number catches is a
-    // per-COMPONENT explosion, and it still would.
-    expect(CSS_FILES.length).toBeLessThanOrEqual(30);
+    // 30 → 31 (2026-11-23, TEAM-UI-SPEC). One more, the same shape a fourth
+    // time:
+    //
+    //   components/reviewer-experience/review-surfaces.css  the Team review
+    //     area's ONE stylesheet — hub, console, queues, inspector, monitoring,
+    //     settings, reviewer workspace and External Review. It replaces the
+    //     legacy <Button> inline variant styles and per-page style objects on
+    //     fifteen review surfaces, and carries the compact-row media query
+    //     and the Evidence Library selected-row treatment. Three draft files
+    //     were folded into this one before the bump.
+    //
+    // Thirty-one stylesheets for a product with this many routes is a
+    // stylesheet per surface, which is the intended shape. What the number
+    // catches is a per-COMPONENT explosion, and it still would.
+    expect(CSS_FILES.length).toBeLessThanOrEqual(31);
   });
 });
 
