@@ -54,6 +54,7 @@ import { contextHasCapability, evaluateAuthorizedWorkspace } from "../middleware
 import { workspaceIncludesReviewCapability } from "../services/billing-enforcement.service.js";
 import {
   buildDashboard,
+  countHandoffQueue,
   listReviewerOpsQueue,
 } from "../services/reviewer-ops/reviewer-operations-engine.service.js";
 import { countEscalations, listEscalations } from "../services/reviewer-ops/escalation-engine.service.js";
@@ -193,6 +194,8 @@ export async function reviewerConsoleRoutes(
         dashboardSection,
         workloadSection,
         savedViewsSection,
+        awaitingSecondSection,
+        awaitingAdjudicationSection,
       ] = await Promise.all([
         safeSection(
           () =>
@@ -267,6 +270,21 @@ export async function reviewerConsoleRoutes(
           [],
           req,
           "savedViews",
+        ),
+        // TEAM-SPEC R3 — reviews waiting on the handoff: an independent second
+        // reviewer to be assigned, or an adjudicator. Same queue slices as
+        // GET /v1/reviewer-ops/queue?queue=AWAITING_SECOND_REVIEW|AWAITING_ADJUDICATION.
+        safeSection(
+          () => handoffSection(teamId, ctx.userId, "AWAITING_SECOND_REVIEW", client),
+          { rows: [] as ReadonlyArray<unknown>, nextCursor: null as string | null, count: 0, capped: false },
+          req,
+          "awaitingSecondReview",
+        ),
+        safeSection(
+          () => handoffSection(teamId, ctx.userId, "AWAITING_ADJUDICATION", client),
+          { rows: [] as ReadonlyArray<unknown>, nextCursor: null as string | null, count: 0, capped: false },
+          req,
+          "awaitingAdjudication",
         ),
       ]);
 
@@ -365,6 +383,23 @@ export async function reviewerConsoleRoutes(
           status: savedViewsSection.status,
           count: savedViewsSection.value.length,
         },
+        // TEAM-SPEC R3 — handoff sections: the first rows of a bounded scan
+        // and `count`, the slice's size from one batched classification
+        // (`countCapped` when the candidate pool exceeded its cap).
+        awaitingSecondReview: {
+          rows: awaitingSecondSection.value.rows,
+          status: awaitingSecondSection.status,
+          count: awaitingSecondSection.value.count,
+          countCapped: awaitingSecondSection.value.capped,
+          hasMore: awaitingSecondSection.value.nextCursor !== null,
+        },
+        awaitingAdjudication: {
+          rows: awaitingAdjudicationSection.value.rows,
+          status: awaitingAdjudicationSection.status,
+          count: awaitingAdjudicationSection.value.count,
+          countCapped: awaitingAdjudicationSection.value.capped,
+          hasMore: awaitingAdjudicationSection.value.nextCursor !== null,
+        },
         // Section status surface — frontend uses this to render a
         // bounded "degraded" badge per tab rather than throwing.
         diagnostics: {
@@ -375,6 +410,8 @@ export async function reviewerConsoleRoutes(
             sla: slaStatus,
             workload: workloadSection.status,
             savedViews: savedViewsSection.status,
+            awaitingSecondReview: awaitingSecondSection.status,
+            awaitingAdjudication: awaitingAdjudicationSection.status,
           },
           // Bounded — used by frontend to render the
           // section-limit badge ("Showing first 25").
@@ -400,4 +437,26 @@ async function activeEscalationsWithTotal(
     countEscalations({ teamId, status: "ACTIVE", viewerUserId }, client),
   ]);
   return { rows, total };
+}
+
+/**
+ * TEAM-SPEC R3 — a console handoff section: a BOUNDED page (at most
+ * HANDOFF_SECTION_SCAN candidates classified, never the 1000-row queue scan)
+ * plus the slice count from the same batched classification.
+ */
+const HANDOFF_SECTION_SCAN = SECTION_LIMIT * 4;
+async function handoffSection(
+  teamId: string,
+  viewerUserId: string,
+  queue: "AWAITING_SECOND_REVIEW" | "AWAITING_ADJUDICATION",
+  client: PrismaClient,
+): Promise<{ rows: ReadonlyArray<unknown>; nextCursor: string | null; count: number; capped: boolean }> {
+  const [page, counted] = await Promise.all([
+    listReviewerOpsQueue(
+      { teamId, meUserId: viewerUserId, queue, limit: SECTION_LIMIT, maxScan: HANDOFF_SECTION_SCAN },
+      client,
+    ),
+    countHandoffQueue({ teamId, meUserId: viewerUserId, queue }, client),
+  ]);
+  return { rows: page.rows, nextCursor: page.nextCursor, count: counted.count, capped: counted.capped };
 }

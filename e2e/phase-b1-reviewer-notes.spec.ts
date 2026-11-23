@@ -15,9 +15,8 @@
  *      observation, concern, request_info, escalation_context,
  *      decision_rationale, legal_hold_context, redaction_context.
  *
- *   4. Reviewer detail page bundle ships the notes panel + deferred-
- *      features panel markers so the operational scope claim stays
- *      true regression-tested.
+ *   4. Reviewer detail page bundle ships the notes panel (the roadmap
+ *      "collaboration scope" panel was removed — TEAM-SPEC 2026-11-23).
  *
  *   5. No regression on Phase 2.7X / A.1B / A.1C / A.1D / Phase B /
  *      Phase C contracts.
@@ -158,7 +157,7 @@ test.describe("Phase B.1 — reviewer notes + collaboration depth @critical", ()
   // ---------------------------------------------------------------------------
   // Source-presence regression guards.
   // ---------------------------------------------------------------------------
-  test("Reviewer detail page ships the Phase B.1 notes panel + deferred-features markers", async () => {
+  test("Reviewer detail page ships the Phase B.1 notes panel and no roadmap panel", async () => {
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
     const src = await fs.readFile(
@@ -176,26 +175,13 @@ test.describe("Phase B.1 — reviewer notes + collaboration depth @critical", ()
     expect(src).toContain("data-reviewer-notes-compose-body");
     expect(src).toContain("data-reviewer-notes-compose-submit");
     expect(src).toContain("data-reviewer-notes-items");
-    // Deferred-features panel markers
-    expect(src).toContain('data-section="reviewer-deferred-features"');
-    expect(src).toContain('data-reviewer-deferred-block="available"');
-    expect(src).toContain('data-reviewer-deferred-block="deferred"');
-    // Honest items the brief told us not to fake. Note: second-review
-    // and conflict-resolution were PROMOTED out of "deferred" in
-    // Phase B.2 — they are now real (server-enforced state machine).
-    // The remaining deferred items below are still genuinely deferred.
-    expect(src).toContain('data-reviewer-deferred-item="evidence-compare"');
-    expect(src).toContain('data-reviewer-deferred-item="auto-routing"');
-    expect(src).toContain(
-      'data-reviewer-deferred-item="manual-second-review-override"',
-    );
-    expect(src).toContain('data-reviewer-deferred-item="senior-reviewer-role"');
-    // Available items grounding what IS shipped.
-    expect(src).toContain('data-reviewer-deferred-item="structured-notes"');
-    expect(src).toContain('data-reviewer-deferred-item="rationale-required"');
-    // Phase B.2 additions to the "available" block.
-    expect(src).toContain('data-reviewer-deferred-item="multi-stage-review"');
-    expect(src).toContain('data-reviewer-deferred-item="decision-lineage"');
+    // TEAM-SPEC (2026-11-23) — the product-facing "Reviewer collaboration
+    // scope" panel (AVAILABLE NOW / DEFERRED roadmap list) was removed from
+    // the inspector: a roadmap is not product surface. It must not return.
+    expect(src).not.toContain('data-section="reviewer-deferred-features"');
+    expect(src).not.toContain("data-reviewer-deferred-block");
+    expect(src).not.toContain("data-reviewer-deferred-item");
+    expect(src).not.toContain("Reviewer collaboration scope");
     // Phase B.1 must preserve Phase A.1D + Phase B continuity markers.
     expect(src).toContain("data-reviewer-cross-surface-links");
     expect(src).toContain('data-section="reviewer-governance-signals"');

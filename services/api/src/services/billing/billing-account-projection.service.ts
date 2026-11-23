@@ -109,7 +109,9 @@ import {
 } from "./base-subscription.service.js";
 import {
   loweringEndsReviewerOperations,
+  reviewerOperationsEndingOnCancellation,
   reviewerOperationsEndingOnLowering,
+  type CancellationReviewerOperationsEnding,
   type ReviewerOperationsEnding,
 } from "./reviewer-operations-ending.service.js";
 
@@ -621,6 +623,19 @@ export type BillingAccountProjection = {
   contract?: EnterpriseContractSummary;
   /** Plans this account may purchase. Empty when it may purchase none. */
   planOffers?: PlanOffer[];
+  /**
+   * TEAM-SPEC §0 / R1 (2026-11-23, cancel disclosure) — what cancelling ends,
+   * told BEFORE the customer confirms. Present only with
+   * `actions.canRequestCancellation` (the viewer may cancel) when the effective
+   * plan is a paid TEAM subscription (never while an internal grant governs).
+   * `endsReviewerOperations.effectiveAt` is the moment the plan actually leaves
+   * TEAM (see `cancellationEffectiveDate`); `effectiveImmediately` when the
+   * cancel ends it at once; both null/false when the date is only known after
+   * the provider answers. Read-only counts; nothing scheduled; never blocks.
+   */
+  cancellation?: {
+    endsReviewerOperations: CancellationReviewerOperationsEnding;
+  };
   /**
    * What needs doing, if anything.
    *
@@ -1190,7 +1205,7 @@ function planOffersFor(params: {
 /**
  * TEAM-SPEC §0 / R1 — attach the reviewer-operations warning to each DOWNGRADE
  * offer that ends them (TEAM → PRO; FREE is reached by cancelling, which
- * carries the same field on its own response).
+ * the projection discloses in `cancellation.endsReviewerOperations`).
  */
 function withReviewerOperationsEnding(
   currentPlan: prismaPkg.PlanType,
@@ -2124,10 +2139,34 @@ export async function buildBillingAccountProjection(input: {
         })
       : null;
 
+  // TEAM-SPEC §0 / R1 (cancel disclosure) — the same gate as the cancel action
+  // itself (whoever may cancel is told), for a paid TEAM the subscription — not
+  // an internal grant — carries.
+  const cancellationReviewerOperationsEnding =
+    canCancel &&
+    liveSubscription &&
+    subscription &&
+    "providerSubId" in subscription &&
+    scope.planSource !== "INTERNAL_GRANT" &&
+    loweringEndsReviewerOperations(scope.plan, prismaPkg.PlanType.FREE)
+      ? await reviewerOperationsEndingOnCancellation({
+          userId: scope.ownerUserId ?? account.id,
+          plan: scope.plan,
+          subscription: {
+            provider: subscription.provider,
+            providerSubId: subscription.providerSubId,
+            currentPeriodEnd: subscription.currentPeriodEnd ?? null,
+          },
+        })
+      : null;
+
   return {
     account,
     plan,
     usage: { evidence, storage, ai },
+    ...(cancellationReviewerOperationsEnding
+      ? { cancellation: { endsReviewerOperations: cancellationReviewerOperationsEnding } }
+      : {}),
     ...(dependentCancellation
       ? { dependentStorageCancellation: dependentCancellation }
       : {}),

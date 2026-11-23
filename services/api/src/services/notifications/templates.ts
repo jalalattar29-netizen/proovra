@@ -255,6 +255,15 @@ export function renderTransactionalTemplate(
         "Review response received",
         "A response has been received on a review you own",
       );
+    // TEAM-SPEC R3 — a first review was recorded and an independent second
+    // reviewer must be assigned. Sent to assignment managers, never to the
+    // first reviewer; the link opens the review inspector (reassign lives there).
+    case "REVIEW_SECOND_REVIEW_REQUIRED":
+      return renderReviewVariant(
+        expectCtx(ctx, "ReviewAssigned"),
+        "Second review required",
+        "A first review was recorded. Assign an independent second reviewer",
+      );
     case "EXTERNAL_INTAKE_LINK_CREATED":
       return renderIntakeLinkCreated(expectCtx(ctx, "IntakeLinkCreated"));
     case "EXTERNAL_INTAKE_SUBMITTED":

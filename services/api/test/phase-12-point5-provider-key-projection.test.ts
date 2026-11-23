@@ -117,6 +117,11 @@ const DISPOSITIONS: Record<string, "writer" | "projector" | "counter" | "schedul
   // returns no row to a client.
   "services/api/src/services/operations/signing-key-compromise-owners.service.ts": "writer",
   "services/api/src/services/notifications/reminder-scheduler.ts": "scheduler",
+  // TEAM-SPEC R3 (2026-11-23) — the second-review handoff mail reads only
+  // `recipientUserId` of earlier REVIEW_SECOND_REVIEW_REQUIRED deliveries to
+  // decide whom NOT to mail again (once per manager per round); no row body
+  // leaves the function.
+  "services/api/src/services/review-operations/review-notifications.service.ts": "scheduler",
   "services/api/src/services/organization/org-invite-delivery.service.ts": "projector",
   "services/worker/src/mfa-recovery-digest.ts": "writer",
 };

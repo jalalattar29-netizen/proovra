@@ -209,28 +209,18 @@ export async function getEscalationAnalytics(
 
 /**
  * TEAM-SPEC §2.8 (2026-11-23) — a reviewer row says "no data" instead of a
- * fabricated value. `slaComplianceRate` is null when the reviewer completed
- * nothing in the range (it used to read 1, i.e. "100% compliant" with zero
- * completions); `meanResolutionMs` is null when no completed review carries an
- * assignment time; `capacityScore` is null when no workload snapshot exists for
- * the reviewer (it used to read 100, "fully available", for someone the
- * snapshot job never measured). Widened locally over the shared row type
- * (packages/shared is not edited in this change); the wire stays a superset.
+ * fabricated value: `slaComplianceRate` is null with no completed review in
+ * range, `meanResolutionMs` null with no assignment time, `capacityScore` null
+ * with no workload snapshot. The shared ReviewerPerformanceRow type carries
+ * the nullable fields.
  */
-export type ReviewerPerformanceRowWire = Omit<ReviewerPerformanceRow, "slaComplianceRate" | "capacityScore"> & {
-  slaComplianceRate: number | null;
-  capacityScore: number | null;
-};
-export type ReviewerPerformanceProjectionWire = Omit<ReviewerPerformanceProjection, "rows"> & {
-  rows: ReadonlyArray<ReviewerPerformanceRowWire>;
-};
 
 const COMPLETED_REVIEW_STATUSES = ["APPROVED_INTERNAL", "REJECTED_INSUFFICIENT", "CLOSED"] as const;
 
 export async function getReviewerPerformance(
   input: { teamId: string; rangeDays?: number; limit?: number; viewerUserId: string },
   client: PrismaClient = defaultPrisma,
-): Promise<ReviewerPerformanceProjectionWire> {
+): Promise<ReviewerPerformanceProjection> {
   const { startUtc, endUtc } = boundRange(input.rangeDays);
   const limit = Math.min(Math.max(input.limit ?? 25, 1), 100);
 
@@ -361,7 +351,7 @@ export async function getReviewerPerformance(
     }
   }
 
-  const projectedRows: ReviewerPerformanceRowWire[] = Array.from(agg.entries())
+  const projectedRows: ReviewerPerformanceRow[] = Array.from(agg.entries())
     .map(([reviewerUserId, s]) => {
       const meanResolutionMs =
         s.resolvedCount > 0

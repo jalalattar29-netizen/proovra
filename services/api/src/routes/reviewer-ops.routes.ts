@@ -1,7 +1,7 @@
 /**
  * Phase 25 — Reviewer Operations Intelligence + SLA Engine routes.
  *
- *   GET  /v1/reviewer-ops/queue?teamId&queue&limit
+ *   GET  /v1/reviewer-ops/queue?teamId&queue&limit   (queue also AWAITING_SECOND_REVIEW | AWAITING_ADJUDICATION)
  *   GET  /v1/reviewer-ops/dashboard?teamId
  *   GET  /v1/reviewer-ops/workspace/:workflowId?teamId
  *   GET  /v1/reviewer-ops/workload?teamId&limit
@@ -78,6 +78,7 @@ import {
   recordResponseReceived,
   getReviewerOpsWorkspace,
   listReviewerOpsQueue,
+  REVIEWER_OPS_HANDOFF_QUEUE_TYPES,
   pauseReview,
   resumeReview,
   rejectReview,
@@ -777,7 +778,11 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       }
       const QueueQuery = z.object({
         teamId: z.string().uuid(),
-        queue: z.enum(REVIEWER_OPS_QUEUE_TYPES).default("UNASSIGNED"),
+        // TEAM-SPEC R3 — plus the handoff slices AWAITING_SECOND_REVIEW and
+        // AWAITING_ADJUDICATION (same projection, paging and reach).
+        queue: z
+          .enum([...REVIEWER_OPS_QUEUE_TYPES, ...REVIEWER_OPS_HANDOFF_QUEUE_TYPES])
+          .default("UNASSIGNED"),
         // `.max(100).optional().default(50)` matches the audit
         // direction. The cap is preserved; the default makes the
         // limit explicitly bounded rather than implicitly so.

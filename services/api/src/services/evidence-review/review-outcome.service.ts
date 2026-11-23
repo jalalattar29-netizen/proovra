@@ -28,7 +28,7 @@
  * before it was closed. Never CLOSED itself: a verdict followed by a Reopen
  * or by any other move (back into review, for instance) no longer stands.
  */
-import type { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import {
   deriveDecisionProjection,
   legacyReviewDecisionFromStatus,
@@ -37,7 +37,6 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { secondReviewForRound } from "./second-review.service.js";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -94,8 +93,18 @@ export async function loadCurrentReviewDecision(wf: ReviewWorkflowRef, client: D
 /**
  * The current round's decision for MANY workflows (queues, counts): one
  * decision-row query and one decision-event query for the batch; the live
- * requirement only for workflows whose round has rows and is not already
- * resolved; history only for legacy workflows whose status lost the verdict.
+ * requirement only for workflows whose round has rows, is not already
+ * resolved, and whose verdict actually depends on it — read for all of them
+ * in one batch (`secondReviewRequiredForRounds`); history only for legacy
+ * workflows whose status lost the verdict.
+ *
+ * PERF (2026-11-23, team-review perf pass): the requirement used to be read
+ * per workflow (`secondReviewForRound`, 5–7 statements each), which made the
+ * reviewer-performance analytics issue ~3,500 statements (2.6 s) for a 90-day
+ * window on a 5,000-review workspace; and the current-round rows were asked
+ * for with one OR branch per workflow (a 2,000-branch BitmapOr, ~90 ms). Same
+ * results — proven against the per-workflow derivation in
+ * test/team-review-perf-decision-batch.integration.test.ts.
  */
 export async function loadCurrentReviewDecisions(
   workflows: ReadonlyArray<ReviewWorkflowRef>,
@@ -105,9 +114,14 @@ export async function loadCurrentReviewDecisions(
   if (workflows.length === 0) return out;
   const roundOf = new Map(workflows.map((w) => [w.id, w.decisionRound]));
 
-  // Only each workflow's CURRENT round (bounded by the batch).
+  // Only each workflow's CURRENT round (bounded by the batch). Asked as one
+  // `workflow_id = ANY(...)` (plus the rounds in play) and narrowed to each
+  // workflow's own round below — never one OR branch per workflow.
   const rows = (await client.workflowReviewDecision.findMany({
-    where: { OR: workflows.map((w) => ({ workflowId: w.id, round: w.decisionRound })) },
+    where: {
+      workflowId: { in: [...roundOf.keys()] },
+      round: { in: [...new Set(roundOf.values())] },
+    },
     orderBy: { decidedAt: "asc" },
     select: { workflowId: true, round: true, stage: true, decision: true, reviewerUserId: true },
   })) as unknown as DecisionRow[];
@@ -134,6 +148,7 @@ export async function loadCurrentReviewDecisions(
   }
 
   const legacyHistoryNeeded: ReviewWorkflowRef[] = [];
+  const requirementNeeded: Array<ReviewWorkflowRef & { teamId: string }> = [];
   for (const wf of workflows) {
     const current = roundRows.get(wf.id);
     if (current && current.length > 0 && wf.teamId) {
@@ -142,11 +157,16 @@ export async function loadCurrentReviewDecisions(
         out.set(wf.id, reached);
         continue;
       }
-      const second = await secondReviewForRound(
-        { workflowId: wf.id, teamId: wf.teamId, evidenceId: wf.evidenceId, round: wf.decisionRound },
-        client,
-      );
-      out.set(wf.id, reviewDecisionFromProjection(deriveDecisionProjection(current as never, second.required)));
+      // The requirement only matters when it changes the verdict (a round
+      // with a FIRST decision only); with a second decision or an
+      // adjudication on the log the projection ignores it.
+      const ifRequired = reviewDecisionFromProjection(deriveDecisionProjection(current as never, true));
+      const ifNot = reviewDecisionFromProjection(deriveDecisionProjection(current as never, false));
+      if (ifRequired === ifNot) {
+        out.set(wf.id, ifRequired);
+        continue;
+      }
+      requirementNeeded.push({ ...wf, teamId: wf.teamId });
       continue;
     }
     if (wf.decisionRound !== 0) {
@@ -163,6 +183,16 @@ export async function loadCurrentReviewDecisions(
     // 1). Every other round-0 workflow without rows was never decided.
     if (String(wf.status).toUpperCase() === "CLOSED") legacyHistoryNeeded.push(wf);
     else out.set(wf.id, "NO_DECISION");
+  }
+
+  if (requirementNeeded.length > 0) {
+    const required = await secondReviewRequiredForRounds(requirementNeeded, events, client);
+    for (const wf of requirementNeeded) {
+      out.set(
+        wf.id,
+        reviewDecisionFromProjection(deriveDecisionProjection(roundRows.get(wf.id) as never, required.get(wf.id) === true)),
+      );
+    }
   }
 
   if (legacyHistoryNeeded.length > 0) {
@@ -182,4 +212,118 @@ export async function loadCurrentReviewDecisions(
     }
   }
   return out;
+}
+
+/**
+ * `secondReviewForRound(...).required` for MANY rounds, in a constant number
+ * of statements. The SAME rule as second-review.service.ts — keep the two in
+ * step (the equivalence test compares them on seeded data):
+ *
+ *   1. A round SETTLED by a request for information needs no second review
+ *      (`roundSettledByRequestInfo`): the latest DECISION_LOGGED event
+ *      recording this round decides; failing one, the first DECISION_LOGGED
+ *      event at or after the round's latest decision (pre-round events).
+ *   2. Otherwise the live requirement (`requiresSecondReview`): the workflow
+ *      is ESCALATED, it has an open escalation in its team, its evidence has
+ *      an ACTIVE legal hold in its team, or a redaction-required visibility
+ *      decision.
+ *
+ * `events` are the batch's DECISION_LOGGED events, newest first, already
+ * loaded by the caller for exactly these workflows.
+ */
+export async function secondReviewRequiredForRounds(
+  rounds: ReadonlyArray<{ id: string; teamId: string; evidenceId: string; decisionRound: number }>,
+  events: ReadonlyArray<{ workflowId: string; nextValue: unknown }>,
+  client: Db,
+): Promise<Map<string, boolean>> {
+  const required = new Map<string, boolean>();
+  const byWorkflow = new Map<string, Array<{ nextValue: unknown }>>();
+  for (const e of events) {
+    const list = byWorkflow.get(e.workflowId) ?? [];
+    list.push(e);
+    byWorkflow.set(e.workflowId, list);
+  }
+
+  const live: typeof rounds[number][] = [];
+  const preRound: typeof rounds[number][] = [];
+  for (const wf of rounds) {
+    // The latest event recording THIS round (events are newest first, in the
+    // database's own order).
+    const inRound = (byWorkflow.get(wf.id) ?? []).find(
+      (e) => (e.nextValue as { round?: unknown } | null)?.round === wf.decisionRound,
+    );
+    if (!inRound) preRound.push(wf);
+    else if (settledByRequestInfo(inRound.nextValue)) required.set(wf.id, false);
+    else live.push(wf);
+  }
+  if (preRound.length > 0) {
+    // Pre-round events: the first DECISION_LOGGED event at or after the
+    // round's latest decision — compared IN THE DATABASE, at its microsecond
+    // precision (a decision and its own event share a transaction timestamp,
+    // which a millisecond JS Date cannot order).
+    const firstAfter = await client.$queryRaw<Array<{ workflow_id: string; next_value: unknown }>>(Prisma.sql`
+      SELECT d.workflow_id::text AS workflow_id, e.next_value
+      FROM (
+        SELECT DISTINCT ON (w.workflow_id) w.workflow_id, w.decided_at
+        FROM "workflow_review_decisions" w
+        JOIN unnest(${preRound.map((w) => w.id)}::uuid[], ${preRound.map((w) => w.decisionRound)}::int[]) AS r(id, round)
+          ON w.workflow_id = r.id AND w.round = r.round
+        ORDER BY w.workflow_id, w.decided_at DESC
+      ) d
+      JOIN LATERAL (
+        SELECT ev.next_value
+        FROM "evidence_review_workflow_events" ev
+        WHERE ev.workflow_id = d.workflow_id
+          AND ev.event_type = 'DECISION_LOGGED'
+          AND ev.created_at >= d.decided_at
+        ORDER BY ev.created_at ASC
+        LIMIT 1
+      ) e ON TRUE
+    `);
+    const settledById = new Map(firstAfter.map((r) => [r.workflow_id, settledByRequestInfo(r.next_value)]));
+    for (const wf of preRound) {
+      if (settledById.get(wf.id) === true) required.set(wf.id, false);
+      else live.push(wf);
+    }
+  }
+  if (live.length === 0) return required;
+
+  const ids = live.map((w) => w.id);
+  const evidenceIds = [...new Set(live.map((w) => w.evidenceId))];
+  const [statuses, openEsc, holds, redactions] = await Promise.all([
+    client.evidenceReviewWorkflow.findMany({ where: { id: { in: ids } }, select: { id: true, status: true } }),
+    client.reviewEscalation.findMany({
+      where: { workflowId: { in: ids }, status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] } },
+      select: { workflowId: true, teamId: true },
+    }),
+    client.evidenceLegalHold.findMany({
+      where: { evidenceId: { in: evidenceIds }, status: "ACTIVE" },
+      select: { evidenceId: true, teamId: true },
+    }),
+    client.evidenceWorkflowVisibilityDecision.findMany({
+      where: { evidenceId: { in: evidenceIds }, requiresRedaction: true },
+      select: { evidenceId: true },
+      distinct: ["evidenceId"],
+    }),
+  ]);
+  const escalated = new Set(statuses.filter((w) => w.status === "ESCALATED").map((w) => w.id));
+  const escByWf = new Set(openEsc.map((e) => `${e.workflowId}|${e.teamId}`));
+  const holdByEv = new Set(holds.map((h) => `${h.evidenceId}|${h.teamId}`));
+  const redacted = new Set(redactions.map((r) => r.evidenceId));
+  for (const wf of live) {
+    required.set(
+      wf.id,
+      escalated.has(wf.id) ||
+        escByWf.has(`${wf.id}|${wf.teamId}`) ||
+        holdByEv.has(`${wf.evidenceId}|${wf.teamId}`) ||
+        redacted.has(wf.evidenceId),
+    );
+  }
+  return required;
+}
+
+/** Same reading as second-review.service.ts `settledBy`. */
+function settledByRequestInfo(nextValue: unknown): boolean {
+  const v = (nextValue ?? {}) as { stage?: unknown; state?: unknown };
+  return v.stage === "NEEDS_MORE_INFO" && v.state === "resolved";
 }

@@ -66,6 +66,8 @@ export function reviewEmailLink(workflow: { id?: string | null; evidenceId: stri
 import { prisma as defaultPrisma } from "../../db.js";
 import { safeSendEmailNotification, type NotificationSendResult } from "../notifications/index.js";
 import { getEmailWebBaseUrl } from "../notifications/templates.js";
+import { evaluateMemberAccess } from "../identity/access-policy.service.js";
+import { resolveEvidenceRecordAccess } from "../evidence/evidence-record-access.service.js";
 
 async function resolveAssigneeAndWorkspace(
   workflow: NotifiedWorkflow,
@@ -271,4 +273,121 @@ export async function notifyReviewSlaBreached(
   } catch {
     /* swallow */
   }
+}
+
+// -----------------------------------------------------------------------------
+// TEAM-SPEC R3 (2026-11-23) — second-review handoff.
+// -----------------------------------------------------------------------------
+
+/**
+ * The workspace's ASSIGNMENT MANAGERS for one review: ACTIVE members holding
+ * `review.assign` (the permission the reassign route requires) who can also
+ * open the record (a restricted case keeps its own list), minus `excludeUserId`
+ * — the first reviewer, who may never hand the second review to themselves.
+ * Read through the same policy engine the routes use, so a delegated grant
+ * counts and a suspended member does not.
+ */
+export async function listReviewAssignmentManagers(
+  input: { teamId: string; evidenceId: string; excludeUserIds: ReadonlyArray<string> },
+  client: PrismaClient = defaultPrisma,
+): Promise<Array<{ id: string; email: string | null; displayName: string | null }>> {
+  const members = await client.teamMember.findMany({
+    where: { teamId: input.teamId, status: "ACTIVE", userId: { notIn: [...input.excludeUserIds] } },
+    select: { userId: true, user: { select: { id: true, email: true, displayName: true } } },
+    orderBy: { userId: "asc" },
+    take: 200,
+  });
+  const managers: Array<{ id: string; email: string | null; displayName: string | null }> = [];
+  for (const m of members) {
+    const assign = await evaluateMemberAccess(
+      { teamId: input.teamId, userId: m.userId, permission: "review.assign" },
+      client,
+    );
+    if (!assign.allowed) continue;
+    const reach = await resolveEvidenceRecordAccess(
+      { userId: m.userId, evidenceId: input.evidenceId, permission: "evidence.read" },
+      client,
+    );
+    if (!reach.allowed) continue;
+    managers.push({ id: m.user.id, email: m.user.email ?? null, displayName: m.user.displayName ?? null });
+  }
+  return managers;
+}
+
+/**
+ * A FIRST decision was recorded and the round now needs an independent SECOND
+ * reviewer. Tells the workspace's assignment managers (never the first
+ * reviewer) with a link to the review inspector, where the reassignment lives.
+ *
+ * Best-effort, like every helper here: never throws, never undoes the decision.
+ * Idempotent per workflow + round: a manager already sent this event for the
+ * record since the round's FIRST decision is not sent it again (the delivery
+ * log is the ledger; a later round's FIRST decision is later, so it notifies
+ * afresh).
+ */
+export async function notifySecondReviewRequired(
+  input: {
+    workflow: NotifiedWorkflow & { id: string };
+    firstReviewerUserId: string;
+    firstDecidedAt: Date;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<{ notifiedUserIds: string[] }> {
+  const notifiedUserIds: string[] = [];
+  try {
+    if (!input.workflow.teamId) return { notifiedUserIds };
+    const managers = await listReviewAssignmentManagers(
+      {
+        teamId: input.workflow.teamId,
+        evidenceId: input.workflow.evidenceId,
+        excludeUserIds: [input.firstReviewerUserId],
+      },
+      client,
+    );
+    if (managers.length === 0) return { notifiedUserIds };
+    const already = await client.notificationDelivery.findMany({
+      where: {
+        eventType: "REVIEW_SECOND_REVIEW_REQUIRED",
+        evidenceId: input.workflow.evidenceId,
+        recipientUserId: { in: managers.map((m) => m.id) },
+        createdAt: { gte: input.firstDecidedAt },
+      },
+      select: { recipientUserId: true },
+    });
+    const sent = new Set(already.map((r) => r.recipientUserId));
+    let workspaceName = "Workspace";
+    const team = await client.team
+      .findUnique({ where: { id: input.workflow.teamId }, select: { name: true } })
+      .catch(() => null);
+    if (team?.name) workspaceName = team.name;
+    const reviewUrl = reviewEmailLink(input.workflow);
+    for (const manager of managers) {
+      if (sent.has(manager.id)) continue;
+      await safeSendEmailNotification(
+        {
+          eventType: "REVIEW_SECOND_REVIEW_REQUIRED",
+          teamId: input.workflow.teamId,
+          recipientEmail: manager.email ?? "",
+          recipientName: manager.displayName,
+          recipientUserId: manager.id,
+          evidenceId: input.workflow.evidenceId,
+          initiatedByUserId: input.firstReviewerUserId,
+          template: {
+            kind: "ReviewAssigned",
+            data: {
+              workspaceName,
+              requestTitle: `Evidence ${input.workflow.evidenceId.slice(0, 8)}…`,
+              reviewerName: manager.displayName,
+              requestUrl: reviewUrl,
+            },
+          },
+        },
+        client,
+      );
+      notifiedUserIds.push(manager.id);
+    }
+  } catch {
+    /* swallowed — the decision stands */
+  }
+  return { notifiedUserIds };
 }

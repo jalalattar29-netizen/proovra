@@ -94,6 +94,14 @@ import {
   type WorkloadDashboardRow,
 } from "./workload.service.js";
 import { loadWorkspaceReviewerOpsFlags } from "./sla-policy.service.js";
+import {
+  classifyCurrentRounds,
+  computeReviewHandoff,
+  handoffRequirementFor,
+  REVIEWER_OPS_HANDOFF_QUEUE_TYPES,
+  type ReviewHandoff,
+  type ReviewerOpsHandoffQueueType,
+} from "./review-handoff.service.js";
 import { notifyReviewResponseReceived } from "../review-operations/review-notifications.service.js";
 import { workspaceIncludesReviewCapability } from "../billing-enforcement.service.js";
 import { warn as logWarn } from "../../utils/logger.js";
@@ -257,10 +265,28 @@ function assertNoteIfRequired(note: string | null | undefined): void {
 
 export type ReviewerOpsQueueRow = ReviewerOpsWorkflowProjection;
 
+/**
+ * The shared queue catalog plus the TEAM-SPEC R3 handoff slices
+ * (AWAITING_SECOND_REVIEW / AWAITING_ADJUDICATION), which are derived from the
+ * current round's decision state rather than a column.
+ */
+export type ReviewerOpsQueueName = ReviewerOpsQueueType | ReviewerOpsHandoffQueueType;
+export { REVIEWER_OPS_HANDOFF_QUEUE_TYPES, type ReviewerOpsHandoffQueueType, type ReviewHandoff };
+
+function isHandoffQueue(q: ReviewerOpsQueueName): q is ReviewerOpsHandoffQueueType {
+  return (REVIEWER_OPS_HANDOFF_QUEUE_TYPES as ReadonlyArray<string>).includes(q);
+}
+
 export type ReviewerOpsQueueInput = {
   teamId: string;
   meUserId: string;
-  queue: ReviewerOpsQueueType;
+  queue: ReviewerOpsQueueName;
+  /**
+   * Handoff slices only: the most candidates one call may classify (default
+   * and ceiling 1000). The console passes a small bound; a page cut short by
+   * it still returns a cursor.
+   */
+  maxScan?: number;
   /** Bounded; route layer also bounds. */
   limit?: number;
   cursor?: string | null;
@@ -288,6 +314,9 @@ async function listReviewerOpsQueueInner(
   nextCursor: string | null;
 }> {
   const limit = Math.min(Math.max(input.limit ?? 25, 1), 100);
+  if (isHandoffQueue(input.queue)) {
+    return listHandoffQueue({ ...input, queue: input.queue, limit }, client);
+  }
   // WORKFLOW-013 — every work queue shows open work. Only Completed recently looks
   // at finished reviews; it sets its own filter below.
   const baseWhere: Record<string, unknown> = {
@@ -438,6 +467,149 @@ async function listReviewerOpsQueueInner(
 }
 
 // -----------------------------------------------------------------------------
+// TEAM-SPEC R3 — handoff queue slices.
+//
+// "Awaiting second reviewer" = open reviews whose CURRENT round is
+// second_required; "Awaiting adjudication" = current round in conflict. The
+// state is derived (decision log of the current round + the live second-review
+// requirement), so candidates are narrowed in SQL (open, a FIRST — or for a
+// conflict a SECOND — decision on the log, the caller's reach) and each page of
+// candidates is classified in ONE batched pass (classifyCurrentRounds: the
+// same rule as loadCurrentRoundDecisionState, proven equal in
+// test/team-review-handoff.integration.test.ts). Same ordering, cursor and projection as
+// every other queue; the scan is bounded, and a page cut short by the bound
+// still hands back a cursor so paging continues.
+// -----------------------------------------------------------------------------
+
+const HANDOFF_SCAN_BATCH = 100;
+const HANDOFF_SCAN_MAX = 1000;
+/** Upper bound on candidates a handoff COUNT classifies (one batched pass). */
+const HANDOFF_COUNT_CAP = 2000;
+
+function handoffCandidateWhere(input: { teamId: string; meUserId: string; queue: ReviewerOpsHandoffQueueType }) {
+  return {
+    AND: [
+      {
+        teamId: input.teamId,
+        status: { notIn: [...REVIEW_FINISHED_DB_STATUSES] },
+        reviewDecisions: { some: { stage: input.queue === "AWAITING_SECOND_REVIEW" ? "FIRST" : "SECOND" } },
+      },
+      { evidence: evidenceVisibleThroughCasesWhere(input.meUserId) },
+    ],
+  };
+}
+
+function wantedRequirement(queue: ReviewerOpsHandoffQueueType): "second_review" | "adjudication" {
+  return queue === "AWAITING_SECOND_REVIEW" ? "second_review" : "adjudication";
+}
+
+/**
+ * How many reviews a handoff slice holds, under the same candidate filter and
+ * the same batched classification as the list (one pass, capped).
+ */
+export async function countHandoffQueue(
+  input: { teamId: string; meUserId: string; queue: ReviewerOpsHandoffQueueType },
+  client: PrismaClient = defaultPrisma,
+): Promise<{ count: number; capped: boolean }> {
+  const candidates = await client.evidenceReviewWorkflow.findMany({
+    where: handoffCandidateWhere(input) as never,
+    select: { id: true, teamId: true, evidenceId: true, status: true, decisionRound: true },
+    orderBy: { id: "asc" },
+    take: HANDOFF_COUNT_CAP + 1,
+  });
+  const capped = candidates.length > HANDOFF_COUNT_CAP;
+  if (capped) candidates.pop();
+  const states = await classifyCurrentRounds(
+    candidates.map((c) => ({ ...c, status: String(c.status) })),
+    client,
+  );
+  const want = wantedRequirement(input.queue);
+  let count = 0;
+  for (const st of states.values()) if (handoffRequirementFor(st) === want) count += 1;
+  return { count, capped };
+}
+
+async function listHandoffQueue(
+  input: ReviewerOpsQueueInput & { queue: ReviewerOpsHandoffQueueType; limit: number },
+  client: PrismaClient,
+): Promise<{ rows: ReadonlyArray<ReviewerOpsQueueRow>; nextCursor: string | null }> {
+  const want = wantedRequirement(input.queue);
+  const where = handoffCandidateWhere(input);
+  const scanMax = Math.min(Math.max(input.maxScan ?? HANDOFF_SCAN_MAX, 1), HANDOFF_SCAN_MAX);
+  const kept: DbWorkflow[] = [];
+  let cursor: string | null =
+    typeof input.cursor === "string" && input.cursor.length > 0 ? input.cursor : null;
+  let scanned = 0;
+  let exhausted = false;
+  while (kept.length <= input.limit && scanned < scanMax) {
+    const take = Math.min(HANDOFF_SCAN_BATCH, scanMax - scanned);
+    const batch: DbWorkflow[] = await client.evidenceReviewWorkflow.findMany({
+      where: where as never,
+      orderBy: [{ priority: "desc" }, { dueAt: "asc" }, { updatedAt: "desc" }, { id: "desc" }],
+      take,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+    // ONE batched classification per page of candidates (TEAM-SPEC perf pass).
+    const states = await classifyCurrentRounds(
+      batch.map((r) => ({
+        id: r.id,
+        teamId: r.teamId,
+        evidenceId: r.evidenceId,
+        status: String(r.status),
+        decisionRound: r.decisionRound,
+      })),
+      client,
+    );
+    for (const row of batch) {
+      scanned += 1;
+      cursor = row.id;
+      const st = states.get(row.id);
+      if (st && handoffRequirementFor(st) === want) {
+        kept.push(row);
+        if (kept.length > input.limit) break;
+      }
+    }
+    if (batch.length < take) {
+      exhausted = kept.length <= input.limit;
+      break;
+    }
+  }
+  let nextCursor: string | null = null;
+  if (kept.length > input.limit) {
+    kept.pop();
+    nextCursor = kept.length > 0 ? kept[kept.length - 1]!.id : cursor;
+  } else if (!exhausted) {
+    // The scan bound was reached before the end: continue from where it stopped.
+    nextCursor = cursor;
+  }
+  const ids = kept.map((r) => r.id);
+  const openEsc =
+    ids.length === 0
+      ? []
+      : await client.reviewEscalation.findMany({
+          where: {
+            teamId: input.teamId,
+            workflowId: { in: ids },
+            status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
+          },
+          select: { workflowId: true },
+        });
+  const escSet = new Set(openEsc.map((e) => e.workflowId));
+  const now = new Date();
+  bump("reviewer_queue_viewed_total");
+  safeEmitSecurityEvent({
+    teamId: input.teamId,
+    eventType: "reviewer_queue_viewed",
+    severity: "INFO",
+    details: { queue: input.queue, returned: kept.length, actorUserId: input.meUserId },
+  });
+  return {
+    rows: kept.map((r) => buildWorkflowProjection(r, { hasOpenEscalation: escSet.has(r.id), nowUtc: now })),
+    nextCursor,
+  };
+}
+
+// -----------------------------------------------------------------------------
 // Dashboard projection
 // -----------------------------------------------------------------------------
 
@@ -538,6 +710,12 @@ export type ReviewerOpsWorkspaceProjection = {
   allowedLifecycleTransitions: ReadonlyArray<ReviewerOpsLifecycleState>;
   /** TEAM-SPEC §2.5 — present when the caller states who is viewing. */
   viewer?: ReviewerViewerProjection;
+  /**
+   * TEAM-SPEC R3 — the second-review / adjudication handoff: what the current
+   * round still needs, whether anyone is eligible to do it, and a staffing
+   * explanation when nobody is. Present when the caller states who is viewing.
+   */
+  handoff?: ReviewHandoff;
 };
 
 /** What the route proved about the viewer (role + capability set). */
@@ -676,6 +854,7 @@ export async function getReviewerOpsWorkspace(
   const { listAllowedLifecycleTransitions } = await import("@proovra/shared");
   const allowed = listAllowedLifecycleTransitions(projection.lifecycleState);
   let viewer: ReviewerViewerProjection | undefined;
+  let handoff: ReviewHandoff | undefined;
   if (input.viewerFacts && row.teamId) {
     const [decision, assignmentsIncluded] = await Promise.all([
       loadCurrentRoundDecisionState(
@@ -698,12 +877,14 @@ export async function getReviewerOpsWorkspace(
       decision,
       assignmentsIncluded,
     });
+    handoff = await computeReviewHandoff(row, decision, client);
   }
   return {
     projection,
     openEscalation: open,
     allowedLifecycleTransitions: allowed,
     ...(viewer ? { viewer } : {}),
+    ...(handoff ? { handoff } : {}),
   };
 }
 

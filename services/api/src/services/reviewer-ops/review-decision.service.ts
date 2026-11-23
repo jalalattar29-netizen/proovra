@@ -68,7 +68,10 @@ import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import { evaluateMemberAccess } from "../identity/access-policy.service.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
-import { notifyReviewNeedsMoreInfo } from "../review-operations/review-notifications.service.js";
+import {
+  notifyReviewNeedsMoreInfo,
+  notifySecondReviewRequired,
+} from "../review-operations/review-notifications.service.js";
 import { resolveOpenReviewEscalation } from "./escalation-engine.service.js";
 import { releaseHeldOutputs } from "../governance/output-hold-release.service.js";
 import { requiresSecondReview, secondReviewForRound } from "../evidence-review/second-review.service.js";
@@ -652,6 +655,26 @@ export async function recordReviewDecision(
   ) {
     notifyReviewNeedsMoreInfo(
       { workflow: result.workflow, actorUserId: input.actorUserId },
+      client,
+    ).catch(() => null);
+  }
+
+  // TEAM-SPEC R3 — a FIRST decision that leaves the round awaiting an
+  // independent SECOND reviewer tells the workspace's assignment managers
+  // (never the first reviewer). After commit, best-effort: a failed send never
+  // undoes the decision. A replay notifies nobody; the helper is also
+  // idempotent per workflow + round against the delivery log.
+  if (
+    !result.idempotent &&
+    result.outcome.stageRecorded === "FIRST" &&
+    result.outcome.nextRequirement === "second_review"
+  ) {
+    await notifySecondReviewRequired(
+      {
+        workflow: result.workflow,
+        firstReviewerUserId: input.actorUserId,
+        firstDecidedAt: result.decision.decidedAt,
+      },
       client,
     ).catch(() => null);
   }

@@ -65,6 +65,7 @@ import {
 import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import { stampReviewDeadlines } from "../reviewer-ops/review-sla-stamp.service.js";
 import { resolveEffectiveSlaPolicy } from "../reviewer-ops/sla-policy.service.js";
+import { workspaceIncludesReviewCapability } from "../billing-enforcement.service.js";
 import { advanceSweepCursor, afterCursor, readSweepCursor } from "../reviewer-ops/sweep-cursor.js";
 
 // -----------------------------------------------------------------------------
@@ -961,6 +962,8 @@ export async function reconcileReviewSlas(
   flippedDueSoon: number;
   skippedCompleted: number;
   skippedPaused: number;
+  /** Rows in workspaces without reviewer-operations entitlement (left untouched). */
+  skippedNotEntitled: number;
   /** The rows that moved into BREACHED, for the caller to escalate. */
   breachedWorkflowIds: string[];
   /** True when this call reached the last row. */
@@ -979,6 +982,21 @@ export async function reconcileReviewSlas(
     }
     return windows.get(teamId);
   };
+  // TEAM-SPEC (2026-11-23, D-ESC-1) — SLA automation runs only where the
+  // workspace is still entitled to reviewer operations, the same answer the
+  // reconcile engine and every reviewer-ops route apply. The cron sweep
+  // (POST /v1/review-operations/reconcile-slas, every workspace) used to flip
+  // and email workspaces downgraded from TEAM. Skipped rows are left exactly as
+  // they are: nothing is deleted or rewritten.
+  const entitled = new Map<string, boolean>();
+  const automationEntitled = async (teamId: string | null): Promise<boolean> => {
+    if (!teamId) return false;
+    if (!entitled.has(teamId)) {
+      entitled.set(teamId, await workspaceIncludesReviewCapability(teamId, "REVIEW_ESCALATION").catch(() => false));
+    }
+    return entitled.get(teamId)!;
+  };
+  let skippedNotEntitled = 0;
 
   let scanned = 0;
   let flippedBreached = 0;
@@ -1014,6 +1032,10 @@ export async function reconcileReviewSlas(
       }
       if (wf.slaPausedAtUtc) {
         skippedPaused += 1;
+        continue;
+      }
+      if (!(await automationEntitled(wf.teamId))) {
+        skippedNotEntitled += 1;
         continue;
       }
       const dueSoonHours = wf.slaDueSoonHours ?? (await dueSoonFor(wf.teamId));
@@ -1065,6 +1087,7 @@ export async function reconcileReviewSlas(
     flippedDueSoon,
     skippedCompleted,
     skippedPaused,
+    skippedNotEntitled,
     breachedWorkflowIds,
     wrapped,
   };

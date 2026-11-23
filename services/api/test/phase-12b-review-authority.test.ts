@@ -48,6 +48,8 @@ vi.mock(
     notifyReviewEscalated: vi.fn(async () => null),
     notifyReviewNeedsMoreInfo: notifyNeedsMoreInfoMock,
     notifyReviewSlaBreached: vi.fn(async () => null),
+    // TEAM-SPEC R3 — the post-commit second-review handoff notice.
+    notifySecondReviewRequired: vi.fn(async () => ({ notifiedUserIds: [] })),
   }),
 );
 

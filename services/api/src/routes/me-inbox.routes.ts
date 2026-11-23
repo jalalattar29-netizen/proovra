@@ -61,6 +61,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { caseVisibleToWhere, evidenceVisibleThroughCasesWhere } from "../services/cases/case-visibility.js";
 import { secondReviewForRound } from "../services/evidence-review/second-review.service.js";
+import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { getAuthUserId } from "../auth.js";
@@ -2230,6 +2231,77 @@ export async function buildInboxAggregation(
         if (second.required) pendingSecondForMe.push(d);
       }
 
+      // (c) TEAM-SPEC R3 — reviews the caller should HAND OFF: a FIRST
+      //     decision (by someone else) left the current round awaiting an
+      //     independent SECOND reviewer, nobody but the first reviewer holds
+      //     the review yet, and the caller holds `review.assign` there (the
+      //     permission the reassign route requires). Same round rule and
+      //     record reach as (b); the item disappears once the review is
+      //     reassigned, decided or closed.
+      type AssignSecondRow = { workflowId: string; teamId: string; decidedAt: Date; round: number };
+      const assignSecondForMe = await safelyLoadSource(
+        "review_assign_second",
+        async (): Promise<AssignSecondRow[]> => {
+          if (teamIds.length === 0) return [];
+          const firsts = (
+            await prisma.workflowReviewDecision.findMany({
+              where: {
+                stage: "FIRST",
+                teamId: { in: teamIds },
+                reviewerUserId: { not: userId },
+                workflow: {
+                  status: { notIn: ["APPROVED_INTERNAL", "REJECTED_INSUFFICIENT", "CLOSED", "NEEDS_INFO"] },
+                  evidence: inboxRecordVisible,
+                },
+              },
+              orderBy: { decidedAt: "desc" },
+              take: 50,
+              select: {
+                workflowId: true,
+                teamId: true,
+                decidedAt: true,
+                round: true,
+                reviewerUserId: true,
+                workflow: { select: { decisionRound: true, evidenceId: true, assignedToUserId: true } },
+              },
+            })
+          ).filter(
+            (d) =>
+              d.round === d.workflow.decisionRound &&
+              (d.workflow.assignedToUserId === null || d.workflow.assignedToUserId === d.reviewerUserId),
+          );
+          if (firsts.length === 0) return [];
+          const seconds = await prisma.workflowReviewDecision.findMany({
+            where: { workflowId: { in: firsts.map((d) => d.workflowId) }, stage: "SECOND" },
+            select: { workflowId: true, round: true },
+          });
+          const roundOf = new Map(firsts.map((d) => [d.workflowId, d.round]));
+          const decidedSecond = new Set(
+            seconds.filter((x) => roundOf.get(x.workflowId) === x.round).map((x) => x.workflowId),
+          );
+          const assignerTeams = new Map<string, boolean>();
+          const out: AssignSecondRow[] = [];
+          for (const d of firsts) {
+            if (decidedSecond.has(d.workflowId)) continue;
+            let mayAssign = assignerTeams.get(d.teamId);
+            if (mayAssign === undefined) {
+              mayAssign = (await evaluateMemberAccess({ teamId: d.teamId, userId, permission: "review.assign" })).allowed;
+              assignerTeams.set(d.teamId, mayAssign);
+            }
+            if (!mayAssign) continue;
+            const second = await secondReviewForRound({
+              workflowId: d.workflowId,
+              teamId: d.teamId,
+              evidenceId: d.workflow.evidenceId,
+              round: d.round,
+            }).catch(() => ({ required: false }));
+            if (second.required) out.push({ workflowId: d.workflowId, teamId: d.teamId, decidedAt: d.decidedAt, round: d.round });
+          }
+          return out;
+        },
+        [],
+      );
+
       // -----------------------------------------------------------------
       // Source 3: unacknowledged governance notifications for teams
       // the caller is a member of.
@@ -3237,6 +3309,27 @@ export async function buildInboxAggregation(
             workflowId: d.workflowId,
             teamId: d.teamId,
             stage: "SECOND_AWAITED",
+          },
+        });
+      }
+
+      // (c) TEAM-SPEC R3 — assign an independent second reviewer. Actionable
+      //     for an assignment manager (P2, like a conflict). One item per
+      //     workflow + round, so a dismissal never hides a later round.
+      for (const d of assignSecondForMe) {
+        items.push({
+          id: `review_decision:assign_second:${d.workflowId}:${d.round}`,
+          category: "review_decision",
+          tone: "warning",
+          title: `Assign an independent second reviewer`,
+          message: { key: "review.assign_second", params: {} },
+          body: `A first review decision is recorded and this review needs a second decision by a different reviewer. Reassign it to start the second review.`,
+          href: `/reviewer-ops/${encodeURIComponent(d.workflowId)}`,
+          occurredAt: d.decidedAt.toISOString(),
+          context: {
+            workflowId: d.workflowId,
+            teamId: d.teamId,
+            stage: "SECOND_ASSIGNMENT",
           },
         });
       }
