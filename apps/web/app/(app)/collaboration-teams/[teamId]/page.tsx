@@ -40,7 +40,7 @@ import {
   type CollaborationTeamDetail,
 } from "../../../../lib/api/collaboration-teams";
 import { collaborationTeamRoleHasPermission } from "@proovra/shared";
-import { useCan, usePlanFeature, usePlatformContext } from "../../../../lib/platform-context";
+import { usePlanFeature, usePlatformContext } from "../../../../lib/platform-context";
 import { useCanOpenRoute } from "../../../../lib/navigation/useRouteDestination";
 import { PlanLimitBadge } from "../../../../components/billing/PlanLimitBadge";
 import { OverviewTab } from "./_tabs/OverviewTab";
@@ -346,10 +346,11 @@ function TeamDetail() {
   const teamTasksIncluded = usePlanFeature("reviewQueuesIncluded");
   const canOpenExternalReviewConsole = useCanOpenRoute("workspace.review_external");
   // TEAM-SPEC R4 — the console's own registry gate (externalReviewIncluded +
-  // EVIDENCE_MANAGE) is what useCanOpenRoute evaluates; the Team-only
-  // REVIEWER_OPS_VIEW no longer hides it from a Pro owner the console serves.
+  // EVIDENCE_MANAGE) is what useCanOpenRoute evaluates, so it is the ONE gate
+  // here: a Viewer (no EVIDENCE_MANAGE) is not offered a console that refuses
+  // them, and a Pro owner the console serves is not hidden by the Team-only
+  // REVIEWER_OPS_VIEW.
   const canManageExternalReviewers =
-    useCan("EVIDENCE_MANAGE") &&
     externalReviewIncluded === true &&
     canOpenExternalReviewConsole;
 

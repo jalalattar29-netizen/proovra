@@ -289,8 +289,8 @@ test("SCOPE J — collaboration Team-detail deep-links to the external-reviewer 
   // Gated on the same capability the console enforces — never rendered
   // unconditionally (which would only redirect for non-reviewers).
   assert.ok(
-    src.includes('useCan("EVIDENCE_MANAGE")') && src.includes('useCanOpenRoute("workspace.review_external")'),
-    "the deep-link must be gated on the console's registry capability (EVIDENCE_MANAGE) and useCanOpenRoute — TEAM-SPEC R4",
+    src.includes('useCanOpenRoute("workspace.review_external")'),
+    "the deep-link must be gated on the console route opening (useCanOpenRoute: the registry's plan feature + EVIDENCE_MANAGE) — TEAM-SPEC R4",
   );
   // No second portal: the link must not introduce a new /portal or
   // collaboration-teams-scoped external-review route.

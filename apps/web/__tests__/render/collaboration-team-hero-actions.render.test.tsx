@@ -112,6 +112,8 @@ type Plan = {
   reviewQueuesIncluded: boolean;
   reviewerOperationsIncluded: boolean;
   externalReviewIncluded: boolean;
+  /** A workspace Viewer: no EVIDENCE_MANAGE (capability-registry grants it to writers). */
+  viewer?: boolean;
 };
 const PRO_PERSONAL: Plan = { space: "PERSONAL", enterprise: false, reviewQueuesIncluded: false, reviewerOperationsIncluded: false, externalReviewIncluded: true };
 const TEAM_PERSONAL: Plan = { space: "PERSONAL", enterprise: false, reviewQueuesIncluded: true, reviewerOperationsIncluded: true, externalReviewIncluded: true };
@@ -126,11 +128,14 @@ function envelope(plan: Plan): unknown {
     // REVIEWER_OPS_VIEW only where the plan includes reviewer operations, and
     // the writer key (EVIDENCE_MANAGE, the audit.read ladder the grants list
     // enforces) that /review/external now requires.
-    capabilities: { EVIDENCE_MANAGE: true, ...(plan.reviewerOperationsIncluded ? { REVIEWER_OPS_VIEW: true } : {}) },
+    capabilities: {
+      ...(plan.viewer ? {} : { EVIDENCE_MANAGE: true }),
+      ...(plan.reviewerOperationsIncluded ? { REVIEWER_OPS_VIEW: true } : {}),
+    },
     diagnostics: { requestId: "hero-actions" },
     user: { id: VIEWER_ID, email: "lead@meridian.test", displayName: "Lead" },
     workspace: { id: WORKSPACE_ID, name: "Meridian", status: "active", scope: plan.space },
-    activeSpace: { type: plan.space, id: WORKSPACE_ID, displayName: "Meridian", roleLabel: "Owner" },
+    activeSpace: { type: plan.space, id: WORKSPACE_ID, displayName: "Meridian", roleLabel: plan.viewer ? "VIEWER" : "Owner" },
     personalSpace: { id: plan.space === "PERSONAL" ? WORKSPACE_ID : "p-1", displayName: "Personal", available: true },
     flags: { isEnterpriseWorkspace: plan.enterprise },
     planFeatures: {
@@ -172,6 +177,15 @@ describe("External reviewers — rendered only where /review/external opens", ()
   // TEAM-SPEC R4 (2026-11-23) — INVERTED. /review/external is no longer an
   // Organization + Enterprise route: External Review is Pro and above on any
   // workspace kind, so the console opens here and the link renders.
+  // MEX-F-EXTERNAL-REVIEW-GATE — the plan includes External Review, but the
+  // console refuses this actor (no EVIDENCE_MANAGE): the link is gated on the
+  // route opening, not on the plan alone.
+  it("a Viewer on a plan that includes External Review: the console would refuse, so no link", async () => {
+    const view = await mount({ ...TEAM_PERSONAL, viewer: true });
+    await waitFor(() => expect(view.getByTestId("collaboration-hub-link")).toBeTruthy());
+    expect(view.queryByTestId("external-reviewers-link")).toBeNull();
+  });
+
   it("TEAM on a Personal Workspace: the console opens (R4), so the link renders", async () => {
     const view = await mount(TEAM_PERSONAL);
     const link = await view.findByTestId("external-reviewers-link");
