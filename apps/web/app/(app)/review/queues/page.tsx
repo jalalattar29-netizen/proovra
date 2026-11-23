@@ -142,7 +142,19 @@ const BULK_ACTION_CAP = 100;
 // label is bounded and never leaks raw enum to operators. The select's
 // `value` attribute is the canonical UPPERCASE enum that the backend
 // expects.
-const QUEUE_LABELS: Record<ReviewerOpsQueueType, string> = {
+/**
+ * TEAM-SPEC R3 (2026-11-23) — the queue options: the shared catalog plus the
+ * handoff slices the reviewer-ops queue route derives from the current
+ * decision round (queue=AWAITING_SECOND_REVIEW | AWAITING_ADJUDICATION).
+ */
+const HANDOFF_QUEUE_OPTIONS = ["AWAITING_SECOND_REVIEW", "AWAITING_ADJUDICATION"] as const;
+type QueueOption = ReviewerOpsQueueType | (typeof HANDOFF_QUEUE_OPTIONS)[number];
+const QUEUE_OPTIONS: readonly QueueOption[] = [...REVIEWER_OPS_QUEUE_TYPES, ...HANDOFF_QUEUE_OPTIONS];
+function isQueueOption(value: string | null): value is QueueOption {
+  return value !== null && (QUEUE_OPTIONS as readonly string[]).includes(value);
+}
+
+const QUEUE_LABELS: Record<QueueOption, string> = {
   MY_REVIEWS: "Assigned to me",
   UNASSIGNED: "Unassigned",
   OVERDUE: "Overdue",
@@ -154,11 +166,13 @@ const QUEUE_LABELS: Record<ReviewerOpsQueueType, string> = {
   INTEGRITY_RISK: "Integrity risk",
   EXTERNAL_INTAKE: "External intake",
   COMPLETED_RECENTLY: "Completed recently",
+  AWAITING_SECOND_REVIEW: "Awaiting second reviewer",
+  AWAITING_ADJUDICATION: "Awaiting adjudication",
 };
 
 // Empty-state copy per queue. Each tab gets distinct, bounded copy so
 // operators can tell "nothing here right now" from "wrong tab".
-const EMPTY_STATE_COPY: Record<ReviewerOpsQueueType, string> = {
+const EMPTY_STATE_COPY: Record<QueueOption, string> = {
   MY_REVIEWS: "No reviews are currently assigned to you.",
   UNASSIGNED: "No unassigned items are waiting for triage.",
   OVERDUE: "No reviews are overdue.",
@@ -170,6 +184,8 @@ const EMPTY_STATE_COPY: Record<ReviewerOpsQueueType, string> = {
   INTEGRITY_RISK: "No reviews carry an integrity-risk escalation.",
   EXTERNAL_INTAKE: "No external-intake reviews are waiting.",
   COMPLETED_RECENTLY: "No reviews have completed in the last 7 days.",
+  AWAITING_SECOND_REVIEW: "No reviews are waiting for an independent second reviewer.",
+  AWAITING_ADJUDICATION: "No reviewer disagreements are waiting for adjudication.",
 };
 
 export default function QueuesPage() {
@@ -267,16 +283,12 @@ function QueuesShell() {
     activeTeamRef.current = teamId;
   }, [teamId]);
   const initialQueue = searchParams.get("queue");
-  const initialFilter = REVIEWER_OPS_QUEUE_TYPES.includes(
-    initialQueue as ReviewerOpsQueueType,
-  )
-    ? (initialQueue as ReviewerOpsQueueType)
-    : "MY_REVIEWS";
+  const initialFilter: QueueOption = isQueueOption(initialQueue) ? initialQueue : "MY_REVIEWS";
   const [rows, setRows] = useState<QueueRow[] | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<ReviewerOpsQueueType>(initialFilter);
+  const [filter, setFilter] = useState<QueueOption>(initialFilter);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
   // Selection state survives across pages: a row id that was selected
   // on page 1 stays selected after Load-more appends page 2. The
@@ -498,12 +510,8 @@ function QueuesShell() {
 
   useEffect(() => {
     const queue = searchParams.get("queue");
-    if (
-      queue &&
-      REVIEWER_OPS_QUEUE_TYPES.includes(queue as ReviewerOpsQueueType) &&
-      queue !== filter
-    ) {
-      setFilter(queue as ReviewerOpsQueueType);
+    if (isQueueOption(queue) && queue !== filter) {
+      setFilter(queue);
       setSelected(new Set());
     }
   }, [filter, searchParams]);
@@ -698,9 +706,10 @@ function QueuesShell() {
                 value={filter}
                 options={[
                   ...REVIEWER_OPS_QUEUE_TYPES.map((q) => ({ value: q, label: QUEUE_LABELS[q] })),
+                  ...HANDOFF_QUEUE_OPTIONS.map((q) => ({ value: q, label: QUEUE_LABELS[q] })),
                 ]}
                 onChange={(selected) => {
-                                  const next = selected as ReviewerOpsQueueType;
+                                  const next = selected as QueueOption;
                                   setFilter(next);
                                   setSelected(new Set());
                                   router.replace(

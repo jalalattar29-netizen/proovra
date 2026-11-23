@@ -85,6 +85,7 @@ import { ManagePlanDrawer } from "./_sections/ManagePlanDrawer";
 import { usePayPalReturn } from "./_sections/usePayPalReturn";
 import { formatDate } from "./_sections/format";
 import {
+  cancellationReviewerOperationsNote,
   describeAttemptAbandon,
   describeAttemptRecheck,
   describeBillingError,
@@ -93,6 +94,7 @@ import {
   downgradeAddonNote,
   safeCheckoutResumeUrl,
   safePayPalResumeUrl,
+  readCancellationEndsReviewerOperations,
 } from "./_sections/billingMessages";
 import { apiFetch } from "../../../lib/api";
 // Route-owned presentation. Everything shared — the header, the panels, the
@@ -523,6 +525,11 @@ function BillingPageInner() {
     );
     const paypal = projection.plan.paymentProviderLabel === "PayPal";
     const paidUntil = formatDate(projection.plan.currentPeriodEndUtc);
+    // TEAM-SPEC §0/R1 — what cancelling ends for review work, and when, from
+    // the projection (before confirming), never from the cancel answer.
+    const reviewOpsNote = cancellationReviewerOperationsNote(
+      readCancellationEndsReviewerOperations(projection),
+    );
 
     const ok = await confirm({
       title: `Cancel ${projection.plan.displayName} for ${selected.displayName}?`,
@@ -553,6 +560,9 @@ function BillingPageInner() {
                   } will be cancelled with it, so that extra capacity ends too.`
                 : "No storage add-on depends on this plan, so no storage is cancelled."}
             </li>
+            {reviewOpsNote ? (
+              <li data-billing-cancel-review-ops-note>{reviewOpsNote}</li>
+            ) : null}
             {keptAddons.length > 0 ? (
               <li>
                 {`${keptAddons.length} storage add-on${keptAddons.length === 1 ? "" : "s"} you can keep on Free ${keptAddons.length === 1 ? "stays" : "stay"} active and keep${keptAddons.length === 1 ? "s" : ""} renewing. Cancel ${keptAddons.length === 1 ? "it" : "them"} separately if you no longer want the capacity.`}

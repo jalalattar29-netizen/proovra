@@ -65,6 +65,7 @@ import { recordReference } from "../../../../lib/short-id";
 import { CopyIdButton } from "./_components/CopyIdButton";
 import { InspectorActions } from "./_components/InspectorActions";
 import { AdjudicationPanel, type AdjudicationKind } from "./_components/AdjudicationPanel";
+import { HandoffBanner, type ReviewHandoff } from "./_components/HandoffBanner";
 import {
   DECISION_KIND_LABELS,
   DECISION_OPTION_LABELS,
@@ -127,6 +128,12 @@ type WorkspaceResponse = {
    * the page falls back to the lifecycle-only rule.
    */
   viewer?: Viewer | null;
+  /**
+   * TEAM-SPEC R3 — the second-review / adjudication handoff (who recorded the
+   * first review, whether anyone eligible exists, staffing). Optional: an
+   * older API omits it and no banner is shown.
+   */
+  handoff?: ReviewHandoff | null;
   /**
    * The opaque analysis revision for this review's evidence.
    *
@@ -206,6 +213,11 @@ function refusalMessage(err: unknown, fallback: string): string {
   const refusal = readRefusal(err);
   const mapped = describeRefusal(refusal, "");
   return mapped || toSafeUserError(err, { message: fallback }).message;
+}
+
+/** Stable (module-level) so the handoff picker's load effect does not refire. */
+function handoffRefusalMessage(err: unknown): string {
+  return refusalMessage(err, "The review could not be reassigned. Nothing was changed.");
 }
 
 function reviewerName(r: { userId: string; email: string | null; displayName: string | null }): string {
@@ -701,6 +713,21 @@ function ReviewWorkspacePageInner() {
           </section>
         )}
 
+      {/* TEAM-SPEC R3 — the second-review handoff: reassign (assignment
+          managers), staffing explanation, or "waiting". */}
+      <HandoffBanner
+        handoff={data.handoff}
+        mayReassign={Boolean(data.viewer && actions.reassign.allowed)}
+        teamId={teamId}
+        workflowId={workflowId}
+        onReassigned={(message) => {
+          setError(null);
+          setNotice(message);
+          reloadAll();
+        }}
+        describeError={handoffRefusalMessage}
+      />
+
       <div style={twoColStyle}>
         <Card padding="comfortable">
           <InspectorActions
@@ -877,12 +904,6 @@ function ReviewWorkspacePageInner() {
       </div>
 
       <CodingSchemaBindingPanel teamId={teamId} workflowId={workflowId} />
-
-      {/* Phase B.1-3 — Honest deferred-features panel. The brief
-          explicitly told us to "show honest unavailable state" rather
-          than fake features. This panel documents the precise truth so a
-          reviewer is never misled. */}
-      <ReviewerDeferredFeaturesPanel />
 
       {/* Phase 2.5 — Keyboard shortcuts help (`?`, ignored while typing). */}
       <ReviewerShortcutsHelp
@@ -2326,157 +2347,3 @@ function ReviewerDecisionLineagePanel({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Phase B.1-3 — Honest deferred-features panel.
-//
-// The brief explicitly told us to "show honest unavailable state"
-// for features whose backend doesn't yet exist. Faking second-review,
-// conflict resolution, or evidence-compare would have violated the
-// brief's non-negotiable rules.
-//
-// This panel is the operator-visible truth: what Phase B.1 added,
-// and what specifically remains backend-modeling work.
-// ---------------------------------------------------------------------------
-function ReviewerDeferredFeaturesPanel() {
-  return (
-    <section
-      data-section="reviewer-deferred-features"
-      style={{
-        border: "1px solid var(--border-standard)",
-        borderRadius: "var(--radius-md)",
-        padding: 16,
-        marginBottom: 12,
-        background: "var(--surface-muted)",
-      }}
-    >
-      <h3 className="app-panel__title">Reviewer collaboration scope</h3>
-      <p style={{ fontSize: 12, color: "var(--silver-ink)", marginTop: 0 }}>
-        What reviewer collaboration supports today, and what is planned.
-        Items marked “deferred” are not available yet.
-      </p>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-          gap: 10,
-          marginTop: 6,
-        }}
-      >
-        <div
-          data-reviewer-deferred-block="available"
-          style={{
-            padding: "0.6rem 0.75rem",
-            border: "1px solid rgba(34,197,94,0.45)",
-            background: "rgba(34,197,94,0.06)",
-            borderRadius: 6,
-            fontSize: 12,
-          }}
-        >
-          <div style={deferredBlockTitleStyle}>Available now</div>
-          <ul style={deferredListStyle}>
-            <li data-reviewer-deferred-item="structured-notes">
-              <strong>Structured reviewer notes</strong> with 7 types
-              (observation, concern, request for information, escalation
-              context, decision rationale, legal hold context, redaction
-              context). Recorded in the workspace activity feed.
-            </li>
-            <li data-reviewer-deferred-item="decision-audit-chain">
-              <strong>Decision audit chain.</strong> Every approval,
-              rejection, information request, pause and escalation is
-              written to the audit log and the review's history.
-            </li>
-            <li data-reviewer-deferred-item="rationale-required">
-              <strong>Rationale enforcement.</strong> Escalate, pause and
-              request information each require a note, for single and bulk
-              actions alike.
-            </li>
-            <li data-reviewer-deferred-item="governance-signals">
-              <strong>Governance signals on the review.</strong> Legal
-              holds and fields that need redaction are shown here, read-only.
-            </li>
-            <li data-reviewer-deferred-item="multi-stage-review">
-              <strong>Multi-stage review governance.</strong> A review
-              moves from first review to second review to adjudication,
-              and the same reviewer cannot decide twice. Mismatched
-              decisions raise a conflict. Adjudication requires a workspace
-              Owner or Admin.
-              First, second and adjudication decisions are each recorded
-              in the workspace activity feed.
-            </li>
-            <li data-reviewer-deferred-item="decision-lineage">
-              <strong>Decision lineage.</strong> Every decision records
-              its stage, type, reason, rationale, reviewer and time. It is
-              shown on this review and never overwritten.
-            </li>
-          </ul>
-        </div>
-        <div
-          data-reviewer-deferred-block="deferred"
-          style={{
-            padding: "0.6rem 0.75rem",
-            border: "1px solid rgba(127,127,127,0.4)",
-            background: "rgba(127,127,127,0.04)",
-            borderRadius: 6,
-            fontSize: 12,
-          }}
-        >
-          <div style={deferredBlockTitleStyle}>Deferred</div>
-          <ul style={deferredListStyle}>
-            {/* Phase B.2 PROMOTED — second-review + conflict
-                 resolution are NOW DELIVERED via the multi-stage
-                 review governance panel above. The items below have
-                 moved out of "deferred" to "available" in the panel
-                 header. */}
-            <li data-reviewer-deferred-item="manual-second-review-override">
-              <strong>Manual “require second review” override.</strong>{" "}
-              A second review is required by policy triggers: escalation,
-              legal hold or redaction. A manual override for a single
-              review is planned.
-            </li>
-            <li data-reviewer-deferred-item="senior-reviewer-role">
-              <strong>Dedicated senior-reviewer role.</strong>{" "}
-              Adjudication uses the workspace Owner and Admin roles. There is
-              no separate review-lead role yet.
-            </li>
-            <li data-reviewer-deferred-item="evidence-compare">
-              <strong>Evidence side-by-side compare.</strong> Evidence
-              records can be linked to each other; a compare view inside the
-              review workspace is not available yet.
-            </li>
-            <li data-reviewer-deferred-item="search-notes">
-              <strong>Full-text note search.</strong> Notes can be filtered by type; full-text search is not
-              available yet.
-            </li>
-            <li data-reviewer-deferred-item="auto-routing">
-              <strong>Auto-routing rules engine.</strong> Reviewer
-              workload is shown under Reviewer SLA and its suggestions are
-              advisory. Reviews are not assigned automatically.
-            </li>
-            <li data-reviewer-deferred-item="note-edit-delete">
-              <strong>Note edit / delete.</strong> The underlying
-              EvidenceReviewerComment supports soft-delete +
-              resolution; the reviewer-ops UI surface for those is
-              not exposed in this phase.
-            </li>
-          </ul>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-const deferredBlockTitleStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: 0.5,
-  textTransform: "uppercase",
-  marginBottom: 6,
-  opacity: 0.85,
-};
-
-const deferredListStyle: React.CSSProperties = {
-  margin: 0,
-  paddingLeft: "1.1rem",
-  display: "grid",
-  gap: 5,
-};

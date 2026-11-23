@@ -25,7 +25,7 @@ import {
   hasExplanationFor,
   toSafeUserError,
 } from "../../../../lib/feedback/toSafeUserError";
-import { formatMoney } from "./format";
+import { formatDate, formatMoney } from "./format";
 
 export type BillingNotice = { message: string; tone: "success" | "info" | "error" };
 
@@ -774,4 +774,52 @@ export function reviewerOperationsEndingNote(ends: EndsReviewerOperations | null
       ? ` ${ends.activeEscalations} active escalation${ends.activeEscalations === 1 ? "" : "s"} will no longer be tracked.`
       : "";
   return `Review queues, assignments, escalations and SLA tracking stop; ${reviews}${escalations} Nothing is deleted.`;
+}
+
+/**
+ * TEAM-SPEC §0/R1 (2026-11-23, cancel disclosure) — what CANCELLING a Team
+ * subscription ends, and when, from the billing projection's
+ * `cancellation.endsReviewerOperations`. Said BEFORE the cancel is confirmed
+ * (the drawer and the confirmation dialog); the post-cancel answer is not
+ * needed for it. `effectiveAt` is the server's date the plan actually leaves
+ * Team; `effectiveImmediately` when the cancel ends it at once; neither when
+ * the provider names the date only once it answers. Absent → nothing is said.
+ */
+export type CancellationEndsReviewerOperations = EndsReviewerOperations & {
+  effectiveAt: string | null;
+  effectiveImmediately: boolean;
+};
+
+export function readCancellationEndsReviewerOperations(
+  projection: unknown,
+): CancellationEndsReviewerOperations | null {
+  if (!projection || typeof projection !== "object") return null;
+  const cancellation = (projection as { cancellation?: unknown }).cancellation;
+  if (!cancellation || typeof cancellation !== "object") return null;
+  const raw = (cancellation as { endsReviewerOperations?: unknown }).endsReviewerOperations;
+  const counts = readEndsReviewerOperations(raw);
+  if (!counts) return null;
+  const v = raw as { effectiveAt?: unknown; effectiveImmediately?: unknown };
+  const effectiveImmediately = v.effectiveImmediately === true;
+  const effectiveAt =
+    !effectiveImmediately && typeof v.effectiveAt === "string" && formatDate(v.effectiveAt)
+      ? v.effectiveAt
+      : null;
+  return { ...counts, effectiveAt, effectiveImmediately };
+}
+
+/** The warning shown before a cancellation that ends reviewer operations is confirmed. */
+export function cancellationReviewerOperationsNote(
+  ends: CancellationEndsReviewerOperations | null,
+): string | null {
+  if (!ends) return null;
+  const date = formatDate(ends.effectiveAt);
+  const when = ends.effectiveImmediately
+    ? "stop immediately"
+    : date
+      ? `stop on ${date}`
+      : "stop when your plan moves to Free";
+  const reviews = `${ends.openWorkflows} open review${ends.openWorkflows === 1 ? "" : "s"}`;
+  const escalations = `${ends.activeEscalations} active escalation${ends.activeEscalations === 1 ? "" : "s"}`;
+  return `Review queues, assignments, escalations and SLA tracking ${when} — ${reviews} and ${escalations} stay readable. Nothing is deleted.`;
 }

@@ -36,7 +36,9 @@ import type {
 } from "../../../../lib/api/billing-accounts";
 import { BillingDrawer } from "./BillingDrawer";
 import {
+  cancellationReviewerOperationsNote,
   downgradeAddonNote,
+  readCancellationEndsReviewerOperations,
   readEndsReviewerOperations,
   reviewerOperationsEndingNote,
   type EndsReviewerOperations,
@@ -452,11 +454,19 @@ export function ManagePlanDrawer({
                   under the applicable retention and access rules.
                 </p>
                 {(() => {
-                  // TEAM-SPEC §0/R1 — moving to Free (cancelling) ends reviewer
-                  // operations too, when the server says so (key "FREE").
-                  const note = reviewerOperationsEndingNote(
-                    readEndsReviewerOperations(reviewerOperationsEnding?.FREE),
+                  // TEAM-SPEC §0/R1 — cancelling ends reviewer operations too.
+                  // Said BEFORE the cancel button from the projection's
+                  // `cancellation.endsReviewerOperations`, with the server's
+                  // effective date. A host-supplied "FREE" answer (older API)
+                  // is still read, without a date.
+                  const projected = cancellationReviewerOperationsNote(
+                    readCancellationEndsReviewerOperations(projection),
                   );
+                  const note =
+                    projected ??
+                    reviewerOperationsEndingNote(
+                      readEndsReviewerOperations(reviewerOperationsEnding?.FREE),
+                    );
                   return note ? (
                     <p className="bill-choice__meta" role="note" data-billing-manage-review-ops-note="FREE">
                       {note}
