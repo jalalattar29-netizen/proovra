@@ -53,7 +53,6 @@ import {
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { formatUserDate } from "../../../../lib/date";
-import { Card } from "../../../../components/ui/Card";
 import { Badge } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 
@@ -158,68 +157,57 @@ export function EvidenceRequestReviewQueue({
     void load();
   }, [load]);
 
+  // TEAM-UI-SPEC §1 / §4 (round 3) — an app-panel; filters are canonical
+  // fields in one row; the table rides the shared `[data-responsive]` card
+  // cutover (no horizontal scroll on a phone); Retry is secondary and the row
+  // link is the ghost "Review".
   return (
-    <Card
-      variant="admin"
-      padding="compact"
+    <section
+      className="app-panel"
       id="evidence-request-queue"
       data-evidence-request-queue
       data-evidence-request-queue-state={state.kind}
+      aria-labelledby="evidence-request-queue-title"
     >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 12,
-          flexWrap: "wrap",
-          alignItems: "flex-end",
-          marginBottom: 10,
-        }}
-      >
+      <div className="app-panel__head">
         <div>
-          <strong style={{ fontSize: 14, display: "block" }}>
+          <h2 className="app-panel__title" id="evidence-request-queue-title">
             Evidence requests awaiting review
-          </strong>
-          <small style={{ fontSize: 11.5, color: "var(--ink-secondary, #475569)" }}>
+          </h2>
+          <p className="app-field-help">
             Requests sent to contributors, projected by the server for this
             workspace. Workflow reviews are the table below.
-          </small>
+          </p>
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <label style={filterLabel}>
-            Status
-            <AppListbox
-              value={status}
-              options={[
-                { value: "", label: "Any" },
-                ...EVIDENCE_REQUEST_STATUSES.map((s) => ({ value: s, label: identifierLabel(s) })),
-              ]}
-              onChange={(next) => setStatus(next as EvidenceRequestStatus | "")}
-              triggerProps={{ "data-evidence-request-queue-status": "" }}
-            />
-          </label>
-          <label style={filterLabel}>
-            Priority
-            <AppListbox
-              value={priority}
-              options={[
-                { value: "", label: "Any" },
-                ...EVIDENCE_REQUEST_PRIORITIES.map((p) => ({ value: p, label: identifierLabel(p) })),
-              ]}
-              onChange={(next) => setPriority(next as EvidenceRequestPriority | "")}
-              triggerProps={{ "data-evidence-request-queue-priority": "" }}
-            />
-          </label>
-          <label
-            style={{
-              ...filterLabel,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
+      </div>
+      <div className="app-panel__body review-panel-stack">
+        <div className="review-toolbar review-toolbar--flush">
+          <span className="review-toolbar__label">Status</span>
+          <AppListbox
+            value={status}
+            ariaLabel="Status"
+            options={[
+              { value: "", label: "Any" },
+              ...EVIDENCE_REQUEST_STATUSES.map((s) => ({ value: s, label: identifierLabel(s) })),
+            ]}
+            onChange={(next) => setStatus(next as EvidenceRequestStatus | "")}
+            triggerProps={{ "data-evidence-request-queue-status": "" }}
+          />
+          <span className="review-toolbar__label">Priority</span>
+          <AppListbox
+            value={priority}
+            ariaLabel="Priority"
+            options={[
+              { value: "", label: "Any" },
+              ...EVIDENCE_REQUEST_PRIORITIES.map((p) => ({ value: p, label: identifierLabel(p) })),
+            ]}
+            onChange={(next) => setPriority(next as EvidenceRequestPriority | "")}
+            triggerProps={{ "data-evidence-request-queue-priority": "" }}
+          />
+          <label className="review-check-row">
             <input
               type="checkbox"
+              className="app-checkbox"
               data-evidence-request-queue-unassigned
               checked={unassignedOnly}
               onChange={(e) => setUnassignedOnly(e.target.checked)}
@@ -227,175 +215,121 @@ export function EvidenceRequestReviewQueue({
             Unassigned only
           </label>
         </div>
-      </div>
 
-      {state.kind === "LOADING" ? (
-        <div
-          data-evidence-request-queue-loading
-          style={{ fontSize: 13, color: "var(--ink-secondary, #475569)" }}
-        >
-          Loading evidence requests…
-        </div>
-      ) : null}
+        {state.kind === "LOADING" ? (
+          <p className="app-field-help" data-evidence-request-queue-loading>
+            Loading evidence requests…
+          </p>
+        ) : null}
 
-      {state.kind === "FORBIDDEN" || state.kind === "ERROR" ? (
-        <div
-          role="status"
-          data-permission-denied={state.kind === "FORBIDDEN" ? "FORBIDDEN" : undefined}
-          data-evidence-request-queue-message={state.kind}
-          style={{
-            padding: "10px 12px",
-            background:
-              state.kind === "FORBIDDEN"
-                ? "var(--status-pending-bg, #fef3c7)"
-                : "var(--status-risk-bg, #fef2f2)",
-            border: `1px solid ${
-              state.kind === "FORBIDDEN"
-                ? "var(--status-pending-border, #fcd34d)"
-                : "var(--status-risk-border, #fecaca)"
-            }`,
-            color:
-              state.kind === "FORBIDDEN"
-                ? "var(--status-pending-fg, #EA580C)"
-                : "var(--status-risk-fg, #991b1b)",
-            borderRadius: "var(--radius-md, 8px)",
-            fontSize: 13,
-          }}
-        >
-          {state.message}
-          {state.kind === "ERROR" ? (
-            <button
-              type="button"
-              data-evidence-request-queue-retry
-              onClick={() => void load()}
-              style={{
-                marginLeft: 8,
-                background: "transparent",
-                border: "none",
-                padding: 0,
-                color: "inherit",
-                textDecoration: "underline",
-                fontWeight: 600,
-                fontSize: 12,
-                cursor: "pointer",
-              }}
-            >
-              Retry
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-
-      {state.kind === "READY" && state.items.length === 0 ? (
-        <div data-evidence-request-queue-empty>
-          <EmptyState
-            title="No evidence requests match this filter"
-            purpose="Requests appear here once they are sent to a contributor and are waiting on a reviewer."
-          />
-        </div>
-      ) : null}
-
-      {state.kind === "READY" && state.items.length > 0 ? (
-        <div data-ui-datatable-scroll style={{ width: "100%", overflowX: "auto" }}>
-          <table
-            data-evidence-request-queue-table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              fontSize: 13,
-              color: "var(--ink-primary, #0f172a)",
-            }}
-          >
-            <thead>
-              <tr>
-                <th style={th}>Request</th>
-                <th style={th}>Type</th>
-                <th style={th}>Status</th>
-                <th style={th}>Priority</th>
-                <th style={th}>Assignee</th>
-                <th style={th}>Due</th>
-                <th style={th}>Open</th>
-              </tr>
-            </thead>
-            <tbody>
-              {state.items.map((item) => (
-                <tr key={item.id} data-evidence-request-queue-row={item.id}>
-                  <td style={td}>{item.title}</td>
-                  <td style={td}>{item.requestType}</td>
-                  <td style={td}>{identifierLabel(item.status)}</td>
-                  <td style={td}>
-                    <Badge
-                      tone={
-                        PRIORITY_TONE[item.priority as EvidenceRequestPriority] ??
-                        "neutral"
-                      }
-                    >
-                      {identifierLabel(item.priority)}
-                    </Badge>
-                  </td>
-                  <td style={td}>
-                    {item.assignedReviewerUserId
-                      ? `${item.assignedReviewerUserId.slice(0, 8)}…`
-                      : "Unassigned"}
-                  </td>
-                  <td style={td}>
-                    {item.dueAtUtc ? formatUserDate(item.dueAtUtc) : "—"}
-                  </td>
-                  <td style={td}>
-                    <Link
-                      href={`/evidence-requests/${item.id}`}
-                      data-evidence-request-queue-open={item.id}
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: "var(--ink-primary, #0f172a)",
-                      }}
-                    >
-                      Review
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {state.kind === "FORBIDDEN" || state.kind === "ERROR" ? (
           <div
-            style={{
-              marginTop: 8,
-              fontSize: 11.5,
-              color: "var(--ink-secondary, #475569)",
-            }}
+            role="status"
+            className={state.kind === "FORBIDDEN" ? "app-alert app-alert--warn" : "app-alert app-alert--danger"}
+            data-permission-denied={state.kind === "FORBIDDEN" ? "FORBIDDEN" : undefined}
+            data-evidence-request-queue-message={state.kind}
           >
-            {state.items.length} request{state.items.length === 1 ? "" : "s"} ·
-            server-projected · loaded {formatUserDate(state.loadedAt)}
-            {state.items.length >= REVIEW_QUEUE_LIMIT
-              ? ` · showing the first ${REVIEW_QUEUE_LIMIT}; narrow the filters to see the rest`
-              : ""}
+            {state.message}
+            {state.kind === "ERROR" ? (
+              <>
+                {" "}
+                <button
+                  type="button"
+                  className="app-secondary-action"
+                  data-evidence-request-queue-retry
+                  onClick={() => void load()}
+                >
+                  Retry
+                </button>
+              </>
+            ) : null}
           </div>
-        </div>
-      ) : null}
-    </Card>
+        ) : null}
+
+        {state.kind === "READY" && state.items.length === 0 ? (
+          <div data-evidence-request-queue-empty>
+            <EmptyState
+              title="No evidence requests match this filter"
+              purpose="Requests appear here once they are sent to a contributor and are waiting on a reviewer."
+            />
+          </div>
+        ) : null}
+
+        {state.kind === "READY" && state.items.length > 0 ? (
+          <div>
+            <div className="app-table-surface app-table-surface--scroll" data-ui-datatable-scroll>
+              <table className="app-table" data-responsive data-evidence-request-queue-table>
+                <thead>
+                  <tr>
+                    <th>Request</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Priority</th>
+                    <th>Assignee</th>
+                    <th>Due</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {state.items.map((item) => (
+                    <tr key={item.id} data-evidence-request-queue-row={item.id}>
+                      <td data-label="Request">
+                        <span className="app-table__primary">{item.title}</span>
+                      </td>
+                      <td data-label="Type">
+                        <span className="app-table__muted">{item.requestType}</span>
+                      </td>
+                      <td data-label="Status">
+                        <Badge tone="info" subtle>
+                          {identifierLabel(item.status)}
+                        </Badge>
+                      </td>
+                      <td data-label="Priority">
+                        <Badge
+                          tone={
+                            PRIORITY_TONE[item.priority as EvidenceRequestPriority] ??
+                            "neutral"
+                          }
+                        >
+                          {identifierLabel(item.priority)}
+                        </Badge>
+                      </td>
+                      <td data-label="Assignee">
+                        <span className="app-table__muted">
+                          {item.assignedReviewerUserId
+                            ? `${item.assignedReviewerUserId.slice(0, 8)}…`
+                            : "Unassigned"}
+                        </span>
+                      </td>
+                      <td data-label="Due">
+                        <span className="app-table__muted">
+                          {item.dueAtUtc ? formatUserDate(item.dueAtUtc) : "—"}
+                        </span>
+                      </td>
+                      <td data-label="">
+                        <Link
+                          href={`/evidence-requests/${item.id}`}
+                          className="app-ghost-action"
+                          data-evidence-request-queue-open={item.id}
+                        >
+                          Review
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="app-field-help">
+              {state.items.length} request{state.items.length === 1 ? "" : "s"} ·
+              server-projected · loaded {formatUserDate(state.loadedAt)}
+              {state.items.length >= REVIEW_QUEUE_LIMIT
+                ? ` · showing the first ${REVIEW_QUEUE_LIMIT}; narrow the filters to see the rest`
+                : ""}
+            </p>
+          </div>
+        ) : null}
+      </div>
+    </section>
   );
 }
-
-const th = {
-  textAlign: "left" as const,
-  padding: "8px 10px",
-  borderBottom: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-  fontSize: 11.5,
-  fontWeight: 700,
-  color: "var(--ink-secondary, #475569)",
-  whiteSpace: "nowrap" as const,
-};
-const td = {
-  padding: "8px 10px",
-  borderBottom: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
-  verticalAlign: "top" as const,
-};
-const filterLabel = {
-  display: "flex",
-  flexDirection: "column" as const,
-  gap: 2,
-  fontSize: 11,
-  fontWeight: 600,
-  color: "var(--ink-secondary, #475569)",
-};

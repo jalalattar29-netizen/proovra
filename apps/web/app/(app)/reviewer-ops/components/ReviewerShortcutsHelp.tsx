@@ -13,8 +13,10 @@
  *
  *   console    J / K move, Enter opens, A assigns, E escalates, M requests
  *              information, / focuses the filter.
- *   inspector  A starts the review, M requests information, C approves
- *              (asks first). None of them navigates away from the review.
+ *   inspector  A starts the review; M moves focus to the "Record decision"
+ *              panel with Request information preselected. There is no
+ *              approve key (TEAM-UI-SPEC §2): a verdict is entered only in
+ *              that panel. None of them navigates away from the review.
  *
  * There is no Ctrl/Cmd+K binding here: that key belongs to the app-wide
  * "Jump to a page" palette.
@@ -23,7 +25,7 @@
 import { useEffect } from "react";
 import { Modal } from "../../../../components/cases-experience/matter-modals/Modal";
 
-export type ShortcutKey = "?" | "j" | "k" | "a" | "e" | "m" | "c" | "/" | "Enter";
+export type ShortcutKey = "?" | "j" | "k" | "a" | "e" | "m" | "/" | "Enter";
 
 export type ShortcutsVariant = "console" | "inspector";
 
@@ -39,8 +41,7 @@ const CONSOLE_ROWS: ReadonlyArray<{ key: string; label: string }> = [
 
 const INSPECTOR_ROWS: ReadonlyArray<{ key: string; label: string }> = [
   { key: "A", label: "Start the review (when allowed)" },
-  { key: "M", label: "Request more information (opens a dialog)" },
-  { key: "C", label: "Approve (internal) — asks you to confirm first" },
+  { key: "M", label: "Go to the decision panel with Request information selected" },
   { key: "?", label: "Show or hide this help" },
   { key: "Esc", label: "Close a dialog" },
 ];

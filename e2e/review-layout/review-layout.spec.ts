@@ -164,7 +164,11 @@ for (const vp of [
     await installApi(page, "team-owner");
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await open(page, `/reviewer-ops/${WF}`, "[data-reviewer-actions]");
-    for (const action of ["pause", "reject", "request_info"]) {
+    // TEAM-UI-SPEC §2 (round 3) — Reject / Request information are no longer
+    // dialogs (a verdict is entered only in the "Record decision" panel). The
+    // inspector's remaining dialogs: Pause, Reassign and the Archive confirm
+    // (the fixture review has an open escalation, so Escalate is not offered).
+    for (const action of ["pause", "reassign", "archive"]) {
       const btn = page.locator(`[data-reviewer-action="${action}"]`).first();
       await btn.scrollIntoViewIfNeeded();
       await btn.click();
@@ -219,18 +223,25 @@ test("Team viewer: no bulk actions and no decision controls enabled", async ({ p
     const btn = page.locator(`[data-reviewer-action="${action}"]`);
     if ((await btn.count()) > 0) await expect(btn.first()).toHaveAttribute("data-reviewer-action-allowed", "false");
   }
+  // TEAM-UI-SPEC §2 — the decision panel is the only verdict entry; a viewer
+  // gets no decision form at all.
+  await expect(page.locator("[data-decision-form]")).toHaveCount(0);
   await shot(page, "after-inspector-viewer-1440");
   expect(errors, errors.join("\n")).toEqual([]);
 });
 
-test("Team owner queues: bulk bar offered with selection; dark in-flow bar keeps the primitives", async ({ page }) => {
+// TEAM-UI-SPEC §4 (round 3) — the bulk bar is an in-flow inner surface whose
+// controls are canonical secondaries (the confirm dialog owns the primary).
+test("Team owner queues: bulk bar offered with selection; canonical secondary controls", async ({ page }) => {
   await installApi(page, "team-owner");
   await page.setViewportSize({ width: 1440, height: 900 });
   await open(page, "/review/queues", "[data-review-hub-nav]");
   const boxes = page.locator('tbody input[type="checkbox"]:not([disabled])');
   await expect(boxes.first()).toBeVisible();
   await boxes.first().check();
-  await expect(page.getByRole("button", { name: /Bulk assign/ })).toBeVisible();
+  const bulkAssign = page.getByRole("button", { name: /Bulk assign/ });
+  await expect(bulkAssign).toBeVisible();
+  await expect(bulkAssign).toHaveClass(/app-secondary-action/);
   await shot(page, "after-queues-bulk-bar-1440");
 });
 

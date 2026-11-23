@@ -14,9 +14,8 @@
  *     (`/reviewer-ops/sla`, `/reviewer-ops/escalations`), which the
  *     hub tabs now lead to,
  *   * keyboard-first navigation: `j` / `k` to move selection,
- *     `Enter` to open the focused row, `a` to assign, `e` to
- *     escalate, `m` to request more info, `/` to focus the in-tab
- *     filter input. Ctrl/Cmd+K belongs to the app-wide "Jump to a
+ *     `Enter` to open the focused row, `a` to assign (unassigned rows,
+ *     when the viewer may assign), `/` to focus the in-tab filter input. Ctrl/Cmd+K belongs to the app-wide "Jump to a
  *     page" palette alone; the console binds no handler for it,
  *   * rows mapped once through the shared `toQueueRow` — the same
  *     mapping `/review/queues` uses — because the API sends
@@ -26,13 +25,16 @@
  *     `diagnostics.sectionStatus` so a single failed sub-query
  *     never breaks the rest of the console.
  *
- * Phase G3.2 closure — inline actions live HERE, not in a
- * downstream inspector page:
+ * TEAM-UI-SPEC §4 (round 3) — row actions are "Open" (ghost link to the
+ * inspector) plus at most ONE secondary: "Assign" on an unassigned row when
+ * the viewer holds REVIEW_ASSIGN. Escalate and Request information left the
+ * rows (Escalate is an inspector secondary action; requesting information is
+ * part of the inspector's decision flow), and so did their dialogs and the
+ * `e` / `m` shortcuts. Assign uses the shared reviewer picker
+ * (`ReviewerPickerModal`) — never a free-text user id.
  *
- *   * Rows expose Assign / Escalate / Request info / Open inspector.
- *   * Mutations go through the existing audited reviewer-ops
- *     endpoints (`/v1/reviewer-ops/reviews/:workflowId/assign`,
- *     `/request-info`, `/v1/reviewer-ops/escalations`).
+ *   * Mutations go through the existing audited reviewer-ops endpoint
+ *     (`/v1/reviewer-ops/reviews/:workflowId/assign`).
  *   * Sensitive mutations route through `useStepUpAction` so the
  *     backend's `enforceStepUpIfFlagged` gate is honoured. No
  *     frontend-only authorization — every action is gated by
@@ -71,6 +73,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import type { ReviewerOpsQueueType } from "@proovra/shared";
 
@@ -81,8 +84,8 @@ import { useCan, usePlanFeatureGate } from "../../lib/platform-context";
 import { useOptionalPlatformContext } from "../../lib/platform-context/PlatformContextProvider";
 import { roleInWorkspace } from "../../lib/platform-context/actorRole";
 import { mayDeleteReviewerSavedView } from "../../lib/evidence/saved-view-sharing";
-import { useHealthDestination } from "../../lib/navigation/healthDestination";
-import { Modal } from "../cases-experience/matter-modals/Modal";
+import { ReviewerPickerModal, useReviewerPicker } from "./ReviewerPickerModal";
+import "./review-surfaces.css";
 import { toQueueRows, isQueueRowActionable, type QueueRow } from "./queueRow";
 import { resolveSavedViewQueue } from "../../lib/reviewer-workspace/reviewer-api";
 import {
@@ -95,15 +98,13 @@ import {
   useStepUpAction,
 } from "../identity-security/StepUpModal";
 import { useConfirmAction } from "../ui/ConfirmActionModal";
-import { ContextualHelp } from "../contextual-help/ContextualHelp";
 import { RuntimeStatusBanner } from "../operational";
 import { ReviewerRoutingRecommendationsPane } from "../hidden-feature-panels/HiddenFeaturePanels";
-// Phase 7D — shared enterprise design system. Barrel serves the
-// layout primitives; the richer Card / Button / Badge / EmptyState
-// are deep-imported (the barrel keeps serving the legacy four).
-import { PageShell, PageHeader, PageSection } from "../ui";
-import { Card } from "../ui/Card";
-import { Button } from "../ui/Button";
+// TEAM-UI-SPEC §1 — layout from PageShell, cards are app-panel, controls
+// the canonical app-* action classes, status the semantic <Badge>.
+import Link from "next/link";
+import { PageShell } from "../ui";
+import { ReviewPageHeader } from "./ReviewPageHeader";
 import { Badge, type BadgeTone } from "../ui/Badge";
 import { EmptyState } from "../ui/EmptyState";
 
@@ -193,26 +194,6 @@ function formatDue(iso: string | null): string {
   return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
-/**
- * Bounded reason set for the inline-escalation modal. Matches the
- * shared `REVIEW_ESCALATION_REASONS` vocabulary on the backend so
- * the operator never has to invent a reason.
- */
-const ESCALATION_REASONS: ReadonlyArray<{ id: string; label: string }> = [
-  { id: "POLICY_BREACH", label: "Policy breach" },
-  { id: "REVIEWER_INACTIVE", label: "Reviewer inactive" },
-  { id: "SLA_BREACH_IMMINENT", label: "SLA breach imminent" },
-  { id: "QUALITY_CONCERN", label: "Quality concern" },
-  { id: "MANUAL_OPERATOR", label: "Manual operator raise" },
-];
-
-const ESCALATION_SEVERITIES: ReadonlyArray<{ id: string; label: string }> = [
-  { id: "INFO", label: "Info" },
-  { id: "WARNING", label: "Warning" },
-  { id: "HIGH", label: "High" },
-  { id: "CRITICAL", label: "Critical" },
-];
-
 export type ReviewerConsoleProps = {
   /**
    * The active reviewer workspace (Team) id resolved from
@@ -223,11 +204,23 @@ export type ReviewerConsoleProps = {
   teamId: string | null;
   /** Open the per-workflow inspector for a row. */
   onOpenRow?: (row: QueueRow) => void;
+  /**
+   * TEAM-UI-SPEC (structure) — the hub's local tabs, rendered directly UNDER
+   * the page header (header → hub nav → content), the order every hub page
+   * uses.
+   */
+  hubNav?: ReactNode;
 };
+
+/** TEAM-UI-SPEC (structure) — the hub page's title and plain subtitle. */
+export const MY_REVIEWS_TITLE = "My reviews";
+export const MY_REVIEWS_SUBTITLE =
+  "Reviews waiting for an owner and reviews assigned to you.";
 
 export function ReviewerConsole({
   teamId,
   onOpenRow,
+  hubNav,
 }: ReviewerConsoleProps) {
   // TEAM-SPEC R1 — the bulk bar is offered where the API serves bulk review:
   // the active workspace's plan includes the Team review tools AND the role
@@ -236,13 +229,13 @@ export function ReviewerConsole({
   const bulkPlanIncluded = usePlanFeatureGate("reviewQueuesIncluded");
   const bulkRoleAllowed = useCan("BULK_ACTIONS");
   const bulkEnabled = bulkPlanIncluded && bulkRoleAllowed;
-  // Operator deep-links are gated on the canonical capability, never on
-  // a client-side role or plan string.
-  // ADM-013 PHASE 1 — `useHealthDestination()` is the ONE authority for where
-  // "check the health" goes for THIS actor. It returns the label with the href,
-  // so a link can never name a scope it does not open, and null when the actor
-  // holds neither authority — in which case no link is rendered at all.
-  const healthDestination = useHealthDestination();
+  // TEAM-UI-SPEC §4 — the one row secondary ("Assign") is offered only where
+  // the API would accept it: an unassigned, non-terminal row and a viewer
+  // holding REVIEW_ASSIGN (`review.assign`). "View workspace health" moved to
+  // the Monitoring (SLA) page (TEAM-UI-SPEC §3).
+  const canAssign = useCan("REVIEW_ASSIGN");
+  const picker = useReviewerPicker(teamId);
+  const hasRoutingRecommendations = useHasRoutingRecommendations(teamId);
   const [envelope, setEnvelope] = useState<ConsoleEnvelope | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -373,6 +366,7 @@ export function ReviewerConsole({
           );
         });
         setActionState({ kind: "idle" });
+        picker.close();
         flash("Reviewer assigned.");
         await reload();
       } catch (err) {
@@ -388,87 +382,17 @@ export function ReviewerConsole({
         setActionBusyKey(null);
       }
     },
-    [flash, reload, stepUp, teamId],
+    [flash, picker, reload, stepUp, teamId],
   );
 
-  const runRequestInfo = useCallback(
-    async (workflowId: string, note: string) => {
-      if (!teamId) return;
-      const key = `request-info:${workflowId}`;
-      setActionBusyKey(key);
-      setActionError(null);
-      try {
-        await stepUp.runStepUpAction(async (headers) => {
-          return await apiFetch(
-            `/v1/reviewer-ops/reviews/${encodeURIComponent(workflowId)}/request-info`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json", ...(headers ?? {}) },
-              body: JSON.stringify({ teamId, note }),
-            },
-          );
-        });
-        setActionState({ kind: "idle" });
-        flash("Information requested.");
-        await reload();
-      } catch (err) {
-        const code = (err as { code?: string }).code;
-        if (code === "STEP_UP_CANCEL") {
-          setActionError("Step-up cancelled — request not sent.");
-        } else {
-          setActionError(
-            toSafeUserError(err, { message: "Could not request information." }).message,
-          );
-        }
-      } finally {
-        setActionBusyKey(null);
-      }
+  /** Opens the reviewer picker for one row — only where Assign is offered. */
+  const openAssign = useCallback(
+    (row: QueueRow) => {
+      if (!canAssign || !isRowAssignable(row)) return;
+      setActionState({ kind: "assign", workflowId: row.id });
+      void picker.open();
     },
-    [flash, reload, stepUp, teamId],
-  );
-
-  const runEscalate = useCallback(
-    async (
-      workflowId: string,
-      reason: string,
-      severity: string,
-      safeSummary: string,
-    ) => {
-      if (!teamId) return;
-      const key = `escalate:${workflowId}`;
-      setActionBusyKey(key);
-      setActionError(null);
-      try {
-        await stepUp.runStepUpAction(async (headers) => {
-          return await apiFetch("/v1/reviewer-ops/escalations", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", ...(headers ?? {}) },
-            body: JSON.stringify({
-              teamId,
-              workflowId,
-              reason,
-              severity,
-              safeSummary,
-            }),
-          });
-        });
-        setActionState({ kind: "idle" });
-        flash("Escalation raised.");
-        await reload();
-      } catch (err) {
-        const code = (err as { code?: string }).code;
-        if (code === "STEP_UP_CANCEL") {
-          setActionError("Step-up cancelled — escalation not raised.");
-        } else {
-          setActionError(
-            toSafeUserError(err, { message: "Could not raise escalation." }).message,
-          );
-        }
-      } finally {
-        setActionBusyKey(null);
-      }
-    },
-    [flash, reload, stepUp, teamId],
+    [canAssign, picker],
   );
 
   // ---------------------------------------------------------------------------
@@ -543,10 +467,8 @@ export function ReviewerConsole({
    *   * j / k         — move selection within the active tab
    *   * Enter         — open the focused row (delegates to
    *                     `onOpenRow`)
-   *   * a             — assign the focused queue/mine row
-   *   * e             — escalate the focused queue/mine row
-   *   * m             — request more info on the focused
-   *                     queue/mine row
+   *   * a             — assign the focused row (unassigned rows,
+   *                     when the viewer may assign)
    *   * /             — focus the in-tab filter input
    *
    * Ctrl/Cmd+K is NOT handled here (TEAM-SPEC §3): it opens the app-wide
@@ -596,24 +518,15 @@ export function ReviewerConsole({
         e.preventDefault();
         return;
       }
-      // G3.2 inline-action shortcuts. Only fire on queue/mine tabs
-      // where the focused row is a workflow row, and only when the
-      // row is actionable (not terminal).
-      const lower = e.key.toLowerCase();
-      if (lower === "a" || lower === "e" || lower === "m") {
+      // `a` mirrors the row's Assign: only where that button is offered.
+      if (e.key.toLowerCase() === "a") {
         const row = activeRows[selectionIndex];
-        if (!row || !isQueueRowActionable(row)) return;
+        if (!row || !canAssign || !isRowAssignable(row)) return;
         e.preventDefault();
-        if (lower === "a") {
-          setActionState({ kind: "assign", workflowId: row.id });
-        } else if (lower === "e") {
-          setActionState({ kind: "escalate", workflowId: row.id });
-        } else if (lower === "m") {
-          setActionState({ kind: "requestInfo", workflowId: row.id });
-        }
+        openAssign(row);
       }
     },
-    [activeRows, actionState.kind, onOpenRow, selectionIndex],
+    [activeRows, actionState.kind, canAssign, onOpenRow, openAssign, selectionIndex],
   );
 
   useEffect(() => {
@@ -621,28 +534,19 @@ export function ReviewerConsole({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
-  // Canonical row padding. (2026-07-20) The compact/comfortable/
-  // spacious density modes were removed with the workspace-persona /
-  // operational-density feature; the comfortable value is now the base.
-  const rowPad = "10px 14px";
-
   if (!teamId) {
     return (
       <PageShell
         className="reviewer-console reviewer-console--no-workspace"
-        header={
-          <PageHeader
-            eyebrow="Reviewer operations"
-            title="Review Operations Console"
-          />
-        }
+        header={<ReviewPageHeader title={MY_REVIEWS_TITLE} />}
       >
-        <Card variant="empty" padding="none">
+        {hubNav}
+        <section className="app-panel">
           <EmptyState
             title="Reviewer Console is workspace-scoped"
             purpose="Switch into a team workspace from the top-bar workspace switcher to open the queue."
           />
-        </Card>
+        </section>
       </PageShell>
     );
   }
@@ -652,34 +556,18 @@ export function ReviewerConsole({
       className="reviewer-console"
       data-active-tab={activeTab}
       header={
-        <PageHeader
-          eyebrow="Reviewer operations"
-          title="Review Operations Console"
-          subtitle={
-            <>
-              Reviews waiting for an owner and reviews assigned to you.
-              Keyboard: <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>Enter</kbd> open ·{" "}
-              <kbd>a</kbd> assign · <kbd>e</kbd> escalate · <kbd>m</kbd>{" "}
-              request info · <kbd>/</kbd> filter.
-            </>
-          }
-          contextStrip={
-            /* TEAM-SPEC §3 — the six chips (Work / Manage / Monitor / Respond /
-               Configure) linked to destinations with no visibility check; the
-               Review hub tabs above replace them, each shown only when it
-               opens. Workspace health keeps its own resolver (ADM-013). */
-            healthDestination ? (
-              <div className="reviewer-console__ia-strip" data-reviewer-console-ia>
-                <a href={healthDestination.href}>{healthDestination.label}</a>
-              </div>
-            ) : undefined
-          }
-        />
+        /* TEAM-UI-SPEC (structure) — the canonical review header: icon title
+           row, plain subtitle, no eyebrow. The keyboard shortcuts stay in the
+           "?" shortcuts help, not in the subtitle. */
+        <ReviewPageHeader title={MY_REVIEWS_TITLE} subtitle={MY_REVIEWS_SUBTITLE} />
       }
     >
-      {/* Contextual help, collapsed by default so the reviewer triage
-          surface stays primary. */}
-      <ContextualHelp surface="reviewer-ops" collapsedByDefault />
+      {hubNav}
+
+      {/* TEAM-UI-SPEC (structure) — the full-width "HELP · REVIEWER
+          OPERATIONS" ContextualHelp bar is removed exactly as Evidence
+          Library removed its HELP bar: not part of the approved composition.
+          The reviewer-ops help topic stays registered in the help centre. */}
 
       {/* Review automation only: this page's SLA and escalation figures are
           produced by the reviewer reconcile sweep, so a stale sweep is said
@@ -687,12 +575,9 @@ export function ReviewerConsole({
           status lives in the header indicator. */}
       <RuntimeStatusBanner requires={["reviewAutomation"]} />
 
-      {/* Phase Final-Hidden-Feature-Surfacing — routing recommendations
-          pane. Reads the canonical reviewer-routing recommendation
-          rows via the new `/v1/reviewer/routing-recommendations`
-          endpoint. Pane stays above the tabbed sections so guidance
-          surfaces even when the reviewer hasn't drilled into a tab. */}
-      {teamId ? (
+      {/* Routing recommendations — TEAM-UI-SPEC §3: shown only when there
+          are any (no empty "No active routing recommendations" panel). */}
+      {hasRoutingRecommendations ? (
         <ReviewerRoutingRecommendationsPane teamId={teamId} />
       ) : null}
 
@@ -741,79 +626,40 @@ export function ReviewerConsole({
       </nav>
 
       {loading ? (
-        <Card
-          variant="admin"
-          padding="compact"
-          data-reviewer-console-status
-          style={{ color: "var(--ink-secondary, #475569)" }}
-        >
+        <p className="app-field-help" data-reviewer-console-status aria-live="polite">
           Loading reviewer console…
-        </Card>
+        </p>
       ) : null}
       {error ? (
-        <Card
-          variant="status"
-          tone="risk"
-          padding="compact"
-          role="alert"
-          style={{ color: "var(--status-risk-fg, #7f1d1d)" }}
-        >
+        <div className="app-alert app-alert--danger" role="alert">
           {error}
-        </Card>
+        </div>
       ) : null}
 
       {actionError ? (
-        <Card
-          variant="status"
-          tone="risk"
-          padding="compact"
-          role="alert"
-          data-reviewer-action-error
-          style={{ color: "var(--status-risk-fg, #7f1d1d)" }}
-        >
+        <div className="app-alert app-alert--danger" role="alert" data-reviewer-action-error>
           {actionError}
-        </Card>
+        </div>
       ) : null}
       {actionFlash ? (
-        <Card
-          variant="status"
-          tone="verified"
-          padding="compact"
-          role="status"
-          data-reviewer-action-flash
-          style={{ color: "var(--status-verified-fg, #166534)" }}
-        >
+        <div className="app-alert app-alert--ok" role="status" data-reviewer-action-flash>
           {actionFlash}
-        </Card>
+        </div>
       ) : null}
 
       {envelope ? (
         <>
-          {/* In-tab filter — `/` focuses this input. The actual
-              filter logic lives upstream in the per-domain endpoints
-              for deep drill; the console-level input is bounded to
-              row.id / reviewer summary prefix matching. Kept as a
-              token-styled input (not FilterBar.Search) because the
-              `/` shortcut focuses this exact ref. */}
+          {/* In-tab filter — `/` focuses this input. Bounded to the rows
+              already loaded; Queues has every server-side filter. */}
           <div className="reviewer-console__filter">
             <input
               ref={filterInputRef}
               type="text"
+              className="app-input"
               placeholder="Filter visible rows (press /)…"
               aria-label="Filter visible rows"
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
-              style={{
-                width: "100%",
-                minHeight: 40,
-                padding: "0 12px",
-                fontSize: 13.5,
-                color: "var(--ink-primary, #0f172a)",
-                background: "var(--surface-card, #fff)",
-                border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-                borderRadius: "var(--radius-md, 8px)",
-                outline: "none",
-              }}
             />
           </div>
 
@@ -833,10 +679,9 @@ export function ReviewerConsole({
           />
           <QueueTable
             rows={activeRows}
-            rowPad={rowPad}
             selectionIndex={selectionIndex}
-            onOpen={onOpenRow}
             busyKey={actionBusyKey}
+            canAssign={canAssign}
             selectable={bulkEnabled}
             bulkSelection={bulkSelection}
             bulkResult={bulkResult}
@@ -851,11 +696,7 @@ export function ReviewerConsole({
             onToggleAll={(ids, allSelected) =>
               setBulkSelection(allSelected ? new Set<string>() : new Set(ids))
             }
-            onAssign={(row) => setActionState({ kind: "assign", workflowId: row.id })}
-            onEscalate={(row) => setActionState({ kind: "escalate", workflowId: row.id })}
-            onRequestInfo={(row) =>
-              setActionState({ kind: "requestInfo", workflowId: row.id })
-            }
+            onAssign={openAssign}
           />
           <PaginationFooter
             tab={activeTab}
@@ -884,35 +725,19 @@ export function ReviewerConsole({
         </>
       ) : null}
 
-      {actionState.kind === "assign" ? (
-        <AssignModal
-          workflowId={actionState.workflowId}
+      {actionState.kind === "assign" && picker.state ? (
+        <ReviewerPickerModal
+          state={picker.state}
+          title="Assign reviewer"
+          description={`Review ${shortId(actionState.workflowId)}`}
           busy={actionBusyKey === `assign:${actionState.workflowId}`}
-          onCancel={() => setActionState({ kind: "idle" })}
-          onSubmit={(assigneeUserId, note) =>
-            void runAssign(actionState.workflowId, assigneeUserId, note)
-          }
-        />
-      ) : null}
-      {actionState.kind === "escalate" ? (
-        <EscalateModal
-          workflowId={actionState.workflowId}
-          busy={actionBusyKey === `escalate:${actionState.workflowId}`}
-          onCancel={() => setActionState({ kind: "idle" })}
-          onSubmit={(reason, severity, summary) =>
-            void runEscalate(actionState.workflowId, reason, severity, summary)
-          }
-        />
-      ) : null}
-      {actionState.kind === "requestInfo" ? (
-        <RequestInfoModal
-          workflowId={actionState.workflowId}
-          busy={
-            actionBusyKey === `request-info:${actionState.workflowId}`
-          }
-          onCancel={() => setActionState({ kind: "idle" })}
-          onSubmit={(note) =>
-            void runRequestInfo(actionState.workflowId, note)
+          onRetry={() => void picker.open()}
+          onCancel={() => {
+            picker.close();
+            setActionState({ kind: "idle" });
+          }}
+          onSelect={(assigneeUserId) =>
+            void runAssign(actionState.workflowId, assigneeUserId, null)
           }
         />
       ) : null}
@@ -921,9 +746,39 @@ export function ReviewerConsole({
           backend's STEP_UP_REQUIRED gate. Otherwise it stays
           dormant. */}
       <StepUpModal control={stepUp} />
-      <style jsx>{reviewerConsoleStyles}</style>
     </PageShell>
   );
+}
+
+/**
+ * TEAM-UI-SPEC §3 — routing recommendations show only when there are any.
+ * A bounded probe of the same endpoint the pane reads; any failure (or a
+ * refusal) reads as "none", so the console never shows an empty or error
+ * panel for an advisory feature.
+ */
+function useHasRoutingRecommendations(teamId: string | null): boolean {
+  const [has, setHas] = useState(false);
+  useEffect(() => {
+    setHas(false);
+    if (!teamId) return;
+    let cancelled = false;
+    apiFetch(`/v1/reviewer/routing-recommendations?teamId=${encodeURIComponent(teamId)}`)
+      .then((res: { recommendations?: ReadonlyArray<unknown> }) => {
+        if (!cancelled) setHas(Array.isArray(res?.recommendations) && res.recommendations.length > 0);
+      })
+      .catch(() => {
+        if (!cancelled) setHas(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [teamId]);
+  return has;
+}
+
+/** Assign is offered on a non-terminal row that has no owner yet. */
+function isRowAssignable(row: QueueRow): boolean {
+  return isQueueRowActionable(row) && !row.assignedToUserId && row.id.length > 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -932,9 +787,7 @@ export function ReviewerConsole({
 
 type ActionState =
   | { kind: "idle" }
-  | { kind: "assign"; workflowId: string }
-  | { kind: "escalate"; workflowId: string }
-  | { kind: "requestInfo"; workflowId: string };
+  | { kind: "assign"; workflowId: string };
 
 // ---------------------------------------------------------------------------
 // G3.2 — Pagination. Each tab tracks its own bounded "extended" view
@@ -981,17 +834,20 @@ function emptyPagination(): TabPagination {
 
 // ---------------------------------------------------------------------------
 // Queue table — rows are `QueueRow` (shared `toQueueRow` mapping).
+//
+// TEAM-UI-SPEC §4: `.app-table` in an `.app-table-surface`, riding the shared
+// `[data-responsive]` card cutover below 720 px, arranged by
+// review-surfaces.css into the compact two-line row (ref + priority; status +
+// due; Open + the one secondary). The keyboard-selected row uses Evidence
+// Library's selected-row style (`data-selected`).
 // ---------------------------------------------------------------------------
 
 function QueueTable({
   rows,
-  rowPad,
   selectionIndex,
-  onOpen,
   onAssign,
-  onEscalate,
-  onRequestInfo,
   busyKey,
+  canAssign,
   selectable,
   bulkSelection,
   bulkResult,
@@ -999,13 +855,11 @@ function QueueTable({
   onToggleAll,
 }: {
   rows: ReadonlyArray<QueueRow>;
-  rowPad: string;
   selectionIndex: number;
-  onOpen?: (row: QueueRow) => void;
   onAssign: (row: QueueRow) => void;
-  onEscalate: (row: QueueRow) => void;
-  onRequestInfo: (row: QueueRow) => void;
   busyKey: string | null;
+  /** The viewer holds REVIEW_ASSIGN. */
+  canAssign: boolean;
   /** Bulk checkboxes render only where bulk is offered (TEAM-SPEC R1). */
   selectable: boolean;
   bulkSelection: ReadonlySet<string>;
@@ -1015,12 +869,12 @@ function QueueTable({
 }) {
   if (rows.length === 0) {
     return (
-      <Card variant="empty" padding="none" className="reviewer-console__empty">
+      <section className="app-panel reviewer-console__empty">
         <EmptyState
           title="No reviews in this slice"
           purpose="No reviews match this slice right now. Switch slice above, or open Queues for every filter."
         />
-      </Card>
+      </section>
     );
   }
   // Bulk selection operates on the workflow ids actually rendered.
@@ -1030,31 +884,38 @@ function QueueTable({
     selectableIds.every((id) => bulkSelection.has(id));
   const someSelected = selectableIds.some((id) => bulkSelection.has(id));
   return (
-    <div style={reviewerTableScrollStyle}>
-      <table role="grid" style={reviewerTableStyle}>
+    <div className="app-table-surface app-table-surface--scroll">
+      <table
+        role="grid"
+        className="app-table review-rows"
+        data-responsive
+        data-review-selectable={selectable ? "true" : "false"}
+        data-reviewer-console-table
+      >
         <thead>
           <tr>
             {selectable ? (
-            <th style={reviewerThStyle}>
-              <input
-                type="checkbox"
-                aria-label="Select all queue rows"
-                data-reviewer-bulk-select-all
-                checked={allSelected}
-                ref={(el) => {
-                  if (el) el.indeterminate = !allSelected && someSelected;
-                }}
-                onChange={() => onToggleAll(selectableIds, allSelected)}
-                disabled={selectableIds.length === 0}
-              />
-            </th>
+              <th>
+                <input
+                  type="checkbox"
+                  className="app-checkbox"
+                  aria-label="Select all queue rows"
+                  data-reviewer-bulk-select-all
+                  checked={allSelected}
+                  ref={(el) => {
+                    if (el) el.indeterminate = !allSelected && someSelected;
+                  }}
+                  onChange={() => onToggleAll(selectableIds, allSelected)}
+                  disabled={selectableIds.length === 0}
+                />
+              </th>
             ) : null}
-            <th style={reviewerThStyle}>Evidence</th>
-            <th style={reviewerThStyle}>Stage</th>
-            <th style={reviewerThStyle}>Status</th>
-            <th style={reviewerThStyle}>Priority</th>
-            <th style={reviewerThStyle}>Due</th>
-            <th style={reviewerThStyle}>Actions</th>
+            <th>Evidence</th>
+            <th>Stage</th>
+            <th>Status</th>
+            <th>Priority</th>
+            <th>Due</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -1063,9 +924,12 @@ function QueueTable({
             const actionable = isQueueRowActionable(row);
             const wid = row.id;
             const assignBusy = busyKey === `assign:${wid}`;
-            const escalateBusy = busyKey === `escalate:${wid}`;
-            const reqInfoBusy = busyKey === `request-info:${wid}`;
+            const offerAssign = canAssign && isRowAssignable(row);
             const bulkSelected = wid.length > 0 && bulkSelection.has(wid);
+            const ref = row.evidenceId
+              ? recordReference("Evidence", row.evidenceId)
+              : recordReference("Review", wid);
+            const inspectorHref = `/reviewer-ops/${encodeURIComponent(wid)}`;
             // Per-row outcome marker from the most recent bulk submit,
             // so the reviewer can see which rows just succeeded vs
             // failed without re-fetching.
@@ -1082,27 +946,33 @@ function QueueTable({
                 data-reviewer-bulk-last-outcome={
                   outcome ? (outcome.ok ? "ok" : "failed") : ""
                 }
-                style={reviewerRowStyle(selected)}
               >
                 {selectable ? (
-                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
-                  <input
-                    type="checkbox"
-                    aria-label={`Select review of ${row.evidenceId ? recordReference("Evidence", row.evidenceId) : recordReference("Review", wid)}`}
-                    data-reviewer-bulk-row-checkbox={wid}
-                    checked={bulkSelected}
-                    onChange={() => onToggleRow(wid)}
-                    disabled={wid.length === 0}
-                  />
-                </td>
+                  <td data-review-cell="check" data-label="">
+                    <input
+                      type="checkbox"
+                      className="app-checkbox"
+                      aria-label={`Select review of ${ref}`}
+                      data-reviewer-bulk-row-checkbox={wid}
+                      checked={bulkSelected}
+                      onChange={() => onToggleRow(wid)}
+                      disabled={wid.length === 0}
+                    />
+                  </td>
                 ) : null}
-                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
-                  {row.evidenceId ? recordReference("Evidence", row.evidenceId) : recordReference("Review", row.id)}
+                <td data-review-cell="ref" data-label="Evidence">
+                  {wid ? (
+                    <Link href={inspectorHref} className="review-rows__ref" data-reviewer-row-ref>
+                      {ref}
+                    </Link>
+                  ) : (
+                    <span className="review-rows__ref">{ref}</span>
+                  )}
                 </td>
-                <td style={{ padding: rowPad, ...reviewerTdStyle }} data-reviewer-row-stage>
+                <td data-review-cell="extra" data-label="Stage" data-reviewer-row-stage>
                   {row.stage ? identifierLabel(row.stage) : "—"}
                 </td>
-                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
+                <td data-review-cell="status" data-label="Status">
                   {row.status ? (
                     <Badge tone={statusTone(row.status)} subtle>
                       {identifierLabel(row.status)}
@@ -1111,7 +981,7 @@ function QueueTable({
                     "—"
                   )}
                 </td>
-                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
+                <td data-review-cell="priority" data-label="Priority">
                   {row.priority ? (
                     <Badge tone={priorityTone(row.priority)} subtle>
                       {identifierLabel(row.priority)}
@@ -1120,74 +990,44 @@ function QueueTable({
                     "—"
                   )}
                 </td>
-                <td style={{ padding: rowPad, ...reviewerTdStyle }} data-reviewer-row-due>
-                  {formatDue(row.dueAt)}
+                <td data-review-cell="due" data-label="Due" data-reviewer-row-due>
+                  <span className="app-table__muted">{formatDue(row.dueAt)}</span>
                 </td>
-                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
-                  <div
-                    data-reviewer-row-actions={wid}
-                    style={{ display: "flex", gap: 6, flexWrap: "wrap" }}
-                  >
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      data-reviewer-action="assign"
-                      data-reviewer-workflow-id={wid}
-                      disabled={!actionable}
-                      loading={assignBusy}
-                      onClick={() => onAssign(row)}
-                      title="Assign reviewer (a)"
-                    >
-                      {assignBusy ? "Assigning…" : "Assign"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      data-reviewer-action="escalate"
-                      data-reviewer-workflow-id={wid}
-                      disabled={!actionable}
-                      loading={escalateBusy}
-                      onClick={() => onEscalate(row)}
-                      title="Raise escalation (e)"
-                    >
-                      {escalateBusy ? "Raising…" : "Escalate"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      data-reviewer-action="request-info"
-                      data-reviewer-workflow-id={wid}
-                      disabled={!actionable}
-                      loading={reqInfoBusy}
-                      onClick={() => onRequestInfo(row)}
-                      title="Request more info (m)"
-                    >
-                      {reqInfoBusy ? "Requesting…" : "Request info"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      data-reviewer-action="open-inspector"
-                      data-reviewer-workflow-id={wid}
-                      onClick={() => onOpen?.(row)}
-                      title="Open reviewer inspector (Enter)"
-                    >
-                      Open inspector
-                    </Button>
+                <td data-review-cell="actions" data-label="">
+                  <div className="app-table__actions" data-reviewer-row-actions={wid}>
+                    {wid ? (
+                      <Link
+                        href={inspectorHref}
+                        className="app-ghost-action"
+                        data-reviewer-action="open-inspector"
+                        data-reviewer-workflow-id={wid}
+                        title="Open the review (Enter)"
+                      >
+                        Open
+                      </Link>
+                    ) : null}
+                    {offerAssign ? (
+                      <button
+                        type="button"
+                        className="app-secondary-action"
+                        data-reviewer-action="assign"
+                        data-reviewer-workflow-id={wid}
+                        disabled={assignBusy}
+                        aria-busy={assignBusy || undefined}
+                        onClick={() => onAssign(row)}
+                        title="Assign reviewer (a)"
+                      >
+                        {assignBusy ? "Assigning…" : "Assign"}
+                      </button>
+                    ) : null}
                     {outcome ? (
                       <span
-                        data-reviewer-bulk-row-outcome={
-                          outcome.ok ? "ok" : "failed"
+                        className={
+                          outcome.ok
+                            ? "app-chip app-chip--ok review-rows__outcome"
+                            : "app-chip app-chip--warn review-rows__outcome"
                         }
-                        style={{
-                          fontSize: 11,
-                          padding: "1px 6px",
-                          borderRadius: 4,
-                          alignSelf: "center",
-                          background: outcome.ok
-                            ? "rgba(34,197,94,0.18)"
-                            : "rgba(239,68,68,0.22)",
-                        }}
+                        data-reviewer-bulk-row-outcome={outcome.ok ? "ok" : "failed"}
                       >
                         {outcome.ok
                           ? "Applied"
@@ -1232,84 +1072,59 @@ function PaginationFooter({
   const atCap = state.limit >= cap;
   return (
     <div
-      className="reviewer-console__pagination"
+      className="app-inner-surface review-toolbar reviewer-console__pagination"
       data-reviewer-pagination-tab={tab}
       data-reviewer-pagination-limit={state.limit}
       data-reviewer-pagination-has-more={state.hasMore ? "true" : "false"}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 8,
-        margin: "8px 0",
-        padding: "8px 12px",
-        fontSize: 12.5,
-        color: "var(--ink-secondary, #475569)",
-        background: "var(--surface-muted, #f8fafc)",
-        border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-        borderRadius: "var(--radius-md, 8px)",
-      }}
     >
-      <span data-reviewer-pagination-status>
+      <span className="app-field-help" data-reviewer-pagination-status>
         {extended
           ? `Showing ${shownCount} row${shownCount === 1 ? "" : "s"} (limit ${state.limit}${atCap ? " — workspace max" : ""}).`
           : "Showing first 25 rows from the console aggregator."}
         {state.loading ? " Loading more…" : null}
       </span>
-      <div
-        style={{
-          display: "flex",
-          gap: 6,
-          flexWrap: "wrap",
-          alignItems: "center",
-        }}
-      >
-        {state.error ? (
-          <span
-            role="alert"
-            data-reviewer-pagination-error
-            style={{ color: "var(--status-risk-fg, #991b1b)" }}
-          >
-            {state.error}
-          </span>
-        ) : null}
-        {extended ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            data-reviewer-pagination-reset
-            onClick={onReset}
-            disabled={state.loading}
-            title="Return to the bounded 25-row aggregator slice"
-          >
-            Reset
-          </Button>
-        ) : null}
-        {(!extended || (state.hasMore && !atCap)) ? (
-          <Button
-            size="sm"
-            variant="secondary"
-            data-reviewer-pagination-load-more
-            onClick={onLoadMore}
-            disabled={atCap}
-            loading={state.loading}
-          >
-            {state.loading ? "Loading…" : "Load more"}
-          </Button>
-        ) : null}
-        {!atCap ? (
-          <Button
-            size="sm"
-            variant="secondary"
-            data-reviewer-pagination-view-all
-            onClick={onViewAll}
-            disabled={state.loading}
-            title={`Load up to the workspace cap of ${cap} rows`}
-          >
-            View all (≤{cap})
-          </Button>
-        ) : null}
-      </div>
+      <span className="review-toolbar__spacer" />
+      {state.error ? (
+        <span role="alert" className="app-field-error" data-reviewer-pagination-error>
+          {state.error}
+        </span>
+      ) : null}
+      {extended ? (
+        <button
+          type="button"
+          className="app-ghost-action"
+          data-reviewer-pagination-reset
+          onClick={onReset}
+          disabled={state.loading}
+          title="Return to the bounded 25-row aggregator slice"
+        >
+          Reset
+        </button>
+      ) : null}
+      {!extended || (state.hasMore && !atCap) ? (
+        <button
+          type="button"
+          className="app-secondary-action"
+          data-reviewer-pagination-load-more
+          onClick={onLoadMore}
+          disabled={atCap || state.loading}
+          aria-busy={state.loading || undefined}
+        >
+          {state.loading ? "Loading…" : "Load more"}
+        </button>
+      ) : null}
+      {!atCap ? (
+        <button
+          type="button"
+          className="app-secondary-action"
+          data-reviewer-pagination-view-all
+          onClick={onViewAll}
+          disabled={state.loading}
+          title={`Load up to the workspace cap of ${cap} rows`}
+        >
+          View all (≤{cap})
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -1418,85 +1233,63 @@ export function SavedViewsPanel({
   );
 
   return (
-    <PageSection
-      className="reviewer-console__saved-views"
+    <section
+      className="app-panel reviewer-console__saved-views"
       data-reviewer-saved-views-panel
+      aria-labelledby="reviewer-saved-views-title"
     >
-      <Card
-        padding="comfortable"
-        header={
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 12,
-            }}
+      <div className="app-panel__head">
+        <h2 className="app-panel__title" id="reviewer-saved-views-title">
+          Saved queue views
+        </h2>
+        {!creating ? (
+          <button
+            type="button"
+            className="app-secondary-action"
+            data-reviewer-saved-view-create
+            onClick={() => setCreating(true)}
           >
-            <h2 style={{ margin: 0, fontSize: 15, fontWeight: 650 }}>
-              Saved queue views
-            </h2>
-            {!creating ? (
-              <Button
-                size="sm"
-                variant="secondary"
-                data-reviewer-saved-view-create
-                onClick={() => setCreating(true)}
-              >
-                Save current view
-              </Button>
-            ) : null}
-          </div>
-        }
-      >
+            Save current view
+          </button>
+        ) : null}
+      </div>
+      <div className="app-panel__body review-panel-stack">
         {error ? (
-          <p
-            role="alert"
-            data-reviewer-saved-view-error
-            style={{ color: "var(--status-risk-fg, #991b1b)", fontSize: 12.5 }}
-          >
+          <p role="alert" className="app-field-error" data-reviewer-saved-view-error>
             {error}
           </p>
         ) : null}
 
         {creating ? (
           <form
+            className="app-inner-surface app-panel__body review-panel-stack"
             data-reviewer-saved-view-form
             onSubmit={(e) => {
               e.preventDefault();
               void create();
             }}
-            style={{
-              display: "grid",
-              gap: 8,
-              margin: "8px 0",
-              padding: "10px 12px",
-              border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-              borderRadius: "var(--radius-md, 8px)",
-              background: "var(--surface-muted, #f8fafc)",
-            }}
           >
-            <label
-              style={{ fontSize: 12, color: "var(--ink-secondary, #475569)" }}
-            >
-              View name
+            <div>
+              <label className="app-field-label" htmlFor="reviewer-saved-view-name">
+                View name
+              </label>
               <input
+                id="reviewer-saved-view-name"
                 autoFocus
                 type="text"
+                className="app-input"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 maxLength={120}
                 data-reviewer-saved-view-name
                 required
-                style={savedViewControlStyle}
               />
-            </label>
-            <label
-              style={{ fontSize: 12, color: "var(--ink-secondary, #475569)" }}
-            >
-              Visibility
+            </div>
+            <div>
+              <span className="app-field-label">Visibility</span>
               <AppListbox
                 value={visibility}
+                ariaLabel="Visibility"
                 options={[
                   { value: "PRIVATE", label: "Private — only you" },
                   { value: "TEAM", label: "Workspace — everyone in this team" },
@@ -1504,13 +1297,11 @@ export function SavedViewsPanel({
                 onChange={(next) => setVisibility(next as "PRIVATE" | "TEAM")}
                 triggerProps={{ "data-reviewer-saved-view-visibility": "" }}
               />
-            </label>
-            <div
-              style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}
-            >
-              <Button
-                size="sm"
-                variant="ghost"
+            </div>
+            <div className="review-panel__actions">
+              <button
+                type="button"
+                className="app-secondary-action"
                 onClick={() => {
                   setCreating(false);
                   setName("");
@@ -1519,346 +1310,77 @@ export function SavedViewsPanel({
                 data-reviewer-saved-view-cancel
               >
                 Cancel
-              </Button>
-              <Button
+              </button>
+              <button
                 type="submit"
-                size="sm"
-                variant="primary"
+                className="app-primary-action"
                 data-reviewer-saved-view-submit
-                disabled={!name.trim()}
-                loading={busy}
+                disabled={!name.trim() || busy}
+                aria-busy={busy || undefined}
               >
                 {busy ? "Saving…" : "Save view"}
-              </Button>
+              </button>
             </div>
           </form>
         ) : null}
 
         {views.length === 0 ? (
-          <p
-            style={{
-              color: "var(--ink-muted, #64748b)",
-              fontSize: 12,
-              margin: "8px 0",
-            }}
-            data-reviewer-saved-views-empty
-          >
+          <p className="app-field-help" data-reviewer-saved-views-empty>
             No saved views yet. Save the current queue slice to return to it
             later.
           </p>
         ) : (
-          <ul
-            style={{
-              margin: 0,
-              padding: 0,
-              listStyle: "none",
-              display: "grid",
-              gap: 6,
-            }}
-          >
+          <ul className="review-tools">
             {views.map((v, idx) => {
               const vid = v.id ?? "";
               const deleting = deletingId === vid;
               return (
                 <li
                   key={v.id ?? idx}
+                  className="review-tools__row review-picker__row"
                   data-reviewer-saved-view-row={vid}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    justifyContent: "space-between",
-                  }}
                 >
                   <button
                     type="button"
+                    className="app-ghost-action"
                     data-reviewer-saved-view-apply={vid}
                     onClick={() => applySavedView(v)}
-                    style={{
-                      background: "transparent",
-                      border: 0,
-                      color: "var(--ink-primary, #0f172a)",
-                      padding: "4px 0",
-                      cursor: "pointer",
-                      textAlign: "left",
-                      flex: 1,
-                      font: "inherit",
-                    }}
                   >
                     {v.name ?? `View ${idx + 1}`}
                     {v.queueType ? ` · ${identifierLabel(v.queueType)}` : ""}
                   </button>
                   {mayDeleteReviewerSavedView(v, viewerUserId, viewerRole) ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    data-reviewer-saved-view-delete={vid}
-                    disabled={!vid}
-                    loading={deleting}
-                    onClick={() => {
-                      if (!vid) return;
-                      void (async () => {
-                        const ok = await confirm({
-                          title: "Delete saved view?",
-                          description: `Delete saved view "${v.name ?? vid}"?`,
-                          confirmLabel: "Delete view",
-                          tone: "warning",
-                          testId: "reviewer-saved-view-delete",
-                        });
-                        if (ok) void remove(vid);
-                      })();
-                    }}
-                    style={{ color: "var(--status-risk-fg, #7f1d1d)" }}
-                    title="Delete saved view"
-                  >
-                    {deleting ? "Deleting…" : "Delete"}
-                  </Button>
+                    <button
+                      type="button"
+                      className="app-secondary-action app-secondary-action--danger"
+                      data-reviewer-saved-view-delete={vid}
+                      disabled={!vid || deleting}
+                      aria-busy={deleting || undefined}
+                      onClick={() => {
+                        if (!vid) return;
+                        void (async () => {
+                          const ok = await confirm({
+                            title: "Delete saved view?",
+                            description: `Delete saved view "${v.name ?? vid}"?`,
+                            confirmLabel: "Delete view",
+                            tone: "warning",
+                            testId: "reviewer-saved-view-delete",
+                          });
+                          if (ok) void remove(vid);
+                        })();
+                      }}
+                      title="Delete saved view"
+                    >
+                      {deleting ? "Deleting…" : "Delete"}
+                    </button>
                   ) : null}
                 </li>
               );
             })}
           </ul>
         )}
-      </Card>
-    </PageSection>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Inline-action modals — minimal, focused, keyboard-accessible.
-// ---------------------------------------------------------------------------
-
-function AssignModal({
-  workflowId,
-  busy,
-  onCancel,
-  onSubmit,
-}: {
-  workflowId: string;
-  busy: boolean;
-  onCancel: () => void;
-  onSubmit: (assigneeUserId: string, note: string | null) => void;
-}) {
-  const [assigneeUserId, setAssigneeUserId] = useState("");
-  const [note, setNote] = useState("");
-  return (
-    <Modal
-      open
-      title="Assign reviewer"
-      description={`Review ${shortId(workflowId)}`}
-      onClose={onCancel}
-      dismissDisabled={busy}
-      testid="reviewer-modal-assign"
-    >
-      <form
-        data-reviewer-modal="assign"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (assigneeUserId.trim().length > 0)
-            onSubmit(assigneeUserId.trim(), note.trim() ? note.trim() : null);
-        }}
-      >
-        <label style={modalLabelStyle}>
-          Assignee user ID
-          <input
-            autoFocus
-            type="text"
-            value={assigneeUserId}
-            onChange={(e) => setAssigneeUserId(e.target.value)}
-            required
-            data-reviewer-assign-user-id
-            style={modalInputStyle}
-            placeholder="00000000-0000-0000-0000-000000000000"
-          />
-        </label>
-        <label style={modalLabelStyle}>
-          Note (optional, ≤400 chars)
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            maxLength={400}
-            data-reviewer-assign-note
-            style={{ ...modalInputStyle, minHeight: 60 }}
-          />
-        </label>
-        <ModalActions
-          busy={busy}
-          onCancel={onCancel}
-          submitLabel={busy ? "Assigning…" : "Assign reviewer"}
-          submitDisabled={!assigneeUserId.trim()}
-        />
-      </form>
-    </Modal>
-  );
-}
-
-function EscalateModal({
-  workflowId,
-  busy,
-  onCancel,
-  onSubmit,
-}: {
-  workflowId: string;
-  busy: boolean;
-  onCancel: () => void;
-  onSubmit: (reason: string, severity: string, summary: string) => void;
-}) {
-  const [reason, setReason] = useState(ESCALATION_REASONS[0].id);
-  const [severity, setSeverity] = useState("WARNING");
-  const [summary, setSummary] = useState("");
-  return (
-    <Modal
-      open
-      title="Raise escalation"
-      description={`Review ${shortId(workflowId)}`}
-      onClose={onCancel}
-      dismissDisabled={busy}
-      testid="reviewer-modal-escalate"
-    >
-      <form
-        data-reviewer-modal="escalate"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (summary.trim().length > 0)
-            onSubmit(reason, severity, summary.trim());
-        }}
-      >
-        <label style={modalLabelStyle}>
-          Reason
-          <AppListbox
-            value={reason}
-            options={[
-              ...ESCALATION_REASONS.map((r) => ({ value: r.id, label: r.label })),
-            ]}
-            onChange={(next) => setReason(next)}
-            triggerProps={{ "data-reviewer-escalate-reason": "" }}
-          />
-        </label>
-        <label style={modalLabelStyle}>
-          Severity
-          <AppListbox
-            value={severity}
-            options={[
-              ...ESCALATION_SEVERITIES.map((s) => ({ value: s.id, label: s.label })),
-            ]}
-            onChange={(next) => setSeverity(next)}
-            triggerProps={{ "data-reviewer-escalate-severity": "" }}
-          />
-        </label>
-        <label style={modalLabelStyle}>
-          Safe summary (operational only — no allegations, ≤400 chars)
-          <textarea
-            autoFocus
-            value={summary}
-            onChange={(e) => setSummary(e.target.value)}
-            maxLength={400}
-            required
-            data-reviewer-escalate-summary
-            style={{ ...modalInputStyle, minHeight: 80 }}
-          />
-        </label>
-        <ModalActions
-          busy={busy}
-          onCancel={onCancel}
-          submitLabel={busy ? "Raising…" : "Raise escalation"}
-          submitDisabled={!summary.trim()}
-        />
-      </form>
-    </Modal>
-  );
-}
-
-function RequestInfoModal({
-  workflowId,
-  busy,
-  onCancel,
-  onSubmit,
-}: {
-  workflowId: string;
-  busy: boolean;
-  onCancel: () => void;
-  onSubmit: (note: string) => void;
-}) {
-  const [note, setNote] = useState("");
-  return (
-    <Modal
-      open
-      title="Request more information"
-      description={`Review ${shortId(workflowId)}`}
-      onClose={onCancel}
-      dismissDisabled={busy}
-      testid="reviewer-modal-request-info"
-    >
-      <form
-        data-reviewer-modal="request-info"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (note.trim().length > 0) onSubmit(note.trim());
-        }}
-      >
-        <label style={modalLabelStyle}>
-          What additional information is needed? (≤400 chars)
-          <textarea
-            autoFocus
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            maxLength={400}
-            required
-            data-reviewer-request-info-note
-            style={{ ...modalInputStyle, minHeight: 100 }}
-          />
-        </label>
-        <ModalActions
-          busy={busy}
-          onCancel={onCancel}
-          submitLabel={busy ? "Requesting…" : "Request information"}
-          submitDisabled={!note.trim()}
-        />
-      </form>
-    </Modal>
-  );
-}
-
-function ModalActions({
-  busy,
-  onCancel,
-  submitLabel,
-  submitDisabled,
-}: {
-  busy: boolean;
-  onCancel: () => void;
-  submitLabel: string;
-  submitDisabled?: boolean;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "flex-end",
-        gap: 8,
-        marginTop: 12,
-      }}
-    >
-      <Button
-        size="sm"
-        variant="secondary"
-        onClick={onCancel}
-        data-reviewer-modal-cancel
-        disabled={busy}
-      >
-        Cancel
-      </Button>
-      <Button
-        type="submit"
-        size="sm"
-        variant="primary"
-        data-reviewer-modal-submit
-        disabled={submitDisabled}
-        loading={busy}
-      >
-        {submitLabel}
-      </Button>
-    </div>
+      </div>
+    </section>
   );
 }
 
@@ -1866,97 +1388,6 @@ function shortId(id: string): string {
   if (id.length <= 12) return id;
   return `${id.slice(0, 8)}…${id.slice(-4)}`;
 }
-
-// ---------------------------------------------------------------------------
-// Phase 7D — token-driven table + control styling. Bespoke tables are kept
-// (their <tr> carries load-bearing data-selected / data-reviewer-row-*
-// attributes that the shared <DataTable> row model does not surface) but
-// restyled onto the design tokens instead of the removed legacy classes.
-// ---------------------------------------------------------------------------
-
-const reviewerTableScrollStyle = {
-  width: "100%",
-  overflowX: "auto",
-  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-  borderRadius: "var(--radius-card, 14px)",
-  background: "var(--surface-card, #ffffff)",
-} as const;
-
-const reviewerTableStyle = {
-  width: "100%",
-  borderCollapse: "collapse",
-  fontSize: 13.5,
-  color: "var(--ink-primary, #0f172a)",
-} as const;
-
-const reviewerThStyle = {
-  textAlign: "left",
-  fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: "0.06em",
-  textTransform: "uppercase",
-  color: "var(--ink-muted, #94a3b8)",
-  background: "var(--surface-header, #f8fafc)",
-  borderBottom: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-  whiteSpace: "nowrap",
-  padding: "10px 12px",
-} as const;
-
-const reviewerTdStyle = {
-  borderBottom: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
-  verticalAlign: "middle",
-} as const;
-
-function reviewerRowStyle(selected: boolean) {
-  return {
-    background: selected ? "var(--surface-muted, rgba(15,23,42,0.04))" : undefined,
-  } as const;
-}
-
-const savedViewControlStyle = {
-  width: "100%",
-  padding: "6px 8px",
-  marginTop: 2,
-  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-  borderRadius: "var(--radius-md, 8px)",
-  fontSize: 13,
-  background: "var(--surface-card, #fff)",
-  color: "var(--ink-primary, #0f172a)",
-} as const;
-
-const modalLabelStyle = {
-  display: "block",
-  fontSize: 12,
-  color: "var(--ink-secondary, #475569)",
-  marginBottom: 8,
-} as const;
-
-const modalInputStyle = {
-  width: "100%",
-  padding: "8px 10px",
-  marginTop: 2,
-  fontSize: 13,
-  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-  borderRadius: "var(--radius-md, 8px)",
-  background: "var(--surface-card, #fff)",
-  color: "var(--ink-primary, #0f172a)",
-} as const;
-
-// Only the IA-strip anchor still relies on scoped CSS — every other
-// surface migrated to PageShell / Card / Button / Badge / EmptyState and
-// is styled inline with design tokens.
-const reviewerConsoleStyles = `
-  .reviewer-console__ia-strip a {
-    text-decoration: none;
-    color: var(--ink-primary, #0f172a);
-    border: 1px solid var(--border-default, rgba(15,23,42,0.09));
-    background: var(--surface-card, #fff);
-    border-radius: 999px;
-    padding: 6px 10px;
-    font-size: 12px;
-    font-weight: 600;
-  }
-`;
 
 // `DEFAULT_TEAM_PLACEHOLDER` is exported as a sentinel for tests that
 // need to verify the no-workspace branch renders the operator-safe

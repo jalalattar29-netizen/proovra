@@ -31,10 +31,15 @@ import { formatUserDateTime } from "../../../../lib/date";
 import { useActiveSpaceId } from "../../../../lib/platform-context";
 import { OperationalEmptyState } from "../../../../components/operational";
 import { fetchReviewerMetrics } from "../../../../lib/reviewer-workspace/reviewer-api";
-import { PageShell, PageHeader } from "../../../../components/ui/PageShell";
-import { Card } from "../../../../components/ui/Card";
+import { PageShell } from "../../../../components/ui/PageShell";
+// TEAM-UI-SPEC (structure) — the one review page header: icon title row, the
+// tool name, a "← Review" back link above it, no eyebrow.
+import {
+  ReviewPageHeader,
+  REVIEW_HUB_BACK,
+} from "../../../../components/reviewer-experience/ReviewPageHeader";
 import { Badge } from "../../../../components/ui/Badge";
-import { Button } from "../../../../components/ui/Button";
+import { CanonicalActionButton } from "../../../../components/external-review/CanonicalActionButton";
 
 type Metrics = {
   throughput7d: number;
@@ -137,9 +142,9 @@ function MetricsShell() {
       data-reviewer-metrics-page
       data-reviewer-metrics-state={state.kind}
       header={
-        <PageHeader
-          eyebrow="Review operations"
-          title="Reviewer metrics (7d)"
+        <ReviewPageHeader
+          back={REVIEW_HUB_BACK}
+          title="Reviewer metrics"
           subtitle="Operational metrics describing reviewer activity. Not authenticity claims about content; not legal weight."
           contextStrip={
             <>
@@ -159,68 +164,64 @@ function MetricsShell() {
       }
     >
       {state.kind === "LOADING" ? (
-        <div data-reviewer-metrics-loading style={mutedStyle}>
+        <p role="status" className="app-field-help" data-reviewer-metrics-loading>
           Loading reviewer metrics…
-        </div>
+        </p>
       ) : null}
 
       {state.kind === "FORBIDDEN" ? (
-        <Card
-          variant="status"
-          tone="neutral"
-          data-reviewer-metrics-forbidden
-        >
+        <section className="app-panel" data-reviewer-metrics-forbidden>
+          <div className="app-panel__body">
           You do not have permission to view team-wide reviewer
           metrics. Ask a workspace administrator or supervisor.
-        </Card>
+          </div>
+        </section>
       ) : null}
 
       {state.kind === "ERROR" ? (
-        <Card
-          variant="status"
-          tone="risk"
-          data-reviewer-metrics-error
-          footer={
-            <Button
+        <section className="app-panel" data-reviewer-metrics-error>
+          <div
+            className="app-panel__body"
+            style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}
+          >
+            <p role="alert" className="app-field-error" style={{ margin: 0, flex: "1 1 220px", minWidth: 0 }}>
+              Could not load reviewer metrics — please retry.
+            </p>
+            <CanonicalActionButton
               variant="secondary"
-              size="sm"
               data-reviewer-metrics-retry
               onClick={() => void load()}
             >
               Retry
-            </Button>
-          }
-        >
-          Could not load reviewer metrics — please retry.
-        </Card>
+            </CanonicalActionButton>
+          </div>
+        </section>
       ) : null}
 
       {state.kind === "READY" ? (
         <>
           {isMetricsEmpty(state.metrics) ? (
-            <Card
-              variant="empty"
-              data-reviewer-metrics-empty
-              style={{ fontSize: 13, lineHeight: 1.5, color: "var(--ink-secondary, #475569)" }}
-            >
+            <section className="app-panel" data-reviewer-metrics-empty>
+              <p className="app-panel__body app-field-help" style={{ margin: 0 }}>
               No reviewer activity in the last 7 days for this workspace. The
               cards stay visible below so this reads as a true zero state, not a
               hidden or broken metric fetch.{" "}
-              <Link href="/review/queues?queue=UNASSIGNED" style={{ color: "var(--ink-primary, #0f172a)" }}>
+              <Link href="/review/queues?queue=UNASSIGNED">
                 Open reviewer queues
               </Link>{" "}
               or{" "}
-              <Link href="/reviewer-ops/sla" style={{ color: "var(--ink-primary, #0f172a)" }}>
+              <Link href="/reviewer-ops/sla">
                 review SLA pressure
               </Link>
               .
-            </Card>
+              </p>
+            </section>
           ) : null}
           <div
             data-reviewer-metrics-grid
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(min(180px, 100%), 1fr))",
               gap: 12,
             }}
           >
@@ -260,17 +261,13 @@ function MetricCard({
   value: string | number;
 }) {
   return (
-    <Card padding="compact" data-reviewer-metric-card={label}>
-      <div style={{ fontSize: 11, color: "var(--ink-secondary, #475569)" }}>
-        {label}
+    <section className="app-panel" data-reviewer-metric-card={label}>
+      <div className="app-panel__body">
+        <div className="app-field-help" style={{ margin: 0 }}>
+          {label}
+        </div>
+        <div className="app-table__primary" style={{ fontSize: 22, marginTop: 4 }}>{value}</div>
       </div>
-      <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>{value}</div>
-    </Card>
+    </section>
   );
 }
-
-const mutedStyle: React.CSSProperties = {
-  color: "#475569",
-  fontSize: 13,
-  marginTop: 4,
-};

@@ -308,11 +308,11 @@ export function ReviewerCopilotPanel({
 
       {/* Evidence scope (explicit selection) */}
       <div style={{ marginTop: 12 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           <strong>Evidence in scope</strong>
-          <span style={{ display: "flex", gap: 8 }}>
-            <button className="app-secondary-action" onClick={() => setSelected(new Set(selectable.map((e) => e.id)))} disabled={selectable.length === 0}>Select all</button>
-            <button className="app-secondary-action" onClick={() => setSelected(new Set())} disabled={selected.size === 0}>Clear</button>
+          <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" className="app-ghost-action" onClick={() => setSelected(new Set(selectable.map((e) => e.id)))} disabled={selectable.length === 0}>Select all</button>
+            <button type="button" className="app-ghost-action" onClick={() => setSelected(new Set())} disabled={selected.size === 0}>Clear</button>
           </span>
         </div>
         {evidence.length === 0 ? (
@@ -379,8 +379,10 @@ export function ReviewerCopilotPanel({
         </div>
       ) : null}
 
-      <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-        <button className="app-primary-action" onClick={run} disabled={selected.size === 0 || state.kind === "loading"} aria-busy={state.kind === "loading"}>
+      {/* TEAM-UI-SPEC §2 — secondary: the inspector's one primary is the
+          decision panel's submit; the Copilot never competes with it. */}
+      <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button type="button" className="app-secondary-action" onClick={run} disabled={selected.size === 0 || state.kind === "loading"} aria-busy={state.kind === "loading"}>
           {state.kind === "loading" ? "Preparing brief…" : state.kind === "result" ? "Re-run" : "Run Reviewer Copilot"}
         </button>
         <span aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
@@ -412,7 +414,7 @@ export function ReviewerCopilotPanel({
             A newer version of “{set.name}” (v{latest}) has been published since this brief was
             generated ({usedLabel}). The result below remains linked to its original criteria
             version.{" "}
-            <button className="app-secondary-action" onClick={run}>Re-run with v{latest}</button>
+            <button type="button" className="app-secondary-action" onClick={run}>Re-run with v{latest}</button>
           </div>
         ) : null;
       })() : null}
@@ -482,7 +484,7 @@ export function ReviewerCopilotPanel({
 function Header({ criteriaVersion }: { criteriaVersion: string }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-      <h3 style={{ margin: 0 }}>Reviewer Copilot</h3>
+      <h3 className="app-panel__title" style={{ margin: 0 }}>Reviewer Copilot</h3>
       {/* Wraps: at 390px the four chips were wider than the panel and the
           last one was clipped (review-layout gate, 2026-11-23). */}
       <span style={{ display: "flex", flexWrap: "wrap", gap: 6, minWidth: 0 }}>
@@ -575,15 +577,17 @@ function ResultView(props: {
                     ) : null}
                     {isEditing ? (
                       <span style={{ display: "block", marginTop: 4 }}>
-                        <textarea value={props.editText} onChange={(e) => props.onEditTextChange(e.target.value)} maxLength={600} rows={2} style={{ width: "100%" }} aria-label="Edit observation" />
-                        <button className="app-primary-action" onClick={() => props.onSaveEdit(obsId, text)} style={{ marginRight: 6 }}>Save edit</button>
-                        <button className="app-secondary-action" onClick={props.onCancelEdit}>Cancel</button>
+                        <textarea className="app-input app-textarea" value={props.editText} onChange={(e) => props.onEditTextChange(e.target.value)} maxLength={600} rows={2} style={{ boxSizing: "border-box" }} aria-label="Edit observation" />
+                        <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                          <button type="button" className="app-secondary-action app-secondary-action--filled" onClick={() => props.onSaveEdit(obsId, text)}>Save edit</button>
+                          <button type="button" className="app-secondary-action" onClick={props.onCancelEdit}>Cancel</button>
+                        </span>
                       </span>
                     ) : (
-                      <span style={{ marginLeft: 8, display: "inline-flex", gap: 4 }}>
-                        <button className="app-secondary-action" onClick={() => props.onAccept(obsId, text)} aria-label={`Accept observation ${obsId}`}>{review?.sync === "FAILED" && review.state === "ACCEPTED" ? "Retry accept" : "Accept"}</button>
-                        <button className="app-secondary-action" onClick={() => props.onStartEdit(obsId, text)} aria-label={`Edit observation ${obsId}`}>Edit</button>
-                        <button className="app-secondary-action" onClick={() => props.onReject(obsId, text)} aria-label={`Reject observation ${obsId}`}>{review?.sync === "FAILED" && review.state === "REJECTED" ? "Retry reject" : "Reject"}</button>
+                      <span style={{ marginLeft: 8, display: "inline-flex", flexWrap: "wrap", gap: 4 }}>
+                        <button type="button" className="app-secondary-action" onClick={() => props.onAccept(obsId, text)} aria-label={`Accept observation ${obsId}`}>{review?.sync === "FAILED" && review.state === "ACCEPTED" ? "Retry accept" : "Accept"}</button>
+                        <button type="button" className="app-secondary-action" onClick={() => props.onStartEdit(obsId, text)} aria-label={`Edit observation ${obsId}`}>Edit</button>
+                        <button type="button" className="app-secondary-action" onClick={() => props.onReject(obsId, text)} aria-label={`Reject observation ${obsId}`}>{review?.sync === "FAILED" && review.state === "REJECTED" ? "Retry reject" : "Reject"}</button>
                       </span>
                     )}
                   </li>

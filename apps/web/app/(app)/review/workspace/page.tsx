@@ -47,9 +47,16 @@ import {
   reviewerRoleLabel,
 } from "../../../../lib/labels/governanceReviewLabels";
 
-import { PageShell, PageHeader, PageSection } from "../../../../components/ui";
-import { Card } from "../../../../components/ui/Card";
-import { Button } from "../../../../components/ui/Button";
+import { PageShell, PageSection } from "../../../../components/ui";
+// TEAM-UI-SPEC (structure) — the one review page header: icon title row, the
+// tool name, a "← Review" back link above it, no eyebrow.
+import {
+  ReviewPageHeader,
+  REVIEW_HUB_BACK,
+} from "../../../../components/reviewer-experience/ReviewPageHeader";
+import { CanonicalActionButton } from "../../../../components/external-review/CanonicalActionButton";
+import { Modal } from "../../../../components/cases-experience/matter-modals/Modal";
+import "./review-workspace.css";
 import { Badge } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 
@@ -796,11 +803,9 @@ function ReviewerWorkspaceShell() {
   if (loadingWorkspace) {
     return (
       <div
-        style={{
-          padding: "var(--page-pad-y, 28px) var(--page-pad-x, 32px)",
-          color: "var(--ink-secondary, #475569)",
-          fontSize: 14,
-        }}
+        role="status"
+        className="app-field-help"
+        style={{ padding: "var(--page-pad-y, 28px) var(--page-pad-x, 32px)" }}
       >
         Loading reviewer workspace…
       </div>
@@ -811,9 +816,9 @@ function ReviewerWorkspaceShell() {
     return (
       <PageShell
         header={
-          <PageHeader
-            eyebrow="Review workspace"
-            title="Review Workspace"
+          <ReviewPageHeader
+            back={REVIEW_HUB_BACK}
+            title="Reviewer workspace"
             subtitle="The operational surface for receiving, reviewing, coding and deciding evidence workflows."
           />
         }
@@ -824,9 +829,9 @@ function ReviewerWorkspaceShell() {
             title="The reviewer workspace could not be loaded."
             purpose="Nothing was changed. Check your connection and try again."
             action={
-              <Button variant="secondary" onClick={() => setWorkspaceLoadAttempt((n) => n + 1)}>
+              <CanonicalActionButton variant="secondary" onClick={() => setWorkspaceLoadAttempt((n) => n + 1)}>
                 Try again
-              </Button>
+              </CanonicalActionButton>
             }
           />
         </PageSection>
@@ -838,9 +843,9 @@ function ReviewerWorkspaceShell() {
     return (
       <PageShell
         header={
-          <PageHeader
-            eyebrow="Review workspace"
-            title="Review Workspace"
+          <ReviewPageHeader
+            back={REVIEW_HUB_BACK}
+            title="Reviewer workspace"
             subtitle="The operational surface for receiving, reviewing, coding and deciding evidence workflows."
           />
         }
@@ -873,9 +878,9 @@ function ReviewerWorkspaceShell() {
         minHeight: "calc(100vh - 64px)",
       }}
       header={
-        <PageHeader
-          eyebrow="Review workspace"
-          title="Review Workspace"
+        <ReviewPageHeader
+          back={REVIEW_HUB_BACK}
+          title="Reviewer workspace"
           subtitle="Receive, review, annotate, code and decide evidence workflows — without leaving the page."
           contextStrip={<Badge tone="governance">Role: {reviewerRoleLabel(workspace.role)}</Badge>}
         />
@@ -883,15 +888,10 @@ function ReviewerWorkspaceShell() {
     >
       <WorkspaceRibbon workspace={workspace} statusBanner={statusBanner} />
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(180px, 220px) 1fr minmax(320px, 380px)",
-          gap: 12,
-          flex: 1,
-          minHeight: 0,
-        }}
-      >
+      {/* TEAM-UI-SPEC §4 — three columns on desktop; review-workspace.css
+          stacks them below 1100 px so nothing clips at 320/390 px (the
+          fixed 180 + 320 px minimums used to push the page sideways). */}
+      <div className="review-workspace-grid" data-reviewer-workspace-grid>
         <QueueRail workspace={workspace} />
 
         <EvidenceViewerColumn
@@ -902,7 +902,7 @@ function ReviewerWorkspaceShell() {
           workspace={workspace}
         />
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
           {activeWorkflowSummary ? (
             <WorkflowSummaryCard
               summary={activeWorkflowSummary}
@@ -1020,7 +1020,7 @@ function EvidenceViewerColumn({
 }) {
   if (!workflowId || !evidenceId) {
     return (
-      <Card data-reviewer-viewer-empty padding="comfortable">
+      <section className="app-panel" data-reviewer-viewer-empty style={{ minWidth: 0 }}>
         <OperationalEmptyState
           kicker="Reviewer workspace"
           title="No active review is assigned to you right now."
@@ -1036,7 +1036,7 @@ function EvidenceViewerColumn({
           ]}
           emptyStateCode="reviewer_workspace_no_active_review"
         />
-      </Card>
+      </section>
     );
   }
   return (
@@ -1044,34 +1044,22 @@ function EvidenceViewerColumn({
       data-reviewer-viewer
       data-reviewer-workflow-id={workflowId}
       data-reviewer-evidence-id={evidenceId}
+      className="app-panel"
       style={{
-        background: "var(--surface-card, #fff)",
-        border: "1px solid var(--border-default, rgba(15, 23, 42, 0.09))",
-        borderRadius: "var(--radius-card, 14px)",
-        boxShadow: "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))",
         padding: 8,
         display: "flex",
         flexDirection: "column",
         minHeight: 0,
+        minWidth: 0,
         gap: 8,
       }}
     >
       <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          fontSize: 12,
-          padding: "2px 4px",
-        }}
+        className="app-panel__head-row"
+        style={{ justifyContent: "space-between", flexWrap: "wrap", gap: 8, padding: "2px 4px" }}
       >
-        <strong style={{ color: "var(--ink-primary, #0f172a)" }}>
-          Active evidence
-        </strong>
-        <a
-          href={`/evidence/${evidenceId}`}
-          style={{ color: "var(--ink-primary, #0f172a)", textDecoration: "underline" }}
-        >
+        <h2 className="app-panel__title">Active evidence</h2>
+        <a href={`/evidence/${evidenceId}`} className="app-ghost-action">
           Open full evidence ↗
         </a>
       </header>
@@ -1109,18 +1097,11 @@ function SidePaneNoEvidence({
   return (
     <section
       data-side-pane-no-evidence={mode}
-      style={{
-        background: "rgba(15, 23, 42, 0.015)",
-        border: "1px dashed var(--border-strong, rgba(15, 23, 42, 0.14))",
-        borderRadius: "var(--radius-card, 14px)",
-        padding: 12,
-        color: "var(--ink-secondary, #475569)",
-        fontSize: 12,
-        lineHeight: 1.55,
-      }}
+      className="app-panel"
     >
-      <strong style={{ color: "var(--ink-primary, #0f172a)" }}>{mode}</strong>{" "}
-      pane. {copy}
+      <p className="app-panel__body app-field-help" style={{ margin: 0 }}>
+        <strong>{mode}</strong> pane. {copy}
+      </p>
     </section>
   );
 }
@@ -1166,75 +1147,44 @@ function HelpOverlay({
   hotkeys: ReadonlyArray<{ code: string; key: string }>;
 }) {
   return (
-    <div
-      data-reviewer-help-overlay
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(15, 23, 42, 0.55)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 50,
-      }}
+    // TEAM-UI-SPEC §1 — the canonical Modal (focus trap, Escape, restore
+    // focus) with a secondary Close in its footer, not an ad-hoc overlay.
+    <Modal
+      open
+      title="Reviewer hotkeys"
+      onClose={onClose}
+      testid="reviewer-help-overlay"
+      footer={
+        <button type="button" className="app-secondary-action" onClick={onClose}>
+          Close
+        </button>
+      }
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "var(--surface-card, #fff)",
-          borderRadius: "var(--radius-card, 14px)",
-          boxShadow: "var(--shadow-elevated, 0 24px 48px rgba(15,23,42,0.18))",
-          padding: 20,
-          maxWidth: 480,
-          fontSize: 13,
-          lineHeight: 1.55,
-          color: "var(--ink-primary, #0f172a)",
-        }}
-      >
-        <h2 style={{ marginTop: 0, fontSize: 16 }}>Reviewer hotkeys</h2>
-        <p style={{ color: "var(--ink-secondary, #475569)", fontSize: 12 }}>
+      <div data-reviewer-help-overlay>
+        <p className="app-field-help" style={{ marginTop: 0 }}>
           Press <kbd>?</kbd> to close. Hotkeys never fire inside input
           fields.
         </p>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <table className="app-table">
           <tbody>
             {hotkeys.map((b) => (
               <tr key={b.code}>
-                <td style={{ padding: "3px 6px", color: "#0f172a" }}>
-                  <kbd
-                    style={{
-                      background: "#f1f5f9",
-                      padding: "1px 6px",
-                      borderRadius: 4,
-                    }}
-                  >
-                    {b.key}
-                  </kbd>
+                <td>
+                  <kbd>{b.key}</kbd>
                 </td>
-                <td style={{ padding: "3px 6px", color: "#475569" }}>{reviewerHotkeyLabel(b.code)}</td>
+                <td>{reviewerHotkeyLabel(b.code)}</td>
               </tr>
             ))}
             <tr>
-              <td style={{ padding: "3px 6px" }}>
-                <kbd
-                  style={{
-                    background: "#f1f5f9",
-                    padding: "1px 6px",
-                    borderRadius: 4,
-                  }}
-                >
-                  [ ]
-                </kbd>
+              <td>
+                <kbd>[ ]</kbd>
               </td>
-              <td style={{ padding: "3px 6px", color: "#475569" }}>
-                {reviewerHotkeyLabel("CYCLE_SIDE_PANE")}
-              </td>
+              <td>{reviewerHotkeyLabel("CYCLE_SIDE_PANE")}</td>
             </tr>
           </tbody>
         </table>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -1250,20 +1200,17 @@ function WorkspaceRibbon({
   statusBanner: string | null;
 }) {
   return (
-    <header
+    // TEAM-UI-SPEC §1 — status reads as `app-chip`s on an `app-panel`, not a
+    // dark ad-hoc band with its own palette.
+    <section
       data-reviewer-ribbon
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: "10px 16px",
-        background: "var(--ink-primary, #0f172a)",
-        color: "var(--ink-inverse, #fafafa)",
-        borderRadius: "var(--radius-card, 14px)",
-        fontSize: 12,
-      }}
+      className="app-panel"
+      aria-label="Workspace counts"
     >
-      <strong style={{ fontSize: 13 }}>Reviewer Workspace</strong>
+      <div
+        className="app-panel__body"
+        style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}
+      >
       <Pill label={`Role: ${reviewerRoleLabel(workspace.role)}`} />
       <Pill label={`Assigned ${workspace.queues.assigned}`} />
       <Pill label={`Unassigned ${workspace.queues.unassigned}`} />
@@ -1271,24 +1218,16 @@ function WorkspaceRibbon({
       <Pill label={`Escalated ${workspace.queues.escalated}`} tone="warn" />
       <Pill label={`QC ${workspace.queues.qc}`} />
       <Pill label={`Disagreements ${workspace.disagreements.awaitingAdjudication}`} />
-      <div style={{ flex: 1 }} />
       <Pill label={`7d throughput ${workspace.metrics.throughput7d}`} />
       <Pill label={`Approval ${workspace.metrics.approvalRate7dPct}%`} />
       <Pill label={`Escalation ${workspace.metrics.escalationRate7dPct}%`} />
       {statusBanner ? (
-        <div
-          data-reviewer-status-banner
-          style={{
-            background: "#1e293b",
-            padding: "4px 10px",
-            borderRadius: "var(--radius-pill, 999px)",
-            border: "1px solid rgba(255,255,255,0.16)",
-          }}
-        >
+        <p data-reviewer-status-banner role="status" className="app-field-help" style={{ margin: 0, flexBasis: "100%" }}>
           {statusBanner}
-        </div>
+        </p>
       ) : null}
-    </header>
+      </div>
+    </section>
   );
 }
 
@@ -1302,20 +1241,7 @@ function Pill({
   return (
     <span
       data-reviewer-pill={tone}
-      style={{
-        padding: "3px 8px",
-        borderRadius: "var(--radius-pill, 999px)",
-        background:
-          tone === "warn"
-            ? "rgba(245, 158, 11, 0.2)"
-            : "rgba(255, 255, 255, 0.08)",
-        border:
-          tone === "warn"
-            ? "1px solid rgba(245, 158, 11, 0.45)"
-            : "1px solid rgba(255, 255, 255, 0.16)",
-        fontSize: 11,
-        fontWeight: 600,
-      }}
+      className={tone === "warn" ? "app-chip app-chip--warn" : "app-chip"}
     >
       {label}
     </span>
@@ -1326,20 +1252,16 @@ function QueueRail({ workspace }: { workspace: ReviewerWorkspaceProjection }) {
   return (
     <aside
       data-reviewer-queue-rail
+      className="app-panel"
       style={{
-        background: "var(--surface-card, #fff)",
-        border: "1px solid var(--border-default, rgba(15, 23, 42, 0.09))",
-        borderRadius: "var(--radius-card, 14px)",
-        boxShadow: "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))",
         padding: 12,
         display: "flex",
         flexDirection: "column",
         gap: 6,
+        minWidth: 0,
       }}
     >
-      <strong style={{ fontSize: 12, color: "var(--ink-primary, #0f172a)" }}>
-        Queues
-      </strong>
+      <h2 className="app-panel__title">Queues</h2>
       <QueueLine
         label="Assigned (mine)"
         count={workspace.queues.assigned}
@@ -1371,34 +1293,14 @@ function QueueRail({ workspace }: { workspace: ReviewerWorkspaceProjection }) {
         count={workspace.queues.completed}
         href="/review/queues?queue=COMPLETED_RECENTLY"
       />
-      <div
-        style={{
-          marginTop: 8,
-          paddingTop: 8,
-          borderTop: "1px solid var(--border-subtle, rgba(15, 23, 42, 0.06))",
-          color: "var(--ink-secondary, #475569)",
-          fontSize: 11,
-          lineHeight: 1.5,
-        }}
-      >
+      <p className="app-field-help" style={{ margin: "8px 0 0" }}>
         This rail shows workspace counts. Use this page to work evidence,
         reviewer queues to triage ownership, and SLA to monitor pressure.
-      </div>
-      <Link
-        href="/review/schemas"
-        style={{
-          fontSize: 11,
-          color: "var(--ink-primary, #0f172a)",
-          marginTop: 8,
-          textDecoration: "underline",
-        }}
-      >
+      </p>
+      <Link href="/review/schemas" className="app-ghost-action">
         Coding schemas
       </Link>
-      <Link
-        href="/review/disagreements"
-        style={{ fontSize: 11, color: "var(--ink-primary, #0f172a)", textDecoration: "underline" }}
-      >
+      <Link href="/review/disagreements" className="app-ghost-action">
         Disagreements
       </Link>
       {/* TEAM-SPEC §3 — metrics needs the review.assign permission (owners / admins);
@@ -1422,30 +1324,19 @@ function QueueLine({
   return (
     <Link
       href={href}
+      className="app-ghost-action"
+      data-reviewer-queue-line={label}
       style={{
-        display: "flex",
         justifyContent: "space-between",
-        alignItems: "center",
         flexWrap: "wrap",
-        fontSize: 12,
-        color: "var(--ink-primary, #0f172a)",
-        padding: "4px 6px",
-        borderRadius: "var(--radius-sm, 8px)",
-        background: "var(--surface-muted, rgba(15, 23, 42, 0.03))",
-        textDecoration: "none",
+        height: "auto",
+        minHeight: 32,
       }}
     >
       <span>{label}</span>
       <strong>{count}</strong>
       {hint ? (
-        <span
-          style={{
-            width: "100%",
-            color: "var(--ink-muted, #64748b)",
-            fontSize: 10,
-            marginTop: 2,
-          }}
-        >
+        <span className="app-table__muted" style={{ width: "100%" }}>
           {hint}
         </span>
       ) : null}
@@ -1463,34 +1354,28 @@ function WorkflowSummaryCard({
   const projection = summary.projection;
   const nextDue = projection.slaDimensions.find((d) => d.dueAtUtc !== null) ?? null;
   return (
-    <Card
+    <section
       data-reviewer-workspace-summary
-      padding="compact"
-      style={{ display: "grid", gap: 10 }}
+      className="app-panel"
     >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-        <div>
-          <strong style={{ display: "block", fontSize: 13, color: "var(--ink-primary, #0f172a)" }}>
-            Current assignment
-          </strong>
-          <span style={{ color: "var(--ink-secondary, #475569)", fontSize: 12 }}>
+      <div className="app-panel__body" style={{ display: "grid", gap: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ minWidth: 0 }}>
+          <h2 className="app-panel__title">Current assignment</h2>
+          <span className="app-field-help">
             Workflow {shortId(projection.workflowId)} linked to evidence{" "}
             {shortId(projection.evidenceId)}.
           </span>
         </div>
-        <Link
-          href={`/reviewer-ops/${projection.workflowId}`}
-          style={{ color: "var(--ink-primary, #0f172a)", fontSize: 12, textDecoration: "underline" }}
-        >
+        <Link href={`/reviewer-ops/${projection.workflowId}`} className="app-ghost-action">
           Open full inspector
         </Link>
       </div>
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(140px, 100%), 1fr))",
           gap: 8,
-          fontSize: 12,
         }}
       >
         <SummaryCell
@@ -1512,17 +1397,7 @@ function WorkflowSummaryCard({
           value="Eligible after approve or reject closes the workflow"
         />
       </div>
-      <div
-        style={{
-          background: "var(--surface-muted, rgba(15, 23, 42, 0.03))",
-          border: "1px dashed var(--border-strong, rgba(15, 23, 42, 0.14))",
-          borderRadius: "var(--radius-md, 10px)",
-          padding: "10px 12px",
-          fontSize: 12,
-          color: "var(--ink-secondary, #475569)",
-          lineHeight: 1.5,
-        }}
-      >
+      <p className="app-field-help" style={{ margin: 0 }}>
         {projection.assignedAtUtc ? (
           <>
             Assigned {formatRelativeTime(projection.assignedAtUtc)}.{" "}
@@ -1534,23 +1409,22 @@ function WorkflowSummaryCard({
         {summary.openEscalation
           ? `Open escalation: ${identifierLabel(summary.openEscalation.reason)} (${identifierLabel(summary.openEscalation.severity).toLowerCase()} severity).`
           : "No escalation is currently open."}
+      </p>
       </div>
-    </Card>
+    </section>
   );
 }
 
 function WorkspaceGuidanceCard() {
   return (
-    <Card
+    <section
       data-reviewer-workspace-guidance
-      padding="compact"
-      style={{ display: "grid", gap: 10 }}
+      className="app-panel"
     >
+      <div className="app-panel__body" style={{ display: "grid", gap: 10 }}>
       <div>
-        <strong style={{ display: "block", fontSize: 13, color: "var(--ink-primary, #0f172a)" }}>
-          How to use this page
-        </strong>
-        <span style={{ color: "var(--ink-secondary, #475569)", fontSize: 12, lineHeight: 1.5 }}>
+        <h2 className="app-panel__title">How to use this page</h2>
+        <span className="app-field-help">
           This is the daily evidence decision surface. When no review is active,
           claim or inspect work from reviewer queues, check SLA pressure, or
           open evidence to start a real workflow through existing evidence
@@ -1558,34 +1432,29 @@ function WorkspaceGuidanceCard() {
         </span>
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Link href="/review/queues?queue=MY_REVIEWS" style={summaryLinkStyle}>
+        <Link href="/review/queues?queue=MY_REVIEWS" className="app-secondary-action">
           Open my queue
         </Link>
-        <Link href="/review/queues?queue=UNASSIGNED" style={summaryLinkStyle}>
+        <Link href="/review/queues?queue=UNASSIGNED" className="app-ghost-action">
           View unassigned
         </Link>
-        <Link href="/reviewer-ops/sla" style={summaryLinkStyle}>
+        <Link href="/reviewer-ops/sla" className="app-ghost-action">
           Review SLA pressure
         </Link>
-        <Link href="/evidence" style={summaryLinkStyle}>
+        <Link href="/evidence" className="app-ghost-action">
           Open evidence
         </Link>
       </div>
-    </Card>
+      </div>
+    </section>
   );
 }
 
 function SummaryCell({ label, value }: { label: string; value: string }) {
   return (
-    <div
-      style={{
-        border: "1px solid var(--border-default, rgba(15, 23, 42, 0.09))",
-        borderRadius: "var(--radius-md, 10px)",
-        padding: "8px 10px",
-      }}
-    >
-      <div style={{ color: "var(--ink-muted, #64748b)", fontSize: 11 }}>{label}</div>
-      <div style={{ color: "var(--ink-primary, #0f172a)", fontWeight: 600 }}>{value}</div>
+    <div style={{ display: "grid", gap: 1, minWidth: 0 }}>
+      <span className="app-table__muted">{label}</span>
+      <span className="app-table__primary">{value}</span>
     </div>
   );
 }
@@ -1603,16 +1472,6 @@ function formatRelativeTime(iso: string): string {
   return `${days}d ${ms <= 0 ? "ago" : "from now"}`;
 }
 
-const summaryLinkStyle = {
-  padding: "6px 10px",
-  borderRadius: "var(--radius-pill, 999px)",
-  border: "1px solid var(--border-strong, rgba(15, 23, 42, 0.14))",
-  textDecoration: "none",
-  color: "var(--ink-primary, #0f172a)",
-  fontSize: 12,
-  fontWeight: 600,
-  background: "var(--surface-muted, #f8fafc)",
-} as const;
 
 // Phase 2A Closure — legacy EvidenceViewer replaced by
 // EvidenceViewerColumn + MediaViewer; the old function is removed.
@@ -1655,62 +1514,50 @@ function ReasonForm({
         ? "What additional information is needed?"
         : "Brief summary of why this is being escalated.";
   return (
-    <Card
+    <section
       data-reviewer-reason-form={kind}
-      padding="compact"
-      style={{ display: "flex", flexDirection: "column", gap: 6 }}
+      className="app-panel"
+      aria-label={title}
     >
-      <strong style={{ fontSize: 12, color: "var(--ink-primary, #0f172a)" }}>{title}</strong>
+      <div className="app-panel__body" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <h2 className="app-panel__title">{title}</h2>
       <textarea
         data-reviewer-reason-input
+        aria-label={title}
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder={placeholder}
         rows={4}
-        style={{
-          fontSize: 12,
-          padding: 8,
-          borderRadius: "var(--radius-sm, 8px)",
-          border: "1px solid var(--border-strong, rgba(15, 23, 42, 0.18))",
-          background: "var(--surface-card, #fff)",
-          color: "var(--ink-primary, #0f172a)",
-          resize: "vertical",
-          fontFamily: "inherit",
-        }}
+        className="app-input"
+        style={{ resize: "vertical" }}
         autoFocus
       />
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
-          fontSize: 11,
-          color: tooLong ? "var(--status-risk-solid, #dc2626)" : "var(--ink-secondary, #475569)",
-        }}
-      >
-        <span>
+      {/* TEAM-UI-SPEC §1 — Cancel secondary + the one primary submit (a
+          rejection is a verdict, not data destruction). */}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <span className={tooLong ? "app-field-error" : "app-field-help"} style={{ margin: 0 }}>
           {trimmed.length}/{maxLen}
         </span>
         <span style={{ flex: 1 }} />
-        <Button
+        <CanonicalActionButton
           variant="secondary"
-          size="sm"
           data-reviewer-reason-cancel
           onClick={onCancel}
         >
           Cancel
-        </Button>
-        <Button
+        </CanonicalActionButton>
+        <CanonicalActionButton
           variant="primary"
-          size="sm"
           data-reviewer-reason-submit
           disabled={!ready}
+          disabledReason={tooLong ? `Keep it to ${maxLen} characters.` : "Write a reason first."}
           onClick={() => onSubmit(trimmed)}
         >
           Submit
-        </Button>
+        </CanonicalActionButton>
       </div>
-    </Card>
+      </div>
+    </section>
   );
 }
 
@@ -1760,19 +1607,20 @@ function DisagreeForm({
     !busy;
 
   return (
-    <Card
+    <section
       data-reviewer-disagree-form
       data-reviewer-disagree-phase={state.phase}
-      padding="compact"
-      style={{ display: "flex", flexDirection: "column", gap: 6 }}
+      className="app-panel"
+      aria-label="File a disagreement"
     >
-      <strong style={{ fontSize: 12, color: "var(--ink-primary, #0f172a)" }}>
-        File a disagreement
-      </strong>
+      <div className="app-panel__body" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <h2 className="app-panel__title">File a disagreement</h2>
       {state.phase === "LOADING" ? (
         <p
           data-reviewer-disagree-loading
-          style={{ fontSize: 12, color: "var(--ink-secondary, #475569)", margin: 0 }}
+          role="status"
+          className="app-field-help"
+          style={{ margin: 0 }}
         >
           Loading prior decisions…
         </p>
@@ -1780,7 +1628,8 @@ function DisagreeForm({
       {state.phase === "EMPTY" ? (
         <p
           data-reviewer-disagree-empty
-          style={{ fontSize: 12, color: "var(--ink-secondary, #475569)", margin: 0 }}
+          className="app-field-help"
+          style={{ margin: 0 }}
         >
           No prior decision on file — disagree is only available after a
           decision is recorded.
@@ -1789,7 +1638,9 @@ function DisagreeForm({
       {state.phase === "ERROR" ? (
         <p
           data-reviewer-disagree-error
-          style={{ fontSize: 12, color: "var(--status-risk-solid, #dc2626)", margin: 0 }}
+          role="alert"
+          className="app-field-error"
+          style={{ margin: 0 }}
         >
           Could not load prior decisions — please retry.
         </p>
@@ -1798,7 +1649,7 @@ function DisagreeForm({
         <>
           <label
             htmlFor="reviewer-disagree-decision-select"
-            style={{ fontSize: 11, color: "var(--ink-secondary, #475569)" }}
+            className="app-field-label"
           >
             Which decision are you challenging?
           </label>
@@ -1828,7 +1679,7 @@ function DisagreeForm({
           />
           <label
             htmlFor="reviewer-disagree-rationale"
-            style={{ fontSize: 11, color: "var(--ink-secondary, #475569)" }}
+            className="app-field-label"
           >
             Rationale (required, ≤ {maxLen} chars)
           </label>
@@ -1839,56 +1690,55 @@ function DisagreeForm({
             onChange={(e) => setRationale(e.target.value)}
             rows={4}
             placeholder="Briefly explain why you challenge this decision."
-            style={{
-              fontSize: 12,
-              padding: 8,
-              borderRadius: "var(--radius-sm, 8px)",
-              border: "1px solid var(--border-strong, rgba(15, 23, 42, 0.18))",
-              background: "var(--surface-card, #fff)",
-              color: "var(--ink-primary, #0f172a)",
-              resize: "vertical",
-              fontFamily: "inherit",
-            }}
+            className="app-input"
+            style={{ resize: "vertical" }}
             autoFocus
           />
         </>
       ) : null}
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
-          fontSize: 11,
-          color: tooLong ? "var(--status-risk-solid, #dc2626)" : "var(--ink-secondary, #475569)",
-        }}
-      >
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         {state.phase === "READY" ? (
-          <span>
+          <span className={tooLong ? "app-field-error" : "app-field-help"} style={{ margin: 0 }}>
             {trimmed.length}/{maxLen}
           </span>
         ) : null}
         <span style={{ flex: 1 }} />
-        <Button
+        <CanonicalActionButton
           variant="secondary"
-          size="sm"
           data-reviewer-disagree-cancel
           onClick={onCancel}
         >
           Cancel
-        </Button>
-        <Button
+        </CanonicalActionButton>
+        <CanonicalActionButton
           variant="primary"
-          size="sm"
           data-reviewer-disagree-submit
           disabled={!canSubmit}
+          aria-busy={busy || undefined}
+          disabledReason={
+            busy
+              ? null
+              : state.phase === "LOADING"
+                ? "Prior decisions are still loading."
+                : state.phase === "EMPTY"
+                  ? "No prior decision is on file to challenge."
+                  : state.phase === "ERROR"
+                    ? "Prior decisions could not be loaded."
+                    : selectedId.length === 0
+                      ? "Choose the decision you challenge."
+                      : tooLong
+                        ? `Keep the rationale to ${maxLen} characters.`
+                        : "Write a rationale first."
+          }
           onClick={() =>
             onSubmit({ originalDecisionId: selectedId, rationale: trimmed })
           }
         >
           File disagreement
-        </Button>
+        </CanonicalActionButton>
       </div>
-    </Card>
+      </div>
+    </section>
   );
 }
 
@@ -1907,78 +1757,80 @@ function DecisionBar({
 }) {
   const canDecide = capabilities.has("review.decide") && !disabled;
   const canDisagree = capabilities.has("review.disagree") && !disabled;
+  const decideReason = disabled
+    ? "Finish or cancel the open form first."
+    : "Your reviewer role cannot record decisions here.";
+  const disagreeReason = disabled
+    ? "Finish or cancel the open form first."
+    : "Your reviewer role cannot file disagreements here.";
+  // TEAM-UI-SPEC §1 — one primary (Approve, the forward action) per region;
+  // every other decision entry is secondary. Reject is a verdict, not data
+  // destruction, so it carries no destructive styling.
   return (
     <section
       data-reviewer-decision-bar
-      style={{
-        display: "flex",
-        gap: 6,
-        background: "var(--surface-card, #fff)",
-        border: "1px solid var(--border-default, rgba(15, 23, 42, 0.09))",
-        borderRadius: "var(--radius-card, 14px)",
-        boxShadow: "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))",
-        padding: "10px 12px",
-        flexWrap: "wrap",
-        alignItems: "center",
-      }}
+      className="app-panel"
+      aria-label="Decision"
     >
+      <div
+        className="app-panel__body"
+        style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}
+      >
       <DecisionBtn
         label="Approve"
         hotkey={REVIEWER_DEFAULT_HOTKEYS.APPROVE}
-        tone="ok"
+        tone="primary"
         disabled={!canDecide}
+        disabledReason={decideReason}
         onClick={() => onDecision("APPROVE")}
       />
       <DecisionBtn
         label="Reject"
         hotkey={REVIEWER_DEFAULT_HOTKEYS.REJECT}
-        tone="danger"
+        tone="secondary"
         disabled={!canDecide}
+        disabledReason={decideReason}
         onClick={() => onDecision("REJECT")}
       />
       <DecisionBtn
         label="Escalate"
         hotkey={REVIEWER_DEFAULT_HOTKEYS.ESCALATE}
-        tone="warn"
+        tone="secondary"
         disabled={!canDecide}
+        disabledReason={decideReason}
         onClick={() => onDecision("ESCALATE")}
       />
       <DecisionBtn
         label="Request info"
         hotkey={REVIEWER_DEFAULT_HOTKEYS.REQUEST_INFO}
-        tone="neutral"
+        tone="secondary"
         disabled={!canDecide}
+        disabledReason={decideReason}
         onClick={() => onDecision("NEEDS_INFO")}
       />
       <DecisionBtn
         label="Disagree"
         hotkey=""
-        tone="neutral"
+        tone="secondary"
         disabled={!canDisagree}
+        disabledReason={disagreeReason}
         onClick={onDisagree}
       />
       <span style={{ flex: 1 }} />
       <details>
-        <summary style={{ fontSize: 11, color: "var(--ink-secondary, #475569)", cursor: "pointer" }}>
+        <summary className="app-ghost-action" style={{ display: "inline-flex" }}>
           Hotkeys
         </summary>
-        <ul style={{ margin: 6, padding: 0, listStyle: "none", fontSize: 11 }}>
+        <ul className="app-field-help" style={{ margin: 6, padding: 0, listStyle: "none" }}>
           {hotkeys.map((b) => (
             <li key={b.code} style={{ display: "flex", gap: 8 }}>
-              <code
-                style={{
-                  background: "var(--surface-muted, #f1f5f9)",
-                  padding: "1px 6px",
-                  borderRadius: "var(--radius-sm, 4px)",
-                }}
-              >
-                {b.key}
-              </code>
-              <span style={{ color: "var(--ink-secondary, #475569)" }}>{reviewerHotkeyLabel(b.code)}</span>
+              <kbd>{b.key}</kbd>
+              <span>{reviewerHotkeyLabel(b.code)}</span>
             </li>
           ))}
         </ul>
       </details>
+      </div>
     </section>
   );
 }
@@ -1988,46 +1840,32 @@ function DecisionBtn({
   hotkey,
   tone,
   disabled,
+  disabledReason,
   onClick,
 }: {
   label: string;
   hotkey: string;
-  tone: "ok" | "warn" | "danger" | "neutral";
+  tone: "primary" | "secondary";
   disabled: boolean;
+  disabledReason?: string;
   onClick: () => void;
 }) {
-  const palette: Record<typeof tone, { bg: string; ink: string }> = {
-    ok: { bg: "var(--status-verified-solid, #16a34a)", ink: "var(--ink-inverse, #fafafa)" },
-    warn: { bg: "var(--status-pending-solid, #f59e0b)", ink: "var(--ink-primary, #0f172a)" },
-    danger: { bg: "var(--status-risk-solid, #dc2626)", ink: "var(--ink-inverse, #fafafa)" },
-    neutral: { bg: "var(--ink-primary, #0f172a)", ink: "var(--ink-inverse, #fafafa)" },
-  };
-  const p = palette[tone];
   return (
-    <button
-      type="button"
+    <CanonicalActionButton
+      variant={tone}
       disabled={disabled}
+      disabledReason={disabledReason}
       onClick={onClick}
       data-reviewer-decision={label}
-      style={{
-        padding: "6px 12px",
-        borderRadius: "var(--radius-sm, 8px)",
-        border: "none",
-        background: disabled ? "var(--surface-muted, #e2e8f0)" : p.bg,
-        color: disabled ? "var(--ink-muted, #94a3b8)" : p.ink,
-        fontSize: 12,
-        fontWeight: 700,
-        cursor: disabled ? "not-allowed" : "pointer",
-      }}
     >
       {label}
       {hotkey ? (
         <>
           {" "}
-          <kbd style={{ fontSize: 9, opacity: 0.7 }}>{hotkey}</kbd>
+          <kbd aria-hidden="true">{hotkey}</kbd>
         </>
       ) : null}
-    </button>
+    </CanonicalActionButton>
   );
 }
 
@@ -2035,10 +1873,7 @@ function MetricsRailLink() {
   const destination = useReviewDestination("workspace.review_metrics", { label: "Metrics" });
   if (!destination || destination.kind !== "link") return null;
   return (
-    <Link
-      href={destination.href}
-      style={{ fontSize: 11, color: "var(--ink-primary, #0f172a)", textDecoration: "underline" }}
-    >
+    <Link href={destination.href} className="app-ghost-action">
       Metrics
     </Link>
   );

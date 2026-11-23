@@ -99,6 +99,9 @@ describe("PRO-077: the reviewer workspace never spins on a refusal", () => {
     expect(screen.getByText("The reviewer workspace could not be loaded.")).toBeTruthy();
     // a failure is not presented as a missing role
     expect(screen.queryByText("You do not have a reviewer role in this workspace.")).toBeNull();
+    // TEAM-UI-SPEC §1 — the canonical secondary action, never the legacy Button.
+    expect(screen.getByRole("button", { name: "Try again" }).className).toBe("app-secondary-action");
+    expect(document.querySelectorAll(".ui-button")).toHaveLength(0);
 
     reply = () => ({ status: 200, body: { workspace: null } });
     await act(async () => {

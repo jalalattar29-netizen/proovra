@@ -12,6 +12,7 @@ import { useState, type CSSProperties, type ReactNode } from "react";
 
 import { usePlatformContext } from "../../lib/platform-context";
 import type { ReviewDestination } from "./reviewDestination";
+import "./review-surfaces.css";
 
 export function ReviewDestinationLink({
   destination,
@@ -48,17 +49,10 @@ export function ReviewDestinationLink({
   return (
     <button
       type="button"
-      className={className ?? "app-link-button"}
-      style={{
-        background: "transparent",
-        border: 0,
-        padding: 0,
-        font: "inherit",
-        color: "var(--ink-link, inherit)",
-        textDecoration: "underline",
-        cursor: busy ? "progress" : "pointer",
-        ...style,
-      }}
+      // TEAM-UI-SPEC §1 — no inline colours on a control: a switch reads as a
+      // text link through the scoped class unless the caller names one.
+      className={className ?? "review-destination-switch"}
+      style={style}
       disabled={busy}
       data-review-destination={destination.routeId}
       data-review-destination-kind="switch"

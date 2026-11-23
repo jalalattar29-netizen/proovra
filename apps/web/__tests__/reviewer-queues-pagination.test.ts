@@ -64,6 +64,15 @@ const PAGE_PATH = resolve(
   "page.tsx",
 );
 const PAGE_SOURCE = readFileSync(PAGE_PATH, "utf8");
+// TEAM-UI-SPEC (2026-11-23) — the reviewer picker moved out of the queues page
+// into the ONE shared canonical-Modal picker the console also uses. The picker
+// pins read that component; the page still opens it (openReviewerPicker) and
+// stages the confirm.
+const PICKER_SOURCE = readFileSync(
+  resolve(__dirname, "..", "components", "reviewer-experience", "ReviewerPickerModal.tsx"),
+  "utf8",
+);
+const PAGE_AND_PICKER = PAGE_SOURCE + "\n" + PICKER_SOURCE;
 
 // ---------------------------------------------------------------------------
 // 1. Query-param shape — the page sends `queue=` (not `state=`) and respects
@@ -372,8 +381,8 @@ test("queue page fetches /v1/reviewer-ops/assignable-reviewers on Bulk assign", 
 
 test("reviewer picker fetch is wrapped in try/catch with structured warn log", () => {
   assert.match(
-    PAGE_SOURCE,
-    /openReviewerPicker[\s\S]{0,2000}?console\.warn\(\s*"\[reviewer-workspace\] assignable-reviewers fetch failed"/,
+    PICKER_SOURCE,
+    /catch \(err\)[\s\S]{0,400}?console\.warn\(\s*"\[reviewer-workspace\] assignable-reviewers fetch failed"/,
     "Picker fetch must emit a structured warn log on failure with the " +
       "status + code fields — silent failure is forbidden.",
   );
@@ -381,18 +390,18 @@ test("reviewer picker fetch is wrapped in try/catch with structured warn log", (
 
 test("reviewer picker surfaces FORBIDDEN bounded copy on 403, no prompt fallback", () => {
   assert.match(
-    PAGE_SOURCE,
+    PAGE_AND_PICKER,
     /REVIEW_PERMISSION_DENIED/,
     "Picker must distinguish the canonical REVIEW_PERMISSION_DENIED " +
       "code so the modal can surface the denial branch.",
   );
   assert.match(
-    PAGE_SOURCE,
+    PAGE_AND_PICKER,
     /You do not have permission to assign reviews in this workspace\./,
     "Picker FORBIDDEN copy must be bounded and operator-readable.",
   );
   assert.match(
-    PAGE_SOURCE,
+    PAGE_AND_PICKER,
     /data-reviewer-picker-denied/,
     "FORBIDDEN branch must render a denial element tagged " +
       "data-reviewer-picker-denied for accessibility + tests.",
@@ -401,23 +410,23 @@ test("reviewer picker surfaces FORBIDDEN bounded copy on 403, no prompt fallback
 
 test("reviewer picker renders a searchable list of reviewers", () => {
   assert.match(
-    PAGE_SOURCE,
+    PAGE_AND_PICKER,
     /data-reviewer-picker-modal/,
     "Picker modal root must carry data-reviewer-picker-modal.",
   );
   assert.match(
-    PAGE_SOURCE,
+    PAGE_AND_PICKER,
     /data-reviewer-picker-state=\{state\.kind\}/,
     "Picker root must surface the tagged state for behavioural tests.",
   );
   assert.match(
-    PAGE_SOURCE,
+    PAGE_AND_PICKER,
     /data-reviewer-picker-search/,
     "Picker must include a search input so operators can filter the " +
       "reviewer list.",
   );
   assert.match(
-    PAGE_SOURCE,
+    PAGE_AND_PICKER,
     /data-reviewer-picker-select=\{r\.userId\}/,
     "Each reviewer row must expose a select button tagged with the " +
       "user id so tests can target deterministically.",
@@ -732,7 +741,7 @@ test("CANNOT_WIRE inventory is honest", () => {
     memberPickerWired:
       PAGE_SOURCE.indexOf("/v1/reviewer-ops/assignable-reviewers") !== -1 &&
       PAGE_SOURCE.indexOf("window.prompt(") === -1 &&
-      PAGE_SOURCE.indexOf("data-reviewer-picker-modal") !== -1,
+      PAGE_AND_PICKER.indexOf("data-reviewer-picker-modal") !== -1,
   };
   assert.deepEqual(cannotWire, {
     qcFilter: true,

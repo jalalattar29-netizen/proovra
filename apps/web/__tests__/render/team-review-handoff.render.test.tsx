@@ -2,7 +2,9 @@
  * TEAM-SPEC R3 (2026-11-23) — the second-review handoff on the web.
  *
  *   - inspector banner variants from the workspace `handoff` block: assignment
- *     manager (reassign here, first reviewer never offered), no eligible
+ *     manager (the Next step primary "Assign an independent second reviewer"
+ *     opens the reassignment dialog, first reviewer never offered — TEAM-UI-SPEC
+ *     §2, no second inline picker in the banner), no eligible
  *     reviewer (cannot be waived; Members & access link only where it opens),
  *     everyone else ("waiting");
  *   - the product-facing "Reviewer collaboration scope" roadmap panel is gone;
@@ -12,7 +14,7 @@
  */
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { chooseListbox, listboxLabels, listboxValues } from "./_listbox";
 
 const teamId = "44444444-4444-4444-8444-444444444444";
@@ -159,18 +161,25 @@ afterEach(() => {
 
 async function renderInspector() {
   render(<ReviewWorkspacePage />);
-  await screen.findByRole("heading", { name: "What you can do now" });
+  await screen.findByRole("heading", { name: "Next step" });
 }
 const banner = () => document.querySelector("[data-review-handoff]");
 
 describe("inspector handoff banner", () => {
-  it("an assignment manager is told who recorded the first review and reassigns here — never to the first reviewer", async () => {
+  it("an assignment manager is told who recorded the first review and assigns from the Next step primary — never to the first reviewer", async () => {
     await renderInspector();
     await waitFor(() => expect(banner()?.getAttribute("data-review-handoff")).toBe("manager"));
     expect(banner()?.textContent).toContain(HANDOFF_COPY.managerLead("Dana First"));
     expect(HANDOFF_COPY.managerLead("Dana First")).toBe(
       "First review recorded by Dana First. Assign an independent second reviewer.",
     );
+    // No inline picker in the banner: the one primary opens the dialog.
+    expect(banner()?.querySelector("[data-review-handoff-picker]")).toBeNull();
+    const primary = document.querySelector("[data-reviewer-handoff-assign]") as HTMLButtonElement;
+    expect(primary.className).toBe("app-primary-action");
+    expect(primary.textContent).toBe("Assign an independent second reviewer");
+    fireEvent.click(primary);
+    const dialog = await screen.findByRole("dialog", { name: "Assign an independent second reviewer" });
     const picker = await waitFor(() => {
       const el = document.querySelector("[data-review-handoff-picker]");
       if (!el) throw new Error("picker not ready");
@@ -179,7 +188,7 @@ describe("inspector handoff banner", () => {
     expect(listboxValues(picker)).toEqual(["", OTHER]);
     expect(listboxLabels(picker)).not.toContain("Dana First");
     chooseListbox(picker, OTHER);
-    fireEvent.click(document.querySelector("[data-review-handoff-reassign]") as HTMLButtonElement);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Assign second reviewer" }));
     await waitFor(() => expect(calls.some((c) => c.method === "POST" && c.path === reassignPath)).toBe(true));
     expect(calls.find((c) => c.path === reassignPath)?.body).toEqual({ teamId, newAssigneeUserId: OTHER });
     await screen.findByText("Second reviewer assigned.");
@@ -195,7 +204,10 @@ describe("inspector handoff banner", () => {
     );
     const link = document.querySelector('[data-testid="review-handoff-people-link"]') as HTMLAnchorElement;
     expect(link.getAttribute("href")).toBe("/people");
+    expect(link.className).toBe("app-ghost-action");
     expect(document.querySelector("[data-review-handoff-picker]")).toBeNull();
+    // Nobody to assign: no handoff primary.
+    expect(document.querySelector("[data-reviewer-handoff-assign]")).toBeNull();
   });
 
   it("no Members & access link where that page would not open", async () => {

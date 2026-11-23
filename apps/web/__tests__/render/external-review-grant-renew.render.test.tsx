@@ -21,6 +21,11 @@ vi.mock("../../lib/platform-context", () => ({
   useCan: () => true,
   useActiveSpace: () => ({ type: "ORGANIZATION", roleLabel: "ADMIN" }),
   useTeamId: () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  // TEAM-UI-SPEC (structure) — the "← Review" back link asks the review-destination
+  // resolver whether /review opens (External review is also on Pro); no envelope here.
+  usePlatformContext: () => ({ envelope: null }),
+  useWorkspaceFragment: () => null,
+  usePersonalSpaceFragment: () => null,
 }));
 vi.mock("../../components/navigation/PageRouteGate", () => ({
   PageRouteGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,

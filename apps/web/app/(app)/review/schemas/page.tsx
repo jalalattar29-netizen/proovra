@@ -33,11 +33,15 @@ import {
   seedDefaultSchemas,
   type CodingSchemaRow,
 } from "../../../../lib/reviewer-workspace/reviewer-api";
-import { PageShell, PageHeader } from "../../../../components/ui/PageShell";
-import { Card } from "../../../../components/ui/Card";
-import { Button } from "../../../../components/ui/Button";
+import { PageShell } from "../../../../components/ui/PageShell";
+// TEAM-UI-SPEC (structure) — the one review page header: icon title row, the
+// tool name, a "← Review" back link above it, no eyebrow.
+import {
+  ReviewPageHeader,
+  REVIEW_HUB_BACK,
+} from "../../../../components/reviewer-experience/ReviewPageHeader";
 import { Badge } from "../../../../components/ui/Badge";
-import { DataTable } from "../../../../components/ui/DataTable";
+import { CanonicalActionButton } from "../../../../components/external-review/CanonicalActionButton";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 
 type ListState =
@@ -237,55 +241,43 @@ function SchemasWorkspace({ teamId }: { teamId: string }) {
     <PageShell
       data-coding-schemas-page
       header={
-        <PageHeader
-          eyebrow="Review operations"
+        <ReviewPageHeader
+          back={REVIEW_HUB_BACK}
           title="Coding schemas"
           subtitle="Structured review templates. Reviewers code against published schemas; legacy free-form notes remain available under the generic schema."
           primaryAction={
-            <Button
+            // TEAM-UI-SPEC §1 — the one forward (create) action on the page.
+            <CanonicalActionButton
               variant="primary"
               onClick={onSeed}
-              disabled={seeding}
-              loading={seeding}
+              busy={seeding}
               data-coding-seed-defaults
             >
               {seeding ? "Seeding…" : "Seed 6 default schemas"}
-            </Button>
+            </CanonicalActionButton>
           }
         />
       }
     >
       {banner ? (
-        <Card
-          variant="status"
-          tone={
-            banner.tone === "success"
-              ? "verified"
-              : banner.tone === "degraded"
-                ? "pending"
-                : "risk"
-          }
-          data-coding-seed-banner
-        >
-          <p role={banner.tone === "error" ? "alert" : "status"} style={{ margin: 0 }}>
-            {banner.text}
-          </p>
-        </Card>
+        <section className="app-panel" data-coding-seed-banner data-banner-tone={banner.tone}>
+          <div className="app-panel__body">
+            <p
+              role={banner.tone === "error" ? "alert" : "status"}
+              className={banner.tone === "error" ? "app-field-error" : undefined}
+              style={{ margin: 0 }}
+            >
+              {banner.text}
+            </p>
+          </div>
+        </section>
       ) : null}
 
-      <Card variant="admin" padding="compact">
-        <div
-          style={{
-            fontSize: 12,
-            color: "var(--ink-secondary, #475569)",
-            display: "flex",
-            gap: 10,
-            flexWrap: "wrap",
-          }}
-        >
-          <strong style={{ color: "var(--ink-primary, #0f172a)" }}>
-            Workspace-scoped schemas
-          </strong>
+      <section className="app-panel">
+        <div className="app-panel__head">
+          <h2 className="app-panel__title">Workspace-scoped schemas</h2>
+        </div>
+        <div className="app-panel__body app-field-help" style={{ display: "grid", gap: 4, margin: 0 }}>
           <span>
             {list.kind === "ready"
               ? `${rows.length} visible in this workspace.`
@@ -299,87 +291,20 @@ function SchemasWorkspace({ teamId }: { teamId: string }) {
             Reviewer operations.
           </span>
         </div>
-      </Card>
+      </section>
 
       {list.kind === "failed" ? (
-        <Card variant="status" tone="risk" data-coding-schemas-error>
-          <p role="alert" style={{ margin: 0 }}>{list.message}</p>
-          <Button size="sm" onClick={() => void refresh()} style={{ marginTop: 8 }}>
-            Retry
-          </Button>
-        </Card>
-      ) : (
-        <div data-coding-schemas-table-wrap style={{ minWidth: 0, overflowX: "auto" }}>
-          <DataTable
-            ariaLabel="Coding schemas"
-            loading={list.kind === "loading"}
-            rows={rows}
-            getRowId={(s) => s.id}
-            columns={[
-              {
-                key: "label",
-                header: "Label",
-                render: (s) => (
-                  <div data-coding-schema-row={s.id}>
-                    <strong>{s.label}</strong>
-                    <div style={{ color: "var(--ink-muted, #64748b)", fontSize: 11 }}>
-                      <code data-identifier>{s.slug}</code>
-                    </div>
-                  </div>
-                ),
-              },
-              { key: "category", header: "Category", render: (s) => identifierLabel(s.category) },
-              {
-                key: "version",
-                header: "Version",
-                nowrap: true,
-                render: (s) => `v${s.version}`,
-              },
-              {
-                key: "status",
-                header: "Status",
-                render: (s) => (
-                  <Badge tone={s.status === "ARCHIVED" ? "neutral" : "verified"} subtle>
-                    {identifierLabel(s.status)}
-                  </Badge>
-                ),
-              },
-              {
-                key: "fields",
-                header: "Fields",
-                align: "right",
-                render: (s) =>
-                  (s as unknown as { _count?: { fields: number } })._count
-                    ?.fields ?? "—",
-              },
-              {
-                key: "actions",
-                header: "Actions",
-                render: (s) => {
-                  const reason =
-                    s.status === "ARCHIVED"
-                      ? "This schema is already archived."
-                      : archivingId && archivingId !== s.id
-                        ? "Another schema is being archived."
-                        : authorReason;
-                  return (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      loading={archivingId === s.id}
-                      disabled={Boolean(reason)}
-                      disabledReason={reason}
-                      aria-label={`Archive ${s.label}`}
-                      onClick={() => void onArchive(s)}
-                      data-coding-schema-archive={s.id}
-                    >
-                      Archive
-                    </Button>
-                  );
-                },
-              },
-            ]}
-            emptyState={
+        <section className="app-panel" data-coding-schemas-error>
+          <div className="app-panel__body" style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+            <p role="alert" className="app-field-error" style={{ margin: 0, flex: "1 1 220px", minWidth: 0 }}>{list.message}</p>
+            <CanonicalActionButton variant="secondary" onClick={() => void refresh()}>
+              Retry
+            </CanonicalActionButton>
+          </div>
+        </section>
+      ) : list.kind === "loading" ? (
+        <p role="status" className="app-field-help" data-coding-schemas-loading>Loading schemas…</p>
+      ) : rows.length === 0 ? (
               <div data-coding-schemas-empty>
                 <OperationalEmptyState
                   kicker="Coding schemas"
@@ -392,8 +317,69 @@ function SchemasWorkspace({ teamId }: { teamId: string }) {
                   emptyStateCode="coding_schemas_empty"
                 />
               </div>
-            }
-          />
+      ) : (
+        // TEAM-UI-SPEC §4 — the shared responsive cutover (`.app-table[data-responsive]`):
+        // each schema collapses to a labelled card at ≤ 720 px, nothing clips at 320 px.
+        <div data-coding-schemas-table-wrap className="app-table-surface app-table-surface--scroll">
+          <table className="app-table" data-responsive="" aria-label="Coding schemas">
+            <thead>
+              <tr>
+                <th scope="col">Label</th>
+                <th scope="col">Category</th>
+                <th scope="col">Version</th>
+                <th scope="col">Status</th>
+                <th scope="col" style={{ textAlign: "right" }}>Fields</th>
+                <th scope="col">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((s) => {
+                const reason =
+                  s.status === "ARCHIVED"
+                    ? "This schema is already archived."
+                    : archivingId && archivingId !== s.id
+                      ? "Another schema is being archived."
+                      : authorReason;
+                return (
+                  <tr key={s.id}>
+                    <td data-label="Label">
+                      <div data-coding-schema-row={s.id} className="app-table__identity">
+                        <span className="app-table__primary">{s.label}</span>
+                        <span className="app-table__muted">
+                          <code data-identifier>{s.slug}</code>
+                        </span>
+                      </div>
+                    </td>
+                    <td data-label="Category">{identifierLabel(s.category)}</td>
+                    <td data-label="Version" style={{ whiteSpace: "nowrap" }}>{`v${s.version}`}</td>
+                    <td data-label="Status">
+                      <Badge tone={s.status === "ARCHIVED" ? "neutral" : "verified"} subtle>
+                        {identifierLabel(s.status)}
+                      </Badge>
+                    </td>
+                    <td data-label="Fields" style={{ textAlign: "right" }}>
+                      {(s as unknown as { _count?: { fields: number } })._count?.fields ?? "—"}
+                    </td>
+                    <td data-label="">
+                      {/* TEAM-UI-SPEC §1 — Archive is irreversible: a
+                          `--danger` entry point that opens the danger confirm. */}
+                      <CanonicalActionButton
+                        variant="danger-entry"
+                        busy={archivingId === s.id}
+                        disabled={Boolean(reason)}
+                        disabledReason={reason}
+                        aria-label={`Archive ${s.label}`}
+                        onClick={() => void onArchive(s)}
+                        data-coding-schema-archive={s.id}
+                      >
+                        Archive
+                      </CanonicalActionButton>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </PageShell>

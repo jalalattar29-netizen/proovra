@@ -363,7 +363,7 @@ export function ReviewScopePicker({
       {kind ? (
         <div style={{ display: "grid", gap: 6 }}>
           <label style={{ display: "grid", gap: 4 }}>
-            <small style={fieldLabelStyle}>
+            <small className="app-field-label">
               {kind === "CASE"
                 ? "Search matters"
                 : kind === "PACKAGE"
@@ -376,7 +376,7 @@ export function ReviewScopePicker({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={kind === "CASE" ? "Matter name or reference" : "Title or file name"}
-              style={inputStyle}
+              className="app-input"
             />
           </label>
           <OptionList
@@ -454,9 +454,13 @@ function OptionList({
   }
   if (state.status === "failed") {
     return (
-      <div role="alert" data-bulk-scope-list-failed style={alertStyle}>
-        <span>{state.message}</span>{" "}
-        <button type="button" onClick={onRetry} style={linkButtonStyle}>
+      <div
+        role="alert"
+        data-bulk-scope-list-failed
+        style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}
+      >
+        <span className="app-field-error" style={{ margin: 0 }}>{state.message}</span>
+        <button type="button" className="app-secondary-action" onClick={onRetry}>
           Try again
         </button>
       </div>
@@ -539,16 +543,6 @@ const fieldLabelStyle = {
   color: "var(--ink-secondary)",
   fontWeight: 600,
 } as const;
-const inputStyle = {
-  width: "100%",
-  padding: "6px 8px",
-  border: "1px solid var(--border-default)",
-  borderRadius: "var(--radius-sm, 6px)",
-  fontSize: 12,
-  background: "var(--surface-card)",
-  color: "var(--ink-primary)",
-  boxSizing: "border-box" as const,
-};
 const listStyle = {
   border: "1px solid var(--border-subtle)",
   borderRadius: "var(--radius-sm, 6px)",
@@ -579,21 +573,4 @@ const summaryStyle = {
   margin: 0,
   fontSize: 12,
   color: "var(--ink-secondary)",
-} as const;
-const alertStyle = {
-  fontSize: 12,
-  color: "var(--status-risk-fg)",
-  background: "var(--status-risk-bg)",
-  border: "1px solid var(--status-risk-border)",
-  borderRadius: "var(--radius-sm, 6px)",
-  padding: "6px 8px",
-} as const;
-const linkButtonStyle = {
-  background: "transparent",
-  border: "none",
-  padding: 0,
-  color: "inherit",
-  textDecoration: "underline",
-  fontSize: 12,
-  cursor: "pointer",
 } as const;

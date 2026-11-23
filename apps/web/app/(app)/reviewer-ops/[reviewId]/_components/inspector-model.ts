@@ -300,19 +300,8 @@ export function deriveActions(input: {
   return out;
 }
 
-/** The actions with an inline control, in the order a reviewer meets them. */
-export const INLINE_ACTIONS: ViewerActionName[] = [
-  "start",
-  "approve",
-  "reject",
-  "request_info",
-  "record_response",
-  "pause",
-  "resume",
-];
-
 /**
- * The one reason shown under "What you can do now": the reason the next
+ * The one reason shown under the "Next step" title: the reason the next
  * DECISION is closed, which is what a reviewer opening the page wants to know.
  */
 export function mainBlockedReason(actions: ActionMap): string | null {
@@ -326,11 +315,98 @@ export function mainBlockedReason(actions: ActionMap): string | null {
   return null;
 }
 
-/** The single primary control: the next allowed step forward. */
-export function primaryAction(actions: ActionMap): ViewerActionName | null {
-  for (const name of ["start", "record_response", "approve", "adjudicate"] as const) {
-    if (actions[name].allowed) return name;
+/** The verdict kinds the single decision panel offers at FIRST and SECOND. */
+export type VerdictChoice = "APPROVE" | "REJECT" | "REQUEST_INFO";
+export const VERDICT_CHOICES: VerdictChoice[] = ["APPROVE", "REJECT", "REQUEST_INFO"];
+
+/** The viewer action that opens each verdict kind. */
+export const VERDICT_ACTION: Record<VerdictChoice, ViewerActionName> = {
+  APPROVE: "approve",
+  REJECT: "reject",
+  REQUEST_INFO: "request_info",
+};
+
+/** The adjudication kinds the same panel offers in conflict. */
+export type AdjudicationKind = "UPHOLD_FIRST" | "UPHOLD_SECOND" | "NEEDS_MORE_INFO" | "UNRESOLVED";
+export const ADJUDICATION_KINDS: AdjudicationKind[] = ["UPHOLD_FIRST", "UPHOLD_SECOND", "NEEDS_MORE_INFO", "UNRESOLVED"];
+
+/** The one submit label, named by the choice (TEAM-UI-SPEC §2). */
+export function decisionSubmitLabel(choice: string | null | undefined): string {
+  switch (choice) {
+    case "APPROVE":
+      return "Record approval";
+    case "REJECT":
+      return "Record rejection";
+    case "REQUEST_INFO":
+      return "Request information";
+    case "UPHOLD_FIRST":
+    case "UPHOLD_SECOND":
+    case "NEEDS_MORE_INFO":
+    case "UNRESOLVED":
+      return "Record adjudication";
+    default:
+      return "Record decision";
   }
+}
+
+/**
+ * The one-line consequence shown before submit, from the lineage state the
+ * decisions panel last read. Internal wording only.
+ */
+export function decisionConsequence(input: {
+  state: string | null;
+  secondRequired: boolean;
+  choice: string | null | undefined;
+}): string | null {
+  const { state, secondRequired, choice } = input;
+  if (!choice) return null;
+  if (choice === "REQUEST_INFO") {
+    return "Asks for more information — the review waits until the response is recorded.";
+  }
+  if ((ADJUDICATION_KINDS as string[]).includes(choice)) {
+    return "Records the adjudication — the final internal decision for this round, not a public authenticity statement.";
+  }
+  if (state === "first_required" && secondRequired) {
+    return "Records the first review; an independent second reviewer must confirm.";
+  }
+  if (state === "second_required") {
+    return "Records the second review. If it matches the first, the review is decided (internal); if it differs, it goes to adjudication.";
+  }
+  if (choice === "APPROVE") return "Final decision — approved (internal), not a public authenticity statement.";
+  if (choice === "REJECT") return "Final decision — rejected (internal), not a public authenticity statement.";
+  return null;
+}
+
+/** What the "Next step" panel offers as its ONE primary control. */
+export type NextStepPrimary =
+  | "start"
+  | "record_response"
+  | "assign_second_reviewer"
+  | "adjudicate"
+  | "decide"
+  | null;
+
+/**
+ * The single contextual primary (TEAM-UI-SPEC §2): Start review (assigned,
+ * not started) · Record response (waiting for information) · Assign an
+ * independent second reviewer (handoff, managers) · Go to adjudication
+ * (conflict, independent owner/admin) · Go to decision (may decide now).
+ */
+export function nextStepPrimary(input: {
+  actions: ActionMap;
+  /** The lineage asks this viewer for a FIRST or SECOND decision. */
+  mayDecide: boolean;
+  /** The lineage is in conflict and this viewer may adjudicate. */
+  mayAdjudicate: boolean;
+  /** A second-review handoff awaits an assignment this viewer may make. */
+  handoffAssign: boolean;
+}): NextStepPrimary {
+  const { actions } = input;
+  if (actions.start.allowed) return "start";
+  if (actions.record_response.allowed) return "record_response";
+  if (input.handoffAssign && actions.reassign.allowed) return "assign_second_reviewer";
+  if (input.mayAdjudicate) return "adjudicate";
+  if (input.mayDecide) return "decide";
   return null;
 }
 
@@ -375,22 +451,6 @@ export function describeOutcome(
   return "Decision recorded.";
 }
 
-/** Approve confirmation copy, from what the decisions panel last read. */
-export function approveConfirmDescription(review: {
-  state: string | null;
-  secondRequired: boolean;
-}): string {
-  const internal =
-    "This is an internal review decision. It is not a public statement about the evidence's authenticity.";
-  if (review.state === "first_required" && review.secondRequired) {
-    return `This records the first review only — a second reviewer must confirm before the review is approved. ${internal}`;
-  }
-  if (review.state === "second_required") {
-    return `This records the second review. If it matches the first, the review is approved (internal); if it differs, it goes to adjudication. ${internal}`;
-  }
-  return `${internal} The approval is recorded permanently and may release outputs held for review. Reopening starts a new round; it does not remove this decision.`;
-}
-
 // ---------------------------------------------------------------------------
 // Refusals → copy
 // ---------------------------------------------------------------------------
@@ -409,7 +469,7 @@ const REFUSAL_MESSAGES: Record<string, string> = {
   same_reviewer_blocked:
     "You made the first decision, so you cannot make the second. A different reviewer must decide.",
   use_adjudication:
-    "The two reviews disagree. Use the adjudication panel — Approve and Reject cannot settle a disagreement.",
+    "The two reviews disagree. Record the outcome as an adjudication — an approval or rejection cannot settle a disagreement.",
   adjudicator_role_required: "Adjudication needs a workspace owner or admin.",
   adjudicator_not_independent:
     "You decided one of the two reviews, so you cannot adjudicate them. Another owner or admin must.",

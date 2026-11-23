@@ -20,7 +20,10 @@ import { useRouter } from "next/navigation";
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { ReviewerConsole } from "../../../components/reviewer-experience/ReviewerConsole";
-import { ReviewHubNav } from "../../../components/reviewer-experience/ReviewHubNav";
+import {
+  ReviewHubNav,
+  ReviewToolsPanel,
+} from "../../../components/reviewer-experience/ReviewHubNav";
 import { usePlatformContext } from "../../../lib/platform-context/PlatformContextProvider";
 // PHASE 7 §10.5 — owning-context banner (the console + inspector already
 // re-scope on switch via their teamId-keyed reload).
@@ -46,9 +49,12 @@ export default function ReviewPage() {
   return (
     <PageRouteGate routeId="review.queue">
       <WorkspaceContextBanner action="Reviewing evidence in" />
-      <ReviewHubNav active="my-reviews" />
+      {/* TEAM-UI-SPEC (structure) — banner → header → hub nav → content:
+          the console renders its ReviewPageHeader and places the hub nav
+          directly under it. */}
       <ReviewerConsole
         teamId={teamId}
+        hubNav={<ReviewHubNav active="my-reviews" />}
         onOpenRow={(row) => {
           // Delegate to the existing per-workflow inspector. The
           // inspector is the canonical mutation surface (assign,
@@ -62,6 +68,10 @@ export default function ReviewPage() {
       />
       {/* Phase QC — human quality control over sampled Copilot runs. */}
       <QcSamplingPanel />
+      {/* TEAM-UI-SPEC §3 — the advanced review tools, as link rows at the
+          bottom (only the tools that open for this actor; nothing when none).
+          They replaced the "More review tools" row under the hub tabs. */}
+      <ReviewToolsPanel />
     </PageRouteGate>
   );
 }

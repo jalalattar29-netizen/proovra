@@ -19,15 +19,17 @@
  *
  * Same contract as the Governance page: POST with `overrides` / `flags`,
  * step-up via `useStepUpAction`.
+ *
+ * TEAM-UI-SPEC §1 (round 3) — three app-panel cards inside ONE form; the
+ * form footer carries the only primary (Save policy) beside a secondary Reset
+ * that discards unsaved edits. Fields are app-field-label + app-input.
  */
 
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
-import { PageSection } from "../ui/PageShell";
-import { Card } from "../ui/Card";
-import { Button } from "../ui/Button";
+import "./review-surfaces.css";
 import {
   StepUpModal,
   isStepUpCancelled,
@@ -144,72 +146,90 @@ export function ReviewerSlaPolicyPanel({
     }
   }, [canEdit, flagDraft, overrides, stepUp, teamId]);
 
+  const reset = useCallback(() => {
+    if (!data) return;
+    setOverrides(data.policy.sources.workspace ?? {});
+    setFlagDraft({});
+    setError(null);
+    setNotice(null);
+  }, [data]);
+
   if (!data) {
     return (
-      <PageSection title="Review SLA policy">
-        {error ? (
-          <Card variant="status" tone="risk" role="alert" data-review-sla-policy-error>
-            <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-              <span>{error}</span>
-              <Button variant="secondary" size="sm" onClick={() => setAttempt((n) => n + 1)}>
+      <section className="app-panel" aria-labelledby="review-sla-policy-title">
+        <div className="app-panel__head">
+          <h2 className="app-panel__title" id="review-sla-policy-title">Review SLA policy</h2>
+        </div>
+        <div className="app-panel__body">
+          {error ? (
+            <div className="app-alert app-alert--danger" role="alert" data-review-sla-policy-error>
+              {error}{" "}
+              <button
+                type="button"
+                className="app-secondary-action"
+                onClick={() => setAttempt((n) => n + 1)}
+              >
                 Retry
-              </Button>
+              </button>
             </div>
-          </Card>
-        ) : (
-          <p className="app-field-help">Loading the review SLA policy…</p>
-        )}
-      </PageSection>
+          ) : (
+            <p className="app-field-help">Loading the review SLA policy…</p>
+          )}
+        </div>
+      </section>
     );
   }
 
   const eff = data.policy.policy;
   const flags = data.flags;
+  const dirty = Object.keys(flagDraft).length > 0 ||
+    JSON.stringify(overrides) !== JSON.stringify(data.policy.sources.workspace ?? {});
 
   return (
-    <div data-review-sla-policy data-review-sla-policy-mode={canEdit ? "edit" : "read"}>
-      <PageSection
-        title="Review SLA policy"
-        description={
-          canEdit
-            ? "Deadlines for reviews in this workspace. Leave a field blank to keep the default. Saving asks you to confirm your identity."
-            : "Deadlines for reviews in this workspace. Only workspace owners and admins can change them."
-        }
-        action={
-          canEdit ? (
-            <Button
-              variant="primary"
-              onClick={() => void save()}
-              loading={busy}
-              disabled={busy}
-              data-review-sla-policy-save
-            >
-              {busy ? "Saving…" : "Save policy"}
-            </Button>
-          ) : undefined
-        }
-      >
-        {error ? (
-          <Card variant="status" tone="risk" role="alert">
-            {error}
-          </Card>
-        ) : null}
-        {notice ? (
-          <Card variant="status" tone="verified" role="status">
-            {notice}
-          </Card>
-        ) : null}
-        <Card>
-          <div style={gridStyle}>
+    <>
+    <form
+      className="review-panel-stack"
+      data-review-sla-policy
+      data-review-sla-policy-mode={canEdit ? "edit" : "read"}
+      onSubmit={(e) => {
+        e.preventDefault();
+        void save();
+      }}
+    >
+      {error ? (
+        <div className="app-alert app-alert--danger" role="alert">
+          {error}
+        </div>
+      ) : null}
+      {notice ? (
+        <div className="app-alert app-alert--ok" role="status">
+          {notice}
+        </div>
+      ) : null}
+
+      <section className="app-panel" aria-labelledby="review-sla-policy-title">
+        <div className="app-panel__head">
+          <h2 className="app-panel__title" id="review-sla-policy-title">Review SLA policy</h2>
+        </div>
+        <div className="app-panel__body review-panel-stack">
+          <p className="app-field-help">
+            {canEdit
+              ? "Deadlines for reviews in this workspace. Leave a field blank to keep the default. Saving asks you to confirm your identity."
+              : "Deadlines for reviews in this workspace. Only workspace owners and admins can change them."}
+          </p>
+          <div className="review-field-grid">
             {HOUR_FIELDS.map((f) =>
               canEdit ? (
-                <label key={f.key} style={labelStyle}>
-                  <span>{f.label} (hours)</span>
+                <div key={f.key}>
+                  <label className="app-field-label" htmlFor={`review-sla-${f.key}`}>
+                    {f.label} (hours)
+                  </label>
                   <input
+                    id={`review-sla-${f.key}`}
                     type="number"
                     min={1}
                     max={720}
-                    className="app-form-input"
+                    className="app-input"
                     value={typeof overrides[f.key] === "number" ? overrides[f.key] : ""}
                     placeholder={String(eff[f.key])}
                     data-review-sla-policy-field={f.key}
@@ -223,103 +243,125 @@ export function ReviewerSlaPolicyPanel({
                       if (Number.isFinite(n) && n > 0) setOverrides((p) => ({ ...p, [f.key]: n }));
                     }}
                   />
-                  <span className="app-field-help">
+                  <p className="app-field-help">
                     {f.help} Now {eff[f.key]} h.
-                  </span>
-                </label>
+                  </p>
+                </div>
               ) : (
-                <div key={f.key} style={labelStyle} data-review-sla-policy-value={f.key}>
-                  <span>{f.label}</span>
-                  <strong style={{ fontSize: 15 }}>{eff[f.key]} h</strong>
-                  <span className="app-field-help">{f.help}</span>
+                <div key={f.key} data-review-sla-policy-value={f.key}>
+                  <span className="app-field-label">{f.label}</span>
+                  <span className="app-fact-value">{eff[f.key]} h</span>
+                  <p className="app-field-help">{f.help}</p>
                 </div>
               ),
             )}
           </div>
-        </Card>
-      </PageSection>
+        </div>
+      </section>
 
-      <PageSection
-        title="Step-up rules"
-        description="When on, the action asks for a fresh identity check (MFA or a trusted device) before it is accepted."
-      >
-        <Card>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {FLAG_FIELDS.map((f) => {
-              const value = flagDraft[f.key] ?? flags[f.key];
-              return canEdit ? (
-                <label key={f.key} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}>
-                  <input
-                    type="checkbox"
-                    className="app-checkbox"
-                    checked={value}
-                    onChange={(e) => setFlagDraft((p) => ({ ...p, [f.key]: e.target.checked }))}
-                  />
-                  <span>{f.label}</span>
-                </label>
-              ) : (
-                <div key={f.key} style={{ fontSize: 13 }} data-review-sla-policy-flag={f.key}>
-                  {f.label}: <strong>{value ? "On" : "Off"}</strong>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      </PageSection>
+      <section className="app-panel" aria-labelledby="review-sla-stepup-title">
+        <div className="app-panel__head">
+          <h2 className="app-panel__title" id="review-sla-stepup-title">Step-up rules</h2>
+        </div>
+        <div className="app-panel__body">
+          <p className="app-field-help">
+            When on, the action asks for a fresh identity check (MFA or a trusted device) before it is accepted.
+          </p>
+          {FLAG_FIELDS.map((f) => {
+            const value = flagDraft[f.key] ?? flags[f.key];
+            return canEdit ? (
+              <label key={f.key} className="review-check-row">
+                <input
+                  type="checkbox"
+                  className="app-checkbox"
+                  checked={value}
+                  data-review-sla-policy-flag-input={f.key}
+                  onChange={(e) => setFlagDraft((p) => ({ ...p, [f.key]: e.target.checked }))}
+                />
+                <span>{f.label}</span>
+              </label>
+            ) : (
+              <div key={f.key} className="review-check-row" data-review-sla-policy-flag={f.key}>
+                <span>{f.label}:</span>
+                <span className={value ? "app-chip app-chip--ok" : "app-chip"}>{value ? "On" : "Off"}</span>
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
-      <PageSection
-        title="Reviewer inactivity"
-        description="When set, a reminder is raised if an assigned reviewer has not touched a review for this long."
-      >
-        <Card>
+      <section className="app-panel" aria-labelledby="review-sla-inactivity-title">
+        <div className="app-panel__head">
+          <h2 className="app-panel__title" id="review-sla-inactivity-title">Reviewer inactivity</h2>
+        </div>
+        <div className="app-panel__body">
           {canEdit ? (
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input
-                type="number"
-                min={1}
-                max={720}
-                className="app-form-input"
-                style={{ width: 100 }}
-                aria-label="Reviewer inactivity threshold in hours"
-                value={flagDraft.reviewerInactivityHours ?? flags.reviewerInactivityHours ?? ""}
-                placeholder="Off"
-                onChange={(e) => {
-                  const n = e.target.value === "" ? null : Number(e.target.value);
-                  setFlagDraft((p) => ({
-                    ...p,
-                    reviewerInactivityHours:
-                      n === null || (Number.isFinite(n) && n > 0) ? n : undefined,
-                  }));
-                }}
-              />
-              <span className="app-field-help">hours</span>
+            <div className="review-field-grid">
+              <div>
+                <label className="app-field-label" htmlFor="review-sla-inactivity">
+                  Reminder after (hours)
+                </label>
+                <input
+                  id="review-sla-inactivity"
+                  type="number"
+                  min={1}
+                  max={720}
+                  className="app-input"
+                  aria-label="Reviewer inactivity threshold in hours"
+                  value={flagDraft.reviewerInactivityHours ?? flags.reviewerInactivityHours ?? ""}
+                  placeholder="Off"
+                  onChange={(e) => {
+                    const n = e.target.value === "" ? null : Number(e.target.value);
+                    setFlagDraft((p) => ({
+                      ...p,
+                      reviewerInactivityHours:
+                        n === null || (Number.isFinite(n) && n > 0) ? n : undefined,
+                    }));
+                  }}
+                />
+                <p className="app-field-help">
+                  When set, a reminder is raised if an assigned reviewer has not touched a review for this long.
+                </p>
+              </div>
             </div>
           ) : (
-            <p style={{ margin: 0, fontSize: 13 }}>
+            <p className="app-field-help">
               {flags.reviewerInactivityHours
                 ? `Reminder after ${flags.reviewerInactivityHours} h without activity.`
                 : "Off."}
             </p>
           )}
-        </Card>
-      </PageSection>
-      <StepUpModal control={stepUp} />
-    </div>
+        </div>
+      </section>
+
+      {canEdit ? (
+        <div className="review-panel__actions" data-review-sla-policy-actions>
+          <button
+            type="button"
+            className="app-secondary-action"
+            onClick={reset}
+            disabled={busy || !dirty}
+            data-review-sla-policy-reset
+          >
+            Reset
+          </button>
+          <button
+            type="submit"
+            className="app-primary-action"
+            disabled={busy}
+            aria-busy={busy || undefined}
+            data-review-sla-policy-save
+          >
+            {busy ? "Saving…" : "Save policy"}
+          </button>
+        </div>
+      ) : null}
+    </form>
+    {/* Outside the form: a submit inside the step-up dialog must not bubble
+        (through the portal) into the policy form. */}
+    <StepUpModal control={stepUp} />
+    </>
   );
 }
-
-const gridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: 12,
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 4,
-  fontSize: 12,
-  color: "var(--ink-secondary)",
-};
 
 export default ReviewerSlaPolicyPanel;

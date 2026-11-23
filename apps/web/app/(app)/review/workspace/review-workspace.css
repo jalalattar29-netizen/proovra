@@ -1,0 +1,26 @@
+/*
+ * Reviewer workspace layout (TEAM-UI-SPEC §4).
+ *
+ * Desktop: queue rail · evidence viewer · decision column. The fixed column
+ * minimums (180 px + 320 px) used to push the page sideways on a phone, and
+ * the app shell clips horizontal overflow, so the decision column was cut off
+ * at 320/390 px. Below 1100 px the columns stack; every column may shrink.
+ */
+.review-workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr) minmax(320px, 380px);
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.review-workspace-grid > * {
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .review-workspace-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

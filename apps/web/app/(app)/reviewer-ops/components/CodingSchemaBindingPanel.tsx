@@ -15,6 +15,11 @@
  * announced only after the binding is reread from the server.
  *
  * Schema authoring and publishing are deliberately out of scope here.
+ *
+ * TEAM-UI-SPEC §1/§2 — an `app-panel` card with canonical controls only: the
+ * toggle and Cancel are secondary / ghost, "Bind schema" is the filled
+ * secondary (no extra primary on the inspector). A disabled control keeps its
+ * reason as visible help text linked by `aria-describedby`.
  */
 
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
@@ -26,8 +31,6 @@ import type { ReviewerCapability } from "@proovra/shared";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { fetchReviewerWorkspace } from "../../../../lib/reviewer-workspace/reviewer-api";
-import { Button } from "../../../../components/ui/Button";
-import { Card } from "../../../../components/ui/Card";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 
 export type SchemaBinding = {
@@ -242,9 +245,16 @@ function BindingWorkspace({ teamId, workflowId }: { teamId: string; workflowId: 
   }
 
   return (
-    <Card padding="comfortable">
-      <section aria-labelledby={`${formId}-title`} data-coding-schema-binding style={{ minWidth: 0, overflowWrap: "anywhere" }}>
-        <h3 id={`${formId}-title`} className="app-panel__title">Coding schema</h3>
+      <section
+        className="app-panel"
+        aria-labelledby={`${formId}-title`}
+        data-coding-schema-binding
+        style={{ minWidth: 0, overflowWrap: "anywhere", marginBottom: 12 }}
+      >
+        <div className="app-panel__head">
+          <h3 id={`${formId}-title`} className="app-panel__title">Coding schema</h3>
+        </div>
+        <div className="app-panel__body" style={{ display: "grid", gap: 8, minWidth: 0 }}>
         {binding.kind === "loading" ? <p role="status">Loading the coding schema…</p> : null}
         {binding.kind === "denied" ? (
           <p role="alert">This review&apos;s coding schema is not available to you in this workspace.</p>
@@ -257,18 +267,28 @@ function BindingWorkspace({ teamId, workflowId }: { teamId: string; workflowId: 
               : "No coding schema is bound, so reviewers see no coding fields for this review."}
           </p>
         ) : null}
-        <Button
-          ref={toggleRef}
-          size="sm"
-          aria-expanded={open}
-          aria-controls={`${formId}-form`}
-          disabled={Boolean(toggleReason) || busy}
-          disabledReason={toggleReason}
-          onClick={() => (open ? close() : setOpen(true))}
-          data-coding-schema-binding-toggle
-        >
-          {current ? "Change coding schema" : "Choose coding schema"}
-        </Button>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, minWidth: 0 }}>
+          <button
+            type="button"
+            ref={toggleRef}
+            className="app-secondary-action"
+            aria-expanded={open}
+            aria-controls={`${formId}-form`}
+            disabled={Boolean(toggleReason) || busy}
+            aria-describedby={toggleReason ? `${formId}-toggle-reason` : undefined}
+            title={toggleReason ?? undefined}
+            data-disabled-reason={toggleReason ?? undefined}
+            onClick={() => (open ? close() : setOpen(true))}
+            data-coding-schema-binding-toggle
+          >
+            {current ? "Change coding schema" : "Choose coding schema"}
+          </button>
+          {toggleReason ? (
+            <span id={`${formId}-toggle-reason`} className="app-field-help" style={{ margin: 0 }}>
+              {toggleReason}
+            </span>
+          ) : null}
+        </div>
         {open ? (
           <form
             id={`${formId}-form`}
@@ -292,7 +312,7 @@ function BindingWorkspace({ teamId, workflowId }: { teamId: string; workflowId: 
             ) : null}
             {choices.kind === "ready" && choices.value.length > 0 ? (
               <>
-                <label htmlFor={`${formId}-schema`}>Published schema</label>
+                <label className="app-field-label" htmlFor={`${formId}-schema`}>Published schema</label>
                 <AppListbox
                   value={selected}
                   options={[
@@ -310,27 +330,39 @@ function BindingWorkspace({ teamId, workflowId }: { teamId: string; workflowId: 
                 />
               </>
             ) : null}
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <Button
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <button
                 type="submit"
-                size="sm"
-                variant="primary"
-                loading={busy}
-                disabled={Boolean(submitReason)}
-                disabledReason={submitReason}
+                className="app-secondary-action app-secondary-action--filled"
+                disabled={Boolean(submitReason) || busy}
+                aria-busy={busy || undefined}
+                aria-describedby={submitReason && !busy ? `${formId}-submit-reason` : undefined}
+                title={submitReason && !busy ? submitReason : undefined}
+                data-disabled-reason={submitReason && !busy ? submitReason : undefined}
                 data-coding-schema-binding-submit
               >
-                Bind schema
-              </Button>
-              <Button size="sm" onClick={close} disabled={busy}>
+                {busy ? (
+                  <>
+                    <span className="app-spinner" aria-hidden="true" /> Binding…
+                  </>
+                ) : (
+                  "Bind schema"
+                )}
+              </button>
+              <button type="button" className="app-ghost-action" onClick={close} disabled={busy}>
                 Cancel
-              </Button>
+              </button>
+              {submitReason && !busy ? (
+                <span id={`${formId}-submit-reason`} className="app-field-help" style={{ margin: 0, flexBasis: "100%" }}>
+                  {submitReason}
+                </span>
+              ) : null}
             </div>
           </form>
         ) : null}
-        {notice ? <p role="status">{notice}</p> : null}
-        {failure ? <p role="alert">{failure}</p> : null}
+        {notice ? <p role="status" className="app-field-help" style={{ margin: 0 }}>{notice}</p> : null}
+        {failure ? <p role="alert" className="app-field-error" style={{ margin: 0 }}>{failure}</p> : null}
+        </div>
       </section>
-    </Card>
   );
 }

@@ -1,10 +1,15 @@
 /**
  * Team review dialogs — ReviewerReasonModal and ReviewerShortcutsHelp on the
  * canonical dialog (.app-dialog: portal, focus trap, focus restore, Escape).
+ *
+ * TEAM-UI-SPEC §2 — Reject and Request information are no longer dialogs (a
+ * verdict is entered only in the inspector's decision panel); the reason
+ * dialog serves Pause, Record response and the escalation actions. Fields are
+ * `app-input`, a refusal is an `app-field-error` inside the dialog.
  */
 import React, { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import {
   ReviewerReasonModal,
@@ -12,8 +17,12 @@ import {
 } from "../../app/(app)/reviewer-ops/components/ReviewerReasonModal";
 import { ReviewerShortcutsHelp } from "../../app/(app)/reviewer-ops/components/ReviewerShortcutsHelp";
 
+afterEach(() => {
+  cleanup();
+});
+
 function Host({
-  kind = "REJECT",
+  kind = "PAUSE",
   onSubmit,
   error,
 }: {
@@ -48,10 +57,12 @@ describe("ReviewerReasonModal", () => {
     expect(dialog.classList.contains("app-dialog")).toBe(true);
     expect(container.contains(dialog)).toBe(false);
     const labelledBy = dialog.getAttribute("aria-labelledby")!;
-    expect(document.getElementById(labelledBy)?.textContent).toBe("Reject this review (internal)");
+    expect(document.getElementById(labelledBy)?.textContent).toBe("Pause this review");
     expect(dialog.getAttribute("aria-describedby")).toBeTruthy();
-    // The textarea has a real label and a character counter.
-    expect(within(dialog).getByLabelText("Rejection note").tagName).toBe("TEXTAREA");
+    // The textarea has a real label, the canonical input class and a counter.
+    const field = within(dialog).getByLabelText("Pause reason");
+    expect(field.tagName).toBe("TEXTAREA");
+    expect(field.classList.contains("app-input")).toBe(true);
     expect(within(dialog).getByText("0/400 characters")).toBeTruthy();
     // No dark inline theme.
     expect(dialog.getAttribute("style") ?? "").not.toMatch(/rgba\(20,\s*30,\s*34/);
@@ -60,7 +71,7 @@ describe("ReviewerReasonModal", () => {
   it("moves focus in, and returns it to the opener on Escape", async () => {
     render(<Host onSubmit={() => {}} />);
     const { opener, dialog } = await openDialog();
-    await waitFor(() => expect(document.activeElement).toBe(within(dialog).getByLabelText("Rejection note")));
+    await waitFor(() => expect(document.activeElement).toBe(within(dialog).getByLabelText("Pause reason")));
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(document.activeElement).toBe(opener);
@@ -73,16 +84,17 @@ describe("ReviewerReasonModal", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("keeps submit disabled until a reason is typed, and styles reject as destructive", async () => {
+  it("keeps submit disabled until a reason is typed; Pause confirms with the primary and Cancel is secondary", async () => {
     const onSubmit = vi.fn();
     render(<Host onSubmit={onSubmit} />);
     const { dialog } = await openDialog();
-    const submit = within(dialog).getByRole("button", { name: "Reject (internal)" }) as HTMLButtonElement;
+    const submit = within(dialog).getByRole("button", { name: "Pause review" }) as HTMLButtonElement;
     expect(submit.disabled).toBe(true);
-    expect(submit.classList.contains("app-danger-action")).toBe(true);
-    fireEvent.change(within(dialog).getByLabelText("Rejection note"), { target: { value: "   " } });
+    expect(submit.className).toBe("app-primary-action");
+    expect(within(dialog).getByRole("button", { name: "Cancel" }).className).toBe("app-secondary-action");
+    fireEvent.change(within(dialog).getByLabelText("Pause reason"), { target: { value: "   " } });
     expect(submit.disabled).toBe(true);
-    fireEvent.change(within(dialog).getByLabelText("Rejection note"), { target: { value: "Integrity failed" } });
+    fireEvent.change(within(dialog).getByLabelText("Pause reason"), { target: { value: "Integrity failed" } });
     expect(submit.disabled).toBe(false);
     expect(within(dialog).getByText("16/400 characters")).toBeTruthy();
     fireEvent.click(submit);
@@ -107,7 +119,7 @@ describe("ReviewerReasonModal", () => {
       const [error, setError] = useState<string | null>(null);
       return (
         <Host
-          kind="REQUEST_INFO"
+          kind="PAUSE"
           error={error}
           onSubmit={async () => {
             await pending;
@@ -118,8 +130,8 @@ describe("ReviewerReasonModal", () => {
     }
     render(<Refusing />);
     const { dialog } = await openDialog();
-    fireEvent.change(within(dialog).getByLabelText("Note to submitter"), { target: { value: "Need the log" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Send request" }));
+    fireEvent.change(within(dialog).getByLabelText("Pause reason"), { target: { value: "Need the log" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Pause review" }));
     const busy = await within(dialog).findByRole("button", { name: /Submitting/ });
     expect((busy as HTMLButtonElement).disabled).toBe(true);
     // Escape does nothing while in flight.
@@ -131,8 +143,15 @@ describe("ReviewerReasonModal", () => {
     });
     const alert = await within(dialog).findByRole("alert");
     expect(alert.textContent).toBe("Only the assigned reviewer can record this decision.");
+    expect(alert.classList.contains("app-field-error")).toBe(true);
     expect(dialog.contains(alert)).toBe(true);
-    expect((within(dialog).getByLabelText("Note to submitter") as HTMLTextAreaElement).value).toBe("Need the log");
+    expect((within(dialog).getByLabelText("Pause reason") as HTMLTextAreaElement).value).toBe("Need the log");
+  });
+
+  it("suppressing an escalation (irreversible) confirms with app-danger-action", async () => {
+    render(<Host kind="ESCALATION_SUPPRESS" onSubmit={() => {}} />);
+    const { dialog } = await openDialog();
+    expect(within(dialog).getByRole("button", { name: "Suppress" }).className).toBe("app-danger-action");
   });
 
   it("keeps the escalation kinds working (uuid validation)", async () => {
@@ -165,7 +184,10 @@ describe("ReviewerShortcutsHelp", () => {
     fireEvent.click(opener);
     const dialog = await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
     expect(dialog.classList.contains("app-dialog")).toBe(true);
-    expect(dialog.textContent).toContain("Request more information");
+    // TEAM-UI-SPEC §2 — M goes to the decision panel; there is no approve key.
+    expect(dialog.textContent).toContain("Go to the decision panel with Request information selected");
+    expect(within(dialog).queryByText("C", { selector: "kbd" })).toBeNull();
+    expect(dialog.textContent).not.toMatch(/Approve/);
     expect(dialog.textContent).not.toMatch(/Cmd|Ctrl\s*\+\s*K|⌘/);
     expect(dialog.textContent).not.toContain("Escalate");
     fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });

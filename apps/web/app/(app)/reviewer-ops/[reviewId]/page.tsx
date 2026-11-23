@@ -9,6 +9,13 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
  * Full-page reviewer workspace surface. Loads `/workspace/:workflowId`,
  * shows lifecycle / SLA / escalation panels and the reviewer action surface.
  *
+ * TEAM-UI-SPEC §2 (round 3) — ONE decision-entry flow. The "Record decision"
+ * panel is the only place a verdict (FIRST, SECOND) or an adjudication is
+ * entered; it posts `POST /v1/reviewer-ops/workspace/:id/decisions` through the
+ * shared step-up flow. The standalone Approve / Reject / Request information
+ * buttons and their dialogs are gone. The "Next step" panel offers one
+ * contextual primary and only the secondary actions the server allows.
+ *
  * Actions come from the server's `viewer.actions` (who may do what now, and
  * why not); the old lifecycle-only rule is a fallback for an API that does
  * not send them. Decision copy comes from the server's `outcome`, so a FIRST
@@ -20,13 +27,12 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
  * decisions. Never composes legal / forensic overclaim phrases.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
-import { useActiveSpaceId } from "../../../../lib/platform-context";
+import { useActiveSpaceId, useOptionalPlatformContext } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 // Phase G3.2 — Presence + collision wiring for the reviewer
 // inspector. Mirrors the evidence detail page's presence surfacing
@@ -34,6 +40,7 @@ import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 // the workflow has moved under them.
 import { PresenceIndicator } from "../../../../components/presence/PresenceIndicator";
 import { CollisionWarning } from "../../../../components/presence/CollisionWarning";
+import { StepUpModal, isStepUpCancelled, useStepUpAction } from "../../../../components/identity-security/StepUpModal";
 import { ReviewerCopilotPanel } from "../../../../components/ai-copilot/ReviewerCopilotPanel";
 import {
   ReviewerReasonModal,
@@ -51,10 +58,15 @@ import {
   formatCellDateTime,
   formatRelativeDeadline,
 } from "../../../../lib/date";
-import { PageShell, PageHeader } from "../../../../components/ui/PageShell";
-import { Card } from "../../../../components/ui/Card";
+import { PageShell } from "../../../../components/ui/PageShell";
+// TEAM-UI-SPEC (structure) — the one review page header, with the
+// "← My reviews" back link above the title (Evidence Detail's breadcrumb slot).
+import {
+  ReviewPageHeader,
+  type ReviewPageHeaderBack,
+} from "../../../../components/reviewer-experience/ReviewPageHeader";
+import "../../../../components/reviewer-experience/review-surfaces.css";
 import { Badge } from "../../../../components/ui/Badge";
-import { buttonSurfaceStyle } from "../../../../components/ui/Button";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { severityTone, statusTone } from "../../../../components/ui/StatusBadge";
 import { identifierLabel } from "@proovra/shared";
@@ -63,24 +75,27 @@ import { describeArtifactDownloadFailure } from "../../../../lib/evidence/report
 import { ARTIFACT_WINDOW_BLOCKED_MESSAGE, openPendingArtifactWindow } from "../../../../lib/evidence/artifact-window";
 import { recordReference } from "../../../../lib/short-id";
 import { CopyIdButton } from "./_components/CopyIdButton";
-import { InspectorActions } from "./_components/InspectorActions";
-import { AdjudicationPanel, type AdjudicationKind } from "./_components/AdjudicationPanel";
-import { HandoffBanner, type ReviewHandoff } from "./_components/HandoffBanner";
+import { DECISION_ANCHOR_ID, InspectorActions } from "./_components/InspectorActions";
+import { DecisionForm, type DecisionFocusRequest, type DecisionSubmitBody } from "./_components/DecisionPanel";
+import { ArchiveDialog, EscalateDialog, ReassignDialog, type EscalateInput } from "./_components/InspectorDialogs";
+import { HandoffBanner, handoffAwaitsManager, type ReviewHandoff } from "./_components/HandoffBanner";
 import {
   DECISION_KIND_LABELS,
-  DECISION_OPTION_LABELS,
   REASON_CODE_LABELS,
   SECOND_REVIEW_TRIGGER_LABELS,
   STAGE_LABELS,
-  approveConfirmDescription,
+  VERDICT_ACTION,
+  VERDICT_CHOICES,
   deriveActions,
   describeOutcome,
   describeRefusal,
   headerSlaLabel,
   lifecycleLabel,
+  nextStepPrimary,
   slaDimensionLabel,
   slaStateLabel,
   teamRoleLabel,
+  type ActionMap,
   type DecisionOutcome,
   type LifecycleActionKind,
   type LifecycleState,
@@ -158,22 +173,18 @@ type WorkspaceResponse = {
 };
 
 /**
- * The reviewer-ops actions this page can POST.
+ * The reviewer-ops lifecycle actions this page can POST.
  *
  * A CLOSED set, matching the registered
  * `POST /v1/reviewer-ops/reviews/:workflowId/<action>` routes one-for-one. Typed
  * as a union rather than `string` so the call site resolves statically: the
  * route-consumer analyzer can then prove exactly which routes this page
  * consumes instead of reporting an unresolvable dynamic call.
+ *
+ * TEAM-UI-SPEC §2 — approve / reject / request-info are no longer posted from
+ * here: every verdict goes through the decisions route.
  */
-type ReviewerOpsAction =
-  | "start"
-  | "approve"
-  | "reject"
-  | "pause"
-  | "resume"
-  | "request-info"
-  | "response-received";
+type ReviewerOpsAction = "start" | "pause" | "resume" | "response-received";
 
 /** What the decision lineage panel last read, lifted for the page. */
 type DecisionsSummary = {
@@ -215,24 +226,25 @@ function refusalMessage(err: unknown, fallback: string): string {
   return mapped || toSafeUserError(err, { message: fallback }).message;
 }
 
-/** Stable (module-level) so the handoff picker's load effect does not refire. */
-function handoffRefusalMessage(err: unknown): string {
+/** Stable (module-level) so the reassign dialog's load effect does not refire. */
+function reassignRefusalMessage(err: unknown): string {
   return refusalMessage(err, "The review could not be reassigned. Nothing was changed.");
 }
+
+const STEP_UP_CANCELLED = "Identity confirmation was cancelled. Nothing was recorded.";
 
 function reviewerName(r: { userId: string; email: string | null; displayName: string | null }): string {
   return r.displayName || r.email || recordReference("Reviewer", r.userId);
 }
 
-const ACTION_ROUTE: Record<"start" | "pause" | "resume" | "request_info" | "record_response" | "approve" | "reject", ReviewerOpsAction> = {
+const ACTION_ROUTE: Record<"start" | "pause" | "resume" | "record_response", ReviewerOpsAction> = {
   start: "start",
   pause: "pause",
   resume: "resume",
-  request_info: "request-info",
   record_response: "response-received",
-  approve: "approve",
-  reject: "reject",
 };
+
+const TERMINAL_LIFECYCLE: LifecycleState[] = ["APPROVED", "REJECTED", "ARCHIVED"];
 
 // Phase 38.12 — wrap in canonical PageRouteGate.
 export default function ReviewWorkspacePage() {
@@ -256,11 +268,19 @@ function deriveSignature(r: WorkspaceResponse | null): string | null {
   ].join("|");
 }
 
+type InspectorDialog = "reassign" | "assign_second_reviewer" | "escalate" | "archive" | null;
+
 function ReviewWorkspacePageInner() {
   const params = useParams<{ reviewId: string }>();
   const workflowId = params?.reviewId ?? "";
   // PageRouteGate guarantees an entitled active workspace here.
   const teamId = useActiveSpaceId();
+  // The envelope's REVIEW_ESCALATE capability gates the Escalate entry point
+  // (fail-closed without an envelope). The server still decides the POST.
+  const platform = useOptionalPlatformContext();
+  const envelopeMayEscalate = platform?.envelope?.capabilities?.REVIEW_ESCALATE === true;
+  // Archive uses the bulk CLOSE door: OWNER/ADMIN bulk authority only.
+  const envelopeMayArchive = platform?.envelope?.capabilities?.BULK_ACTIONS === true;
   const [data, setData] = useState<WorkspaceResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   // A failed READ of the workspace, kept apart from an action refusal so a
@@ -279,13 +299,15 @@ function ReviewWorkspacePageInner() {
   // ISO timestamp — both modes are honest, neither claims false
   // precision.
   const [initialSignature, setInitialSignature] = useState<string | null>(null);
-  // Phase 2.4 — structured reason dialog. `reasonModal` holds the kind
-  // currently open, or null when closed; `dialogError` is a refusal shown
-  // inside it.
+  // Phase 2.4 — structured reason dialog (Pause, Record response).
   const [reasonModal, setReasonModal] = useState<ReviewerReasonKind | null>(
     null,
   );
   const [dialogError, setDialogError] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<InspectorDialog>(null);
+  // "Go to decision" and M ask the decision form for focus.
+  const [focusRequest, setFocusRequest] = useState<DecisionFocusRequest | null>(null);
+  const focusNonce = useRef(0);
   // Phase 2.5 — keyboard shortcuts + help overlay.
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   useReviewerHelpHotkey({
@@ -293,6 +315,9 @@ function ReviewWorkspacePageInner() {
     onOpen: () => setShortcutsOpen(true),
     onClose: () => setShortcutsOpen(false),
   });
+  // A verdict, an escalation and an archive take the shared step-up challenge
+  // when the workspace policy (or the adaptive gate) asks for one.
+  const stepUp = useStepUpAction({ teamId });
 
   const load = useCallback(() => {
     if (!teamId || !workflowId) return;
@@ -356,6 +381,9 @@ function ReviewWorkspacePageInner() {
           },
         )) as { outcome?: DecisionOutcome | null } | null;
         if (opts.kind) setNotice(describeOutcome(opts.kind, resp?.outcome ?? null));
+        else if (name === "pause") setNotice("Review paused. The SLA clock is stopped.");
+        else if (name === "resume") setNotice("Review resumed.");
+        else if (name === "start") setNotice("Review started.");
         reloadAll();
         return true;
       } catch (err) {
@@ -372,32 +400,7 @@ function ReviewWorkspacePageInner() {
     [teamId, workflowId, reloadAll],
   );
 
-  // PRO-R2-05 — an approval is a permanent internal decision that can release
-  // held outputs: the key and the button both ask first, through the shared
-  // confirm dialog. A second press while the dialog is open opens nothing.
-  const { confirm } = useConfirmAction();
-  const approvePending = useRef(false);
-  const confirmAndApprove = useCallback(async () => {
-    if (approvePending.current) return;
-    approvePending.current = true;
-    try {
-      const firstOnly = decisions?.state === "first_required" && decisions.secondRequired;
-      const ok = await confirm({
-        title: firstOnly ? "Record the first review as approved (internal)?" : "Approve this review (internal)?",
-        description: approveConfirmDescription({
-          state: decisions?.state ?? null,
-          secondRequired: decisions?.secondRequired ?? false,
-        }),
-        confirmLabel: firstOnly ? "Record first review" : "Approve (internal)",
-        tone: "warning",
-      });
-      if (ok) await post("approve", {}, { kind: "approve" });
-    } finally {
-      approvePending.current = false;
-    }
-  }, [confirm, post, decisions]);
-
-  const actions = data
+  const actions: ActionMap | null = data
     ? deriveActions({
         viewer: data.viewer,
         lifecycleState: data.projection.lifecycleState,
@@ -406,32 +409,48 @@ function ReviewWorkspacePageInner() {
       })
     : null;
 
-  const openReason = useCallback((kind: ReviewerReasonKind) => {
-    setDialogError(null);
-    setReasonModal(kind);
+  const nextAction = decisions?.nextAction ?? null;
+  const inConflict =
+    decisions?.state === "conflict_detected" || decisions?.state === "adjudication_required";
+  // The decision form opens for FIRST / SECOND when the lineage asks this
+  // viewer and at least one verdict kind is open in the action map.
+  const mayDecide = Boolean(
+    actions &&
+      (nextAction === "submit_first" || nextAction === "submit_second") &&
+      VERDICT_CHOICES.some((c) => actions[VERDICT_ACTION[c]].allowed),
+  );
+  const mayAdjudicate = Boolean(
+    actions &&
+      inConflict &&
+      (nextAction === "submit_adjudication" || (data?.viewer ? actions.adjudicate.allowed : false)),
+  );
+
+  /** Move focus to the decision panel, optionally preselecting a choice. */
+  const goToDecision = useCallback((choice: string | null) => {
+    focusNonce.current += 1;
+    setFocusRequest({ choice, nonce: focusNonce.current });
+    if (typeof document !== "undefined") {
+      document.getElementById(DECISION_ANCHOR_ID)?.scrollIntoView?.({ block: "start" });
+    }
   }, []);
 
-  // Phase 2.5 — action shortcuts, aligned with the reviewer console's keys:
-  // A starts, M requests information, C approves (asks first). They fire
-  // ONLY when no field is focused and only when the action map allows the
-  // action, so a shortcut never bypasses what the buttons enforce. None of
-  // them navigates away from the review.
+  // Phase 2.5 — action shortcuts. A starts the review; M moves focus to the
+  // decision panel with Request information preselected (TEAM-UI-SPEC §2).
+  // There is no approve key. They fire ONLY when no field is focused and only
+  // when the action map allows the action, so a shortcut never bypasses what
+  // the controls enforce. None of them navigates away from the review.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isShortcutTarget(e)) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (shortcutsOpen) return;
-      if (reasonModal !== null) return;
+      if (reasonModal !== null || dialog !== null) return;
       if (!actions || busy !== null) return;
       const k = e.key.toLowerCase();
       if (k === "m") {
-        if (!actions.request_info.allowed) return;
+        if (!mayDecide || !actions.request_info.allowed) return;
         e.preventDefault();
-        openReason("REQUEST_INFO");
-      } else if (k === "c") {
-        if (!actions.approve.allowed) return;
-        e.preventDefault();
-        void confirmAndApprove();
+        goToDecision("REQUEST_INFO");
       } else if (k === "a") {
         if (!actions.start.allowed) return;
         e.preventDefault();
@@ -440,39 +459,144 @@ function ReviewWorkspacePageInner() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [actions, busy, shortcutsOpen, reasonModal, post, confirmAndApprove, openReason]);
+  }, [actions, busy, shortcutsOpen, reasonModal, dialog, post, mayDecide, goToDecision]);
 
-  /** A lineage decision or adjudication: POST, then reload everything. */
+  /**
+   * THE verdict / adjudication POST (TEAM-UI-SPEC §2): the decisions route,
+   * through the shared step-up flow — the route answers the same step-up
+   * challenge as approve / reject. Resolves to an error message, or null.
+   */
   const postDecision = useCallback(
-    async (body: { decision: string; reasonCode?: string; rationale: string }): Promise<string | null> => {
+    async (body: DecisionSubmitBody): Promise<string | null> => {
       if (!teamId) return "No active workspace.";
+      setNotice(null);
+      setError(null);
       try {
-        const resp = (await apiFetch(
-          `/v1/reviewer-ops/workspace/${encodeURIComponent(workflowId)}/decisions`,
-          {
+        const resp = (await stepUp.runStepUpAction((headers) =>
+          apiFetch(`/v1/reviewer-ops/workspace/${encodeURIComponent(workflowId)}/decisions`, {
             method: "POST",
-            headers: { "content-type": "application/json" },
+            headers: { "content-type": "application/json", ...(headers ?? {}) },
             body: JSON.stringify({ teamId, ...body }),
-          },
+          }),
         )) as { outcome?: DecisionOutcome | null } | null;
         const outcome = resp?.outcome ?? null;
-        setNotice(
-          outcome
-            ? describeOutcome(
-                body.decision === "APPROVE" ? "approve" : body.decision === "REJECT" ? "reject" : "decision",
-                outcome,
-              )
-            : "Decision recorded.",
-        );
+        const kind: LifecycleActionKind =
+          body.decision === "APPROVE"
+            ? "approve"
+            : body.decision === "REJECT"
+              ? "reject"
+              : body.decision === "REQUEST_INFO"
+                ? "request_info"
+                : "decision";
+        setNotice(outcome || kind !== "decision" ? describeOutcome(kind, outcome) : "Decision recorded.");
         reloadAll();
         return null;
       } catch (err) {
+        if (isStepUpCancelled(err)) return STEP_UP_CANCELLED;
         reloadAll();
         return refusalMessage(err, "The decision could not be recorded. Nothing was changed.");
       }
     },
+    [teamId, workflowId, reloadAll, stepUp],
+  );
+
+  /** Reassign (or assign the independent second reviewer). */
+  const postReassign = useCallback(
+    async (newAssigneeUserId: string, handoff: boolean): Promise<string | null> => {
+      if (!teamId) return "No active workspace.";
+      try {
+        await apiFetch(`/v1/reviewer-ops/reviews/${encodeURIComponent(workflowId)}/reassign`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ teamId, newAssigneeUserId }),
+        });
+        setError(null);
+        setNotice(handoff ? "Second reviewer assigned." : "Review reassigned.");
+        setDialog(null);
+        reloadAll();
+        return null;
+      } catch (err) {
+        return reassignRefusalMessage(err);
+      }
+    },
     [teamId, workflowId, reloadAll],
   );
+
+  /** Escalate — the same body the reviewer console raises. */
+  const postEscalate = useCallback(
+    async (input: EscalateInput): Promise<string | null> => {
+      if (!teamId) return "No active workspace.";
+      try {
+        await stepUp.runStepUpAction((headers) =>
+          apiFetch("/v1/reviewer-ops/escalations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...(headers ?? {}) },
+            body: JSON.stringify({
+              teamId,
+              workflowId,
+              reason: input.reason,
+              severity: input.severity,
+              safeSummary: input.safeSummary,
+            }),
+          }),
+        );
+        setError(null);
+        setNotice("Escalation raised.");
+        setDialog(null);
+        reloadAll();
+        return null;
+      } catch (err) {
+        if (isStepUpCancelled(err)) return "Identity confirmation was cancelled. The escalation was not raised.";
+        return refusalMessage(err, "The escalation could not be raised. Nothing was changed.");
+      }
+    },
+    [teamId, workflowId, reloadAll, stepUp],
+  );
+
+  /**
+   * Archive — the review-ops bulk door with this one review (CLOSE ends the
+   * workflow and keeps whatever the round decided; it is never a verdict).
+   * There is no single-review archive route; the bulk door answers a 207 with
+   * a per-row refusal, read here.
+   */
+  const postArchive = useCallback(
+    async (note: string): Promise<string | null> => {
+      if (!teamId) return "No active workspace.";
+      try {
+        const resp = (await stepUp.runStepUpAction((headers) =>
+          apiFetch("/v1/reviewer-ops/reviews/bulk", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...(headers ?? {}) },
+            body: JSON.stringify({
+              teamId,
+              workflowIds: [workflowId],
+              action: "CLOSE",
+              ...(note ? { note } : {}),
+            }),
+          }),
+        )) as { failed?: number; items?: Array<{ ok: boolean; errorCode?: string; message?: string }> } | null;
+        const row = resp?.items?.[0];
+        if ((resp?.failed ?? 0) > 0 || (row && row.ok === false)) {
+          reloadAll();
+          return row?.message || "The review could not be archived. Nothing was changed.";
+        }
+        setError(null);
+        setNotice("Review archived.");
+        setDialog(null);
+        reloadAll();
+        return null;
+      } catch (err) {
+        if (isStepUpCancelled(err)) return "Identity confirmation was cancelled. The review was not archived.";
+        return refusalMessage(err, "The review could not be archived. Nothing was changed.");
+      }
+    },
+    [teamId, workflowId, reloadAll, stepUp],
+  );
+
+  const openReason = useCallback((kind: ReviewerReasonKind) => {
+    setDialogError(null);
+    setReasonModal(kind);
+  }, []);
 
   // PageRouteGate already guaranteed ALLOWED. If the envelope is
   // still hydrating, render the bounded loading shell.
@@ -482,11 +606,7 @@ function ReviewWorkspacePageInner() {
         width="full"
         data-review-workspace-loading
         header={
-          <PageHeader
-            eyebrow="Reviewer operations"
-            title="Review workspace"
-            subtitle="Loading workspace…"
-          />
+          <ReviewPageHeader back={INSPECTOR_BACK} title="Review" subtitle="Loading workspace…" />
         }
       />
     );
@@ -497,13 +617,13 @@ function ReviewWorkspacePageInner() {
       <PageShell
         width="full"
         header={
-          <PageHeader eyebrow="Reviewer operations" title="Review workspace" />
+          <ReviewPageHeader back={INSPECTOR_BACK} title="Review" />
         }
       >
         {loadError ? (
-          <Card variant="status" tone="risk">
+          <p role="alert" className="app-alert app-alert--danger">
             {loadError}
-          </Card>
+          </p>
         ) : null}
         <EmptyState variant="inline" title="Loading workspace…" />
       </PageShell>
@@ -512,11 +632,6 @@ function ReviewWorkspacePageInner() {
 
   const p = data.projection;
   const evidenceName = p.evidenceTitle?.trim() || recordReference("Evidence", p.evidenceId);
-  const inConflict =
-    decisions?.state === "conflict_detected" || decisions?.state === "adjudication_required";
-  const canAdjudicate =
-    decisions?.nextAction === "submit_adjudication" ||
-    (data.viewer ? actions.adjudicate.allowed : false);
   const adjudicationBlockedReason =
     data.viewer && !actions.adjudicate.allowed
       ? actions.adjudicate.reason
@@ -528,26 +643,24 @@ function ReviewWorkspacePageInner() {
       ? "You"
       : p.assignedToDisplayName?.trim() || recordReference("Reviewer", p.assignedToUserId)
     : "Unassigned";
+  const mayReassign = Boolean(data.viewer && actions.reassign.allowed);
+  const handoffAssign = handoffAwaitsManager(data.handoff, mayReassign);
+  const primary = nextStepPrimary({ actions, mayDecide, mayAdjudicate, handoffAssign });
+  const canEscalate =
+    envelopeMayEscalate && !TERMINAL_LIFECYCLE.includes(p.lifecycleState) && !data.openEscalation;
 
   return (
     <PageShell
       width="full"
       header={
-        <PageHeader
-          eyebrow="Reviewer operations"
-          title="Review workspace"
-          subtitle={
-            <span style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: 6, minWidth: 0 }}>
-              <a
-                href={`/evidence/${p.evidenceId}`}
-                style={{ color: "var(--ink-link)", textDecoration: "none", overflowWrap: "anywhere" }}
-                data-reviewer-evidence-link
-              >
-                {evidenceName}
-              </a>
-              <CopyIdButton value={p.evidenceId} label="Evidence" />
-            </span>
-          }
+        /* TEAM-UI-SPEC (structure) — Evidence Detail's hero order: the
+           "← My reviews" back link above the title (a real link, so
+           middle-click keeps the queue open beside a review), the evidence
+           display reference as the title, then ONE lifecycle badge, ONE SLA
+           badge and the ghost Copy ID in the context strip. */
+        <ReviewPageHeader
+          back={INSPECTOR_BACK}
+          title={<span data-reviewer-evidence-title>{evidenceName}</span>}
           contextStrip={
             <>
               {/* ONE lifecycle badge and ONE SLA badge, each with its word.
@@ -558,19 +671,8 @@ function ReviewWorkspacePageInner() {
               <Badge tone={statusTone(p.slaRollupState)} dot data-reviewer-sla-badge>
                 {headerSlaLabel(p.slaRollupState, p.lifecycleState)}
               </Badge>
+              <CopyIdButton value={p.evidenceId} label="Evidence" />
             </>
-          }
-          secondaryActions={
-            /* A real link, not a Button: middle-click and open-in-new-tab
-               are how an operator keeps the queue open beside a review, and
-               a <button> that navigates takes both away. The canonical look
-               is exported for exactly this. */
-            <a
-              href="/reviewer-ops"
-              style={{ ...buttonSurfaceStyle("secondary"), textDecoration: "none" }}
-            >
-              Back to queue
-            </a>
           }
         />
       }
@@ -599,6 +701,7 @@ function ReviewWorkspacePageInner() {
           gap: 12,
           flexWrap: "wrap",
           marginBottom: 8,
+          minWidth: 0,
         }}
       >
         <PresenceIndicator
@@ -637,38 +740,16 @@ function ReviewWorkspacePageInner() {
             data-reviewer-redaction-field-count={
               data.governance.requiresRedactionFieldCount
             }
-            style={{
-              border: "1px solid var(--border-standard)",
-              borderRadius: "var(--radius-md)",
-              padding: 16,
-              marginBottom: 12,
-              /* A governance signal is a WARNING, and the warning tone is the
-                 product's, not two alpha values invented here. */
-              borderColor: "var(--warning-border)",
-              background: "var(--warning-subtle-bg)",
-              minWidth: 0,
-            }}
+            className="app-alert app-alert--warn"
+            style={{ marginBottom: 12, display: "grid", gap: 6, minWidth: 0 }}
           >
-            <h3 className="app-panel__title">Governance signals</h3>
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                flexWrap: "wrap",
-                fontSize: 13,
-              }}
-            >
+            <h3 className="app-panel__title" style={{ margin: 0 }}>Governance signals</h3>
+            <div className="app-chip-row" style={{ display: "flex", gap: 6, flexWrap: "wrap", minWidth: 0 }}>
               {data.governance.legalHold.activeCount > 0 && (
                 <span
                   data-reviewer-governance-chip="legal-hold"
-                  style={{
-                    padding: "0.25rem 0.6rem",
-                    border: "1px solid rgba(239, 68, 68, 0.55)",
-                    background: "rgba(239, 68, 68, 0.1)",
-                    borderRadius: 4,
-                    fontWeight: 600,
-                    overflowWrap: "anywhere",
-                  }}
+                  className="app-chip app-chip--warn"
+                  style={{ overflowWrap: "anywhere", whiteSpace: "normal", height: "auto" }}
                 >
                   Legal hold active ({data.governance.legalHold.activeCount})
                   {data.governance.legalHold.mostRecent
@@ -677,16 +758,7 @@ function ReviewWorkspacePageInner() {
                 </span>
               )}
               {data.governance.requiresRedaction && (
-                <span
-                  data-reviewer-governance-chip="requires-redaction"
-                  style={{
-                    padding: "0.25rem 0.6rem",
-                    border: "1px solid rgba(245, 158, 11, 0.55)",
-                    background: "rgba(245, 158, 11, 0.1)",
-                    borderRadius: 4,
-                    fontWeight: 600,
-                  }}
-                >
+                <span data-reviewer-governance-chip="requires-redaction" className="app-chip app-chip--warn">
                   Redaction required (
                   {data.governance.requiresRedactionFieldCount} field
                   {data.governance.requiresRedactionFieldCount === 1
@@ -696,13 +768,7 @@ function ReviewWorkspacePageInner() {
                 </span>
               )}
             </div>
-            <p
-              style={{
-                color: "var(--silver-ink)",
-                marginTop: 6,
-                fontSize: 12,
-              }}
-            >
+            <p className="app-field-help" style={{ margin: 0 }}>
               {data.governance.legalHold.activeCount > 0
                 ? "Evidence under legal hold cannot be deleted or purged. Export gating applies; package downloads remain subject to workspace policy. See Governance → Lifecycle for the full hold history. "
                 : ""}
@@ -713,91 +779,90 @@ function ReviewWorkspacePageInner() {
           </section>
         )}
 
-      {/* TEAM-SPEC R3 — the second-review handoff: reassign (assignment
-          managers), staffing explanation, or "waiting". */}
-      <HandoffBanner
-        handoff={data.handoff}
-        mayReassign={Boolean(data.viewer && actions.reassign.allowed)}
-        teamId={teamId}
-        workflowId={workflowId}
-        onReassigned={(message) => {
-          setError(null);
-          setNotice(message);
-          reloadAll();
+      {/* TEAM-SPEC R3 — the second-review handoff: who recorded the first
+          review, staffing, or "waiting". The assignment itself is the Next
+          step panel's primary. */}
+      <HandoffBanner handoff={data.handoff} mayReassign={mayReassign} />
+
+      {/* TEAM-UI-SPEC (structure) — the "Next step" strip, FULL WIDTH under
+          the header like Evidence Detail's "What needs attention". */}
+      <InspectorActions
+        actions={actions}
+        primary={primary}
+        fromViewer={Boolean(data.viewer)}
+        busy={busy}
+        paused={Boolean(p.slaPausedAtUtc)}
+        canEscalate={canEscalate}
+        canArchive={envelopeMayArchive}
+        handlers={{
+          start: () => void post("start", {}),
+          record_response: () => openReason("RECORD_RESPONSE"),
+          pause: () => openReason("PAUSE"),
+          resume: () => void post("resume", {}),
+          reassign: () => setDialog("reassign"),
+          assign_second_reviewer: () => setDialog("assign_second_reviewer"),
+          escalate: () => setDialog("escalate"),
+          archive: () => setDialog("archive"),
+          go_to_decision: () => goToDecision(null),
         }}
-        describeError={handoffRefusalMessage}
       />
 
-      <div style={twoColStyle}>
-        <Card padding="comfortable">
-          <InspectorActions
+      {/* TEAM-UI-SPEC (structure) — two columns: the ONE decision-entry panel
+          (wider) | Assignment & SLA + Linked evidence. One column below
+          1100 px (review-surfaces.css). */}
+      <div className="review-inspector-columns" data-reviewer-inspector-grid>
+        <div className="review-inspector-columns__main">
+          {/* TEAM-UI-SPEC §2 — the ONE decision-entry panel (Record decision /
+              Adjudication) with the decision lineage. Server-enforced state
+              machine: the caller's next allowed action comes from the API. */}
+          <ReviewerDecisionLineagePanel
+            workflowId={workflowId}
+            teamId={teamId}
+            refreshKey={panelsVersion}
+            onLoaded={setDecisions}
+            onSubmitDecision={postDecision}
             actions={actions}
-            fromViewer={Boolean(data.viewer)}
-            busy={busy}
-            paused={Boolean(p.slaPausedAtUtc)}
-            handlers={{
-              start: () => void post("start", {}),
-              approve: () => void confirmAndApprove(),
-              reject: () => openReason("REJECT"),
-              request_info: () => openReason("REQUEST_INFO"),
-              record_response: () => openReason("RECORD_RESPONSE"),
-              pause: () => openReason("PAUSE"),
-              resume: () => void post("resume", {}),
-            }}
+            mayDecide={mayDecide}
+            mayAdjudicate={mayAdjudicate}
+            adjudicationBlockedReason={adjudicationBlockedReason}
+            focusRequest={focusRequest}
           />
-        </Card>
+        </div>
 
-        <Card padding="comfortable">
-          <h3 className="app-panel__title">Assignment</h3>
-          <div style={{ fontSize: 13 }}>
-            <KV k="Assigned to" v={assignee} />
-            <KV k="Assigned at" v={formatCellDateTime(p.assignedAtUtc)} />
-            <KV k="Priority" v={identifierLabel(p.priority)} />
-            {p.slaPausedAtUtc ? (
-              <KV k="Paused" v={p.pausedReason?.trim() || "Paused"} />
-            ) : null}
+        <div className="review-inspector-columns__side">
+        <section className="app-panel" aria-labelledby="review-assignment-title" style={{ minWidth: 0 }}>
+          <div className="app-panel__head">
+            <h3 id="review-assignment-title" className="app-panel__title">Assignment &amp; SLA</h3>
           </div>
+          <div className="app-panel__body" style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13 }}>
+              <KV k="Assigned to" v={assignee} />
+              <KV k="Assigned at" v={formatCellDateTime(p.assignedAtUtc)} />
+              <KV k="Priority" v={identifierLabel(p.priority)} />
+              {p.slaPausedAtUtc ? (
+                <KV k="Paused" v={p.pausedReason?.trim() || "Paused"} />
+              ) : null}
+            </div>
 
-          <h3 className="app-panel__title">SLA</h3>
-          <div style={{ overflowX: "auto", maxWidth: "100%" }}>
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: 13,
-              }}
-            >
-              <thead>
-                <tr>
-                  <th style={thLight}>Clock</th>
-                  <th style={thLight}>State</th>
-                  <th style={thLight}>Due</th>
-                </tr>
-              </thead>
-              <tbody>
-                {p.slaDimensions.map((d) => (
-                  <tr key={d.dimension}>
-                    <td style={tdLight}>{slaDimensionLabel(d.dimension)}</td>
-                    <td style={tdLight}>
-                      <Badge tone={statusTone(d.state)} subtle>
-                        {slaStateLabel(d.state)}
-                      </Badge>
-                    </td>
-                    <td style={tdLight}>
-                      <span className="app-field-help">
-                        {formatRelativeDeadline(d.dueAtUtc)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+            <ul data-reviewer-sla-clocks style={{ listStyle: "none", padding: 0, margin: "12px 0 0", display: "grid", gap: 6 }}>
+              {p.slaDimensions.map((d) => (
+                <li
+                  key={d.dimension}
+                  style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, fontSize: 13, minWidth: 0 }}
+                >
+                  <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{slaDimensionLabel(d.dimension)}</span>
+                  <Badge tone={statusTone(d.state)} subtle>
+                    {slaStateLabel(d.state)}
+                  </Badge>
+                  <span className="app-field-help" style={{ margin: 0 }}>
+                    {formatRelativeDeadline(d.dueAtUtc)}
+                  </span>
+                </li>
+              ))}
+            </ul>
 
-          {data.openEscalation ? (
-            <>
-              <h3 className="app-panel__title">Open escalation</h3>
-              <div className="app-alert app-alert--danger" style={{ fontSize: 13 }}>
+            {data.openEscalation ? (
+              <div className="app-alert app-alert--danger" data-reviewer-open-escalation style={{ fontSize: 13, marginTop: 12, minWidth: 0 }}>
                 <div
                   style={{
                     display: "flex",
@@ -807,73 +872,38 @@ function ReviewWorkspacePageInner() {
                     marginBottom: 6,
                   }}
                 >
+                  <strong>Open escalation</strong>
                   <Badge tone={severityTone(data.openEscalation.severity)} subtle>
                     {identifierLabel(data.openEscalation.severity)}
                   </Badge>
                   <span className="app-field-help" style={{ margin: 0 }}>
                     {escalationReasonLabel(data.openEscalation.reason)}
                   </span>
-                  <span style={{ marginLeft: "auto", fontSize: 12 }}>
+                  <span className="app-field-help" style={{ margin: 0 }}>
                     {formatCellDateTime(data.openEscalation.createdAt)}
                   </span>
                 </div>
                 <div style={{ overflowWrap: "anywhere" }}>{data.openEscalation.safeSummary}</div>
               </div>
-            </>
-          ) : null}
-        </Card>
+            ) : null}
+          </div>
+        </section>
+
+        {/* Phase A.1D — review workflow continuity. Surface the related
+            artifacts + cross-surface links the reviewer needs without
+            leaving the review workspace. Every link routes to a real,
+            registered surface; downloads use the same audited endpoints
+            ReportsIndex uses. */}
+        <section className="app-panel" data-section="reviewer-workflow-continuity" aria-labelledby="review-links-title" style={{ minWidth: 0 }}>
+          <div className="app-panel__head">
+            <h3 id="review-links-title" className="app-panel__title">Linked evidence</h3>
+          </div>
+          <div className="app-panel__body" style={{ minWidth: 0 }}>
+            <ReviewerCrossSurfaceLinks evidenceId={p.evidenceId} />
+          </div>
+        </section>
+        </div>
       </div>
-
-      {inConflict && decisions ? (
-        <AdjudicationPanel
-          decisions={decisions.decisions.map((d) => ({
-            id: d.id,
-            stage: d.stage,
-            decision: d.decision,
-            reasonCode: d.reasonCode,
-            rationale: d.rationale,
-            decidedAt: d.decidedAt,
-            reviewerName: reviewerName(d.reviewer),
-          }))}
-          canAdjudicate={canAdjudicate}
-          blockedReason={adjudicationBlockedReason}
-          onSubmit={(body: { decision: AdjudicationKind; reasonCode: string; rationale: string }) => postDecision(body)}
-        />
-      ) : null}
-
-      {/* Phase B.2 — multi-stage review governance panel.
-          Server-enforced state machine. Caller's next allowed action
-          is computed by the API based on existing decision rows +
-          policy triggers (escalated / legal hold / redaction
-          required) + caller's team role (OWNER/ADMIN required for
-          adjudication). */}
-      <ReviewerDecisionLineagePanel
-        workflowId={workflowId}
-        teamId={teamId}
-        refreshKey={panelsVersion}
-        onLoaded={setDecisions}
-        onSubmitDecision={postDecision}
-      />
-
-      {/* Phase A.1D — review workflow continuity. Surface the related
-          artifacts + cross-surface links the reviewer needs without
-          leaving the review workspace. Every link routes to a real,
-          registered surface; downloads use the same audited endpoints
-          ReportsIndex uses. */}
-      <section
-        style={{
-          background: "var(--surface-standard)",
-          border: "1px solid var(--border-standard)",
-          borderRadius: "var(--radius-md)",
-          padding: 16,
-          marginBottom: 12,
-          minWidth: 0,
-        }}
-        data-section="reviewer-workflow-continuity"
-      >
-        <h3 className="app-panel__title">Linked artifacts &amp; context</h3>
-        <ReviewerCrossSurfaceLinks evidenceId={p.evidenceId} />
-      </section>
 
       {/* Phase B.1-1 — structured reviewer notes. Wired to
           /v1/reviewer-ops/workspace/:workflowId/notes. Notes carry
@@ -912,8 +942,8 @@ function ReviewWorkspacePageInner() {
         variant="inspector"
       />
 
-      {/* Phase 2.4 — Structured reason dialog. A refusal stays inside the
-          dialog with the typed reason kept for the retry. */}
+      {/* Phase 2.4 — Structured reason dialog (Pause, Record response). A
+          refusal stays inside the dialog with the typed reason kept. */}
       <ReviewerReasonModal
         kind={reasonModal}
         open={reasonModal !== null}
@@ -925,11 +955,7 @@ function ReviewWorkspacePageInner() {
         onSubmit={async (reason) => {
           if (!reasonModal) return;
           let ok = false;
-          if (reasonModal === "REQUEST_INFO") {
-            ok = await post("request_info", { note: reason }, { kind: "request_info", inDialog: true });
-          } else if (reasonModal === "REJECT") {
-            ok = await post("reject", { note: reason }, { kind: "reject", inDialog: true });
-          } else if (reasonModal === "PAUSE") {
+          if (reasonModal === "PAUSE") {
             ok = await post("pause", { pausedReason: reason }, { inDialog: true });
           } else if (reasonModal === "RECORD_RESPONSE") {
             ok = await post(
@@ -946,9 +972,29 @@ function ReviewWorkspacePageInner() {
           }
         }}
       />
+
+      <ReassignDialog
+        open={dialog === "reassign" || dialog === "assign_second_reviewer"}
+        teamId={teamId}
+        handoff={dialog === "assign_second_reviewer"}
+        excludeUserId={dialog === "assign_second_reviewer" ? data.handoff?.firstReviewerUserId ?? null : null}
+        currentAssigneeUserId={p.assignedToUserId}
+        onCancel={() => setDialog(null)}
+        onSubmit={(userId) => postReassign(userId, dialog === "assign_second_reviewer")}
+        describeError={reassignRefusalMessage}
+      />
+      <EscalateDialog open={dialog === "escalate"} onCancel={() => setDialog(null)} onSubmit={postEscalate} />
+      <ArchiveDialog open={dialog === "archive"} onCancel={() => setDialog(null)} onSubmit={postArchive} />
+
+      {/* Step-up — dormant until a verdict, escalation or archive meets the
+          server's STEP_UP_REQUIRED gate; retries the request exactly once. */}
+      <StepUpModal control={stepUp} />
     </PageShell>
   );
 }
+
+/** TEAM-UI-SPEC (structure) — the inspector returns to the hub's My reviews. */
+const INSPECTOR_BACK: ReviewPageHeaderBack = { href: "/review", label: "My reviews" };
 
 function KV({ k, v }: { k: string; v: React.ReactNode }) {
   return (
@@ -968,34 +1014,7 @@ function KV({ k, v }: { k: string; v: React.ReactNode }) {
   );
 }
 
-const twoColStyle: React.CSSProperties = {
-  display: "grid",
-  // Two columns where there is room, one stacked column on a phone: a fixed
-  // `1fr 1fr` overflowed at 320 px.
-  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))",
-  gap: 16,
-  marginTop: 16,
-  marginBottom: 12,
-  alignItems: "flex-start",
-  minWidth: 0,
-};
 
-const thLight: React.CSSProperties = {
-  textAlign: "left",
-  fontSize: 11,
-  fontWeight: 700,
-  color: "var(--ink-secondary)",
-  textTransform: "uppercase",
-  letterSpacing: 0.3,
-  padding: "6px 8px 6px 0",
-  borderBottom: "1px solid var(--border-standard)",
-};
-
-const tdLight: React.CSSProperties = {
-  padding: "6px 8px 6px 0",
-  borderBottom: "1px solid var(--border-subtle)",
-  fontSize: 12,
-};
 
 // ---------------------------------------------------------------------------
 // Phase A.1D — Reviewer cross-surface continuity.
@@ -1079,16 +1098,16 @@ function ReviewerCrossSurfaceLinks({ evidenceId }: { evidenceId: string }) {
         minWidth: 0,
       }}
     >
-      {/* Evidence: the record under review and its outputs. One primary.
-          Downloads keep the existing gated endpoints; nothing here adds a
-          privilege. */}
+      {/* Evidence: the record under review and its outputs, all secondary
+          (TEAM-UI-SPEC §2 — the decision panel holds the page's verdict
+          primary). Downloads keep the existing gated endpoints. */}
       <div role="group" aria-labelledby="reviewer-links-evidence" data-reviewer-links-group="evidence" style={{ minWidth: 0 }}>
         <p id="reviewer-links-evidence" style={groupTitle}>Evidence</p>
         <div style={groupStyle}>
           <a
             href={`/evidence/${evidenceId}`}
             data-reviewer-link="open-evidence"
-            className="app-primary-action"
+            className="app-secondary-action"
             style={{ textDecoration: "none" }}
           >
             Open evidence detail
@@ -1118,8 +1137,8 @@ function ReviewerCrossSurfaceLinks({ evidenceId }: { evidenceId: string }) {
           <p
             role="alert"
             data-reviewer-cross-surface-error
-            className="app-alert app-alert--danger"
-            style={{ margin: "8px 0 0" }}
+            className="app-field-error"
+            style={{ margin: "8px 0 0", overflowWrap: "anywhere" }}
           >
             {error}
           </p>
@@ -1132,7 +1151,7 @@ function ReviewerCrossSurfaceLinks({ evidenceId }: { evidenceId: string }) {
           <a
             href="/reports"
             data-reviewer-link="open-reports"
-            className="app-secondary-action"
+            className="app-ghost-action"
             style={{ textDecoration: "none" }}
           >
             Reports queue
@@ -1140,7 +1159,7 @@ function ReviewerCrossSurfaceLinks({ evidenceId }: { evidenceId: string }) {
           <a
             href="/reviewer-ops/escalations"
             data-reviewer-link="open-escalations"
-            className="app-secondary-action"
+            className="app-ghost-action"
             style={{ textDecoration: "none" }}
           >
             Escalations
@@ -1203,29 +1222,6 @@ const NOTE_TYPE_LABELS: Record<string, string> = {
   general: "Note",
 };
 
-const NOTE_TYPE_TONE: Record<string, { bg: string; border: string }> = {
-  observation: { bg: "rgba(99,102,241,0.06)", border: "rgba(99,102,241,0.45)" },
-  concern: { bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.55)" },
-  request_info: { bg: "rgba(99,102,241,0.06)", border: "rgba(99,102,241,0.45)" },
-  escalation_context: {
-    bg: "rgba(239,68,68,0.08)",
-    border: "rgba(239,68,68,0.55)",
-  },
-  decision_rationale: {
-    bg: "rgba(34,197,94,0.06)",
-    border: "rgba(34,197,94,0.45)",
-  },
-  legal_hold_context: {
-    bg: "rgba(239,68,68,0.08)",
-    border: "rgba(239,68,68,0.55)",
-  },
-  redaction_context: {
-    bg: "rgba(245,158,11,0.08)",
-    border: "rgba(245,158,11,0.55)",
-  },
-  general: { bg: "rgba(127,127,127,0.06)", border: "rgba(127,127,127,0.4)" },
-};
-
 type ReviewerNote = {
   id: string;
   type: string;
@@ -1271,6 +1267,7 @@ function ReviewerNotesPanel({
   const [composeBody, setComposeBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [composeError, setComposeError] = useState<string | null>(null);
+  const formId = useId();
 
   const load = useCallback(async () => {
     // A refresh keeps the current list on screen instead of flashing to a
@@ -1354,34 +1351,26 @@ function ReviewerNotesPanel({
 
   return (
     <section
-      style={{
-        background: "var(--surface-standard)",
-        border: "1px solid var(--border-standard)",
-        borderRadius: "var(--radius-md)",
-        padding: 16,
-        marginBottom: 12,
-      }}
+      className="app-panel"
+      aria-labelledby={`${formId}-title`}
+      style={{ marginBottom: 12, minWidth: 0 }}
       data-section="reviewer-notes"
       data-reviewer-notes-total={
         state.kind === "ready" ? state.data.summary.total : 0
       }
     >
-      <h3 className="app-panel__title">
-        Reviewer notes{" "}
-        {state.kind === "ready" ? (
-          <span style={{ fontSize: 12, opacity: 0.7, marginLeft: 6 }}>
-            · {state.data.summary.total} total
-          </span>
-        ) : null}
-      </h3>
-      <p
-        style={{
-          fontSize: 12,
-          color: "var(--silver-ink)",
-          marginTop: 0,
-          marginBottom: 8,
-        }}
-      >
+      <div className="app-panel__head">
+        <h3 id={`${formId}-title`} className="app-panel__title">
+          Reviewer notes
+          {state.kind === "ready" ? (
+            <span className="app-field-help" style={{ margin: "0 0 0 6px", display: "inline" }}>
+              · {state.data.summary.total} total
+            </span>
+          ) : null}
+        </h3>
+      </div>
+      <div className="app-panel__body" style={{ minWidth: 0 }}>
+      <p className="app-field-help" style={{ marginTop: 0, marginBottom: 8 }}>
         Structured notes attached to the evidence under this review.
         Every note is recorded in the workspace activity feed. Notes
         persist across reviewers and survive workflow transitions.
@@ -1394,38 +1383,28 @@ function ReviewerNotesPanel({
           e.preventDefault();
           void submitNote();
         }}
-        style={{
-          display: "grid",
-          gap: 6,
-          padding: "0.5rem 0.6rem",
-          border: "1px solid rgba(127,127,127,0.3)",
-          borderRadius: 6,
-          marginBottom: 10,
-        }}
+        style={{ display: "grid", gap: 6, marginBottom: 10, minWidth: 0 }}
       >
-        <div
-          style={{
-            display: "flex",
-            gap: 6,
-            alignItems: "center",
-            flexWrap: "wrap",
-          }}
-        >
-          <label style={{ fontSize: 12, fontWeight: 600 }}>
-            Type
-            <AppListbox
-              value={composeType}
-              options={[
-                ...NOTE_TYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
-              ]}
-              onChange={(next) => setComposeType(next as ReviewerNoteType)}
-              disabled={submitting}
-              style={{ marginLeft: 6 }}
-              triggerProps={{ "data-reviewer-notes-compose-type": "" }}
-            />
-          </label>
-        </div>
+        <label className="app-field-label" htmlFor={`${formId}-type`}>
+          Type
+        </label>
+        <AppListbox
+          id={`${formId}-type`}
+          value={composeType}
+          options={[
+            ...NOTE_TYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+          ]}
+          onChange={(next) => setComposeType(next as ReviewerNoteType)}
+          disabled={submitting}
+          style={{ maxWidth: "100%" }}
+          triggerProps={{ "data-reviewer-notes-compose-type": "" }}
+        />
+        <label className="app-field-label" htmlFor={`${formId}-body`}>
+          Note
+        </label>
         <textarea
+          id={`${formId}-body`}
+          className="app-input app-textarea"
           value={composeBody}
           onChange={(e) => setComposeBody(e.target.value)}
           disabled={submitting}
@@ -1433,39 +1412,32 @@ function ReviewerNotesPanel({
           rows={3}
           placeholder="Write a structured reviewer note (1–4000 chars). Every note is audited."
           data-reviewer-notes-compose-body
-          style={{
-            width: "100%",
-            fontSize: 13,
-            padding: "0.4rem 0.5rem",
-            border: "1px solid currentColor",
-            borderRadius: 4,
-            background: "transparent",
-            color: "inherit",
-            resize: "vertical",
-            minHeight: 60,
-          }}
+          style={{ boxSizing: "border-box" }}
         />
         {composeError ? (
-          <div role="alert" data-reviewer-notes-compose-error style={{ fontSize: 12, color: "#d44" }}>
+          <p role="alert" className="app-field-error" data-reviewer-notes-compose-error style={{ margin: 0 }}>
             {composeError}
-          </div>
+          </p>
         ) : null}
         <div
           style={{
             display: "flex",
             justifyContent: "flex-end",
-            gap: 6,
+            gap: 8,
             alignItems: "center",
+            flexWrap: "wrap",
           }}
         >
-          <span style={{ fontSize: 11, opacity: 0.6 }}>
+          <span className="app-field-help" style={{ margin: 0 }}>
             {composeBody.length}/4000
           </span>
+          {/* As Evidence notes: the filled secondary, never a page primary. */}
           <button
             type="submit"
             disabled={submitting || composeBody.trim().length === 0}
+            aria-busy={submitting || undefined}
             data-reviewer-notes-compose-submit
-            style={buttonSurfaceStyle("primary", "sm")}
+            className="app-secondary-action app-secondary-action--filled"
           >
             {submitting ? "Adding…" : "Add note"}
           </button>
@@ -1475,14 +1447,11 @@ function ReviewerNotesPanel({
       {/* ---- filter chips ---- */}
       {state.kind === "ready" && state.data.summary.total > 0 ? (
         <div
+          role="group"
+          aria-label="Filter notes by type"
+          className="app-tabs"
           data-reviewer-notes-filter
-          style={{
-            display: "flex",
-            gap: 4,
-            flexWrap: "wrap",
-            marginBottom: 8,
-            fontSize: 12,
-          }}
+          style={{ flexWrap: "wrap", height: "auto", marginBottom: 8, minWidth: 0 }}
         >
           <FilterChip
             label="All"
@@ -1527,7 +1496,7 @@ function ReviewerNotesPanel({
         <div
           role="alert"
           data-reviewer-notes-state="error"
-          style={{ fontSize: 13, opacity: 0.85 }}
+          style={{ fontSize: 13, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}
         >
           {/* raw-identifier-ok: state.status here is the HTTP status number of a failed read */}
           {state.status === 403
@@ -1539,44 +1508,26 @@ function ReviewerNotesPanel({
             type="button"
             onClick={() => void load()}
             data-reviewer-notes-retry
-            style={{
-              marginLeft: 6,
-              fontSize: 12,
-              padding: "0.2rem 0.5rem",
-              border: "1px solid currentColor",
-              borderRadius: 4,
-              background: "transparent",
-              cursor: "pointer",
-            }}
+            className="app-secondary-action"
           >
             Retry
           </button>
         </div>
       ) : null}
       {state.kind === "ready" && state.data.summary.total === 0 ? (
-        <div
-          data-reviewer-notes-state="empty"
-          style={{ fontSize: 13, color: "var(--silver-ink)" }}
-        >
+        <div data-reviewer-notes-state="empty" className="app-field-help" style={{ margin: 0 }}>
           No notes yet. Add the first structured note above to anchor
           this review's context for future reviewers.
         </div>
       ) : null}
       {state.kind === "ready" && visibleNotes.length === 0 && state.data.summary.total > 0 ? (
-        <div data-reviewer-notes-state="filter-empty" style={{ fontSize: 13, opacity: 0.8 }}>
+        <div data-reviewer-notes-state="filter-empty" style={{ fontSize: 13 }}>
           No notes of type{" "}
           <strong>{NOTE_TYPE_LABELS[filterType] ?? filterType}</strong>. {" "}
           <button
             type="button"
             onClick={() => setFilterType("all")}
-            style={{
-              fontSize: 12,
-              padding: "0.15rem 0.45rem",
-              border: "1px solid currentColor",
-              borderRadius: 4,
-              background: "transparent",
-              cursor: "pointer",
-            }}
+            className="app-ghost-action"
           >
             Show all
           </button>
@@ -1589,19 +1540,14 @@ function ReviewerNotesPanel({
           style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 6 }}
         >
           {visibleNotes.map((n) => {
-            const tone = NOTE_TYPE_TONE[n.type] ?? NOTE_TYPE_TONE.general;
             return (
               <li
                 key={n.id}
                 data-reviewer-note-id={n.id}
                 data-reviewer-note-type={n.type}
                 data-reviewer-note-legacy={n.isLegacyPlainText ? "true" : "false"}
-                style={{
-                  padding: "0.55rem 0.7rem",
-                  border: `1px solid ${tone.border}`,
-                  background: tone.bg,
-                  borderRadius: 6,
-                }}
+                className="app-inner-surface"
+                style={{ padding: "0.55rem 0.7rem", minWidth: 0 }}
               >
                 <div
                   style={{
@@ -1616,23 +1562,15 @@ function ReviewerNotesPanel({
                   <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                     <span
                       data-reviewer-note-type-chip={n.type}
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        letterSpacing: 0.4,
-                        textTransform: "uppercase",
-                        padding: "1px 6px",
-                        borderRadius: 4,
-                        background: "rgba(127,127,127,0.18)",
-                      }}
+                      className={n.type === "concern" || n.type === "escalation_context" || n.type === "legal_hold_context" || n.type === "redaction_context" ? "app-chip app-chip--warn" : "app-chip"}
                     >
                       {NOTE_TYPE_LABELS[n.type] ?? identifierLabel(n.type)}
                     </span>
-                    <span style={{ fontWeight: 600 }}>
+                    <span style={{ fontWeight: 600, overflowWrap: "anywhere" }}>
                       {n.author.displayName || n.author.email || recordReference("Author", n.author.userId)}
                     </span>
                   </div>
-                  <time dateTime={n.createdAt} style={{ opacity: 0.75 }}>
+                  <time dateTime={n.createdAt} className="app-field-help" style={{ margin: 0 }}>
                     {formatUserDateTime(n.createdAt)}
                   </time>
                 </div>
@@ -1648,26 +1586,12 @@ function ReviewerNotesPanel({
                   {n.body}
                 </div>
                 {n.isLegacyPlainText ? (
-                  <div
-                    data-reviewer-note-legacy-banner
-                    style={{
-                      marginTop: 4,
-                      fontSize: 11,
-                      opacity: 0.65,
-                    }}
-                  >
+                  <div data-reviewer-note-legacy-banner className="app-field-help" style={{ marginTop: 4 }}>
                     Legacy plain-text note (pre-Phase-B.1; no structured type).
                   </div>
                 ) : null}
                 {n.resolvedAt ? (
-                  <div
-                    data-reviewer-note-resolved
-                    style={{
-                      marginTop: 4,
-                      fontSize: 11,
-                      opacity: 0.7,
-                    }}
-                  >
+                  <div data-reviewer-note-resolved className="app-field-help" style={{ marginTop: 4 }}>
                     Resolved {formatUserDateTime(n.resolvedAt)}
                   </div>
                 ) : null}
@@ -1676,6 +1600,7 @@ function ReviewerNotesPanel({
           })}
         </ul>
       ) : null}
+      </div>
     </section>
   );
 }
@@ -1699,17 +1624,10 @@ function FilterChip({
       onClick={onClick}
       data-reviewer-notes-filter-chip={dataValue}
       data-reviewer-notes-filter-active={active ? "true" : "false"}
-      style={{
-        padding: "0.2rem 0.55rem",
-        border: "1px solid currentColor",
-        borderRadius: 999,
-        fontSize: 12,
-        background: active ? "rgba(99,102,241,0.18)" : "transparent",
-        cursor: "pointer",
-        color: "inherit",
-      }}
+      aria-pressed={active}
+      className={active ? "app-tab is-active" : "app-tab"}
     >
-      {label} <span style={{ opacity: 0.65 }}>· {count}</span>
+      {label} <span className="app-tab__count">{count}</span>
     </button>
   );
 }
@@ -1735,6 +1653,11 @@ function FilterChip({
 // rationale + timestamp). Decisions cannot be edited or deleted —
 // the audit chain is the truth.
 // ---------------------------------------------------------------------------
+
+//
+// TEAM-UI-SPEC §2 — this panel is the ONE decision entry: "Record decision"
+// (FIRST / SECOND) and, in conflict, "Adjudication" — the same panel and the
+// same form (`DecisionForm`), never a second UI.
 
 type DecisionKind =
   | "APPROVE"
@@ -1811,59 +1734,20 @@ const STATE_LABELS: Record<ReviewState, string> = {
   resolved: "Review resolved",
 };
 
-const STATE_TONE: Record<
-  ReviewState,
-  { bg: string; border: string; chipBg: string; chipFg: string }
-> = {
-  first_required: {
-    bg: "rgba(99,102,241,0.06)",
-    border: "rgba(99,102,241,0.45)",
-    chipBg: "rgba(99,102,241,0.22)",
-    chipFg: "#312e81",
-  },
-  second_required: {
-    bg: "rgba(245,158,11,0.08)",
-    border: "rgba(245,158,11,0.55)",
-    chipBg: "rgba(245,158,11,0.22)",
-    chipFg: "#78350f",
-  },
-  conflict_detected: {
-    bg: "rgba(239,68,68,0.1)",
-    border: "rgba(239,68,68,0.65)",
-    chipBg: "rgba(239,68,68,0.3)",
-    chipFg: "#7f1d1d",
-  },
-  adjudication_required: {
-    bg: "rgba(239,68,68,0.08)",
-    border: "rgba(239,68,68,0.55)",
-    chipBg: "rgba(239,68,68,0.22)",
-    chipFg: "#7f1d1d",
-  },
-  resolved: {
-    bg: "rgba(34,197,94,0.06)",
-    border: "rgba(34,197,94,0.45)",
-    chipBg: "rgba(34,197,94,0.22)",
-    chipFg: "#14532d",
-  },
+/** The state chip's tone, from the canonical chip set. */
+const STATE_CHIP: Record<ReviewState, string> = {
+  first_required: "app-chip",
+  second_required: "app-chip app-chip--warn",
+  conflict_detected: "app-chip app-chip--warn",
+  adjudication_required: "app-chip app-chip--warn",
+  resolved: "app-chip app-chip--ok",
 };
 
-const DECISION_KIND_OPTIONS_FIRST_SECOND: DecisionKind[] = [
-  "APPROVE",
-  "REJECT",
-  "REQUEST_INFO",
-  "NEEDS_MORE_INFO",
-];
-const REASON_CODE_OPTIONS: ReasonCode[] = [
-  "EVIDENCE_INCOMPLETE",
-  "REPORT_FAILED",
-  "INTEGRITY_CONCERN",
-  "CUSTODY_CONCERN",
-  "MISSING_CONTEXT",
-  "LEGAL_HOLD_ISSUE",
-  "REDACTION_REQUIRED",
-  "REVIEWER_DISAGREEMENT",
-  "OTHER",
-];
+function decisionChipClass(kind: string): string {
+  if (kind === "APPROVE" || kind === "UPHOLD_FIRST" || kind === "UPHOLD_SECOND") return "app-chip app-chip--ok";
+  if (kind === "REJECT") return "app-chip app-chip--warn";
+  return "app-chip";
+}
 
 function ReviewerDecisionLineagePanel({
   workflowId,
@@ -1871,31 +1755,37 @@ function ReviewerDecisionLineagePanel({
   refreshKey = 0,
   onLoaded,
   onSubmitDecision,
+  actions,
+  mayDecide,
+  mayAdjudicate,
+  adjudicationBlockedReason,
+  focusRequest,
 }: {
   workflowId: string;
   teamId: string;
   /** Bumped by the page after any action, so the lineage rereads. */
   refreshKey?: number;
-  /** Lifts what was read, for the approve confirmation and adjudication. */
+  /** Lifts what was read, for the Next step panel and adjudication. */
   onLoaded?: (summary: DecisionsSummary | null) => void;
   /**
-   * The page's decisions POST: maps refusals and reloads the workspace and
-   * this panel. Resolves to an error message, or null on success.
+   * The page's decisions POST (step-up, refusal mapping, reload of the
+   * workspace and this panel). Resolves to an error message, or null.
    */
-  onSubmitDecision: (body: { decision: string; reasonCode?: string; rationale: string }) => Promise<string | null>;
+  onSubmitDecision: (body: DecisionSubmitBody) => Promise<string | null>;
+  /** The server's action map: which verdict kinds are open now. */
+  actions: ActionMap;
+  /** The lineage asks this viewer for a FIRST / SECOND decision and one kind is open. */
+  mayDecide: boolean;
+  /** In conflict, and this viewer is an independent owner or admin. */
+  mayAdjudicate: boolean;
+  adjudicationBlockedReason: string | null;
+  focusRequest: DecisionFocusRequest | null;
 }) {
   const [state, setState] = useState<
     | { kind: "loading" }
     | { kind: "ready"; data: DecisionsEnvelope }
     | { kind: "error"; status: number; message: string }
   >({ kind: "loading" });
-
-  // Compose form (only visible when submit is allowed)
-  const [composeDecision, setComposeDecision] = useState<DecisionKind | "">("");
-  const [composeReason, setComposeReason] = useState<ReasonCode | "">("");
-  const [composeRationale, setComposeRationale] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // The page's lift callback, read through a ref so a new arrow on every
   // page render does not re-run the load.
@@ -1937,100 +1827,70 @@ function ReviewerDecisionLineagePanel({
     void load();
   }, [load, refreshKey]);
 
-  const submit = useCallback(async () => {
-    if (!composeDecision) {
-      setSubmitError("Choose a decision.");
-      return;
-    }
-    if (composeRationale.trim().length === 0) {
-      setSubmitError("Rationale is required.");
-      return;
-    }
-    setSubmitting(true);
-    setSubmitError(null);
-    // The page POSTs, maps the refusal by reason (a stale or out-of-stage
-    // decision is never reported as "already resolved") and reloads both the
-    // workspace and this panel.
-    const failure = await onSubmitDecision({
-      decision: composeDecision,
-      reasonCode: composeReason || undefined,
-      rationale: composeRationale.trim(),
-    });
-    if (failure) {
-      setSubmitError(failure);
-    } else {
-      setComposeDecision("");
-      setComposeReason("");
-      setComposeRationale("");
-    }
-    setSubmitting(false);
-  }, [composeDecision, composeReason, composeRationale, onSubmitDecision]);
+  const shell = (title: string, body: React.ReactNode, attrs: Record<string, string>) => (
+    <section
+      id={DECISION_ANCHOR_ID}
+      className="app-panel"
+      aria-labelledby="review-decision-title"
+      tabIndex={-1}
+      style={{ minWidth: 0 }}
+      data-section="reviewer-decision-lineage"
+      {...attrs}
+    >
+      <div className="app-panel__head">
+        <h3 id="review-decision-title" className="app-panel__title">
+          {title}
+        </h3>
+      </div>
+      <div className="app-panel__body" style={{ minWidth: 0 }}>
+        {body}
+      </div>
+    </section>
+  );
 
   if (state.kind === "loading") {
-    return (
-      <section
-        style={{
-        background: "var(--surface-standard)",
-        border: "1px solid var(--border-standard)",
-        borderRadius: "var(--radius-md)",
-        padding: 16,
-        marginBottom: 12,
-      }}
-        data-section="reviewer-decision-lineage"
-        data-decision-state="loading"
-      >
-        <h3 className="app-panel__title">Review decisions</h3>
-        <div className="app-field-help">Loading review state…</div>
-      </section>
+    return shell(
+      "Record decision",
+      <p className="app-field-help" style={{ margin: 0 }}>Loading review state…</p>,
+      { "data-decision-state": "loading" },
     );
   }
 
   if (state.kind === "error") {
-    return (
-      <section
-        style={{
-        background: "var(--surface-standard)",
-        border: "1px solid var(--border-standard)",
-        borderRadius: "var(--radius-md)",
-        padding: 16,
-        marginBottom: 12,
-      }}
-        data-section="reviewer-decision-lineage"
-        data-decision-state="error"
-      >
-        <h3 className="app-panel__title">Review decisions</h3>
-        <div role="alert" style={{ fontSize: 13, opacity: 0.85 }}>
-          {/* raw-identifier-ok: state.status here is the HTTP status number of a failed read */}
-          {state.status === 404
-            ? "Workflow not found in this workspace."
-            : state.status === 403
-              ? "You don't have permission to view review decisions."
-              : "Could not load decisions."}
-        </div>
-      </section>
+    return shell(
+      "Record decision",
+      <p role="alert" className="app-field-error" style={{ margin: 0 }}>
+        {/* raw-identifier-ok: state.status here is the HTTP status number of a failed read */}
+        {state.status === 404
+          ? "Workflow not found in this workspace."
+          : state.status === 403
+            ? "You don't have permission to view review decisions."
+            : "Could not load decisions."}
+      </p>,
+      { "data-decision-state": "error" },
     );
   }
 
   const data = state.data;
-  const tone = STATE_TONE[data.state] ?? STATE_TONE.first_required;
   const nextAction = data.callerContext.nextAction;
-  // First and second decisions only. Adjudication is its own panel, so this
-  // form never offers an adjudication kind.
-  const canSubmit = nextAction === "submit_first" || nextAction === "submit_second";
-  const formStage = nextAction === "submit_first" ? "FIRST" : "SECOND";
+  const conflict = data.state === "conflict_detected" || data.state === "adjudication_required";
+  const formStage: "FIRST" | "SECOND" = nextAction === "submit_second" ? "SECOND" : "FIRST";
   const trigger = data.secondReviewRequirement.reason;
+  const showDecisionForm = !conflict && mayDecide;
+  const showAdjudicationForm = conflict && mayAdjudicate;
+  // The one reason the verdict is closed, when the lineage asks for one.
+  const verdictClosedReason =
+    (nextAction === "submit_first" || nextAction === "submit_second") && !mayDecide
+      ? actions.approve.reason ?? actions.reject.reason ?? actions.request_info.reason ?? null
+      : null;
 
   return (
     <section
-      style={{
-        border: "1px solid var(--border-standard)",
-        borderRadius: "var(--radius-md)",
-        padding: 16,
-        marginBottom: 12,
-        background: tone.bg,
-        borderColor: tone.border,
-        minWidth: 0,
-      }}
+      id={DECISION_ANCHOR_ID}
+      className="app-panel"
+      aria-labelledby="review-decision-title"
+      tabIndex={-1}
+      style={{ minWidth: 0 }}
       data-section="reviewer-decision-lineage"
       data-decision-state={data.state}
       data-decision-next-action={nextAction}
@@ -2043,307 +1903,153 @@ function ReviewerDecisionLineagePanel({
       data-decision-is-adjudicator={
         data.callerContext.isAdjudicator ? "true" : "false"
       }
+      {...(conflict ? { "data-decision-panel-mode": "adjudication" } : { "data-decision-panel-mode": "decision" })}
     >
-      <h3 className="app-panel__title" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
-        Review decisions
-        <span
-          data-decision-state-chip={data.state}
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: 0.4,
-            padding: "2px 8px",
-            borderRadius: 999,
-            background: tone.chipBg,
-            color: tone.chipFg,
-          }}
-        >
+      <div className="app-panel__head" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+        <h3 id="review-decision-title" className="app-panel__title" style={{ margin: 0 }}>
+          {conflict ? "Adjudication" : "Record decision"}
+        </h3>
+        <span data-decision-state-chip={data.state} className={STATE_CHIP[data.state] ?? "app-chip"}>
           {STATE_LABELS[data.state] ?? "Review in progress"}
         </span>
-      </h3>
+      </div>
+      <div className="app-panel__body" style={{ display: "grid", gap: 12, minWidth: 0 }}>
+        {conflict ? (
+          <p className="app-field-help" data-section="reviewer-adjudication" style={{ margin: 0 }}>
+            The first and second reviews disagree. An owner or admin who made neither decision settles it here;
+            an approval or rejection cannot settle a disagreement.
+          </p>
+        ) : data.secondReviewRequirement.required ? (
+          <p className="app-field-help" data-decision-second-review-reason={trigger ?? undefined} style={{ margin: 0 }}>
+            A second review is required because{" "}
+            {(trigger && SECOND_REVIEW_TRIGGER_LABELS[trigger]) || "workspace policy requires it"}.
+          </p>
+        ) : (
+          <p className="app-field-help" style={{ margin: 0 }}>
+            One review decides this review (no policy requires a second review).
+          </p>
+        )}
 
-      {data.secondReviewRequirement.required ? (
-        <div
-          data-decision-second-review-reason={trigger ?? undefined}
-          style={{ fontSize: 12, marginTop: 2 }}
-        >
-          A second review is required because{" "}
-          {(trigger && SECOND_REVIEW_TRIGGER_LABELS[trigger]) || "workspace policy requires it"}.
-        </div>
-      ) : (
-        <div style={{ fontSize: 12, marginTop: 2, color: "var(--silver-ink)" }}>
-          One review decides this review (no policy requires a second review).
-        </div>
-      )}
+        {showDecisionForm ? (
+          <DecisionForm
+            mode="decision"
+            stage={formStage}
+            actions={actions}
+            reviewState={data.state}
+            secondRequired={Boolean(data.secondReviewRequirement.required)}
+            onSubmit={onSubmitDecision}
+            focusRequest={focusRequest}
+          />
+        ) : showAdjudicationForm ? (
+          <DecisionForm
+            mode="adjudication"
+            stage="SECOND"
+            actions={actions}
+            reviewState={data.state}
+            secondRequired
+            onSubmit={onSubmitDecision}
+            focusRequest={focusRequest}
+          />
+        ) : (
+          <p
+            className="app-field-help"
+            data-decision-blocked-banner={nextAction}
+            {...(conflict ? { "data-adjudication-blocked": "" } : {})}
+            style={{ margin: 0, overflowWrap: "anywhere" }}
+          >
+            {conflict
+              ? adjudicationBlockedReason ??
+                `Only a workspace owner or admin who made neither decision can adjudicate (your role: ${teamRoleLabel(
+                  data.callerContext.teamRole,
+                )}).`
+              : nextAction === "blocked_same_reviewer"
+                ? "A different reviewer must decide. You made the first decision, so the second review needs another reviewer."
+                : nextAction === "no_action_resolved"
+                  ? "Review resolved. No further decisions are accepted for this round."
+                  : verdictClosedReason ?? "No decision is open to you on this review right now."}
+          </p>
+        )}
 
-      {/* ---- next-action / submit form ---- */}
-      {canSubmit ? (
-        <form
-          data-decision-form
-          data-decision-form-stage={formStage}
-          onSubmit={(e) => {
-            e.preventDefault();
-            void submit();
-          }}
-          style={{
-            display: "grid",
-            gap: 6,
-            marginTop: 10,
-            padding: "0.6rem 0.75rem",
-            border: "1px solid var(--border-standard)",
-            borderRadius: 6,
-            background: "var(--surface-standard)",
-            minWidth: 0,
-          }}
-        >
-          <div style={{ fontSize: 12, fontWeight: 700 }}>
-            Record the {formStage === "FIRST" ? "first" : "second"} review decision
-          </div>
-          <label style={{ fontSize: 12 }} className="app-field-label">
-            Decision
-            <AppListbox
-              value={composeDecision}
-              options={[
-                { value: "", label: "Choose a decision…" },
-                ...DECISION_KIND_OPTIONS_FIRST_SECOND.map((d) => ({ value: d, label: DECISION_OPTION_LABELS[d] ?? d })),
-              ]}
-              onChange={(next) => setComposeDecision(next as DecisionKind | "")}
-              disabled={submitting}
-              style={{ marginLeft: 6, maxWidth: "100%" }}
-              triggerProps={{ "aria-required": true, "data-decision-form-decision": "" }}
-            />
-          </label>
-          <label style={{ fontSize: 12 }} className="app-field-label">
-            Reason (optional but recommended)
-            <AppListbox
-              value={composeReason}
-              options={[
-                { value: "", label: "No reason" },
-                ...REASON_CODE_OPTIONS.map((r) => ({ value: r, label: REASON_CODE_LABELS[r] ?? r })),
-              ]}
-              onChange={(next) => setComposeReason(next as ReasonCode | "")}
-              disabled={submitting}
-              style={{ marginLeft: 6, maxWidth: "100%" }}
-              triggerProps={{ "data-decision-form-reason": "" }}
-            />
-          </label>
-          <label className="app-field-label" style={{ fontSize: 12 }}>
-            Rationale
-            <textarea
-              className="app-textarea"
-              value={composeRationale}
-              onChange={(e) => setComposeRationale(e.target.value)}
-              disabled={submitting}
-              maxLength={4000}
-              rows={3}
-              required
-              placeholder="Required, up to 4,000 characters. Recorded in the audit log and visible to later reviewers."
-              data-decision-form-rationale
-              style={{ width: "100%", boxSizing: "border-box", resize: "vertical", minHeight: 60, display: "block", marginTop: 4 }}
-            />
-          </label>
-          {submitError ? (
-            <p
-              role="alert"
-              data-decision-form-error
-              className="app-alert app-alert--danger"
-              style={{ margin: 0 }}
-            >
-              {submitError}
+        {/* ---- decision lineage ---- */}
+        {data.decisions.length > 0 ? (
+          <div style={{ minWidth: 0 }}>
+            <p className="app-field-label" style={{ margin: "0 0 6px" }}>
+              Decision lineage ({data.decisions.length})
             </p>
-          ) : null}
-          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span className="app-field-help" style={{ margin: 0 }}>
-              {composeRationale.length}/4000
-            </span>
-            <button
-              type="submit"
-              disabled={
-                submitting ||
-                !composeDecision ||
-                composeRationale.trim().length === 0
-              }
-              data-decision-form-submit
-              className="app-secondary-action app-secondary-action--filled"
+            <ol
+              data-decision-lineage
+              data-decision-lineage-count={data.decisions.length}
+              {...(conflict ? { "data-adjudication-contested": "" } : {})}
+              style={{
+                listStyle: "none",
+                padding: 0,
+                margin: 0,
+                display: "grid",
+                gap: 6,
+              }}
             >
-              {submitting ? "Recording…" : "Record decision"}
-            </button>
-          </div>
-        </form>
-      ) : (
-        <div
-          data-decision-blocked-banner={nextAction}
-          style={{
-            marginTop: 10,
-            padding: "0.5rem 0.7rem",
-            border: "1px dashed var(--border-strong, currentColor)",
-            borderRadius: 6,
-            fontSize: 12.5,
-          }}
-        >
-          {nextAction === "blocked_same_reviewer" && (
-            <>
-              <strong>A different reviewer must decide.</strong> You made the
-              first decision, so the second review needs another reviewer —
-              reassign it.
-            </>
-          )}
-          {nextAction === "blocked_not_adjudicator" && (
-            <>
-              <strong>Adjudication needed.</strong> The first and second
-              reviews disagree. Only a workspace owner or admin who made
-              neither decision can adjudicate (your role:{" "}
-              {teamRoleLabel(data.callerContext.teamRole)}).
-            </>
-          )}
-          {nextAction === "submit_adjudication" && (
-            <>
-              <strong>Adjudication needed.</strong> The first and second
-              reviews disagree. Record the outcome in the adjudication panel.
-            </>
-          )}
-          {nextAction === "no_action_resolved" && (
-            <>
-              <strong>Review resolved.</strong> No further decisions are
-              accepted for this round.
-            </>
-          )}
-        </div>
-      )}
-
-      {/* ---- decision lineage ---- */}
-      {data.decisions.length > 0 ? (
-        <div style={{ marginTop: 12 }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: 0.4,
-              textTransform: "uppercase",
-              opacity: 0.8,
-              marginBottom: 6,
-            }}
-          >
-            Decision lineage ({data.decisions.length})
-          </div>
-          <ol
-            data-decision-lineage
-            data-decision-lineage-count={data.decisions.length}
-            style={{
-              listStyle: "none",
-              padding: 0,
-              margin: 0,
-              display: "grid",
-              gap: 6,
-            }}
-          >
-            {data.decisions.map((d, idx) => (
-              <li
-                key={d.id}
-                data-decision-row
-                data-decision-stage={d.stage}
-                data-decision-kind={d.decision}
-                data-decision-reason-code={d.reasonCode ?? ""}
-                data-decision-reviewer-id={d.reviewer.userId}
-                style={{
-                  padding: "0.5rem 0.7rem",
-                  border: "1px solid rgba(127,127,127,0.3)",
-                  background: "rgba(255,255,255,0.04)",
-                  borderRadius: 6,
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: 6,
-                    flexWrap: "wrap",
-                    fontSize: 12,
-                  }}
+              {data.decisions.map((d, idx) => (
+                <li
+                  key={d.id}
+                  data-decision-row
+                  data-decision-stage={d.stage}
+                  data-decision-kind={d.decision}
+                  data-decision-reason-code={d.reasonCode ?? ""}
+                  data-decision-reviewer-id={d.reviewer.userId}
+                  className="app-inner-surface"
+                  style={{ padding: "0.5rem 0.7rem", minWidth: 0 }}
                 >
                   <div
-                    style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 6,
+                      flexWrap: "wrap",
+                      fontSize: 12,
+                    }}
                   >
-                    <span
-                      data-decision-stage-chip={d.stage}
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        letterSpacing: 0.4,
-                        padding: "1px 6px",
-                        borderRadius: 4,
-                        background: "rgba(127,127,127,0.18)",
-                      }}
-                    >
-                      #{idx + 1} · {STAGE_LABELS[d.stage] ?? identifierLabel(d.stage)}
-                    </span>
-                    <span
-                      data-decision-kind-chip={d.decision}
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        letterSpacing: 0.4,
-                        padding: "1px 6px",
-                        borderRadius: 4,
-                        background:
-                          d.decision === "APPROVE" ||
-                          d.decision === "UPHOLD_FIRST" ||
-                          d.decision === "UPHOLD_SECOND"
-                            ? "rgba(34,197,94,0.22)"
-                            : d.decision === "REJECT"
-                              ? "rgba(239,68,68,0.22)"
-                              : "rgba(245,158,11,0.22)",
-                      }}
-                    >
-                      {DECISION_KIND_LABELS[d.decision] ?? identifierLabel(d.decision)}
-                    </span>
-                    {d.reasonCode ? (
-                      <span
-                        data-decision-reason-chip={d.reasonCode}
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 600,
-                          padding: "1px 6px",
-                          borderRadius: 4,
-                          background: "rgba(127,127,127,0.12)",
-                        }}
-                      >
-                        {REASON_CODE_LABELS[d.reasonCode] ?? identifierLabel(d.reasonCode)}
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>
+                      <span data-decision-stage-chip={d.stage} className="app-chip">
+                        #{idx + 1} · {STAGE_LABELS[d.stage] ?? identifierLabel(d.stage)}
                       </span>
-                    ) : null}
-                    <span style={{ fontWeight: 600 }}>
-                      {reviewerName(d.reviewer)}
-                    </span>
+                      <span data-decision-kind-chip={d.decision} className={decisionChipClass(d.decision)}>
+                        {DECISION_KIND_LABELS[d.decision] ?? identifierLabel(d.decision)}
+                      </span>
+                      {d.reasonCode ? (
+                        <span data-decision-reason-chip={d.reasonCode} className="app-chip">
+                          {REASON_CODE_LABELS[d.reasonCode] ?? identifierLabel(d.reasonCode)}
+                        </span>
+                      ) : null}
+                      <span style={{ fontWeight: 600, overflowWrap: "anywhere" }}>
+                        {reviewerName(d.reviewer)}
+                      </span>
+                    </div>
+                    <time dateTime={d.decidedAt} className="app-field-help" style={{ margin: 0 }}>
+                      {formatUserDateTime(d.decidedAt)}
+                    </time>
                   </div>
-                  <time dateTime={d.decidedAt} style={{ opacity: 0.75 }}>
-                    {formatUserDateTime(d.decidedAt)}
-                  </time>
-                </div>
-                <div
-                  data-decision-rationale
-                  style={{
-                    fontSize: 13,
-                    marginTop: 4,
-                    whiteSpace: "pre-wrap",
-                    overflowWrap: "anywhere",
-                  }}
-                >
-                  {d.rationale}
-                </div>
-              </li>
-            ))}
-          </ol>
-        </div>
-      ) : (
-        <div
-          data-decision-lineage-empty
-          style={{ marginTop: 10, fontSize: 13, color: "var(--silver-ink)" }}
-        >
-          No decisions recorded yet for this workflow.
-        </div>
-      )}
+                  <div
+                    data-decision-rationale
+                    style={{
+                      fontSize: 13,
+                      marginTop: 4,
+                      whiteSpace: "pre-wrap",
+                      overflowWrap: "anywhere",
+                    }}
+                  >
+                    {d.rationale}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ) : (
+          <p data-decision-lineage-empty className="app-field-help" style={{ margin: 0 }}>
+            No decisions recorded yet for this workflow.
+          </p>
+        )}
+      </div>
     </section>
   );
 }
-

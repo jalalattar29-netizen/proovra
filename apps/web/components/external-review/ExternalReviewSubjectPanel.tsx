@@ -39,6 +39,7 @@ import { useOptionalPlatformContext } from "../../lib/platform-context/PlatformC
 import { AppListbox } from "../app-primitives/AppListbox";
 import { StepUpModal, useStepUpAction } from "../identity-security/StepUpModal";
 import { useConfirmAction } from "../ui/ConfirmActionModal";
+import { CanonicalActionButton } from "./CanonicalActionButton";
 import {
   EXTERNAL_REVIEW_RENEW_DAYS,
   externalReviewRenewRefusal,
@@ -303,34 +304,34 @@ export function ExternalReviewSubjectPanel({
     LIVE_STATES.has(g.state) &&
     (typeof g.viewerCanRevoke === "boolean" ? g.viewerCanRevoke : viewer.roleAllowsManage === true);
 
-  const muted = { color: "var(--ink-secondary, #475569)", fontSize: 12 } as const;
+  // TEAM-UI-SPEC §1 — an `app-panel` card; muted copy is `app-field-help`.
+  const muted = { margin: 0 } as const;
   return (
     <section
       data-external-review-panel={subject.kind}
       aria-label="External review"
+      className="app-panel"
       style={{
-        background: "#fff",
-        border: "1px solid rgba(15, 23, 42, 0.08)",
-        borderRadius: 10,
         padding: 12,
         display: "grid",
         gap: 8,
+        minWidth: 0,
       }}
     >
-      <strong style={{ fontSize: 13 }}>External review</strong>
-      <p style={{ ...muted, margin: 0 }}>
+      <h3 className="app-panel__title">External review</h3>
+      <p className="app-field-help" style={muted}>
         Invite someone outside the workspace to review this {subject.kind === "EVIDENCE" ? "record" : "case"}. They
         receive an emailed link to a reviewer portal and the disclosure package, never the original files.
       </p>
 
       {included === true && otherWorkspace ? (
-        <p data-external-review-other-workspace style={{ ...muted, margin: 0 }}>
+        <p data-external-review-other-workspace className="app-field-help" style={muted}>
           {listState === "no_workspace"
             ? "This isn't in a workspace you're working in, so external review can't be managed here."
             : EXTERNAL_REVIEW_OTHER_WORKSPACE}
         </p>
       ) : included === true && canIssue === false ? (
-        <p data-external-review-issue-not-permitted style={{ ...muted, margin: 0 }}>
+        <p data-external-review-issue-not-permitted className="app-field-help" style={muted}>
           {EXTERNAL_REVIEW_MANAGE_EXPLANATION}
         </p>
       ) : included === true && canIssue === null ? null : included === true ? (
@@ -342,7 +343,7 @@ export function ExternalReviewSubjectPanel({
           }}
           style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "end" }}
         >
-          <label style={{ fontSize: 12, display: "grid", gap: 2 }}>
+          <label className="app-field-label" style={{ display: "grid", gap: 4, flex: "1 1 220px", minWidth: 0 }}>
             Reviewer email
             <input
               type="email"
@@ -350,10 +351,10 @@ export function ExternalReviewSubjectPanel({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               data-external-review-email
-              style={{ padding: "5px 8px", borderRadius: 6, border: "1px solid #cbd5e1", minWidth: 240 }}
+              className="app-input"
             />
           </label>
-          <label style={{ fontSize: 12, display: "grid", gap: 2 }}>
+          <label className="app-field-label" style={{ display: "grid", gap: 4, minWidth: 0 }}>
             Access ends after
             <AppListbox
               value={String(days)}
@@ -363,12 +364,21 @@ export function ExternalReviewSubjectPanel({
               triggerProps={{ "data-external-review-days": "" }}
             />
           </label>
-          <button type="submit" className="app-secondary-action" disabled={busy || email.trim().length === 0}>
+          {/* TEAM-UI-SPEC §1 — issuing the invitation is this panel's one
+              primary action. */}
+          <CanonicalActionButton
+            type="submit"
+            variant="primary"
+            data-external-review-send
+            busy={busy}
+            disabled={email.trim().length === 0}
+            disabledReason="Enter the reviewer's email address."
+          >
             {busy ? "Sending…" : "Send invitation"}
-          </button>
+          </CanonicalActionButton>
         </form>
       ) : included === false ? (
-        <p data-external-review-not-included style={{ ...muted, margin: 0 }}>
+        <p data-external-review-not-included className="app-field-help" style={muted}>
           External Review is not included on this workspace&apos;s plan, so no new invitation can be sent.
           Invitations already issued stay listed below and an owner or admin can still revoke them.
         </p>
@@ -378,29 +388,30 @@ export function ExternalReviewSubjectPanel({
         <p
           role={notice.tone === "warn" ? "alert" : "status"}
           data-external-review-notice={notice.tone}
-          style={{ margin: 0, fontSize: 12.5, color: notice.tone === "warn" ? "var(--status-risk-fg, #991b1b)" : "inherit" }}
+          className={notice.tone === "warn" ? "app-field-error" : "app-field-help"}
+          style={muted}
         >
           {notice.text}
         </p>
       ) : null}
 
       {listState === "loading" ? (
-        <p style={{ ...muted, margin: 0 }}>Loading invitations…</p>
+        <p role="status" className="app-field-help" style={muted}>Loading invitations…</p>
       ) : listState === "failed" ? (
-        <p style={{ ...muted, margin: 0 }}>
-          The invitations could not be loaded.{" "}
-          <button type="button" className="ui-link" onClick={() => void load()}>
+        <div role="alert" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+          <p className="app-field-error" style={muted}>The invitations could not be loaded.</p>
+          <button type="button" className="app-secondary-action" onClick={() => void load()}>
             Try again
           </button>
-        </p>
+        </div>
       ) : listState === "no_workspace" ? null : listState === "refused" ? (
-        <p data-external-review-list-refused style={{ ...muted, margin: 0 }}>
+        <p data-external-review-list-refused className="app-field-help" style={muted}>
           {otherWorkspace
             ? "Open this record's workspace to see its external review invitations."
             : "Your role doesn't include viewing this workspace's external review invitations — an owner or admin manages them."}
         </p>
       ) : (grants ?? []).length === 0 ? (
-        <p data-external-review-empty style={{ ...muted, margin: 0 }}>
+        <p data-external-review-empty className="app-field-help" style={muted}>
           No one outside the workspace has been invited to review this yet.
         </p>
       ) : (
@@ -410,49 +421,59 @@ export function ExternalReviewSubjectPanel({
               key={g.id}
               data-external-review-grant={g.id}
               data-external-review-grant-state={g.state}
-              style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: 8, fontSize: 12.5 }}
+              style={{ borderTop: "1px solid var(--border-subtle, rgba(15, 23, 42, 0.06))", paddingTop: 8, minWidth: 0 }}
             >
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                <strong>{g.reviewerDisplayName || g.reviewerEmail}</strong>
-                <span>{identifierLabel(g.state)}</span>
-                <span style={muted}>
+                <span className="app-table__primary" style={{ overflowWrap: "anywhere", minWidth: 0 }}>
+                  {g.reviewerDisplayName || g.reviewerEmail}
+                </span>
+                <span className={LIVE_STATES.has(g.state) ? "app-chip app-chip--ok" : "app-chip"}>{identifierLabel(g.state)}</span>
+                <span className="app-table__muted">
                   {LIVE_STATES.has(g.state) ? "Access ends" : "Access ended"} {formatUserDateTime(g.expiresAtUtc)}
                 </span>
                 <span style={{ flex: 1 }} />
-                <button type="button" className="ui-link" onClick={() => void onInspect(g)} aria-expanded={openId === g.id}>
+                {/* TEAM-UI-SPEC §1 — feedback is navigation (ghost), Renew is
+                    ordinary (secondary), Revoke is irreversible: a `--danger`
+                    entry that opens the danger confirm. */}
+                <button type="button" className="app-ghost-action" onClick={() => void onInspect(g)} aria-expanded={openId === g.id}>
                   {openId === g.id ? "Hide feedback" : "Reviewer feedback"}
                 </button>
                 {g.viewerCanRenew === true ? (
-                  <button type="button" className="ui-link" onClick={() => void onRenew(g)} data-external-review-renew={g.id}>
+                  <button type="button" className="app-secondary-action" onClick={() => void onRenew(g)} data-external-review-renew={g.id}>
                     Renew
                   </button>
                 ) : null}
                 {canRevoke(g) ? (
-                  <button type="button" className="ui-link" onClick={() => void onRevoke(g)} data-external-review-revoke={g.id}>
+                  <button
+                    type="button"
+                    className="app-secondary-action app-secondary-action--danger"
+                    onClick={() => void onRevoke(g)}
+                    data-external-review-revoke={g.id}
+                  >
                     Revoke
                   </button>
                 ) : null}
               </div>
               {openId === g.id ? (
-                <div data-external-review-feedback style={{ marginTop: 6, display: "grid", gap: 4 }}>
+                <div data-external-review-feedback style={{ marginTop: 6, display: "grid", gap: 4, overflowWrap: "anywhere" }}>
                   {feedback === null ? (
-                    <span style={muted}>Loading…</span>
+                    <span role="status" className="app-field-help">Loading…</span>
                   ) : feedback === "unavailable" ? (
-                    <span style={muted}>Reviewer feedback could not be loaded.</span>
+                    <span className="app-field-error">Reviewer feedback could not be loaded.</span>
                   ) : feedback.decisions.length === 0 && feedback.comments.length === 0 ? (
-                    <span style={muted}>The reviewer has not commented or decided yet.</span>
+                    <span className="app-field-help">The reviewer has not commented or decided yet.</span>
                   ) : (
                     <>
                       {feedback.decisions.map((d) => (
                         <div key={d.id}>
                           <strong>Decision: {identifierLabel(d.verdict)}</strong>{" "}
-                          <span style={muted}>{formatUserDateTime(d.submittedAtUtc)}</span>
+                          <span className="app-table__muted">{formatUserDateTime(d.submittedAtUtc)}</span>
                           {d.rationale ? <p style={{ margin: "2px 0 0", whiteSpace: "pre-wrap" }}>{d.rationale}</p> : null}
                         </div>
                       ))}
                       {feedback.comments.map((c) => (
                         <div key={c.id}>
-                          <span style={muted}>
+                          <span className="app-table__muted">
                             {c.authorDisplay ?? "Reviewer"} · {formatUserDateTime(c.createdAt)}
                           </span>
                           <p style={{ margin: "2px 0 0", whiteSpace: "pre-wrap" }}>{c.body}</p>

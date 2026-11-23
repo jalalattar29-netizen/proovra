@@ -37,10 +37,17 @@ import {
 } from "../../lib/platform-context/types";
 import { ToastProvider } from "../../components/ui";
 import { ConfirmActionProvider } from "../../components/ui/ConfirmActionModal";
-import { ReviewHubNav } from "../../components/reviewer-experience/ReviewHubNav";
+import { ReviewHubNav, ReviewToolsPanel } from "../../components/reviewer-experience/ReviewHubNav";
 import { reviewDestinationFromEnvelope } from "../../components/reviewer-experience/reviewDestination";
 import { CommandPalette } from "../../components/navigation/CommandPalette";
 import ReviewSettingsPage from "../../app/(app)/review/settings/page";
+// TEAM-UI-SPEC (structure) — every hub page renders ReviewPageHeader before the hub nav.
+import ReviewPage from "../../app/(app)/review/page";
+import QueuesPage from "../../app/(app)/review/queues/page";
+import SlaDashboardPage from "../../app/(app)/reviewer-ops/sla/page";
+import EscalationsConsolePage from "../../app/(app)/reviewer-ops/escalations/page";
+import { ReviewPageHeader } from "../../components/reviewer-experience/ReviewPageHeader";
+import { routeIconFor } from "../../lib/navigation/routeIcons";
 import { ROUTE_REGISTRY } from "../../lib/navigation/routeRegistry";
 import { resolveRouteAccess } from "../../lib/navigation/routeAccessResolver";
 import { setActiveWorkspaceId } from "../../lib/api";
@@ -146,6 +153,15 @@ const HREF_TO_ROUTE: Record<string, string> = {
   "/review/settings": "review.settings",
 };
 
+const TOOL_ROUTE: Record<string, string> = {
+  "/review/workspace": "workspace.review_workspace",
+  "/review/qc": "workspace.review_qc",
+  "/review/disagreements": "workspace.review_disagreements",
+  "/review/metrics": "workspace.review_metrics",
+  "/review/schemas": "workspace.coding_schemas",
+  "/review/external": "workspace.review_external",
+};
+
 describe("ReviewHubNav — tabs per context", () => {
   it("a Team personal Owner sees all four tabs, and ?queue= is carried into Queues", async () => {
     mount("TEAM_OWNER", <ReviewHubNav active="my-reviews" />);
@@ -188,12 +204,34 @@ describe("ReviewHubNav — tabs per context", () => {
     expect(document.querySelector('[data-review-hub-subtab="escalations"]')!.getAttribute("aria-current")).toBe("page");
   });
 
-  it("My reviews offers the Team advanced tools, each resolving ALLOWED (TEAM-SPEC R2)", async () => {
-    mount("TEAM_OWNER", <ReviewHubNav active="my-reviews" />);
+  // TEAM-UI-SPEC §3 (round 3) — the hub is tabs only: no "More review tools"
+  // row under the tabs on any hub page.
+  it("the hub renders no tools row under the tabs", async () => {
+    for (const active of ["my-reviews", "queues", "monitoring", "settings"] as const) {
+      mount("TEAM_OWNER", <ReviewHubNav active={active} />);
+      await settle();
+      expect(document.querySelector("[data-review-hub-nav]")).not.toBeNull();
+      expect(document.querySelector("[data-review-hub-more-tools]")).toBeNull();
+      expect(document.querySelector("[data-review-hub-more-tool]")).toBeNull();
+      expect(document.querySelector("[data-review-hub-nav]")!.textContent).not.toMatch(/More review tools/);
+      cleanup();
+    }
+  });
+
+  it("My reviews lists the Team advanced tools in the Review tools panel, each resolving ALLOWED (TEAM-SPEC R2)", async () => {
+    mount("TEAM_OWNER", <ReviewToolsPanel />);
     await settle();
-    const tools = Array.from(document.querySelectorAll("[data-review-hub-more-tool]")).map((a) =>
-      a.getAttribute("href"),
-    );
+    const panel = document.querySelector("[data-review-tools-panel]") as HTMLElement;
+    expect(panel).not.toBeNull();
+    expect(panel.classList.contains("app-panel")).toBe(true);
+    expect(panel.querySelector(".app-panel__title")!.textContent).toBe("Review tools");
+    const rows = Array.from(panel.querySelectorAll("[data-review-tool]")) as HTMLElement[];
+    // Each row: the tool name as a link + a one-line purpose.
+    for (const row of rows) {
+      expect(row.querySelector("a[href]")!.textContent!.length).toBeGreaterThan(0);
+      expect(row.querySelector(".app-field-help")!.textContent!.length).toBeGreaterThan(0);
+    }
+    const tools = rows.map((r) => r.getAttribute("data-review-tool"));
     expect(tools).toEqual(
       expect.arrayContaining(["/review/workspace", "/review/qc", "/review/disagreements", "/review/schemas"]),
     );
@@ -212,10 +250,27 @@ describe("ReviewHubNav — tabs per context", () => {
       });
       expect(d?.kind, href!).toBe("link");
     }
-    cleanup();
-    mount("TEAM_OWNER", <ReviewHubNav active="queues" />);
+  });
+
+  it("the Review tools panel renders nothing when no tool opens (Pro personal owner)", async () => {
+    mount("PRO_OWNER", <ReviewToolsPanel />);
     await settle();
-    expect(document.querySelector("[data-review-hub-more-tools]")).toBeNull();
+    const panel = document.querySelector("[data-review-tools-panel]");
+    if (panel) {
+      // Only tools that resolve ALLOWED for a Pro owner may be listed.
+      for (const row of Array.from(panel.querySelectorAll("[data-review-tool]"))) {
+        const href = row.getAttribute("data-review-tool")!;
+        const routeId = TOOL_ROUTE[href]!;
+        const d = reviewDestinationFromEnvelope(routeId, envelope("PRO_OWNER") as never, {
+          workspace: { id: WS, status: "active" },
+          personalSpace: { id: WS, status: "active" },
+        });
+        expect(d?.kind, href).toBe("link");
+      }
+    }
+    // The Team-only tools never appear for Pro.
+    expect(document.querySelector('[data-review-tool="/review/qc"]')).toBeNull();
+    expect(document.querySelector('[data-review-tool="/review/workspace"]')).toBeNull();
   });
 
   it("a Pro personal owner sees no hub at all (no tab would open)", async () => {
@@ -228,6 +283,88 @@ describe("ReviewHubNav — tabs per context", () => {
     mount("TEAM_VIEWER", <ReviewHubNav active="settings" />);
     await settle();
     expect(tabIds()).toEqual(["my-reviews", "queues", "monitoring", "settings"]);
+  });
+});
+
+/**
+ * TEAM-UI-SPEC (structure) — the review pages share Evidence Library's page
+ * structure: ReviewPageHeader (the h1 inside `.app-title-row` with the Review
+ * sidebar icon, a plain subtitle, NO eyebrow) BEFORE the hub nav, and no
+ * full-width "HELP · REVIEWER OPERATIONS" bar.
+ */
+describe("Review page structure — header before hub nav, no eyebrow", () => {
+  function expectReviewHeader(title: string) {
+    const header = document.querySelector("[data-review-page-header]");
+    expect(header, `${title}: ReviewPageHeader`).not.toBeNull();
+    const h1s = document.querySelectorAll("h1");
+    expect(h1s).toHaveLength(1);
+    const h1 = h1s[0]!;
+    expect(header!.contains(h1)).toBe(true);
+    expect(h1.querySelector(":scope > .app-title-row")).not.toBeNull();
+    expect(h1.querySelector(".app-title-icon [data-review-title-icon]")).not.toBeNull();
+    expect(h1.textContent).toBe(title);
+    // No eyebrow / kicker: nothing renders before the <h1> in its column.
+    expect(h1.previousElementSibling).toBeNull();
+    return header!;
+  }
+  function expectHeaderBeforeHubNav(header: Element) {
+    const nav = document.querySelector("[data-review-hub-nav]");
+    expect(nav).not.toBeNull();
+    expect(header.compareDocumentPosition(nav!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  }
+
+  it.each([
+    ["My reviews", () => <ReviewPage />],
+    ["Review queues", () => <QueuesPage />],
+    ["SLA monitoring", () => <SlaDashboardPage />],
+    ["Escalations", () => <EscalationsConsolePage />],
+    ["Review settings", () => <ReviewSettingsPage />],
+  ] as const)("%s renders ReviewPageHeader (h1 in .app-title-row, no eyebrow) before the hub nav", async (title, page) => {
+    mount("TEAM_OWNER", page());
+    await settle();
+    const header = expectReviewHeader(title);
+    expectHeaderBeforeHubNav(header);
+    expect(document.body.textContent).not.toMatch(/Reviewer operations|Review Operations Console/i);
+  });
+
+  it("My reviews: banner → header → hub nav, and no HELP · REVIEWER OPERATIONS bar", async () => {
+    mount("TEAM_OWNER", <ReviewPage />);
+    await settle();
+    const banner = document.querySelector("[data-workspace-context-banner]");
+    const header = document.querySelector("[data-review-page-header]")!;
+    if (banner) {
+      expect(banner.compareDocumentPosition(header) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+    expectHeaderBeforeHubNav(header);
+    expect(document.querySelector('[data-contextual-help-surface="reviewer-ops"]')).toBeNull();
+    // Keyboard hints live in the "?" shortcuts help, not the subtitle.
+    expect(header.querySelector("kbd")).toBeNull();
+  });
+
+  it("the title icon is the Review sidebar icon (routeIcons workspace.review)", () => {
+    const Icon = routeIconFor("workspace.review");
+    const { container } = render(<ReviewPageHeader title="X" />);
+    const { container: ref } = render(<Icon strokeWidth={1.75} />);
+    const ours = container.querySelector("[data-review-title-icon]")!;
+    expect(ours.getAttribute("class")).toBe(ref.querySelector("svg")!.getAttribute("class"));
+  });
+
+  it("back renders an app-ghost-action link above the title; backToHub only where /review opens", async () => {
+    render(<ReviewPageHeader title="Quality control" back={{ href: "/review", label: "Review" }} />);
+    const back = document.querySelector("[data-review-back-link]") as HTMLAnchorElement;
+    expect(back.className).toBe("app-ghost-action");
+    expect(back.getAttribute("href")).toBe("/review");
+    expect(back.compareDocumentPosition(document.querySelector("h1")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    cleanup();
+
+    mount("TEAM_OWNER", <ReviewPageHeader title="External review" backToHub />);
+    await settle();
+    expect(document.querySelector("[data-review-back-link]")?.getAttribute("href")).toBe("/review");
+    cleanup();
+
+    mount("PRO_OWNER", <ReviewPageHeader title="External review" backToHub />);
+    await settle();
+    expect(document.querySelector("[data-review-back-link]")).toBeNull();
   });
 });
 

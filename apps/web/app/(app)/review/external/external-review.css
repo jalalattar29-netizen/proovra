@@ -1,0 +1,31 @@
+/*
+ * External Review console layout (TEAM-UI-SPEC §4).
+ *
+ * The invitation list and its detail drawer sit side by side on a wide
+ * screen. The app shell clips horizontal overflow, so at ≤ 1100 px they stack
+ * and every column may shrink; the list itself collapses to labelled cards at
+ * ≤ 720 px through the shared `.app-table[data-responsive]` cutover.
+ */
+.external-review-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  min-width: 0;
+}
+
+.external-review-split > * {
+  min-width: 0;
+}
+
+@media (min-width: 1101px) {
+  .external-review-split.has-drawer {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  }
+}
+
+/* The selected invitation uses the canonical selection wash (the Evidence
+   Library's selected row), not an ad-hoc grey. */
+.external-review-split [data-invitations-table] tbody tr.is-selected {
+  background: var(--surface-translucent-selected);
+  box-shadow: inset 3px 0 0 var(--accent-500);
+}

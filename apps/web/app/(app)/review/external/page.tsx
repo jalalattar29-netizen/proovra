@@ -42,7 +42,8 @@ import {
 } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
-import { Button } from "../../../../components/ui/Button";
+import { CanonicalActionButton } from "../../../../components/external-review/CanonicalActionButton";
+import "./external-review.css";
 import {
   StepUpModal,
   useStepUpAction,
@@ -57,8 +58,12 @@ import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
 import { notifyApiError } from "../../../../lib/feedback/notify";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
-import { useToast, PageShell, PageHeader } from "../../../../components/ui";
-import { Card } from "../../../../components/ui/Card";
+import { useToast, PageShell } from "../../../../components/ui";
+// TEAM-UI-SPEC (structure) — the one review page header: icon title row, the
+// tool name, a resolver-gated "← Review" back link (External review is also
+// on Pro, where the review hub does not open), no eyebrow.
+import { ReviewPageHeader } from "../../../../components/reviewer-experience/ReviewPageHeader";
+
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import {
   bulkInvitationOutcomeLabel,
@@ -472,19 +477,32 @@ function ExternalReviewManagementConsole() {
     }
   }, [caps.canBulkRevoke, multiSelected, refresh, confirmBulk]);
 
+  const selectTab = useCallback((id: TabId) => {
+    setTab(id);
+    setSelected(null);
+    // PRO-R2Z-07 — a bulk action applies to the rows you can see.
+    setMultiSelected(new Set());
+  }, []);
+
   return (
     <PageShell
       data-external-review-console
       header={
-        <PageHeader
-          eyebrow="External Review"
-          title="External Review Management Console"
+        <ReviewPageHeader
+          backToHub
+          title="External review"
           subtitle={`External reviewer invitations, delivery and audit for this workspace — included on Pro, Team and Enterprise. Every action you take here is recorded on the grant's audit timeline.${
             caps.canInvite || caps.canRevoke ? "" : ` ${EXTERNAL_REVIEW_MANAGE_EXPLANATION}`
           }`}
-          primaryAction={
+          secondaryActions={
+            // TEAM-UI-SPEC §1 — revoking is irreversible: a `--danger` entry
+            // point that opens the danger confirm, never a filled red button.
+            // Bulk revoke applies to the rows of a lifecycle tab, so it is not
+            // offered on the Bulk Invite tab (whose one primary is Issue).
+            tab === "bulk" ? null : (
             <button
               type="button"
+              className="app-secondary-action app-secondary-action--danger"
               data-bulk-revoke-action
               data-capability-allowed={caps.canBulkRevoke ? "true" : "false"}
               onClick={onBulkRevoke}
@@ -496,91 +514,54 @@ function ExternalReviewManagementConsole() {
                   ? "Select at least one row to bulk revoke"
                   : undefined
               }
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                minHeight: 42,
-                padding: "0 18px",
-                borderRadius: "var(--radius-md, 12px)",
-                border: "1px solid var(--status-risk-solid, #dc2626)",
-                background:
-                  !caps.canBulkRevoke || multiSelected.size === 0
-                    ? "var(--status-risk-bg, #fee2e2)"
-                    : "var(--status-risk-solid, #dc2626)",
-                color:
-                  !caps.canBulkRevoke || multiSelected.size === 0
-                    ? "var(--status-risk-fg, #7f1d1d)"
-                    : "#fff",
-                fontSize: 14,
-                fontWeight: 650,
-                cursor:
-                  !caps.canBulkRevoke || multiSelected.size === 0
-                    ? "not-allowed"
-                    : "pointer",
-              }}
             >
               Bulk revoke ({multiSelected.size})
             </button>
+            )
           }
         />
       }
     >
+      {/* TEAM-UI-SPEC §1 — the canonical `app-tabs` strip with tablist
+          semantics. `.app-tabs` already scrolls (overflow-x: auto,
+          max-width: 100%), so the last tab stays reachable on a 390 px phone
+          (review-layout gate, 2026-11-23). */}
       <nav
         data-console-tabs
-        style={{
-          display: "flex",
-          gap: 4,
-          borderBottom: "1px solid var(--border-default, #e2e8f0)",
-          // Scrolls instead of spilling: on a 390px phone the last tab
-          // ("Bulk Invite") was past the clipped page edge and unreachable
-          // (review-layout gate, 2026-11-23).
-          overflowX: "auto",
-          maxWidth: "100%",
-        }}
+        className="app-tabs"
+        role="tablist"
+        aria-label="Invitation lifecycle"
+        style={{ overflowX: "auto", maxWidth: "100%" }}
       >
-        {TAB_ORDER.map((t) => (
+        {TAB_ORDER.map((t, idx) => (
           <button
             type="button"
             key={t.id}
+            id={`external-review-tab-${t.id}`}
+            role="tab"
+            aria-selected={tab === t.id}
+            aria-controls="external-review-tabpanel"
+            tabIndex={tab === t.id ? 0 : -1}
+            className={tab === t.id ? "app-tab is-active" : "app-tab"}
             data-tab={t.id}
             data-tab-active={tab === t.id ? "true" : "false"}
-            onClick={() => {
-              setTab(t.id);
-              setSelected(null);
-              // PRO-R2Z-07 — a bulk action applies to the rows you can see.
-              setMultiSelected(new Set());
-            }}
-            style={{
-              padding: "9px 14px",
-              border: "none",
-              background: "transparent",
-              borderBottom:
-                tab === t.id
-                  ? "2px solid var(--ink-primary, #0f172a)"
-                  : "2px solid transparent",
-              color:
-                tab === t.id
-                  ? "var(--ink-primary, #0f172a)"
-                  : "var(--ink-secondary, #475569)",
-              fontWeight: tab === t.id ? 650 : 500,
-              fontSize: 13.5,
-              cursor: "pointer",
+            onClick={() => selectTab(t.id)}
+            onKeyDown={(event) => {
+              let next: number | null = null;
+              if (event.key === "ArrowRight") next = (idx + 1) % TAB_ORDER.length;
+              else if (event.key === "ArrowLeft") next = (idx - 1 + TAB_ORDER.length) % TAB_ORDER.length;
+              else if (event.key === "Home") next = 0;
+              else if (event.key === "End") next = TAB_ORDER.length - 1;
+              if (next === null) return;
+              event.preventDefault();
+              const target = TAB_ORDER[next]!;
+              selectTab(target.id);
+              document.getElementById(`external-review-tab-${target.id}`)?.focus();
             }}
           >
             {t.label}
             {t.id !== "bulk" ? (
-              <span
-                data-tab-count={t.id}
-                style={{
-                  marginLeft: 6,
-                  background: "var(--surface-muted, rgba(15, 23, 42, 0.06))",
-                  color: "var(--ink-secondary, #475569)",
-                  borderRadius: 999,
-                  padding: "1px 7px",
-                  fontSize: 11,
-                  fontWeight: 650,
-                }}
-              >
+              <span data-tab-count={t.id} className="app-tab__count">
                 {counts[t.id] ?? 0}
               </span>
             ) : null}
@@ -589,38 +570,40 @@ function ExternalReviewManagementConsole() {
       </nav>
 
       {listDenied ? (
-        <Card
+        <section
           data-external-review-list-denied
-          variant="status"
-          tone="neutral"
-          padding="compact"
-          style={{ fontSize: 13 }}
+          className="app-panel"
+          role="alert"
         >
+          <p className="app-panel__body" style={{ margin: 0 }}>
           You do not have permission to view external reviewer
           invitations. Ask a workspace administrator or supervisor.
-        </Card>
+          </p>
+        </section>
       ) : null}
 
       {banner ? (
-        <Card
+        <section
           data-console-banner
           data-console-banner-tone={banner.tone}
           role="status"
-          variant="status"
-          tone={
-            banner.tone === "ok"
-              ? "verified"
-              : banner.tone === "warn"
-              ? "risk"
-              : "info"
-          }
-          padding="compact"
-          style={{ fontSize: 13 }}
+          className="app-panel"
         >
-          {banner.text}
-        </Card>
+          <p
+            className={banner.tone === "warn" ? "app-panel__body app-field-error" : "app-panel__body"}
+            style={{ margin: 0 }}
+          >
+            {banner.text}
+          </p>
+        </section>
       ) : null}
 
+      <div
+        id="external-review-tabpanel"
+        role="tabpanel"
+        aria-labelledby={`external-review-tab-${tab}`}
+        style={{ minWidth: 0 }}
+      >
       {tab === "bulk" ? (
         <BulkInvitePanel
           caps={caps}
@@ -641,12 +624,10 @@ function ExternalReviewManagementConsole() {
           }}
         />
       ) : (
+        // TEAM-UI-SPEC §4 — list + drawer side by side on desktop;
+        // external-review.css stacks them at ≤ 1100 px.
         <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: selected ? "1.4fr 1fr" : "1fr",
-            gap: 14,
-          }}
+          className={selected ? "external-review-split has-drawer" : "external-review-split"}
         >
           <InvitationsTable
             rows={filtered}
@@ -681,6 +662,7 @@ function ExternalReviewManagementConsole() {
           ) : null}
         </div>
       )}
+      </div>
 
       {/* Single centrally-hosted step-up modal — drives the challenge
           flow for bulk issue + break-glass reveal. */}
@@ -760,32 +742,27 @@ function InvitationsTable({
     );
   }
   return (
+    // TEAM-UI-SPEC §4 — ten columns: the shared responsive cutover
+    // (`.app-table[data-responsive]`) turns each invitation into a labelled
+    // card at ≤ 720 px, so nothing is clipped at 320/390 px.
     <section
       data-invitations-table-wrap
-      style={{
-        background: "var(--surface-card, #fff)",
-        border: "1px solid var(--border-default, rgba(15, 23, 42, 0.08))",
-        borderRadius: "var(--radius-card, 12px)",
-        padding: 8,
-        overflowX: "auto",
-      }}
+      className="app-table-surface app-table-surface--scroll"
     >
-      <table
-        data-invitations-table
-        style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}
-      >
+      <table data-invitations-table className="app-table" data-responsive="">
         <thead>
-          <tr style={{ textAlign: "left", color: "var(--ink-muted, #94a3b8)" }}>
-            <th style={th}></th>
-            <th style={th}>Email</th>
-            <th style={th}>Role</th>
-            <th style={th}>Auth</th>
-            <th style={th}>MFA</th>
-            <th style={th}>Watermark</th>
-            <th style={th}>Delivery</th>
-            <th style={th}>Sent</th>
-            <th style={th}>Expires</th>
-            <th style={th}>Activity</th>
+          <tr>
+            <th scope="col"><span className="app-visually-hidden">Select</span></th>
+            <th scope="col">Email</th>
+            <th scope="col">Role</th>
+            <th scope="col">Auth</th>
+            <th scope="col">MFA</th>
+            <th scope="col">Watermark</th>
+            <th scope="col">Delivery</th>
+            <th scope="col">Sent</th>
+            <th scope="col">Expires</th>
+            <th scope="col">Activity</th>
+            <th scope="col"><span className="app-visually-hidden">Actions</span></th>
           </tr>
         </thead>
         <tbody>
@@ -796,36 +773,36 @@ function InvitationsTable({
                 key={r.grantId}
                 data-invitation-row={r.grantId}
                 data-row-selected={isSelected ? "true" : "false"}
+                aria-selected={isSelected}
+                className={isSelected ? "is-selected" : undefined}
                 onClick={() => onSelect(r.grantId)}
-                style={{
-                  cursor: "pointer",
-                  background: isSelected
-                    ? "var(--surface-muted, rgba(15, 23, 42, 0.04))"
-                    : undefined,
-                }}
+                style={{ cursor: "pointer" }}
               >
-                <td style={td} onClick={(e) => e.stopPropagation()}>
+                <td data-label="Select" onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
                     data-row-multi={r.grantId}
+                    aria-label={`Select ${r.inviteEmail}`}
                     checked={multiSelected.has(r.grantId)}
                     onChange={() => onToggleMulti(r.grantId)}
                   />
                 </td>
-                <td style={td}>{r.inviteEmail}</td>
-                <td style={td}>
+                <td data-label="Email" style={{ overflowWrap: "anywhere" }}>
+                  <span className="app-table__primary">{r.inviteEmail}</span>
+                </td>
+                <td data-label="Role">
                   {identifierLabel(r.role)}
                 </td>
-                <td style={td}>
+                <td data-label="Auth">
                   <Chip
                     data-auth-chip={r.authMethod}
                     tone={r.authMethod === "SSO" ? "info" : "muted"}
                     label={r.authMethod}
                   />
                 </td>
-                <td style={td}>{r.mfaRequired ? "Yes" : "No"}</td>
-                <td style={td}>{r.watermarkPolicy}</td>
-                <td style={td}>
+                <td data-label="MFA">{r.mfaRequired ? "Yes" : "No"}</td>
+                <td data-label="Watermark">{r.watermarkPolicy}</td>
+                <td data-label="Delivery">
                   {r.latestDelivery ? (
                     <Chip
                       data-delivery-chip={r.latestDelivery.status}
@@ -833,18 +810,33 @@ function InvitationsTable({
                       label={identifierLabel(r.latestDelivery.status)}
                     />
                   ) : (
-                    <span style={{ color: "var(--ink-muted, #94a3b8)" }}>—</span>
+                    <span className="app-table__muted">—</span>
                   )}
                 </td>
-                <td style={td}>
+                <td data-label="Sent">
                   {formatUserDate(r.inviteSentAtUtc)}
                 </td>
-                <td style={td}>
+                <td data-label="Expires">
                   {r.expiresAtUtc
                     ? formatUserDate(r.expiresAtUtc)
                     : "—"}
                 </td>
-                <td style={td}>{r.activityCount}</td>
+                <td data-label="Activity">{r.activityCount}</td>
+                <td data-label="" onClick={(e) => e.stopPropagation()}>
+                  {/* TEAM-UI-SPEC §4 — the row's navigation as a real,
+                      keyboard-reachable ghost action (the row click stays
+                      as a pointer shortcut). */}
+                  <button
+                    type="button"
+                    className="app-ghost-action"
+                    data-invitation-open={r.grantId}
+                    aria-label={`Open ${r.inviteEmail}`}
+                    aria-expanded={isSelected}
+                    onClick={() => onSelect(r.grantId)}
+                  >
+                    Open
+                  </button>
+                </td>
               </tr>
             );
           })}
@@ -1066,26 +1058,25 @@ function InvitationDetailDrawer({
     <aside
       data-invitation-detail-drawer
       data-grant-id={row.grantId}
+      className="app-panel"
+      aria-label={`Invitation for ${row.inviteEmail}`}
       style={{
-        background: "var(--surface-card, #fff)",
-        border: "1px solid var(--border-default, rgba(15, 23, 42, 0.1))",
-        borderRadius: "var(--radius-card, 12px)",
-        boxShadow: "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))",
         padding: 16,
         display: "flex",
         flexDirection: "column",
         gap: 12,
+        minWidth: 0,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <h2 style={{ fontSize: 15, margin: 0, flex: 1, color: "var(--ink-primary, #0f172a)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <h2 className="app-panel__title" style={{ flex: "1 1 160px", minWidth: 0, overflowWrap: "anywhere" }}>
           {row.inviteEmail}
         </h2>
         <button
           type="button"
           data-drawer-close
+          className="app-ghost-action"
           onClick={onClose}
-          style={drawerCloseStyle}
         >
           Close
         </button>
@@ -1120,6 +1111,9 @@ function InvitationDetailDrawer({
         ) : null}
       </div>
 
+      {/* TEAM-UI-SPEC §1 — Resend and Renew are ordinary (secondary);
+          Revoke and End sessions are irreversible, so each is a `--danger`
+          entry point that opens a danger confirm. No primary here. */}
       <section
         data-drawer-actions
         style={{
@@ -1130,6 +1124,7 @@ function InvitationDetailDrawer({
       >
         <button
           type="button"
+          className="app-secondary-action"
           data-invitation-resend={row.grantId}
           data-capability-allowed={caps.canResend ? "true" : "false"}
           onClick={onResend}
@@ -1139,31 +1134,22 @@ function InvitationDetailDrawer({
               ? "You do not have permission to resend invitations"
               : undefined
           }
-          style={{
-            ...primaryActionStyle,
-            ...(caps.canResend
-              ? {}
-              : {
-                  background: "var(--ink-muted, #94a3b8)",
-                  border: "1px solid var(--ink-muted, #94a3b8)",
-                  cursor: "not-allowed",
-                }),
-          }}
         >
           Resend invitation email
         </button>
         {row.viewerCanRenew === true ? (
           <button
             type="button"
+            className="app-secondary-action"
             data-invitation-renew={row.grantId}
             onClick={() => void onRenew()}
-            style={subtleActionStyle}
           >
             Renew access
           </button>
         ) : null}
         <button
           type="button"
+          className="app-secondary-action app-secondary-action--danger"
           data-invitation-revoke={row.grantId}
           data-capability-allowed={caps.canRevoke ? "true" : "false"}
           onClick={onRevoke}
@@ -1173,38 +1159,20 @@ function InvitationDetailDrawer({
               ? "You do not have permission to revoke invitations"
               : undefined
           }
-          style={{
-            ...dangerActionStyle,
-            ...(caps.canRevoke
-              ? {}
-              : {
-                  color: "var(--ink-muted, #94a3b8)",
-                  borderColor: "var(--border-default, #cbd5e1)",
-                  cursor: "not-allowed",
-                }),
-          }}
         >
           Revoke
         </button>
         <button
           type="button"
+          className="app-secondary-action app-secondary-action--danger"
           data-invitation-end-sessions={row.grantId}
           data-capability-allowed={caps.canEndSessions ? "true" : "false"}
           onClick={onEndSessions}
           disabled={!caps.canEndSessions || endingSessions}
+          aria-busy={endingSessions || undefined}
           aria-describedby={
             caps.canEndSessions ? undefined : `end-sessions-reason-${row.grantId}`
           }
-          style={{
-            ...dangerActionStyle,
-            ...(caps.canEndSessions && !endingSessions
-              ? {}
-              : {
-                  color: "var(--ink-muted, #94a3b8)",
-                  borderColor: "var(--border-default, #cbd5e1)",
-                  cursor: "not-allowed",
-                }),
-          }}
         >
           {endingSessions ? "Ending sessions…" : "End sessions"}
         </button>
@@ -1212,7 +1180,8 @@ function InvitationDetailDrawer({
           <p
             id={`end-sessions-reason-${row.grantId}`}
             data-end-sessions-disabled-reason
-            style={{ ...mutedStyle, margin: 0, flexBasis: "100%" }}
+            className="app-field-help"
+            style={{ margin: 0, flexBasis: "100%" }}
           >
             Only workspace administrators and supervisors can end a
             reviewer&apos;s portal sessions.
@@ -1222,26 +1191,24 @@ function InvitationDetailDrawer({
 
       <section
         data-drawer-break-glass
-        style={{
-          background: "var(--status-pending-bg, rgba(245, 158, 11, 0.08))",
-          border: "1px dashed var(--status-pending-solid, rgba(245, 158, 11, 0.5))",
-          borderRadius: "var(--radius-md, 8px)",
-          padding: 8,
-          fontSize: 11,
-          color: "var(--status-pending-fg, #EA580C)",
-        }}
+        className="app-panel"
+        style={{ padding: 12, display: "grid", gap: 6 }}
       >
-        <strong style={{ display: "block", marginBottom: 4 }}>
+        <h3 className="app-panel__title">
           Break-glass: manual token reveal
-        </strong>
-        <p style={{ margin: 0, marginBottom: 6 }}>
+        </h3>
+        <p className="app-field-help" style={{ margin: 0 }}>
           Manual token reveal is for fallback only — the normal
           enterprise flow is the invitation email + optional SSO. Use
           this only when the recipient cannot receive the email.
         </p>
         {!revealed && !confirmReveal ? (
+          // TEAM-UI-SPEC §1 — revealing rotates the grant token (the old
+          // link stops working): a `--danger` entry to a danger confirm.
           <button
             type="button"
+            className="app-secondary-action app-secondary-action--danger"
+            style={{ justifySelf: "start" }}
             data-break-glass-arm
             data-capability-allowed={caps.canRevealToken ? "true" : "false"}
             onClick={() => {
@@ -1254,16 +1221,6 @@ function InvitationDetailDrawer({
                 ? undefined
                 : "You do not have permission to reveal raw invitation tokens. Token reveal is restricted to the workspace OWNER as a split-of-duty control — workspace ADMIN and SUPERVISOR cannot perform it."
             }
-            style={{
-              ...subtleActionStyle,
-              ...(caps.canRevealToken
-                ? {}
-                : {
-                    color: "var(--ink-muted, #94a3b8)",
-                    cursor: "not-allowed",
-                    background: "var(--surface-muted, #f8fafc)",
-                  }),
-            }}
           >
             Enable token reveal
           </button>
@@ -1283,29 +1240,25 @@ function InvitationDetailDrawer({
           />
         ) : null}
         {revealed ? (
-          <div style={{ marginTop: 6 }}>
-            <strong>Raw token (shown ONCE):</strong>
+          <div style={{ display: "grid", gap: 6 }}>
+            <label className="app-field-label" htmlFor={`break-glass-token-${row.grantId}`}>
+              Raw token (shown ONCE)
+            </label>
             <textarea
+              id={`break-glass-token-${row.grantId}`}
               data-break-glass-token
               readOnly
               rows={2}
               value={revealed.rawToken}
-              style={{
-                width: "100%",
-                marginTop: 4,
-                padding: 6,
-                border: "1px solid var(--status-pending-border, #fcd34d)",
-                borderRadius: "var(--radius-sm, 6px)",
-                fontFamily: "ui-monospace, SFMono-Regular, monospace",
-                fontSize: 11,
-                background: "var(--surface-card, #fff)",
-              }}
+              className="app-input"
+              style={{ fontFamily: "ui-monospace, SFMono-Regular, monospace" }}
             />
             <button
               type="button"
+              className="app-secondary-action"
+              style={{ justifySelf: "start" }}
               data-break-glass-clear
               onClick={() => setRevealed(null)}
-              style={{ ...subtleActionStyle, marginTop: 4 }}
             >
               I have copied the token
             </button>
@@ -1315,54 +1268,53 @@ function InvitationDetailDrawer({
 
       <section
         data-drawer-delivery-panel
-        style={cardStyle}
+        className="app-panel"
+        style={panelStyle}
       >
-        <strong style={cardTitleStyle}>Delivery status</strong>
+        <h3 className="app-panel__title">Delivery status</h3>
         {deliveries === null ? (
-          <p style={mutedStyle}>Loading…</p>
+          <p role="status" className="app-field-help" style={{ margin: 0 }}>Loading…</p>
         ) : deliveries.length === 0 ? (
-          <p style={mutedStyle}>No invitation emails have been sent yet.</p>
+          <p className="app-field-help" style={{ margin: 0 }}>No invitation emails have been sent yet.</p>
         ) : (
-          <table
-            data-deliveries-table
-            style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}
-          >
+          <div className="app-table-surface--scroll">
+          <table data-deliveries-table className="app-table" data-responsive="">
             <thead>
-              <tr style={{ textAlign: "left", color: "var(--ink-muted, #94a3b8)" }}>
-                <th style={th}>Status</th>
-                <th style={th}>Attempt</th>
-                <th style={th}>Provider</th>
-                <th style={th}>Queued</th>
-                <th style={th}>Sent</th>
-                <th style={th}>Failure</th>
+              <tr>
+                <th scope="col">Status</th>
+                <th scope="col">Attempt</th>
+                <th scope="col">Provider</th>
+                <th scope="col">Queued</th>
+                <th scope="col">Sent</th>
+                <th scope="col">Failure</th>
               </tr>
             </thead>
             <tbody>
               {deliveries.map((d) => (
                 <tr key={d.id} data-delivery-row={d.id}>
-                  <td style={td}>
+                  <td data-label="Status">
                     <Chip
                       data-delivery-status={d.status}
                       tone={deliveryTone(d.status)}
                       label={identifierLabel(d.status)}
                     />
                   </td>
-                  <td style={td}>{d.attempt}</td>
-                  <td style={td}>
+                  <td data-label="Attempt">{d.attempt}</td>
+                  <td data-label="Provider">
                     {invitationDeliveryProviderLabel(d.provider)}{" "}
                     <code data-identifier>{d.provider}</code>
                   </td>
-                  <td style={td}>
+                  <td data-label="Queued">
                     {formatUserDateTime(d.queuedAtUtc)}
                   </td>
-                  <td style={td}>
+                  <td data-label="Sent">
                     {d.sentAtUtc
                       ? formatUserDateTime(d.sentAtUtc)
                       : "—"}
                   </td>
-                  <td style={td}>
+                  <td data-label="Failure">
                     {d.failureReason ? (
-                      <code style={{ color: "var(--status-risk-fg, #991b1b)" }}>
+                      <code className="app-field-error" style={{ margin: 0 }}>
                         {d.failureReason}
                       </code>
                     ) : (
@@ -1373,15 +1325,17 @@ function InvitationDetailDrawer({
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 
       <section
         data-drawer-sso-panel
-        style={cardStyle}
+        className="app-panel"
+        style={panelStyle}
       >
-        <strong style={cardTitleStyle}>SSO federation</strong>
-        <div style={{ fontSize: 12, color: "var(--ink-primary, #0f172a)" }}>
+        <h3 className="app-panel__title">SSO federation</h3>
+        <div style={{ overflowWrap: "anywhere" }}>
           <p style={{ margin: 0, marginBottom: 4 }}>
             Auth method: <code data-sso-auth-method>{row.authMethod}</code>
           </p>
@@ -1394,7 +1348,7 @@ function InvitationDetailDrawer({
           <p style={{ margin: 0, marginBottom: 4 }}>
             Allowed domains:{" "}
             {row.allowedDomains.length === 0 ? (
-              <span style={mutedStyle}>(exact email match required)</span>
+              <span className="app-table__muted">(exact email match required)</span>
             ) : (
               <span data-sso-allowed-domains>
                 {row.allowedDomains.map((d) => (
@@ -1421,26 +1375,26 @@ function InvitationDetailDrawer({
         </div>
       </section>
 
-      <section data-drawer-feedback-panel style={cardStyle}>
-        <strong style={cardTitleStyle}>Reviewer feedback</strong>
+      <section data-drawer-feedback-panel className="app-panel" style={panelStyle}>
+        <h3 className="app-panel__title">Reviewer feedback</h3>
         {feedback === null ? (
-          <p style={mutedStyle}>Loading…</p>
+          <p role="status" className="app-field-help" style={{ margin: 0 }}>Loading…</p>
         ) : feedback === "unavailable" ? (
-          <p style={mutedStyle}>Reviewer feedback could not be loaded.</p>
+          <p className="app-field-error" style={{ margin: 0 }}>Reviewer feedback could not be loaded.</p>
         ) : feedback.decisions.length === 0 && feedback.comments.length === 0 ? (
-          <p style={mutedStyle}>The reviewer has not commented or decided yet.</p>
+          <p className="app-field-help" style={{ margin: 0 }}>The reviewer has not commented or decided yet.</p>
         ) : (
-          <div style={{ display: "grid", gap: 6, fontSize: 12 }}>
+          <div style={{ display: "grid", gap: 6, overflowWrap: "anywhere" }}>
             {feedback.decisions.map((d) => (
               <div key={d.id} data-feedback-decision={d.verdict}>
                 <strong>Decision: {identifierLabel(d.verdict)}</strong>{" "}
-                <span style={{ color: "var(--ink-secondary, #475569)" }}>{formatUserDateTime(d.submittedAtUtc)}</span>
+                <span className="app-table__muted">{formatUserDateTime(d.submittedAtUtc)}</span>
                 {d.rationale ? <p style={{ margin: "2px 0 0", whiteSpace: "pre-wrap" }}>{d.rationale}</p> : null}
               </div>
             ))}
             {feedback.comments.map((c) => (
               <div key={c.id} data-feedback-comment style={{ paddingLeft: c.parentCommentId ? 12 : 0 }}>
-                <span style={{ color: "var(--ink-secondary, #475569)" }}>
+                <span className="app-table__muted">
                   {c.authorDisplay ?? "Reviewer"} · {formatUserDateTime(c.createdAt)}
                 </span>
                 <p style={{ margin: "2px 0 0", whiteSpace: "pre-wrap" }}>{c.body}</p>
@@ -1452,13 +1406,14 @@ function InvitationDetailDrawer({
 
       <section
         data-drawer-activity-panel
-        style={cardStyle}
+        className="app-panel"
+        style={panelStyle}
       >
-        <strong style={cardTitleStyle}>Activity timeline</strong>
+        <h3 className="app-panel__title">Activity timeline</h3>
         {activity === null ? (
-          <p style={mutedStyle}>Loading…</p>
+          <p role="status" className="app-field-help" style={{ margin: 0 }}>Loading…</p>
         ) : activity.length === 0 ? (
-          <p style={mutedStyle}>No activity recorded yet.</p>
+          <p className="app-field-help" style={{ margin: 0 }}>No activity recorded yet.</p>
         ) : (
           <ul
             data-activity-timeline
@@ -1469,17 +1424,16 @@ function InvitationDetailDrawer({
                 key={a.id}
                 data-activity-row={a.code}
                 style={{
-                  borderTop: "1px solid var(--border-subtle, #f1f5f9)",
                   padding: "4px 0",
-                  fontSize: 11,
                   display: "flex",
+                  flexWrap: "wrap",
                   gap: 8,
                 }}
               >
-                <span style={{ minWidth: 220 }}>
+                <span style={{ flex: "1 1 200px", minWidth: 0, overflowWrap: "anywhere" }}>
                   {identifierLabel(a.code)} <code data-identifier>{a.code}</code>
                 </span>
-                <span style={{ color: "var(--ink-secondary, #475569)" }}>
+                <span className="app-table__muted">
                   {formatUserDateTime(a.occurredAtUtc)}
                 </span>
               </li>
@@ -1556,48 +1510,46 @@ function BreakGlassReveal({
     }
   }, [grantId, reason, onRevealed, stepUp]);
   return (
-    <div data-break-glass-form>
+    <div data-break-glass-form style={{ display: "grid", gap: 6 }}>
+      <label className="app-field-label" htmlFor={`break-glass-reason-${grantId}`}>
+        Operator reason
+      </label>
       <textarea
+        id={`break-glass-reason-${grantId}`}
         data-break-glass-reason
         rows={2}
         placeholder="Operator reason (e.g. reviewer cannot receive email — Acme Co.)"
         value={reason}
         onChange={(e) => setReason(e.target.value)}
-        style={{
-          width: "100%",
-          padding: 6,
-          marginBottom: 4,
-          border: "1px solid var(--status-pending-border, #fcd34d)",
-          borderRadius: "var(--radius-sm, 6px)",
-          fontSize: 11,
-        }}
+        className="app-input"
+        aria-invalid={err ? true : undefined}
       />
       {err ? (
-        <p style={{ color: "var(--status-risk-fg, #991b1b)", fontSize: 11, margin: "0 0 4px" }}>
+        <p role="alert" className="app-field-error" style={{ margin: 0 }}>
           {err}
         </p>
       ) : null}
-      <div style={{ display: "flex", gap: 6 }}>
+      {/* TEAM-UI-SPEC §1 — Cancel secondary + the irreversible confirm as
+          `app-danger-action` (the reveal rotates the grant token). */}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         <button
           type="button"
-          data-break-glass-confirm
-          onClick={onConfirm}
+          className="app-secondary-action"
+          data-break-glass-cancel
+          onClick={onCancel}
           disabled={busy}
-          style={{
-            ...primaryActionStyle,
-            background: busy ? "var(--ink-muted, #94a3b8)" : "#b45309",
-            border: "1px solid #b45309",
-          }}
         >
-          {busy ? "Revealing…" : "Reveal raw token"}
+          Cancel
         </button>
         <button
           type="button"
-          data-break-glass-cancel
-          onClick={onCancel}
-          style={subtleActionStyle}
+          className="app-danger-action"
+          data-break-glass-confirm
+          onClick={onConfirm}
+          disabled={busy}
+          aria-busy={busy || undefined}
         >
-          Cancel
+          {busy ? "Revealing…" : "Reveal raw token"}
         </button>
       </div>
     </div>
@@ -1776,27 +1728,25 @@ function BulkInvitePanel({
   return (
     <section
       data-bulk-invite-panel
+      className="app-panel"
       style={{
-        background: "var(--surface-card, #fff)",
-        border: "1px solid var(--border-default, rgba(15, 23, 42, 0.08))",
-        borderRadius: "var(--radius-card, 12px)",
-        boxShadow: "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))",
         padding: 16,
         display: "grid",
         gap: 12,
+        minWidth: 0,
       }}
     >
       <header>
-        <h2 style={{ fontSize: 15, margin: 0, color: "var(--ink-primary, #0f172a)" }}>Bulk invite external reviewers</h2>
-        <p style={{ color: "var(--ink-secondary, #475569)", fontSize: 12, margin: "4px 0 0" }}>
+        <h2 className="app-panel__title">Bulk invite external reviewers</h2>
+        <p className="app-field-help" style={{ margin: "4px 0 0" }}>
           Paste one reviewer per line. Accepted formats:
         </p>
         <ul
+          className="app-field-help"
           style={{
             margin: "4px 0",
             paddingLeft: 18,
-            fontSize: 11,
-            color: "var(--ink-secondary, #475569)",
+            overflowWrap: "anywhere",
           }}
         >
           <li>
@@ -1809,7 +1759,7 @@ function BulkInvitePanel({
             <code>reviewer@example.com,Display Name,Organization</code>
           </li>
         </ul>
-        <p style={{ color: "var(--ink-secondary, #475569)", fontSize: 11, margin: 0 }}>
+        <p className="app-field-help" style={{ margin: 0 }}>
           Bounded ≤ {BULK_INVITATION_MAX_ROWS} rows per call. One failing
           row never aborts the batch.
         </p>
@@ -1831,40 +1781,24 @@ function BulkInvitePanel({
             placeholder={"reviewer@example.com\nsue@acme.com,Sue Q.,Acme"}
             value={pasted}
             onChange={(e) => setPasted(e.target.value)}
+            className="app-input"
             style={{
               width: "100%",
-              padding: 8,
-              fontSize: 12,
               fontFamily: "ui-monospace, SFMono-Regular, monospace",
-              border: "1px solid var(--border-default, #cbd5e1)",
-              borderRadius: "var(--radius-md, 8px)",
-              background: "var(--surface-card, #fff)",
-              color: "var(--ink-primary, #0f172a)",
               boxSizing: "border-box",
             }}
           />
-          <small
-            data-bulk-paste-count
-            style={{ color: "var(--ink-secondary, #475569)", fontSize: 11 }}
-          >
+          <small data-bulk-paste-count className="app-field-help">
             {parsed.length} rows parsed · invalid rows are flagged inline.
           </small>
           {parsed.length > 0 ? (
-            <table
-              data-bulk-paste-preview
-              style={{
-                width: "100%",
-                marginTop: 4,
-                borderCollapse: "collapse",
-                fontSize: 11,
-              }}
-            >
+            <table data-bulk-paste-preview className="app-table" data-responsive="">
               <thead>
-                <tr style={{ textAlign: "left", color: "var(--ink-muted, #94a3b8)" }}>
-                  <th style={th}>Email</th>
-                  <th style={th}>Display</th>
-                  <th style={th}>Org</th>
-                  <th style={th}>Validity</th>
+                <tr>
+                  <th scope="col">Email</th>
+                  <th scope="col">Display</th>
+                  <th scope="col">Org</th>
+                  <th scope="col">Validity</th>
                 </tr>
               </thead>
               <tbody>
@@ -1874,10 +1808,10 @@ function BulkInvitePanel({
                     data-bulk-paste-row={idx}
                     data-bulk-paste-valid={p.valid ? "true" : "false"}
                   >
-                    <td style={td}>{p.email}</td>
-                    <td style={td}>{p.displayName ?? "—"}</td>
-                    <td style={td}>{p.organization ?? "—"}</td>
-                    <td style={td}>
+                    <td data-label="Email" style={{ overflowWrap: "anywhere" }}>{p.email}</td>
+                    <td data-label="Display">{p.displayName ?? "—"}</td>
+                    <td data-label="Org">{p.organization ?? "—"}</td>
+                    <td data-label="Validity">
                       {p.valid ? (
                         <Chip tone="ok" label="Valid" />
                       ) : (
@@ -1920,15 +1854,15 @@ function BulkInvitePanel({
               max={720}
               value={hours}
               onChange={(e) => setHours(Number(e.target.value))}
-              style={inputStyle}
+              className="app-input"
             />
           </Field>
           <label
+            className="app-field-label"
             style={{
               display: "flex",
               alignItems: "center",
               gap: 6,
-              fontSize: 12,
             }}
           >
             <input
@@ -1940,14 +1874,7 @@ function BulkInvitePanel({
             Require MFA for each row
           </label>
 
-          <hr
-            style={{
-              border: "none",
-              borderTop: "1px solid var(--border-default, #e2e8f0)",
-              margin: "4px 0",
-            }}
-          />
-          <p data-bulk-sign-in-note style={{ fontSize: 12, margin: 0, color: "var(--ink-secondary, #475569)" }}>
+          <p data-bulk-sign-in-note className="app-field-help" style={{ margin: 0 }}>
             Reviewers sign in with the emailed link, plus the emailed code when MFA is required.
             Single sign-on is not available for outside reviewers.
           </p>
@@ -1955,24 +1882,26 @@ function BulkInvitePanel({
       </div>
 
       <div>
-        <Button
+        {/* TEAM-UI-SPEC §1 — issuing invitations is the one primary on
+            this tab. */}
+        <CanonicalActionButton
           variant="primary"
           data-bulk-issue-submit
           data-capability-allowed={caps.canBulkInvite ? "true" : "false"}
           onClick={onIssueBulk}
-          loading={busy}
+          busy={busy}
           disabled={submitBlockedReason !== null}
           disabledReason={submitBlockedReason ?? undefined}
         >
           {busy
             ? "Issuing…"
             : `Issue ${parsed.length} invitation${parsed.length === 1 ? "" : "s"}`}
-        </Button>
+        </CanonicalActionButton>
       </div>
 
       {outcomes ? (
-        <section data-bulk-outcomes>
-          <strong style={{ fontSize: 12 }}>
+        <section data-bulk-outcomes style={{ minWidth: 0 }}>
+          <strong>
             {outcomes.bulkBatchId ? (
               <>
                 Batch{" "}
@@ -1992,22 +1921,14 @@ function BulkInvitePanel({
               />
             ))}
           </div>
-          <div style={{ overflowX: "auto" }}>
-          <table
-            data-bulk-outcome-table
-            style={{
-              width: "100%",
-              marginTop: 6,
-              borderCollapse: "collapse",
-              fontSize: 11,
-            }}
-          >
+          <div className="app-table-surface--scroll" style={{ marginTop: 6 }}>
+          <table data-bulk-outcome-table className="app-table" data-responsive="">
             <thead>
-              <tr style={{ textAlign: "left", color: "var(--ink-muted, #94a3b8)" }}>
-                <th style={th}>Email</th>
-                <th style={th}>Outcome</th>
-                <th style={th}>Access</th>
-                <th style={th}>Reason</th>
+              <tr>
+                <th scope="col">Email</th>
+                <th scope="col">Outcome</th>
+                <th scope="col">Access</th>
+                <th scope="col">Reason</th>
               </tr>
             </thead>
             <tbody>
@@ -2017,8 +1938,8 @@ function BulkInvitePanel({
                   data-bulk-outcome-row={r.inviteEmail}
                   data-bulk-outcome={r.outcome}
                 >
-                  <td style={td}>{r.inviteEmail}</td>
-                  <td style={td}>
+                  <td data-label="Email" style={{ overflowWrap: "anywhere" }}>{r.inviteEmail}</td>
+                  <td data-label="Outcome">
                     <Chip
                       tone={
                         r.outcome === "INVITED"
@@ -2030,7 +1951,7 @@ function BulkInvitePanel({
                       label={bulkInvitationOutcomeLabel(r.outcome)}
                     />
                   </td>
-                  <td style={td}>
+                  <td data-label="Access">
                     {r.grantId ? (
                       <>
                         Created{" "}
@@ -2040,7 +1961,7 @@ function BulkInvitePanel({
                       "Not created"
                     )}
                   </td>
-                  <td style={td} data-bulk-outcome-reason>
+                  <td data-label="Reason" data-bulk-outcome-reason>
                     {bulkOutcomeReason(r) ?? "—"}
                     {r.denial ? (
                       <>
@@ -2120,44 +2041,11 @@ function Chip({
   label: string;
   tone: "ok" | "info" | "muted" | "warn";
 } & React.HTMLAttributes<HTMLSpanElement>) {
-  const palette = {
-    ok: {
-      bg: "var(--status-verified-bg, #ecfdf5)",
-      fg: "var(--status-verified-fg, #065f46)",
-      border: "var(--status-verified-border, #a7f3d0)",
-    },
-    info: {
-      bg: "var(--status-info-bg, #eff6ff)",
-      fg: "var(--status-info-fg, #1e40af)",
-      border: "var(--status-info-border, #bfdbfe)",
-    },
-    muted: {
-      bg: "var(--status-neutral-bg, #f1f5f9)",
-      fg: "var(--status-neutral-fg, #475569)",
-      border: "var(--status-neutral-border, #cbd5e1)",
-    },
-    warn: {
-      bg: "var(--status-risk-bg, #fef2f2)",
-      fg: "var(--status-risk-fg, #991b1b)",
-      border: "var(--status-risk-border, #fecaca)",
-    },
-  }[tone];
+  // TEAM-UI-SPEC §1 — status reads as the canonical `app-chip` family.
+  const toneClass =
+    tone === "ok" ? " app-chip--ok" : tone === "warn" ? " app-chip--warn" : "";
   return (
-    <span
-      {...rest}
-      style={{
-        display: "inline-block",
-        padding: "1px 8px",
-        marginRight: 4,
-        borderRadius: 999,
-        background: palette.bg,
-        color: palette.fg,
-        border: `1px solid ${palette.border}`,
-        fontSize: 11,
-        fontWeight: 600,
-        whiteSpace: "nowrap",
-      }}
-    >
+    <span {...rest} data-chip-tone={tone} className={`app-chip${toneClass}`} style={{ marginRight: 4 }}>
       {label}
     </span>
   );
@@ -2171,10 +2059,8 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <small style={{ fontSize: 11, color: "var(--ink-secondary, #475569)", fontWeight: 600 }}>
-        {label}
-      </small>
+    <label style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+      <span className="app-field-label">{label}</span>
       {children}
     </label>
   );
@@ -2184,84 +2070,15 @@ function Field({
 // Inline style constants
 // ---------------------------------------------------------------------------
 
-const inputStyle = {
-  width: "100%",
-  padding: "6px 8px",
-  border: "1px solid var(--border-default, #cbd5e1)",
-  borderRadius: "var(--radius-sm, 6px)",
-  fontSize: 12,
-  background: "var(--surface-card, #fff)",
-  color: "var(--ink-primary, #0f172a)",
-  boxSizing: "border-box" as const,
-};
-
-const th = {
-  padding: "6px 8px",
-  borderBottom: "1px solid var(--border-default, #e2e8f0)",
-} as const;
-const td = {
-  padding: "6px 8px",
-  borderBottom: "1px solid var(--border-subtle, #f1f5f9)",
-} as const;
-
-const cardStyle = {
-  background: "var(--surface-muted, rgba(15, 23, 42, 0.03))",
-  border: "1px solid var(--border-subtle, rgba(15, 23, 42, 0.06))",
-  borderRadius: "var(--radius-md, 10px)",
-  padding: 10,
-} as const;
-const cardTitleStyle = {
-  display: "block",
-  fontSize: 12,
-  fontWeight: 650,
-  marginBottom: 6,
-  color: "var(--ink-primary, #0f172a)",
-} as const;
-const mutedStyle = {
-  color: "var(--ink-secondary, #475569)",
-  fontSize: 12,
-  margin: 0,
+/** Drawer sub-panels (`app-panel`), laid out as a small stack. */
+const panelStyle = {
+  padding: 12,
+  display: "grid",
+  gap: 6,
+  minWidth: 0,
 } as const;
 const chipsRowStyle = {
   display: "flex",
   gap: 4,
   flexWrap: "wrap" as const,
 };
-const drawerCloseStyle = {
-  background: "transparent",
-  border: "1px solid var(--border-default, #cbd5e1)",
-  borderRadius: "var(--radius-sm, 6px)",
-  padding: "3px 10px",
-  fontSize: 11,
-  color: "var(--ink-secondary, #475569)",
-  cursor: "pointer",
-} as const;
-const primaryActionStyle = {
-  padding: "8px 14px",
-  border: "1px solid var(--ink-primary, #0f172a)",
-  background: "var(--ink-primary, #0f172a)",
-  color: "var(--ink-inverse, #fafafa)",
-  fontWeight: 650,
-  fontSize: 12.5,
-  borderRadius: "var(--radius-md, 8px)",
-  cursor: "pointer",
-} as const;
-const dangerActionStyle = {
-  padding: "8px 14px",
-  border: "1px solid var(--status-risk-solid, #dc2626)",
-  background: "var(--surface-card, #fff)",
-  color: "var(--status-risk-solid, #dc2626)",
-  fontWeight: 650,
-  fontSize: 12.5,
-  borderRadius: "var(--radius-md, 8px)",
-  cursor: "pointer",
-} as const;
-const subtleActionStyle = {
-  padding: "5px 10px",
-  border: "1px solid var(--border-default, #cbd5e1)",
-  background: "var(--surface-card, #fff)",
-  color: "var(--ink-primary, #0f172a)",
-  fontSize: 11,
-  borderRadius: "var(--radius-sm, 6px)",
-  cursor: "pointer",
-} as const;

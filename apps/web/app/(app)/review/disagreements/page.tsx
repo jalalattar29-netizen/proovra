@@ -38,6 +38,14 @@
 
 import { PLAN_REFUSAL_COPY, isPlanRefusal } from "../../../../lib/feedback/plan-refusal";
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
+import { PageShell } from "../../../../components/ui/PageShell";
+// TEAM-UI-SPEC (structure) — the one review page header: icon title row, the
+// tool name, a "← Review" back link above it, no eyebrow.
+import {
+  ReviewPageHeader,
+  REVIEW_HUB_BACK,
+} from "../../../../components/reviewer-experience/ReviewPageHeader";
+import { CanonicalActionButton } from "../../../../components/external-review/CanonicalActionButton";
 import { reviewerDenialMessage } from "@proovra/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -215,33 +223,32 @@ function DisagreementsShell() {
 
   if (!teamId) {
     return (
-      <div
-        data-disagreements-page
-        style={{ padding: 24, maxWidth: 1200, margin: "0 auto", color: "#0f172a" }}
-      >
+      <PageShell data-disagreements-page>
         <OperationalEmptyState
           title="Select a workspace"
           reason="Choose an active workspace before loading disagreements."
         />
-      </div>
+      </PageShell>
     );
   }
 
   return (
-    <div
+    // TEAM-UI-SPEC §1/§5 — the canonical page header (PageShell + PageHeader).
+    <PageShell
       data-disagreements-page
-      style={{ padding: 24, maxWidth: 1200, margin: "0 auto", color: "#0f172a" }}
+      header={
+        <ReviewPageHeader
+          back={REVIEW_HUB_BACK}
+          title="Disagreements"
+          subtitle="Reviewers may challenge a recorded decision. Disagreements progress through second review and supervisor adjudication."
+        />
+      }
     >
-      <h1 style={{ fontSize: 22, margin: "0 0 8px" }}>Disagreements</h1>
-      <p style={{ color: "#475569", fontSize: 13, marginTop: 0 }}>
-        Reviewers may challenge a recorded decision. Disagreements
-        progress through second review and supervisor adjudication.
-      </p>
       <div
+        data-disagreement-lifecycle
         style={{
-          marginBottom: 14,
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(130px, 100%), 1fr))",
           gap: 10,
         }}
       >
@@ -252,22 +259,14 @@ function DisagreementsShell() {
         <LifecycleTile label="Withdrawn" value={counts.withdrawn} />
       </div>
       {banner ? (
-        <div
-          data-disagreement-banner
-          style={{
-            padding: "8px 12px",
-            background: "rgba(15, 23, 42, 0.06)",
-            borderRadius: 10,
-            margin: "8px 0 14px",
-            fontSize: 13,
-          }}
-        >
-          {banner}
+        <div data-disagreement-banner role="status" className="app-panel">
+          <div className="app-panel__body">{banner}</div>
         </div>
       ) : null}
       {loadFailure ? (
-        <div role="alert" data-disagreements-failure={loadFailure}>
-          <p>
+        <div role="alert" data-disagreements-failure={loadFailure} className="app-panel">
+          <div className="app-panel__body" style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+          <p className="app-field-error" style={{ margin: 0, flex: "1 1 220px", minWidth: 0 }}>
             {loadFailure === "plan"
               ? PLAN_REFUSAL_COPY
               : loadFailure === "denied"
@@ -275,13 +274,14 @@ function DisagreementsShell() {
                 : "Disagreements could not be loaded. This is not the same as having none."}
           </p>
           {loadFailure === "failed" ? (
-            <button type="button" onClick={() => void refresh()}>
+            <CanonicalActionButton variant="secondary" onClick={() => void refresh()}>
               Retry
-            </button>
+            </CanonicalActionButton>
           ) : null}
+          </div>
         </div>
       ) : rows === null ? (
-        <div>Loading…</div>
+        <p role="status" className="app-field-help">Loading…</p>
       ) : rows.length === 0 ? (
         <OperationalEmptyState
           kicker="Disagreement lifecycle"
@@ -302,7 +302,7 @@ function DisagreementsShell() {
           busyDisagreementId={busyDisagreementId}
         />
       )}
-    </div>
+    </PageShell>
   );
 }
 
@@ -327,20 +327,21 @@ function DisagreementsTable({
   busyDisagreementId: string | null;
 }) {
   return (
-    <table
-      data-disagreements-table
-      style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}
-    >
+    // TEAM-UI-SPEC §4 — eight columns: the shared responsive cutover
+    // (`.app-table[data-responsive]`) collapses each row to a labelled card at
+    // ≤ 720 px so nothing clips at 320/390 px.
+    <div className="app-table-surface app-table-surface--scroll">
+    <table data-disagreements-table className="app-table" data-responsive="">
       <thead>
-        <tr style={{ textAlign: "left", color: "#475569" }}>
-          <th style={th}>State</th>
-          <th style={th}>Workflow</th>
-          <th style={th}>Owner</th>
-          <th style={th}>Challenger</th>
-          <th style={th}>Age</th>
-          <th style={th}>Resolution</th>
-          <th style={th}>Challenger rationale</th>
-          <th style={th}>Actions</th>
+        <tr>
+          <th scope="col">State</th>
+          <th scope="col">Workflow</th>
+          <th scope="col">Owner</th>
+          <th scope="col">Challenger</th>
+          <th scope="col">Age</th>
+          <th scope="col">Resolution</th>
+          <th scope="col">Challenger rationale</th>
+          <th scope="col">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -361,6 +362,7 @@ function DisagreementsTable({
         })}
       </tbody>
     </table>
+    </div>
   );
 }
 
@@ -389,41 +391,34 @@ function DisagreementRowGroup({
   return (
     <>
       <tr data-disagreement-row={row.id}>
-        <td style={td}>
-          <code
-            style={{
-              background: "#f1f5f9",
-              padding: "1px 6px",
-              borderRadius: 4,
-            }}
-            title={identifierLabel(row.state)}
-          >
+        <td data-label="State">
+          <span className="app-chip" title={identifierLabel(row.state)}>
             {STATE_LABELS[row.state] ?? identifierLabel(row.state)}
-          </code>
+          </span>
         </td>
-        <td style={td}>
-          <code>{row.workflowId.slice(0, 8)}…</code>
+        <td data-label="Workflow">
+          <code data-identifier>{row.workflowId.slice(0, 8)}…</code>
         </td>
-        <td style={td}>
+        <td data-label="Owner">
           <OwnerCell row={row} />
         </td>
-        <td style={td}>
+        <td data-label="Challenger">
           {row.challengerUserId ? (
-            <code>{row.challengerUserId.slice(0, 8)}…</code>
+            <code data-identifier>{row.challengerUserId.slice(0, 8)}…</code>
           ) : (
-            <span style={{ color: "#94a3b8" }}>not recorded</span>
+            <span className="app-table__muted">not recorded</span>
           )}
         </td>
-        <td style={td}>
+        <td data-label="Age">
           {formatAge(row.filedAtUtc, row.resolvedAtUtc)}
         </td>
-        <td style={td}>
+        <td data-label="Resolution">
           <ResolutionCell row={row} />
         </td>
-        <td style={td}>
+        <td data-label="Challenger rationale">
           <ChallengerRationalePreview value={row.challengerRationale} />
         </td>
-        <td style={td}>
+        <td data-label="">
           <TransitionButtons
             row={row}
             isBusy={isBusy}
@@ -436,7 +431,7 @@ function DisagreementRowGroup({
       </tr>
       {isPickerOpen && pickerTo && pickerTo.startsWith("RESOLVED_") ? (
         <tr data-disagreement-resolve-picker-row={row.id}>
-          <td colSpan={8} style={{ padding: 0 }}>
+          <td colSpan={8} data-label="" style={{ padding: 0 }}>
             <ResolveVerdictPicker
               disagreementId={row.id}
               to={pickerTo}
@@ -488,7 +483,7 @@ function TransitionButtons({
     [row.state, row.challengerUserId, viewerUserId],
   );
   return (
-    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+    <div className="app-table__actions" style={{ flexWrap: "wrap", justifyContent: "flex-start" }}>
       {targets.map((to) => {
         const isResolveTarget = to.startsWith("RESOLVED_");
         const thisPickerOpen = isPickerOpen && pickerTo === to;
@@ -498,11 +493,17 @@ function TransitionButtons({
         const disabledByOpenPicker = isPickerOpen && !thisPickerOpen;
         const disabled = isBusy || disabledByOpenPicker;
         return (
-          <button
+          // TEAM-UI-SPEC §1/§4 — row actions are secondary; the armed
+          // transition (its resolution panel is open) is the filled toggle.
+          <CanonicalActionButton
             key={to}
-            type="button"
+            variant={thisPickerOpen ? "filled" : "secondary"}
+            aria-pressed={isResolveTarget ? thisPickerOpen : undefined}
             data-disagreement-transition-btn={to}
             disabled={disabled}
+            disabledReason={
+              disabledByOpenPicker ? "Finish or cancel the open resolution first." : null
+            }
             onClick={() => {
               if (isResolveTarget) {
                 // Arm the picker — operator must choose a verdict.
@@ -515,14 +516,13 @@ function TransitionButtons({
               }
               void onTransition(row.id, to);
             }}
-            style={transBtnStyle(disabled, thisPickerOpen)}
           >
             {STATE_LABELS[to] ?? to}
-          </button>
+          </CanonicalActionButton>
         );
       })}
       {targets.length === 0 ? (
-        <span style={{ color: "#94a3b8", fontSize: 11 }}>
+        <span className="app-table__muted">
           No further transitions.
         </span>
       ) : null}
@@ -565,28 +565,24 @@ function ResolveVerdictPicker({
   return (
     <div
       data-disagreement-resolve-picker={disagreementId}
+      role="group"
+      aria-label="Resolve disagreement"
       style={{
         padding: 12,
-        background: "rgba(15, 23, 42, 0.04)",
-        borderTop: "1px solid #cbd5e1",
-        borderBottom: "1px solid #cbd5e1",
+        width: "100%",
+        boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
         gap: 8,
       }}
     >
-      <div style={{ color: "#0f172a", fontSize: 12, fontWeight: 600 }}>
+      <div className="app-panel__title">
         Resolve disagreement → {STATE_LABELS[to] ?? to}. Choose a
         verdict and explain.
       </div>
       <label
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 4,
-          fontSize: 11,
-          color: "#0f172a",
-        }}
+        className="app-field-label"
+        style={{ display: "flex", flexDirection: "column", gap: 4 }}
       >
         <span>Verdict</span>
         <AppListbox
@@ -601,13 +597,8 @@ function ResolveVerdictPicker({
         />
       </label>
       <label
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 4,
-          fontSize: 11,
-          color: "#0f172a",
-        }}
+        className="app-field-label"
+        style={{ display: "flex", flexDirection: "column", gap: 4 }}
       >
         <span>
           Rationale ({trimmed.length}/{RATIONALE_MAX})
@@ -620,28 +611,38 @@ function ResolveVerdictPicker({
           disabled={busy}
           rows={3}
           placeholder="Why is this disagreement being resolved this way?"
-          style={textareaStyle}
+          className="app-input"
+          style={{ resize: "vertical" }}
         />
       </label>
-      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-        <button
-          type="button"
+      {/* TEAM-UI-SPEC §1 — Cancel secondary + the one primary submit. */}
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
+        <CanonicalActionButton
+          variant="secondary"
           data-disagreement-resolve-cancel
           onClick={onCancel}
           disabled={busy}
-          style={cancelBtnStyle}
         >
           Cancel
-        </button>
-        <button
-          type="button"
+        </CanonicalActionButton>
+        <CanonicalActionButton
+          variant="primary"
           data-disagreement-resolve-submit
           disabled={!canSubmit}
+          disabledReason={
+            busy
+              ? null
+              : verdict.length === 0
+                ? "Choose a verdict."
+                : trimmed.length === 0
+                  ? "Explain the resolution."
+                  : null
+          }
+          aria-busy={busy || undefined}
           onClick={() => onSubmit(verdict as ReviewerVerdict, trimmed)}
-          style={resolveSubmitStyle(canSubmit)}
         >
           {busy ? "Submitting…" : "Record resolution"}
-        </button>
+        </CanonicalActionButton>
       </div>
     </div>
   );
@@ -654,7 +655,7 @@ function ResolveVerdictPicker({
  */
 function ChallengerRationalePreview({ value }: { value: string | null }) {
   if (!value || value.trim().length === 0) {
-    return <span style={{ color: "#94a3b8" }}>—</span>;
+    return <span className="app-table__muted">—</span>;
   }
   const trimmed = value.trim();
   const truncated =
@@ -664,11 +665,11 @@ function ChallengerRationalePreview({ value }: { value: string | null }) {
   return (
     <span
       data-disagreement-challenger-rationale
+      className="app-table__muted"
       style={{
-        color: "#475569",
-        fontSize: 11,
         whiteSpace: "pre-wrap",
         wordBreak: "break-word",
+        minWidth: 0,
       }}
     >
       {truncated}
@@ -678,16 +679,11 @@ function ChallengerRationalePreview({ value }: { value: string | null }) {
 
 function LifecycleTile({ label, value }: { label: string; value: number }) {
   return (
-    <div
-      style={{
-        border: "1px solid #e2e8f0",
-        borderRadius: 10,
-        background: "#f8fafc",
-        padding: "10px 12px",
-      }}
-    >
-      <div style={{ color: "#64748b", fontSize: 11 }}>{label}</div>
-      <div style={{ color: "#0f172a", fontSize: 18, fontWeight: 700 }}>{value}</div>
+    <div className="app-panel" data-disagreement-lifecycle-tile={label}>
+      <div className="app-panel__body">
+        <div className="app-field-help" style={{ margin: 0 }}>{label}</div>
+        <div className="app-table__primary" style={{ fontSize: 18 }}>{value}</div>
+      </div>
     </div>
   );
 }
@@ -702,25 +698,25 @@ function OwnerCell({ row }: { row: DisagreementRow }) {
           ? row.resolvedByUserId ?? row.supervisorUserId ?? row.secondReviewerUserId
           : null;
   if (!owner) {
-    return <span style={{ color: "#94a3b8" }}>awaiting assignment</span>;
+    return <span className="app-table__muted">awaiting assignment</span>;
   }
-  return <code>{owner.slice(0, 8)}…</code>;
+  return <code data-identifier>{owner.slice(0, 8)}…</code>;
 }
 
 function ResolutionCell({ row }: { row: DisagreementRow }) {
   if (!row.state.startsWith("RESOLVED_")) {
     return (
-      <span style={{ color: "#475569", fontSize: 11 }}>
+      <span className="app-table__muted">
         Filed {formatUserDateTime(row.filedAtUtc)}
       </span>
     );
   }
   return (
-    <div style={{ display: "grid", gap: 2 }}>
-      <strong style={{ fontSize: 12, color: "#0f172a" }}>
+    <div className="app-table__identity">
+      <span className="app-table__primary">
         {row.resolution ? VERDICT_LABELS[row.resolution] : "Resolved"}
-      </strong>
-      <span style={{ color: "#475569", fontSize: 11 }}>
+      </span>
+      <span className="app-table__muted">
         {row.resolvedAtUtc
           ? formatUserDateTime(row.resolvedAtUtc)
           : "Resolution time not recorded"}
@@ -770,52 +766,4 @@ function isPlausibleTransition(
   return false;
 }
 
-const th = { padding: "8px 10px", borderBottom: "1px solid #e2e8f0" } as const;
-const td = {
-  padding: "8px 10px",
-  borderBottom: "1px solid #f1f5f9",
-  verticalAlign: "top",
-} as const;
-function transBtnStyle(disabled: boolean, isArmed: boolean) {
-  return {
-    padding: "4px 8px",
-    borderRadius: 8,
-    border: isArmed ? "1px solid #0f172a" : "1px solid #cbd5e1",
-    background: isArmed ? "#0f172a" : "#fff",
-    color: isArmed ? "#fafafa" : "#0f172a",
-    fontSize: 11,
-    cursor: disabled ? "not-allowed" : "pointer",
-    opacity: disabled ? 0.55 : 1,
-  } as const;
-}
-const cancelBtnStyle = {
-  padding: "5px 10px",
-  borderRadius: 8,
-  border: "1px solid #cbd5e1",
-  background: "#fff",
-  color: "#0f172a",
-  fontWeight: 600,
-  fontSize: 11,
-  cursor: "pointer",
-} as const;
-function resolveSubmitStyle(enabled: boolean) {
-  return {
-    padding: "5px 10px",
-    borderRadius: 8,
-    border: "none",
-    background: enabled ? "#0f172a" : "#cbd5e1",
-    color: enabled ? "#fafafa" : "#475569",
-    fontWeight: 600,
-    fontSize: 11,
-    cursor: enabled ? "pointer" : "not-allowed",
-  } as const;
-}
-const textareaStyle = {
-  padding: "6px 8px",
-  borderRadius: 8,
-  border: "1px solid #cbd5e1",
-  background: "#fff",
-  fontSize: 13,
-  color: "#0f172a",
-  resize: "vertical" as const,
-};
+

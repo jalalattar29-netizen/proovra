@@ -20,10 +20,18 @@
  *   - `?escalationId=` (from notifications and Operations rows) is honoured:
  *     the list opens on All, and the row is highlighted and scrolled to.
  *   - Links go through `reviewDestination`; no worker jargon in the copy.
+ *
+ * TEAM-UI-SPEC §1/§4 (round 3): the list is an `.app-table` riding the shared
+ * `[data-responsive]` card cutover (no horizontal scroll on a phone; compact
+ * row = review ref + severity, status + created, then actions). Row actions
+ * are secondary (Acknowledge, Reassign, Resolve) and Suppress is the
+ * destructive entry point (`app-secondary-action--danger`) — its dialog owns
+ * the confirm. No row carries a primary.
  */
 
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import { apiFetch } from "../../../../lib/api";
@@ -38,13 +46,14 @@ import {
   type ReviewerReasonKind,
 } from "../components/ReviewerReasonModal";
 import { formatCellDateTime } from "../../../../lib/date";
-import { PageShell, PageHeader } from "../../../../components/ui/PageShell";
-import { Card } from "../../../../components/ui/Card";
-import { Button } from "../../../../components/ui/Button";
+import { PageShell } from "../../../../components/ui/PageShell";
+// TEAM-UI-SPEC (structure) — the one review page header (icon title row, no eyebrow).
+import { ReviewPageHeader } from "../../../../components/reviewer-experience/ReviewPageHeader";
 import { Badge, type BadgeTone } from "../../../../components/ui/Badge";
 import { severityTone } from "../../../../components/ui/StatusBadge";
-import { DataTable } from "../../../../components/ui/DataTable";
 import { FilterBar } from "../../../../components/ui/FilterBar";
+import { recordReference } from "../../../../lib/short-id";
+import "../../../../components/reviewer-experience/review-surfaces.css";
 import { identifierLabel } from "@proovra/shared";
 import { escalationReasonLabel } from "../../../../lib/labels/governanceReviewLabels";
 import { ReviewHubNav } from "../../../../components/reviewer-experience/ReviewHubNav";
@@ -218,11 +227,7 @@ function EscalationsConsolePageInner() {
       <PageShell
         data-escalations-loading
         header={
-          <PageHeader
-            eyebrow="Review"
-            title="Escalations"
-            subtitle="Loading workspace…"
-          />
+          <ReviewPageHeader title="Escalations" subtitle="Loading workspace…" />
         }
       />
     );
@@ -235,18 +240,19 @@ function EscalationsConsolePageInner() {
   return (
     <PageShell
       header={
-        <PageHeader
-          eyebrow="Review"
+        <ReviewPageHeader
           title="Escalations"
-          subtitle="Reviews that passed their SLA deadline or were raised by a person. Active escalations (open, acknowledged or reassigned) count toward SLA pressure; resolved and suppressed ones stay in the history."
+          subtitle="Reviews that passed their deadline or were raised by a person. Open, acknowledged and reassigned escalations count toward SLA pressure."
           primaryAction={
-            <Button
-              variant="secondary"
+            <button
+              type="button"
+              className="app-secondary-action"
               onClick={load}
               disabled={busy !== null}
+              data-escalations-refresh
             >
               Refresh
-            </Button>
+            </button>
           }
         />
       }
@@ -276,171 +282,155 @@ function EscalationsConsolePageInner() {
       ) : null}
 
       {linkedMissing ? (
-        <Card variant="status" tone="info" data-escalation-link-missing>
+        <div className="app-alert" role="status" data-escalation-link-missing>
           The linked escalation is not in this list. It may belong to another
           workspace or no longer be visible to you.
-        </Card>
+        </div>
       ) : null}
 
       {error ? (
-        <Card variant="status" tone="risk" role="alert">
+        <div className="app-alert app-alert--danger" role="alert">
           {error}
-        </Card>
+        </div>
       ) : null}
 
       {/* Review automation only: a stale review automation pass is said here,
           in one line. Global service status lives in the header indicator. */}
       <RuntimeStatusBanner requires={["reviewAutomation"]} />
 
-      <DataTable
-        ariaLabel="Escalations"
-        loading={rows === null}
-        rows={rows ?? []}
-        getRowId={(e) => e.id}
-        columns={[
-          {
-            key: "severity",
-            header: "Severity",
-            render: (e) => (
-              <span
-                id={`escalation-${e.id}`}
-                data-escalation-row={e.id}
-                data-escalation-highlighted={e.id === focusEscalationId ? "true" : undefined}
-                style={
-                  e.id === focusEscalationId
-                    ? { display: "inline-flex", gap: 6, alignItems: "center" }
-                    : undefined
-                }
-              >
-                <Badge tone={severityTone(e.severity)} subtle>
-                  {identifierLabel(e.severity)}
-                </Badge>
-                {e.id === focusEscalationId ? (
-                  <Badge tone="info">Linked</Badge>
-                ) : null}
-              </span>
-            ),
-          },
-          {
-            key: "reason",
-            header: "Reason",
-            render: (e) => (
-              <span className="app-table__muted">{escalationReasonLabel(e.reason)}</span>
-            ),
-          },
-          {
-            key: "status",
-            header: "Status",
-            render: (e) => (
-              <Badge tone={statusTone(e.status)} subtle>
-                {STATUS_LABEL[e.status] ?? identifierLabel(e.status)}
-              </Badge>
-            ),
-          },
-          {
-            key: "summary",
-            header: "Summary",
-            render: (e) => (
-              <>
-                <div style={{ maxWidth: 360, fontSize: 12 }}>{e.safeSummary}</div>
-                {e.incidentId && operationsDestination ? (
-                  <a href={operationsDestination.href} style={{ fontSize: 12, color: "var(--ink-link)" }}>
-                    View the related incident
-                  </a>
-                ) : null}
-              </>
-            ),
-          },
-          {
-            key: "workflow",
-            header: "Review",
-            render: (e) =>
-              inspectorDestination ? (
-                <a
-                  href={`/reviewer-ops/${encodeURIComponent(e.workflowId)}`}
-                  style={{ color: "var(--ink-link)", textDecoration: "none", fontSize: 12 }}
-                >
-                  Open review
-                </a>
-              ) : (
-                <span className="app-table__muted">—</span>
-              ),
-          },
-          {
-            key: "created",
-            header: "Created",
-            nowrap: true,
-            render: (e) => (
-              <span className="app-table__muted">{formatCellDateTime(e.createdAt)}</span>
-            ),
-          },
-        ]}
-        rowActions={(e) => (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, justifyContent: "flex-end" }}>
-            {e.status === "OPEN" ? (
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={busy !== null}
-                onClick={() => act("acknowledge", e.id, "acknowledge", {})}
-              >
-                Acknowledge
-              </Button>
-            ) : null}
-            {!["RESOLVED", "SUPPRESSED"].includes(e.status) ? (
-              <>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={busy !== null}
-                  onClick={() =>
-                    setReasonModal({
-                      kind: "ESCALATION_REASSIGN",
-                      escalationId: e.id,
-                    })
-                  }
-                  data-escalation-action-reassign
-                >
-                  Reassign
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={busy !== null}
-                  onClick={() =>
-                    setReasonModal({
-                      kind: "ESCALATION_RESOLVE",
-                      escalationId: e.id,
-                    })
-                  }
-                  data-escalation-action-resolve
-                >
-                  Resolve
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={busy !== null}
-                  onClick={() =>
-                    setReasonModal({
-                      kind: "ESCALATION_SUPPRESS",
-                      escalationId: e.id,
-                    })
-                  }
-                  data-escalation-action-suppress
-                >
-                  Suppress
-                </Button>
-              </>
-            ) : null}
-          </div>
-        )}
-        emptyState={
-          <div style={{ padding: 20 }}>
-            <NoEscalationsEmptyState filter={status} severityFiltered={severity !== ""} />
-          </div>
-        }
-      />
+      {rows === null ? (
+        <p className="app-field-help" aria-live="polite" data-escalations-loading-rows>
+          Loading escalations…
+        </p>
+      ) : rows.length === 0 ? (
+        <section className="app-panel app-panel__body">
+          <NoEscalationsEmptyState filter={status} severityFiltered={severity !== ""} />
+        </section>
+      ) : (
+        <div className="app-table-surface app-table-surface--scroll">
+          <table className="app-table review-rows" data-responsive aria-label="Escalations" data-escalations-table>
+            <thead>
+              <tr>
+                <th>Review</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Reason</th>
+                <th>Summary</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((e) => {
+                const highlighted = e.id === focusEscalationId;
+                const live = !["RESOLVED", "SUPPRESSED"].includes(e.status);
+                const ref = e.evidenceId
+                  ? recordReference("Evidence", e.evidenceId)
+                  : recordReference("Review", e.workflowId);
+                const reviewHref = `/reviewer-ops/${encodeURIComponent(e.workflowId)}`;
+                return (
+                  <tr
+                    key={e.id}
+                    id={`escalation-${e.id}`}
+                    data-escalation-row={e.id}
+                    data-escalation-highlighted={highlighted ? "true" : undefined}
+                    data-review-row-selected={highlighted ? "true" : undefined}
+                  >
+                    <td data-review-cell="ref" data-label="Review">
+                      {inspectorDestination ? (
+                        <Link href={reviewHref} className="review-rows__ref">
+                          {ref}
+                        </Link>
+                      ) : (
+                        <span className="review-rows__ref">{ref}</span>
+                      )}
+                    </td>
+                    <td data-review-cell="priority" data-label="Severity">
+                      <span className="review-chip-row">
+                        <Badge tone={severityTone(e.severity)} subtle>
+                          {identifierLabel(e.severity)}
+                        </Badge>
+                        {highlighted ? <Badge tone="info">Linked</Badge> : null}
+                      </span>
+                    </td>
+                    <td data-review-cell="status" data-label="Status">
+                      <Badge tone={statusTone(e.status)} subtle>
+                        {STATUS_LABEL[e.status] ?? identifierLabel(e.status)}
+                      </Badge>
+                    </td>
+                    <td data-review-cell="extra" data-label="Reason">
+                      <span className="app-table__muted">{escalationReasonLabel(e.reason)}</span>
+                    </td>
+                    <td data-review-cell="extra" data-label="Summary">
+                      <span className="app-table__muted">{e.safeSummary}</span>
+                      {e.incidentId && operationsDestination ? (
+                        <>
+                          {" "}
+                          <Link href={operationsDestination.href}>View the related incident</Link>
+                        </>
+                      ) : null}
+                    </td>
+                    <td data-review-cell="due" data-label="Created">
+                      <span className="app-table__muted">{formatCellDateTime(e.createdAt)}</span>
+                    </td>
+                    <td data-review-cell="actions" data-label="">
+                      <div className="app-table__actions">
+                        {inspectorDestination ? (
+                          <Link href={reviewHref} className="app-ghost-action" data-escalation-action-open>
+                            Open
+                          </Link>
+                        ) : null}
+                        {e.status === "OPEN" ? (
+                          <button
+                            type="button"
+                            className="app-secondary-action"
+                            disabled={busy !== null}
+                            onClick={() => act("acknowledge", e.id, "acknowledge", {})}
+                            data-escalation-action-acknowledge
+                          >
+                            Acknowledge
+                          </button>
+                        ) : null}
+                        {live ? (
+                          <>
+                            <button
+                              type="button"
+                              className="app-secondary-action"
+                              disabled={busy !== null}
+                              onClick={() => setReasonModal({ kind: "ESCALATION_REASSIGN", escalationId: e.id })}
+                              data-escalation-action-reassign
+                            >
+                              Reassign
+                            </button>
+                            <button
+                              type="button"
+                              className="app-secondary-action"
+                              disabled={busy !== null}
+                              onClick={() => setReasonModal({ kind: "ESCALATION_RESOLVE", escalationId: e.id })}
+                              data-escalation-action-resolve
+                            >
+                              Resolve
+                            </button>
+                            <button
+                              type="button"
+                              className="app-secondary-action app-secondary-action--danger"
+                              disabled={busy !== null}
+                              onClick={() => setReasonModal({ kind: "ESCALATION_SUPPRESS", escalationId: e.id })}
+                              data-escalation-action-suppress
+                            >
+                              Suppress
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Phase 2.4 — structured reason modal for reassign / resolve /
           suppress. Replaces 3 window.prompt calls. */}

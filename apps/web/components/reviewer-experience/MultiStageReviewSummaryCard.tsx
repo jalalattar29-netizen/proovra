@@ -88,155 +88,94 @@ export function MultiStageReviewSummaryCard({ teamId }: { teamId: string }) {
     { key: "resolved", label: "Resolved (recent)", tone: "success" },
   ];
 
+  // TEAM-UI-SPEC §1 — an app-panel with canonical metric cards; the tone is
+  // the shared metric tone (never an inline palette), Retry is secondary.
+  const METRIC_TONE: Record<(typeof stateChips)[number]["tone"], string> = {
+    info: "info",
+    warning: "warning",
+    high: "danger",
+    success: "success",
+  };
   return (
     <section
-      className="cc-section"
+      className="app-panel"
       data-reviewer-section="multi-stage-review-summary"
       data-multi-stage-state={state.kind}
+      aria-labelledby="multi-stage-summary-title"
     >
-      <header className="cc-section-header">
-        <h2 className="cc-section-title">Multi-stage review summary</h2>
-      </header>
-      <p
-        className="cc-section-note"
-        style={{ fontSize: 12, opacity: 0.85, marginTop: 0, marginBottom: 8 }}
-      >
-        Workflow counts by derived multi-stage review state across the last{" "}
-        {state.kind === "ready" ? state.data.summary.windowDays : 90} days.
-        Items in the “Conflict” bucket need a workspace Owner or Admin to
-        adjudicate them.
-      </p>
+      <div className="app-panel__head">
+        <h2 className="app-panel__title" id="multi-stage-summary-title">
+          Multi-stage review summary
+        </h2>
+      </div>
+      <div className="app-panel__body review-panel-stack">
+        <p className="app-field-help">
+          Workflow counts by derived multi-stage review state across the last{" "}
+          {state.kind === "ready" ? state.data.summary.windowDays : 90} days.
+          Items in the “Conflict” bucket need a workspace Owner or Admin to
+          adjudicate them.
+        </p>
 
-      {state.kind === "loading" ? (
-        <div
-          data-multi-stage-state-loading
-          style={{ fontSize: 13, opacity: 0.7 }}
-        >
-          Loading multi-stage review state…
-        </div>
-      ) : null}
+        {state.kind === "loading" ? (
+          <p className="app-field-help" data-multi-stage-state-loading>
+            Loading multi-stage review state…
+          </p>
+        ) : null}
 
-      {state.kind === "error" ? (
-        <div
-          role="alert"
-          data-multi-stage-state-error
-          style={{
-            padding: "0.45rem 0.6rem",
-            border: "1px dashed rgba(127,127,127,0.4)",
-            borderRadius: 4,
-            fontSize: 12,
-          }}
-        >
-          Multi-stage review summary unavailable.
-          <button
-            type="button"
-            onClick={() => void load()}
-            data-multi-stage-retry
-            style={{
-              marginLeft: 6,
-              fontSize: 12,
-              padding: "0.15rem 0.45rem",
-              border: "1px solid currentColor",
-              borderRadius: 4,
-              background: "transparent",
-              cursor: "pointer",
-            }}
+        {state.kind === "error" ? (
+          <div className="app-alert app-alert--warn" role="alert" data-multi-stage-state-error>
+            Multi-stage review summary unavailable.{" "}
+            <button
+              type="button"
+              className="app-secondary-action"
+              onClick={() => void load()}
+              data-multi-stage-retry
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
+
+        {state.kind === "ready" ? (
+          <div
+            className="review-metric-grid"
+            data-multi-stage-summary-tiles
+            data-multi-stage-workflows-in-window={state.data.summary.workflowsInWindow}
           >
-            Retry
-          </button>
-        </div>
-      ) : null}
-
-      {state.kind === "ready" ? (
-        <div
-          data-multi-stage-summary-tiles
-          data-multi-stage-workflows-in-window={
-            state.data.summary.workflowsInWindow
-          }
-          style={{
-            display: "grid",
-            gap: 8,
-            gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-          }}
-        >
-          {stateChips.map((chip) => {
-            const count = state.data.summary.byState[chip.key];
-            const preview = state.data.preview[chip.key];
-            const toneStyle =
-              chip.tone === "high"
-                ? {
-                    border: "1px solid rgba(239,68,68,0.55)",
-                    background: "rgba(239,68,68,0.08)",
-                  }
-                : chip.tone === "warning"
-                  ? {
-                      border: "1px solid rgba(245,158,11,0.55)",
-                      background: "rgba(245,158,11,0.08)",
-                    }
-                  : chip.tone === "success"
-                    ? {
-                        border: "1px solid rgba(34,197,94,0.45)",
-                        background: "rgba(34,197,94,0.06)",
-                      }
-                    : {
-                        border: "1px solid rgba(99,102,241,0.45)",
-                        background: "rgba(99,102,241,0.06)",
-                      };
-            return (
-              <div
-                key={chip.key}
-                data-multi-stage-summary-tile={chip.key}
-                data-multi-stage-summary-tile-count={count}
-                data-multi-stage-summary-tile-tone={chip.tone}
-                style={{
-                  padding: "0.55rem 0.7rem",
-                  borderRadius: 6,
-                  ...toneStyle,
-                }}
-              >
+            {stateChips.map((chip) => {
+              const count = state.data.summary.byState[chip.key];
+              const preview = state.data.preview[chip.key];
+              return (
                 <div
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    letterSpacing: 0.4,
-                    textTransform: "uppercase",
-                    opacity: 0.85,
-                  }}
+                  key={chip.key}
+                  className="app-metric-card"
+                  data-app-metric-tone={METRIC_TONE[chip.tone]}
+                  data-multi-stage-summary-tile={chip.key}
+                  data-multi-stage-summary-tile-count={count}
+                  data-multi-stage-summary-tile-tone={chip.tone}
                 >
-                  {chip.label}
+                  <div className="app-metric-card__value">{count}</div>
+                  <div className="app-metric-card__label">{chip.label}</div>
+                  {preview.length > 0 ? (
+                    <ul className="app-metric-card__meta review-tools" data-multi-stage-summary-preview={chip.key}>
+                      {preview.slice(0, 3).map((p) => (
+                        <li key={p.workflowId}>
+                          <Link
+                            href={`/reviewer-ops/${encodeURIComponent(p.workflowId)}`}
+                            data-multi-stage-preview-workflow={p.workflowId}
+                          >
+                            {p.workflowId.slice(0, 8)}… · {p.priority}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </div>
-                <div style={{ fontSize: 22, fontWeight: 700, marginTop: 2 }}>
-                  {count}
-                </div>
-                {preview.length > 0 ? (
-                  <ul
-                    data-multi-stage-summary-preview={chip.key}
-                    style={{
-                      listStyle: "none",
-                      padding: 0,
-                      margin: "6px 0 0",
-                      fontSize: 11,
-                      display: "grid",
-                      gap: 2,
-                    }}
-                  >
-                    {preview.slice(0, 3).map((p) => (
-                      <li key={p.workflowId}>
-                        <Link
-                          href={`/reviewer-ops/${encodeURIComponent(p.workflowId)}`}
-                          data-multi-stage-preview-workflow={p.workflowId}
-                        >
-                          {p.workflowId.slice(0, 8)}… · {p.priority}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }

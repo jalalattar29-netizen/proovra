@@ -44,7 +44,14 @@ import {
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalEmptyState } from "../../../../components/operational";
-import { Button } from "../../../../components/ui/Button";
+import { CanonicalActionButton } from "../../../../components/external-review/CanonicalActionButton";
+import { PageShell } from "../../../../components/ui/PageShell";
+// TEAM-UI-SPEC (structure) — the one review page header: icon title row, the
+// tool name, a "← Review" back link above it, no eyebrow.
+import {
+  ReviewPageHeader,
+  REVIEW_HUB_BACK,
+} from "../../../../components/reviewer-experience/ReviewPageHeader";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
@@ -127,20 +134,12 @@ function QcShell() {
   const teamId = useActiveSpaceId();
   if (!teamId) {
     return (
-      <div
-        data-qc-page
-        style={{
-          padding: 24,
-          maxWidth: 1100,
-          margin: "0 auto",
-          color: "#0f172a",
-        }}
-      >
+      <PageShell data-qc-page>
         <OperationalEmptyState
           title="Select a workspace"
           reason="Choose an active workspace before loading QC samples."
         />
-      </div>
+      </PageShell>
     );
   }
   // Keyed so a workspace switch drops every pending response and open form.
@@ -408,26 +407,23 @@ function QcWorkspace({ teamId }: { teamId: string }) {
   );
 
   return (
-    <div
+    // TEAM-UI-SPEC §1/§5 — the canonical page header (PageShell + PageHeader,
+    // as every other Review page and the Evidence Library), not a loose <h1>.
+    <PageShell
       data-qc-page
-      style={{
-        padding: 24,
-        maxWidth: 1100,
-        margin: "0 auto",
-        color: "#0f172a",
-        minWidth: 0,
-      }}
+      header={
+        <ReviewPageHeader
+          back={REVIEW_HUB_BACK}
+          title="Quality control"
+          subtitle="Sample-based review of closed workflows. Verdicts feed reviewer accuracy metrics."
+        />
+      }
     >
-      <h1 style={{ fontSize: 22, margin: "0 0 8px" }}>Quality Control</h1>
-      <p style={{ color: "#475569", fontSize: 13, marginTop: 0 }}>
-        Sample-based review of closed workflows. Verdicts feed reviewer
-        accuracy metrics.
-      </p>
       <div
+        data-qc-metrics
         style={{
-          marginBottom: 14,
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
           gap: 10,
         }}
       >
@@ -435,24 +431,13 @@ function QcWorkspace({ teamId }: { teamId: string }) {
         <QcMetric label="Rendered verdicts" value={rows ? rendered.length : "—"} />
         <QcMetric label="Loaded sample set" value={rows ? rows.length : "—"} />
       </div>
-      <div
-        style={{
-          marginBottom: 16,
-          padding: "10px 12px",
-          border: "1px solid #e2e8f0",
-          borderRadius: 10,
-          background: "#f8fafc",
-          color: "#475569",
-          fontSize: 12,
-          lineHeight: 1.55,
-        }}
-      >
+      <p className="app-field-help" data-qc-scope-note style={{ margin: 0 }}>
         QC samples are generated from closed workflows through the canonical
         approve and reject lifecycle. This page shows the sampled set that has
         reached QC, not every closed workflow in the workspace. Only the
         assigned QC reviewer can record a sample&apos;s verdict.
-      </div>
-      <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 13, marginBottom: 10 }}>
+      </p>
+      <label className="app-field-label" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
         <input
           type="checkbox"
           checked={mineOnly}
@@ -465,42 +450,43 @@ function QcWorkspace({ teamId }: { teamId: string }) {
         <div
           data-qc-banner
           role="status"
-          style={{
-            padding: "8px 12px",
-            background: "rgba(15, 23, 42, 0.06)",
-            borderRadius: 10,
-            margin: "8px 0 14px",
-            fontSize: 13,
-          }}
+          className="app-panel"
         >
-          {banner}
+          <div className="app-panel__body">{banner}</div>
         </div>
       ) : null}
       {canAssign && reviewers.kind === "denied" ? (
-        <p role="alert" style={{ fontSize: 13 }}>
+        <p role="alert" className="app-field-error">
           The reviewer list is not available to you, so QC samples cannot be assigned from here.
         </p>
       ) : null}
       {canAssign && reviewers.kind === "failed" ? (
-        <p role="alert" style={{ fontSize: 13 }}>{reviewers.message}</p>
+        <p role="alert" className="app-field-error">{reviewers.message}</p>
       ) : null}
 
       {loadError ? (
-        <div role="alert" data-qc-load-error style={{ marginBottom: 18, fontSize: 13 }}>
-          {loadError}{" "}
-          <Button size="sm" onClick={() => void refresh()}>
-            Retry
-          </Button>
+        <div role="alert" data-qc-load-error className="app-panel">
+          <div className="app-panel__body" style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+            <span style={{ flex: "1 1 220px", minWidth: 0 }}>{loadError}</span>
+            <CanonicalActionButton variant="secondary" onClick={() => void refresh()}>
+              Retry
+            </CanonicalActionButton>
+          </div>
         </div>
       ) : null}
       {rows === null && !loadError ? (
-        <p role="status" style={{ fontSize: 13 }}>Loading QC samples…</p>
+        <p role="status" className="app-field-help">Loading QC samples…</p>
       ) : null}
 
       {rows !== null && !loadError && rows.length === 0 ? (
-        <div style={{ marginBottom: 18 }}>
+        <div>
           {mineOnly ? (
-            <p>No QC samples are assigned to you.</p>
+            <OperationalEmptyState
+              kicker="Quality control"
+              title="No QC samples are assigned to you."
+              reason="Clear the filter to see every sample in this workspace."
+              emptyStateCode="review_qc_empty_mine"
+            />
           ) : (
             <OperationalEmptyState
               kicker="Quality control"
@@ -518,7 +504,10 @@ function QcWorkspace({ teamId }: { teamId: string }) {
 
       {rows !== null && !loadError ? (
         <>
-          <h2 style={h2}>Pending ({pending.length})</h2>
+          <section className="app-panel" data-qc-section="pending">
+            <div className="app-panel__head">
+              <h2 className="app-panel__title">Pending ({pending.length})</h2>
+            </div>
           <QcTable
             rows={pending}
             onVerdict={onVerdict}
@@ -539,8 +528,12 @@ function QcWorkspace({ teamId }: { teamId: string }) {
               result: assignResult,
             }}
           />
+          </section>
 
-          <h2 style={h2}>Rendered ({rendered.length})</h2>
+          <section className="app-panel" data-qc-section="rendered">
+            <div className="app-panel__head">
+              <h2 className="app-panel__title">Rendered ({rendered.length})</h2>
+            </div>
           <QcTable
             rows={rendered}
             onVerdict={() => Promise.resolve()}
@@ -551,9 +544,10 @@ function QcWorkspace({ teamId }: { teamId: string }) {
             viewerUserId={viewerUserId}
             reviewerName={reviewerName}
           />
+          </section>
         </>
       ) : null}
-    </div>
+    </PageShell>
   );
 }
 
@@ -594,23 +588,19 @@ function QcTable({
 }) {
   const toggleRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   return (
-    <div style={{ overflowX: "auto", marginBottom: 18 }}>
-      <table
-        data-qc-table
-        style={{
-          width: "100%",
-          borderCollapse: "collapse",
-          fontSize: 13,
-        }}
-      >
+    // TEAM-UI-SPEC §4 — the shared responsive cutover: `.app-table[data-responsive]`
+    // collapses each row to a labelled card at ≤ 720 px, so nothing clips at
+    // 320/390 px and there is no sideways table scroll on a phone.
+    <div className="app-table-surface--scroll">
+      <table data-qc-table className="app-table" data-responsive="">
         <thead>
-          <tr style={{ textAlign: "left", color: "#475569" }}>
-            <th style={th}>Workflow</th>
-            <th style={th}>State</th>
-            <th style={th}>QC reviewer</th>
-            <th style={th}>Verdict</th>
-            <th style={th}>Sampled at</th>
-            <th style={th}>Actions</th>
+          <tr>
+            <th scope="col">Workflow</th>
+            <th scope="col">State</th>
+            <th scope="col">QC reviewer</th>
+            <th scope="col">Verdict</th>
+            <th scope="col">Sampled at</th>
+            <th scope="col">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -630,26 +620,26 @@ function QcTable({
             return (
               <RowFragment key={r.id} sampleId={r.id}>
                 <tr data-qc-row={r.id}>
-                  <td style={td}>
+                  <td data-label="Workflow">
                     <code data-identifier>{r.workflowId.slice(0, 8)}…</code>
                   </td>
-                  <td style={td}>{identifierLabel(r.state)}</td>
-                  <td style={td} data-qc-assignee={r.id}>{reviewerName(r.qcReviewerUserId)}</td>
-                  <td style={td}>
+                  <td data-label="State">{identifierLabel(r.state)}</td>
+                  <td data-label="QC reviewer" data-qc-assignee={r.id}>{reviewerName(r.qcReviewerUserId)}</td>
+                  <td data-label="Verdict">
                     {r.verdict ? identifierLabel(r.verdict) : "—"}
                     {r.failureReason ? (
-                      <div style={{ color: "#64748b", fontSize: 11 }}>
+                      <div className="app-table__muted">
                         {QC_FAILURE_REASON_LABELS[r.failureReason] ??
                           identifierLabel(r.failureReason)}
                       </div>
                     ) : null}
                   </td>
-                  <td style={td}>{formatUserDateTime(r.sampledAtUtc)}</td>
-                  <td style={td}>
+                  <td data-label="Sampled at">{formatUserDateTime(r.sampledAtUtc)}</td>
+                  <td data-label="" style={{ flexWrap: "wrap" }}>
                     {readOnly ? (
                       "—"
                     ) : (
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      <div className="app-table__actions" style={{ flexWrap: "wrap", justifyContent: "flex-start" }}>
                         {QC_VERDICTS.map((v) => {
                           const reason =
                             verdictReason ??
@@ -657,10 +647,13 @@ function QcTable({
                               ? "Finish or cancel the failure form first."
                               : undefined);
                           return (
-                            <Button
+                            // TEAM-UI-SPEC §1/§4 — row actions are secondary.
+                            // A FAIL verdict is a judgement, not data
+                            // destruction, so it carries no destructive style;
+                            // the verdict is submitted from its own panel.
+                            <CanonicalActionButton
                               key={v}
-                              size="sm"
-                              variant={v === "FAIL" ? "destructive" : v === "PASS" ? "primary" : "secondary"}
+                              variant="secondary"
                               data-qc-verdict-btn={v}
                               disabled={isBusy || Boolean(reason)}
                               disabledReason={reason}
@@ -677,12 +670,12 @@ function QcTable({
                               }}
                             >
                               {identifierLabel(v)}
-                            </Button>
+                            </CanonicalActionButton>
                           );
                         })}
                         {assign && assignable ? (
-                          <Button
-                            size="sm"
+                          <CanonicalActionButton
+                            variant="ghost"
                             ref={(el) => {
                               toggleRefs.current[r.id] = el;
                             }}
@@ -694,12 +687,12 @@ function QcTable({
                             data-qc-assign-toggle={r.id}
                           >
                             {r.qcReviewerUserId ? "Reassign QC reviewer" : "Assign QC reviewer"}
-                          </Button>
+                          </CanonicalActionButton>
                         ) : null}
                       </div>
                     )}
                     {result ? (
-                      <p role={result.tone} data-qc-assign-result={result.tone} style={{ fontSize: 12, margin: "6px 0 0" }}>
+                      <p role={result.tone} data-qc-assign-result={result.tone} className={result.tone === "alert" ? "app-field-error" : "app-field-help"} style={{ margin: "6px 0 0" }}>
                         {result.text}
                       </p>
                     ) : null}
@@ -707,7 +700,7 @@ function QcTable({
                 </tr>
                 {isAssignOpen && assign ? (
                   <tr data-qc-assign-row={r.id}>
-                    <td colSpan={6} style={{ padding: 0 }}>
+                    <td colSpan={6} data-label="" style={{ padding: 0 }}>
                       <QcAssignForm
                         id={`qc-assign-${r.id}`}
                         sample={r}
@@ -727,7 +720,7 @@ function QcTable({
                 ) : null}
                 {isFailOpen ? (
                   <tr data-qc-fail-picker-row={r.id}>
-                    <td colSpan={6} style={{ padding: 0 }}>
+                    <td colSpan={6} data-label="" style={{ padding: 0 }}>
                       <QcFailPicker
                         sampleId={r.id}
                         busy={isBusy}
@@ -790,7 +783,7 @@ function QcAssignForm({
       onKeyDown={(e) => {
         if (e.key === "Escape") onCancel();
       }}
-      style={{ padding: 12, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "end", borderTop: "1px solid var(--border)" }}
+      style={{ padding: 12, width: "100%", boxSizing: "border-box", display: "flex", flexWrap: "wrap", gap: 8, alignItems: "end" }}
     >
       {reviewers.kind === "loading" || reviewers.kind === "idle" ? (
         <p role="status" style={{ margin: 0, fontSize: 12 }}>Loading reviewers…</p>
@@ -801,7 +794,7 @@ function QcAssignForm({
         </p>
       ) : null}
       {ready && reviewers.value.length > 0 ? (
-        <label htmlFor={fieldId} style={{ display: "grid", gap: 4, fontSize: 12, flex: "1 1 200px", minWidth: 0 }}>
+        <label htmlFor={fieldId} className="app-field-label" style={{ display: "grid", gap: 4, flex: "1 1 200px", minWidth: 0 }}>
           QC reviewer
           <AppListbox
             value={choice}
@@ -817,28 +810,23 @@ function QcAssignForm({
           />
         </label>
       ) : null}
-      <Button type="submit" size="sm" variant="primary" loading={busy} disabled={Boolean(reason)} disabledReason={reason} data-qc-assign-submit>
-        Assign
-      </Button>
-      <Button size="sm" onClick={onCancel} disabled={busy}>
+      <CanonicalActionButton variant="secondary" onClick={onCancel} disabled={busy}>
         Cancel
-      </Button>
+      </CanonicalActionButton>
+      <CanonicalActionButton type="submit" variant="primary" busy={busy} disabled={Boolean(reason)} disabledReason={reason} data-qc-assign-submit>
+        Assign
+      </CanonicalActionButton>
     </form>
   );
 }
 
 function QcMetric({ label, value }: { label: string; value: number | string }) {
   return (
-    <div
-      style={{
-        border: "1px solid #e2e8f0",
-        borderRadius: 10,
-        background: "#fff",
-        padding: "10px 12px",
-      }}
-    >
-      <div style={{ color: "#64748b", fontSize: 11 }}>{label}</div>
-      <div style={{ color: "#0f172a", fontSize: 18, fontWeight: 700 }}>{value}</div>
+    <div className="app-panel" data-qc-metric={label}>
+      <div className="app-panel__body">
+        <div className="app-field-help" style={{ margin: 0 }}>{label}</div>
+        <div className="app-table__primary" style={{ fontSize: 18 }}>{value}</div>
+      </div>
     </div>
   );
 }
@@ -894,26 +882,26 @@ function QcFailPicker({
   return (
     <div
       data-qc-fail-picker={sampleId}
+      role="group"
+      aria-label="Record QC failure"
       style={{
         padding: 12,
-        background: "rgba(220, 38, 38, 0.04)",
-        borderTop: "1px solid #fecaca",
-        borderBottom: "1px solid #fecaca",
+        width: "100%",
+        boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
         gap: 8,
       }}
     >
-      <div style={{ color: "#7f1d1d", fontSize: 12, fontWeight: 600 }}>
+      <div className="app-panel__title">
         Record QC failure — choose a reason and explain.
       </div>
       <label
+        className="app-field-label"
         style={{
           display: "flex",
           flexDirection: "column",
           gap: 4,
-          fontSize: 11,
-          color: "#0f172a",
         }}
       >
         <span>Reason</span>
@@ -929,12 +917,11 @@ function QcFailPicker({
         />
       </label>
       <label
+        className="app-field-label"
         style={{
           display: "flex",
           flexDirection: "column",
           gap: 4,
-          fontSize: 11,
-          color: "#0f172a",
         }}
       >
         <span>
@@ -948,63 +935,42 @@ function QcFailPicker({
           disabled={busy}
           rows={3}
           placeholder="Why did this sample fail QC?"
-          style={{
-            padding: "6px 8px",
-            borderRadius: 8,
-            border: "1px solid #cbd5e1",
-            background: "#fff",
-            fontSize: 13,
-            color: "#0f172a",
-            resize: "vertical",
-          }}
+          className="app-input"
+          style={{ resize: "vertical" }}
         />
       </label>
-      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-        <button
-          type="button"
+      {/* TEAM-UI-SPEC §1 — Cancel secondary + the verdict submit as the one
+          primary in this panel (a FAIL verdict is not data destruction). */}
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
+        <CanonicalActionButton
+          variant="secondary"
           data-qc-fail-cancel
           onClick={onCancel}
           disabled={busy}
-          style={cancelBtnStyle}
         >
           Cancel
-        </button>
-        <button
-          type="button"
+        </CanonicalActionButton>
+        <CanonicalActionButton
+          variant="primary"
           data-qc-fail-submit
           disabled={!canSubmit}
+          disabledReason={
+            busy
+              ? null
+              : failureReason.length === 0
+                ? "Choose a failure reason."
+                : trimmed.length === 0
+                  ? "Explain why the sample failed."
+                  : null
+          }
+          aria-busy={busy || undefined}
           onClick={() => onSubmit(failureReason, trimmed)}
-          style={failSubmitStyle(canSubmit)}
         >
           {busy ? "Submitting…" : "Record FAIL"}
-        </button>
+        </CanonicalActionButton>
       </div>
     </div>
   );
 }
 
-const th = { padding: "8px 10px", borderBottom: "1px solid #e2e8f0" } as const;
-const td = { padding: "8px 10px", borderBottom: "1px solid #f1f5f9" } as const;
-const h2 = { fontSize: 14, color: "#0f172a", marginTop: 18 } as const;
-const cancelBtnStyle = {
-  padding: "5px 10px",
-  borderRadius: 8,
-  border: "1px solid #cbd5e1",
-  background: "#fff",
-  color: "#0f172a",
-  fontWeight: 600,
-  fontSize: 11,
-  cursor: "pointer",
-} as const;
-function failSubmitStyle(enabled: boolean) {
-  return {
-    padding: "5px 10px",
-    borderRadius: 8,
-    border: "none",
-    background: enabled ? "#dc2626" : "#fecaca",
-    color: enabled ? "#fafafa" : "#7f1d1d",
-    fontWeight: 600,
-    fontSize: 11,
-    cursor: enabled ? "pointer" : "not-allowed",
-  } as const;
-}
+

@@ -195,55 +195,52 @@ export function ReviewerBulkOpsBar({
     [bulkDisabled, callerUserId, onMutated, onResult, selection, teamId],
   );
 
+  // TEAM-UI-SPEC §1/§4 — every bar control is secondary (the confirm dialog
+  // owns the one primary); the container is an inner surface, no inline palette.
   if (bulkDisabled) {
     return (
-      <div
+      <p
+        className="app-field-help"
         data-reviewer-bulk-unavailable-banner
         data-reviewer-bulk-disabled="true"
-        style={{ fontSize: 12, opacity: 0.8, margin: "0.4rem 0" }}
       >
         Bulk review actions are available to workspace owners and admins on
         the Team plan. Open each review individually from the list below.
-      </div>
+      </p>
     );
   }
 
   if (!someSelected && !noteAction) {
     return (
-      <div
+      <p
+        className="app-field-help"
         data-reviewer-bulk-hint
         data-reviewer-bulk-disabled="false"
         data-reviewer-bulk-selection-count={0}
-        style={{ fontSize: 12, opacity: 0.7, margin: "0.4rem 0" }}
       >
         Select workflows to bulk-act.
-      </div>
+      </p>
     );
   }
 
   return (
     <div
+      className="app-inner-surface"
       data-reviewer-bulk-actions-bar
       data-reviewer-bulk-disabled="false"
       data-reviewer-bulk-selected-count={selection.size}
       data-reviewer-bulk-selection-count={selection.size}
-      style={bulkBarStyle}
     >
-      <div
-        style={{
-          display: "flex",
-          gap: 6,
-          flexWrap: "wrap",
-          alignItems: "center",
-        }}
-      >
-        <strong style={{ fontSize: 12 }}>Bulk actions:</strong>
+      <div className="review-toolbar">
+        <strong className="review-toolbar__label">
+          {selection.size} selected
+        </strong>
         <button
           type="button"
+          className="app-secondary-action"
           disabled={submitting || selection.size === 0 || !callerUserId}
           onClick={() => void submitBulk("ASSIGN_TO_ME")}
           data-reviewer-bulk-action="ASSIGN_TO_ME"
-          style={bulkBtnStyle}
           title={
             callerUserId
               ? "Assign every selected workflow to your account."
@@ -254,40 +251,31 @@ export function ReviewerBulkOpsBar({
         </button>
         <button
           type="button"
+          className="app-secondary-action"
           disabled={submitting || selection.size === 0}
           onClick={() => void submitBulk("PRIORITY_HIGH")}
           data-reviewer-bulk-action="PRIORITY_HIGH"
-          style={bulkBtnStyle}
         >
-          Mark HIGH
+          Mark high
         </button>
         <button
           type="button"
+          className="app-secondary-action"
           disabled={submitting || selection.size === 0}
           onClick={() => void submitBulk("PRIORITY_NORMAL")}
           data-reviewer-bulk-action="PRIORITY_NORMAL"
-          style={bulkBtnStyle}
         >
-          Mark NORMAL
+          Mark normal
         </button>
         <button
           type="button"
+          className="app-secondary-action"
           disabled={submitting || selection.size === 0}
           onClick={() => void submitBulk("PRIORITY_URGENT")}
           data-reviewer-bulk-action="PRIORITY_URGENT"
-          style={bulkBtnStyle}
         >
-          Mark URGENT
+          Mark urgent
         </button>
-        <span
-          aria-hidden="true"
-          style={{
-            width: 1,
-            height: 22,
-            background: "rgba(127,127,127,0.3)",
-            margin: "0 4px",
-          }}
-        />
         <AppListbox
           value={noteAction ?? ""}
           options={[
@@ -298,9 +286,9 @@ export function ReviewerBulkOpsBar({
             { value: "CLOSE", label: "Close" },
           ]}
           onChange={(next) => {
-                      const v = next as BulkAction | "";
-                      setNoteAction(v === "" ? null : v);
-                    }}
+            const v = next as BulkAction | "";
+            setNoteAction(v === "" ? null : v);
+          }}
           disabled={submitting}
           ariaLabel={"Bulk action requiring a note"}
           triggerProps={{ "data-reviewer-bulk-note-action": "" }}
@@ -309,20 +297,18 @@ export function ReviewerBulkOpsBar({
           <>
             <input
               type="text"
+              className="app-input"
+              aria-label="Note for the bulk action"
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
-              placeholder="Short note (required for escalate/pause/request-info)"
+              placeholder="Short note (required for escalate, pause and request info)"
               data-reviewer-bulk-note-input
               disabled={submitting}
               maxLength={1000}
-              style={{
-                fontSize: 12,
-                flex: "1 1 220px",
-                padding: "0.25rem 0.4rem",
-              }}
             />
             <button
               type="button"
+              className="app-secondary-action"
               disabled={
                 submitting ||
                 selection.size === 0 ||
@@ -334,9 +320,9 @@ export function ReviewerBulkOpsBar({
               onClick={() => {
                 // PRO-R2-11 — a bulk move of every selected review asks first.
                 void confirmAction({
-                  title: `Apply ${noteAction} to ${selection.size} reviews?`,
+                  title: `Apply ${NOTE_ACTION_LABEL[noteAction]} to ${selection.size} reviews?`,
                   description: "The action is applied to every selected review.",
-                  confirmLabel: `Apply ${noteAction}`,
+                  confirmLabel: `Apply ${NOTE_ACTION_LABEL[noteAction]}`,
                   tone: noteAction === "CLOSE" ? "danger" : "warning",
                 }).then((ok) => {
                   if (ok) void submitBulk(noteAction, noteText);
@@ -344,15 +330,15 @@ export function ReviewerBulkOpsBar({
               }}
               data-reviewer-bulk-action="WITH_NOTE_APPLY"
               data-reviewer-bulk-note-action-target={noteAction}
-              style={bulkBtnPrimaryStyle}
             >
-              Apply {noteAction}
+              Apply {NOTE_ACTION_LABEL[noteAction]}
             </button>
           </>
         ) : null}
-        <span style={{ flex: 1 }} />
+        <span className="review-toolbar__spacer" />
         <button
           type="button"
+          className="app-ghost-action"
           onClick={() => {
             onClearSelection();
             setLastResult(null);
@@ -360,35 +346,27 @@ export function ReviewerBulkOpsBar({
           }}
           disabled={submitting || selection.size === 0}
           data-reviewer-bulk-action="CLEAR_SELECTION"
-          style={bulkBtnStyle}
         >
           Clear
         </button>
       </div>
       {error ? (
-        <div
-          role="alert"
-          data-reviewer-bulk-error
-          style={{ marginTop: 6, fontSize: 12, color: "#d44" }}
-        >
+        <p role="alert" className="app-field-error review-toolbar" data-reviewer-bulk-error>
           {error}
-        </div>
+        </p>
       ) : null}
       {lastResult ? (
         <div
+          className="app-field-help review-toolbar"
           data-reviewer-bulk-last-result
           data-reviewer-bulk-last-total={lastResult.total}
           data-reviewer-bulk-last-succeeded={lastResult.succeeded}
           data-reviewer-bulk-last-failed={lastResult.failed}
-          style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}
         >
           Last bulk result: {lastResult.succeeded}/{lastResult.total} succeeded
           {lastResult.failed > 0 ? `, ${lastResult.failed} failed` : ""}.
           {lastResult.failed > 0 && lastResult.items.length > 0 ? (
-            <ul
-              data-reviewer-bulk-last-failures
-              style={{ margin: "4px 0 0", paddingLeft: "1.2rem", fontSize: 12 }}
-            >
+            <ul data-reviewer-bulk-last-failures>
               {lastResult.items
                 .filter((i) => !i.ok)
                 .map((i) => (
@@ -409,25 +387,13 @@ export function ReviewerBulkOpsBar({
   );
 }
 
-const bulkBarStyle: React.CSSProperties = {
-  padding: "0.5rem 0.6rem",
-  border: "1px solid rgba(99,102,241,0.4)",
-  borderRadius: 6,
-  background: "rgba(99,102,241,0.06)",
-  margin: "0.5rem 0",
-};
-
-const bulkBtnStyle: React.CSSProperties = {
-  fontSize: 12,
-  padding: "0.25rem 0.55rem",
-  border: "1px solid currentColor",
-  borderRadius: 4,
-  background: "transparent",
-  cursor: "pointer",
-};
-
-const bulkBtnPrimaryStyle: React.CSSProperties = {
-  ...bulkBtnStyle,
-  background: "rgba(99,102,241,0.18)",
-  fontWeight: 600,
+const NOTE_ACTION_LABEL: Record<BulkAction, string> = {
+  ASSIGN_TO_ME: "assign to me",
+  PRIORITY_HIGH: "high priority",
+  PRIORITY_NORMAL: "normal priority",
+  PRIORITY_URGENT: "urgent priority",
+  ESCALATE: "escalate",
+  PAUSE: "pause",
+  REQUEST_INFO: "request info",
+  CLOSE: "close",
 };

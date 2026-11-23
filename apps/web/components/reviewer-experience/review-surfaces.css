@@ -1,0 +1,301 @@
+/*
+ * REVIEW SURFACES — scoped refinements over the canonical primitives
+ * (TEAM-UI-SPEC §3 navigation, §4 tables and mobile rows).
+ *
+ * Nothing here introduces a palette. The tables are `.app-table` inside an
+ * `.app-table-surface`, and below 720 px they ride the SHARED card cutover
+ * (`.app-table[data-responsive]`, app-primitives.css). The rules below only
+ * arrange that cutover into the compact two-line review row the spec names:
+ *
+ *   line 1  evidence ref (link)        priority Badge
+ *   line 2  status Badge               due date
+ *           Open (ghost) + the one secondary
+ *
+ * The selected row is Evidence Library's selected-row style: the canonical
+ * selection wash plus the accent edge, identical geometry either way.
+ */
+
+/* ---- Selected row (Evidence Library parity) ----------------------------- */
+.review-rows tbody tr[data-selected="true"],
+.review-rows tbody tr[data-review-row-selected="true"] {
+  background: var(--surface-translucent-selected);
+  /* Evidence Library marks a selected row with the selection wash and an
+     accent edge (its rows are bordered cards: border-color). Table rows have
+     no border of their own, so the edge is drawn at the leading side only —
+     a full ring on every selected row read as a stack of heavy frames. */
+  box-shadow: inset 3px 0 0 var(--accent-500);
+}
+
+.review-rows .app-table__actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.review-rows__ref {
+  font-weight: 650;
+  color: var(--app-ink-heading);
+}
+
+.review-rows__outcome {
+  font-size: 12px;
+}
+
+/* ---- Compact review row (≤ 720 px) --------------------------------------- */
+@media (max-width: 720px) {
+  .app-table[data-responsive].review-rows tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "ref priority"
+      "status due"
+      "actions actions";
+    gap: 6px 12px;
+    align-items: center;
+  }
+  .app-table[data-responsive].review-rows[data-review-selectable="true"] tbody tr {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "check ref priority"
+      "check status due"
+      "check actions actions";
+  }
+  /* /review/queues adds line 3 (assignee) and, only when scored, the signals. */
+  .app-table[data-responsive].review-rows[data-reviewer-queue-table] tbody tr {
+    grid-template-areas:
+      "ref priority"
+      "status due"
+      "assignee assignee"
+      "signals signals"
+      "actions actions";
+  }
+  .app-table[data-responsive].review-rows[data-reviewer-queue-table][data-review-selectable="true"] tbody tr {
+    grid-template-areas:
+      "check ref priority"
+      "check status due"
+      "check assignee assignee"
+      "check signals signals"
+      "check actions actions";
+  }
+  .app-table[data-responsive].review-rows tbody td {
+    padding: 0;
+    min-width: 0;
+  }
+  /* The compact row is self-describing: no column labels. */
+  .app-table[data-responsive].review-rows tbody td[data-review-cell]::before {
+    content: none;
+  }
+  .review-rows td[data-review-cell="check"] { grid-area: check; align-self: start; }
+  .review-rows td[data-review-cell="ref"] { grid-area: ref; }
+  .review-rows td[data-review-cell="priority"] { grid-area: priority; justify-content: flex-end; }
+  .review-rows td[data-review-cell="status"] { grid-area: status; }
+  .review-rows td[data-review-cell="due"] { grid-area: due; justify-content: flex-end; }
+  .review-rows td[data-review-cell="actions"] { grid-area: actions; }
+  .review-rows td[data-review-cell="assignee"] { grid-area: assignee; }
+  .review-rows td[data-review-cell="signals"] { grid-area: signals; }
+  .review-rows td[data-review-cell="full"] { grid-column: 1 / -1; }
+  /* Columns that are context on a desktop row, not the compact row (the
+     workflow reference, the stage). Scoped as tightly as the shared
+     `.app-table[data-responsive] tbody td { display: flex }` cutover so it
+     actually wins: the looser selector lost and the compact queue card
+     showed the raw workflow id. Signals show only when the row was scored. */
+  .app-table[data-responsive].review-rows tbody td[data-review-cell="extra"],
+  .app-table[data-responsive].review-rows tbody td[data-review-signals-scored="false"] {
+    display: none;
+  }
+}
+
+/* ---- Review tools (My reviews, bottom panel) ----------------------------- */
+.review-tools {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.review-tools__row {
+  display: grid;
+  gap: 2px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.review-tools__row:first-child { padding-top: 0; }
+.review-tools__row:last-child { border-bottom: none; padding-bottom: 0; }
+.review-tools__row .app-field-help { margin: 0; }
+
+/* ---- Bulk bar / toolbars --------------------------------------------------- */
+.review-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+}
+.review-toolbar__spacer { flex: 1 1 auto; }
+/* The bulk bar's one "Code verdict" listbox + Apply, kept together. */
+.review-bulk-code {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+.review-toolbar .app-input { flex: 1 1 220px; width: auto; }
+/* The listbox keeps a fixed working width so Apply stays beside it. */
+.review-bulk-code .app-listbox { flex: 0 1 220px; width: 220px; }
+@media (max-width: 520px) {
+  .review-bulk-code { flex-wrap: wrap; }
+  .review-bulk-code .app-listbox { flex: 1 1 100%; width: 100%; }
+}
+
+/* ---- Panel stack ----------------------------------------------------------- */
+.review-panel-stack {
+  display: grid;
+  gap: 16px;
+}
+.review-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.review-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+.review-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+.review-check-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 0;
+}
+
+/* A destination that needs a workspace switch reads as a text link. */
+.review-destination-switch {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--ink-link);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.review-destination-switch:disabled { cursor: progress; }
+
+/* QC sample rows: chips wrap on a phone instead of widening the page. */
+.review-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+.review-sample-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+.review-sample-list > li {
+  border-top: 1px solid var(--border-subtle);
+  padding: 10px 0;
+  display: grid;
+  gap: 6px;
+}
+
+/* Reviewer picker rows: identity on the left, Select on the right. */
+.review-picker__list { padding: 10px 12px; max-height: 48vh; overflow-y: auto; }
+.review-picker__empty { padding: 12px; margin: 0; }
+.review-picker__row { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+
+.review-hub-nav [data-review-hub-subnav] { margin-top: 4px; }
+
+/* Panels mounted after the console shell keep the page rhythm. */
+.review-tools-panel,
+.review-qc-panel { margin-top: 16px; }
+.review-toolbar__label { font-size: 12.5px; font-weight: 600; color: var(--app-ink-label); }
+.review-toolbar--flush { padding: 0; }
+
+/* ---- ReviewPageHeader (structure parity with Evidence Detail) ------------
+   The back link sits above the title, where Evidence Detail places its
+   breadcrumb; the ghost action's own padding is pulled back so the arrow
+   lines up with the title icon's edge. */
+.review-page-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-inline-size: 0;
+}
+.review-page-header__back {
+  display: flex;
+  margin-inline-start: -10px;
+}
+.review-page-header .app-title-row {
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ---- Inspector "Next step" strip (Evidence Detail "What needs attention")
+   Full width, one row: title + muted blocked reason on the start side, the
+   primary and the secondary actions inline after it; wraps on a phone. */
+.review-next-step {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  padding: 16px 20px;
+  min-inline-size: 0;
+}
+.review-next-step__lead {
+  display: grid;
+  gap: 4px;
+  flex: 0 1 auto;
+  min-inline-size: 0;
+}
+.review-next-step__title {
+  margin: 0;
+}
+.review-next-step__note {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.review-next-step__actions,
+.review-next-step__group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+}
+.review-next-step__actions {
+  flex: 1 1 280px;
+}
+
+/* ---- Inspector layout: decision (wider) | assignment + linked evidence ---- */
+.review-inspector-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  min-inline-size: 0;
+}
+.review-inspector-columns__main,
+.review-inspector-columns__side {
+  display: grid;
+  gap: 16px;
+  min-inline-size: 0;
+}
+.review-inspector-columns__main > *,
+.review-inspector-columns__side > * {
+  margin-block: 0;
+  min-inline-size: 0;
+}
+@media (max-width: 1100px) {
+  .review-inspector-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

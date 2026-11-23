@@ -18,8 +18,9 @@
 import { roleHasPermission } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
-import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
-import { Card } from "../../../../components/ui/Card";
+import { PageShell } from "../../../../components/ui/PageShell";
+// TEAM-UI-SPEC (structure) — the one review page header (icon title row, no eyebrow).
+import { ReviewPageHeader } from "../../../../components/reviewer-experience/ReviewPageHeader";
 import { useActiveSpaceId, usePlatformContext } from "../../../../lib/platform-context";
 import { actorRoleIn } from "../../../../lib/platform-context/actorRole";
 import { ReviewHubNav } from "../../../../components/reviewer-experience/ReviewHubNav";
@@ -50,8 +51,7 @@ function ReviewSettingsInner() {
     <PageShell
       data-review-settings-page
       header={
-        <PageHeader
-          eyebrow="Review"
+        <ReviewPageHeader
           title="Review settings"
           subtitle="Deadlines and safeguards for reviews in this workspace."
         />
@@ -64,25 +64,28 @@ function ReviewSettingsInner() {
         <p className="app-field-help">Loading workspace…</p>
       )}
       {criteria || schemas ? (
-        <PageSection
-          title="Review content"
-          description="What reviewers check against, and the fields they record."
-        >
-          <Card>
-            <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 6 }}>
-              {criteria ? (
-                <li>
-                  <ReviewDestinationLink destination={criteria} testId="review-settings-criteria" />
-                </li>
-              ) : null}
-              {schemas ? (
-                <li>
-                  <ReviewDestinationLink destination={schemas} testId="review-settings-schemas" />
-                </li>
-              ) : null}
-            </ul>
-          </Card>
-        </PageSection>
+        // TEAM-UI-SPEC §1 — an app-panel of link rows (name + purpose).
+        <section className="app-panel" aria-labelledby="review-settings-content-title">
+          <div className="app-panel__head">
+            <h2 className="app-panel__title" id="review-settings-content-title">
+              Review content
+            </h2>
+          </div>
+          <ul className="app-panel__body review-tools">
+            {criteria ? (
+              <li className="review-tools__row">
+                <ReviewDestinationLink destination={criteria} testId="review-settings-criteria" />
+                <p className="app-field-help">What reviewers check evidence against.</p>
+              </li>
+            ) : null}
+            {schemas ? (
+              <li className="review-tools__row">
+                <ReviewDestinationLink destination={schemas} testId="review-settings-schemas" />
+                <p className="app-field-help">The fields reviewers record on each review.</p>
+              </li>
+            ) : null}
+          </ul>
+        </section>
       ) : null}
     </PageShell>
   );

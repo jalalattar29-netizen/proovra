@@ -3,8 +3,11 @@
 /**
  * Structured reviewer reason dialog.
  *
- * Collects the operator-typed reason for reviewer actions (request info,
- * reject, pause, record response, escalation reassign / resolve / suppress).
+ * Collects the operator-typed reason for reviewer actions (pause, record
+ * response, escalation reassign / resolve / suppress).
+ *
+ * TEAM-UI-SPEC §2 — Reject and Request information are no longer dialogs: a
+ * verdict is entered only in the inspector's "Record decision" panel.
  *
  * Built on the canonical dialog (`components/cases-experience/matter-modals/
  * Modal.tsx`: `.app-dialog*`, portal, focus trap, focus restore, Escape). It
@@ -28,8 +31,6 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { Modal } from "../../../../components/cases-experience/matter-modals/Modal";
 
 export type ReviewerReasonKind =
-  | "REQUEST_INFO"
-  | "REJECT"
   | "PAUSE"
   | "RECORD_RESPONSE"
   | "ESCALATION_REASSIGN"
@@ -52,25 +53,6 @@ type ReviewerReasonModalConfig = {
 };
 
 const CONFIG: Record<ReviewerReasonKind, ReviewerReasonModalConfig> = {
-  REQUEST_INFO: {
-    kind: "REQUEST_INFO",
-    title: "Request more information",
-    description:
-      "Explain what additional information is needed. The review waits for information until you record the response.",
-    fieldLabel: "Note to submitter",
-    placeholder: "For example: please share the capture device's chain-of-custody log.",
-    submitLabel: "Send request",
-  },
-  REJECT: {
-    kind: "REJECT",
-    title: "Reject this review (internal)",
-    description:
-      "Record why the review is rejected. This is an internal review decision visible to your workspace and recorded in the audit log. It is not a public statement about the evidence.",
-    fieldLabel: "Rejection note",
-    placeholder: "For example: the integrity check failed; the submitter should capture again.",
-    submitLabel: "Reject (internal)",
-    destructive: true,
-  },
   PAUSE: {
     kind: "PAUSE",
     title: "Pause this review",
@@ -256,7 +238,7 @@ export function ReviewerReasonModal({
         </label>
         <textarea
           id={inputId}
-          className="app-textarea"
+          className="app-input app-textarea"
           value={value}
           onChange={(e) => {
             setValue(e.target.value.slice(0, MAX_REASON_LEN + 1));
@@ -285,7 +267,8 @@ export function ReviewerReasonModal({
           <span
             data-reviewer-reason-counter
             aria-live="polite"
-            style={counterOver ? { color: "var(--danger-ink, #B23442)" } : undefined}
+            className={counterOver ? "app-field-error" : undefined}
+            style={counterOver ? { margin: 0 } : undefined}
           >
             {value.length}/{MAX_REASON_LEN} characters
           </span>
@@ -295,9 +278,9 @@ export function ReviewerReasonModal({
           <p
             id={errorId}
             role="alert"
-            className="app-alert app-alert--danger"
+            className="app-field-error"
             data-reviewer-reason-error
-            style={{ margin: "4px 0 0" }}
+            style={{ margin: "4px 0 0", overflowWrap: "anywhere" }}
           >
             {shownError}
           </p>

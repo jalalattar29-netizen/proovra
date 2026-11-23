@@ -121,13 +121,29 @@ const EXPECTED_CONSUMERS = [
   // styles with their own ink; they now name the one authority like every
   // other field label in the product.
   "app/(app)/operations/reliability/page.tsx",
+  // TEAM-UI-SPEC (2026-11-23) — the advanced Team review pages and the External
+  // Review panel/picker label their fields with the one authority (QC fail
+  // form, disagreement resolution, reviewer workspace reasons, External Review
+  // issue form and scope search). The review-layout gate opens these pages.
+  "app/(app)/review/disagreements/page.tsx",
+  "app/(app)/review/external/page.tsx",
+  "app/(app)/review/qc/page.tsx",
+  "app/(app)/review/workspace/page.tsx",
+  "components/external-review/ExternalReviewSubjectPanel.tsx",
+  "components/external-review/ReviewScopePicker.tsx",
   // TEAM-SPEC (2026-11-23) — the review inspector's decision form, the
   // adjudication panel and the canonical-Modal reason dialog (Reject, Pause,
   // Request info, Record response, escalation actions) label their fields with
   // the one authority instead of inline dark-theme styles. The review-layout
   // browser gate opens these dialogs and measures them.
-  "app/(app)/reviewer-ops/[reviewId]/_components/AdjudicationPanel.tsx",
+  // TEAM-UI-SPEC round 3 §2 — the ONE decision panel (verdict + adjudication
+  // in one form; AdjudicationPanel folded into it), the inspector's own
+  // dialogs (reassign, escalate, archive) and the coding-schema card. The
+  // review-layout gate opens the inspector dialogs and measures them.
+  "app/(app)/reviewer-ops/[reviewId]/_components/DecisionPanel.tsx",
+  "app/(app)/reviewer-ops/[reviewId]/_components/InspectorDialogs.tsx",
   "app/(app)/reviewer-ops/[reviewId]/page.tsx",
+  "app/(app)/reviewer-ops/components/CodingSchemaBindingPanel.tsx",
   "app/(app)/reviewer-ops/components/ReviewerReasonModal.tsx",
   // The platform-admin evidence-credit grant. Its three fields carry the
   // canonical label, and the contrast of that label ON THE ADMIN SHELL is
@@ -177,6 +193,15 @@ const EXPECTED_CONSUMERS = [
   // measured in e2e/evidence-detail-layout/verification-page-controls.spec.ts.
   "components/evidence-outputs/ReviewerSharesPanel.tsx",
   "components/search/SearchAuditLogPanel.tsx",
+  // TEAM-UI-SPEC round 3 §1 — the review hub's own forms label their fields
+  // with the one authority: the shared reviewer picker (console + queues),
+  // the console's saved-view form, the Review settings SLA policy form, and
+  // the SLA page's analytics sub-headings. The review-layout browser gate
+  // opens the hub pages and measures them.
+  "app/(app)/reviewer-ops/sla/page.tsx",
+  "components/reviewer-experience/ReviewerConsole.tsx",
+  "components/reviewer-experience/ReviewerPickerModal.tsx",
+  "components/reviewer-experience/ReviewerSlaPolicyPanel.tsx",
 ];
 
 test("the consumer inventory is exactly what the browser gates cover", () => {

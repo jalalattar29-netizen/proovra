@@ -190,6 +190,33 @@ describe("Escalations page", () => {
     expect(document.querySelector(`[data-escalation-row="${ESC}"]`)!.getAttribute("data-escalation-highlighted")).toBe("true");
   });
 
+  // TEAM-UI-SPEC §1 / §4 (round 3).
+  it("rows: canonical controls (secondary actions, Suppress as the danger entry point), compact mobile markup, no ui-button", async () => {
+    responder = (p) =>
+      p.startsWith("/v1/reviewer-ops/escalations")
+        ? { status: 200, body: { escalations: [escalation(ESC, "OPEN")], total: 1 } }
+        : null;
+    mount(<EscalationsPage />);
+    await settle();
+    expect(document.querySelector(".ui-button")).toBeNull();
+    const tr = document.querySelector(`[data-escalation-row="${ESC}"]`) as HTMLElement;
+    expect(tr.tagName).toBe("TR");
+    const table = tr.closest("table")!;
+    expect(table.classList.contains("app-table")).toBe(true);
+    expect(table.hasAttribute("data-responsive")).toBe(true);
+    for (const cell of ["ref", "priority", "status", "due", "actions"]) {
+      expect(tr.querySelector(`[data-review-cell="${cell}"]`), cell).not.toBeNull();
+    }
+    expect(tr.querySelector("[data-escalation-action-acknowledge]")!.className).toBe("app-secondary-action");
+    expect(tr.querySelector("[data-escalation-action-reassign]")!.className).toBe("app-secondary-action");
+    expect(tr.querySelector("[data-escalation-action-resolve]")!.className).toBe("app-secondary-action");
+    expect(tr.querySelector("[data-escalation-action-suppress]")!.className).toBe(
+      "app-secondary-action app-secondary-action--danger",
+    );
+    expect(tr.querySelectorAll(".app-primary-action").length).toBe(0);
+    expect(tr.querySelector("[data-escalation-action-open]")!.className).toBe("app-ghost-action");
+  });
+
   it("filter-aware empty copy for every filter", () => {
     const cases: Array<[Parameters<typeof NoEscalationsEmptyState>[0], string]> = [
       [{ filter: "OPEN" }, "No open escalations."],
@@ -271,6 +298,10 @@ describe("SLA page", () => {
     expect(stage.textContent).toBe("Escalated (manual decision)");
     expect(stage.getAttribute("title")).toMatch(/open, acknowledged or reassigned/);
     expect(document.body.textContent).not.toMatch(/\bSla\b/);
+    // TEAM-UI-SPEC §1 — panels and metric cards, no legacy button.
+    expect(document.querySelector(".ui-button")).toBeNull();
+    expect(document.querySelectorAll("section.app-panel").length).toBeGreaterThan(0);
+    expect(document.querySelectorAll(".app-metric-card").length).toBeGreaterThan(0);
   });
 
   it("a failed dashboard read shows an error with Retry — not Loading… forever", async () => {

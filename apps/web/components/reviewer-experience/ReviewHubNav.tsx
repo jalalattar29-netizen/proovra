@@ -24,6 +24,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import { useReviewDestinationResolver, type ReviewDestination } from "./reviewDestination";
+import "./review-surfaces.css";
 
 export type ReviewHubTabId = "my-reviews" | "queues" | "monitoring" | "settings";
 export type ReviewHubMonitoringView = "sla" | "escalations";
@@ -79,28 +80,57 @@ export function useReviewHubTabs(): {
 }
 
 /**
- * TEAM-SPEC R2 — the advanced review tools (Reviewer workspace, QC,
- * disagreements, metrics, coding schemas) and External Review. They are not
- * hub responsibilities of their own, so they are a quiet secondary row on
- * My reviews — each link rendered only where its route opens for this actor
- * (the same resolver as the tabs), never a link into a refusal.
+ * TEAM-SPEC R2 / TEAM-UI-SPEC §3 — the advanced review tools (Reviewer
+ * workspace, QC, disagreements, metrics, coding schemas) and External Review.
+ * They are not hub responsibilities of their own, so they are NOT a row under
+ * the hub tabs: My reviews lists them at the bottom in a "Review tools" panel
+ * (`ReviewToolsPanel`), each row rendered only where its route opens for this
+ * actor (the same resolver as the tabs), never a link into a refusal.
  */
-export function useMoreReviewTools(): ReadonlyArray<Extract<ReviewDestination, { kind: "link" }>> {
+const REVIEW_TOOLS: ReadonlyArray<{ routeId: string; label: string; purpose: string }> = [
+  { routeId: "workspace.review_workspace", label: "Reviewer workspace", purpose: "Receive, review, code and decide evidence workflows." },
+  { routeId: "workspace.review_qc", label: "Quality control", purpose: "Sample-based checks of closed reviews." },
+  { routeId: "workspace.review_disagreements", label: "Disagreements", purpose: "Reviews where reviewers reached different outcomes." },
+  { routeId: "workspace.review_metrics", label: "Reviewer metrics", purpose: "Reviewer activity over the last seven days." },
+  { routeId: "workspace.coding_schemas", label: "Coding schemas", purpose: "Structured templates reviewers code against." },
+  { routeId: "workspace.review_external", label: "External review", purpose: "Invitations and access for reviewers outside the workspace." },
+];
+
+export type ReviewTool = Extract<ReviewDestination, { kind: "link" }> & { purpose: string };
+
+export function useReviewTools(): ReadonlyArray<ReviewTool> {
   const resolve = useReviewDestinationResolver();
-  const items: Array<[string, string]> = [
-    ["workspace.review_workspace", "Reviewer workspace"],
-    ["workspace.review_qc", "Quality control"],
-    ["workspace.review_disagreements", "Disagreements"],
-    ["workspace.review_metrics", "Reviewer metrics"],
-    ["workspace.coding_schemas", "Coding schemas"],
-    ["workspace.review_external", "External review"],
-  ];
-  const out: Array<Extract<ReviewDestination, { kind: "link" }>> = [];
-  for (const [id, label] of items) {
-    const d = asLink(resolve(id, { label }));
-    if (d) out.push(d);
+  const out: ReviewTool[] = [];
+  for (const t of REVIEW_TOOLS) {
+    const d = asLink(resolve(t.routeId, { label: t.label }));
+    if (d) out.push({ ...d, purpose: t.purpose });
   }
   return out;
+}
+
+/** The bottom "Review tools" panel on My reviews; nothing when no tool opens. */
+export function ReviewToolsPanel() {
+  const tools = useReviewTools();
+  if (tools.length === 0) return null;
+  return (
+    <section className="app-panel review-tools-panel" data-review-tools-panel aria-labelledby="review-tools-title">
+      <div className="app-panel__head">
+        <h2 className="app-panel__title" id="review-tools-title">
+          Review tools
+        </h2>
+      </div>
+      <ul className="app-panel__body review-tools">
+        {tools.map((t) => (
+          <li key={t.href} className="review-tools__row" data-review-tool={t.href}>
+            <Link href={t.href} className="review-rows__ref" data-review-tool-link={t.href}>
+              {t.label}
+            </Link>
+            <p className="app-field-help">{t.purpose}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }
 
 export function ReviewHubNav({
@@ -112,7 +142,6 @@ export function ReviewHubNav({
   monitoringView?: ReviewHubMonitoringView;
 }) {
   const { tabs, monitoring } = useReviewHubTabs();
-  const moreTools = useMoreReviewTools();
   // A single tab is not navigation: render nothing rather than a lone pill.
   if (tabs.length < 2 && !(active === "monitoring" && monitoring.sla && monitoring.escalations)) {
     return null;
@@ -137,26 +166,11 @@ export function ReviewHubNav({
           })}
         </nav>
       ) : null}
-      {active === "my-reviews" && moreTools.length > 0 ? (
-        <nav
-          aria-label="More review tools"
-          data-review-hub-more-tools
-          style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px 14px", marginTop: 8, fontSize: 13 }}
-        >
-          <span className="app-field-help" style={{ margin: 0 }}>More review tools:</span>
-          {moreTools.map((d) => (
-            <Link key={d.href} href={d.href} className="app-ghost-action" data-review-hub-more-tool={d.href}>
-              {d.label}
-            </Link>
-          ))}
-        </nav>
-      ) : null}
       {active === "monitoring" && monitoring.sla && monitoring.escalations ? (
         <nav
           className="app-tabs"
           aria-label="Monitoring"
           data-review-hub-subnav="monitoring"
-          style={{ marginTop: 4 }}
         >
           {(
             [

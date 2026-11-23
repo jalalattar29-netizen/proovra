@@ -17,6 +17,11 @@
  *     Escalations page's "Active" filter — so the two numbers can differ.
  *   - a failed dashboard read renders an error with Retry, never an endless
  *     "Loading…".
+ *
+ * TEAM-UI-SPEC §1/§3 (round 3): cards are `app-panel`, figures are
+ * `app-metric-card` with the semantic metric tone, tables are `.app-table`
+ * inside a scrolling `.app-table-surface`, and "View workspace health" lives
+ * here (moved from the My reviews header) through `useHealthDestination`.
  */
 
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
@@ -31,15 +36,13 @@ import {
   RuntimeStatusBanner,
 } from "../../../../components/operational";
 import { formatCellDateTime } from "../../../../lib/date";
-import {
-  PageShell,
-  PageHeader,
-  PageSection,
-} from "../../../../components/ui/PageShell";
-import { Card } from "../../../../components/ui/Card";
+import Link from "next/link";
+import { PageShell } from "../../../../components/ui/PageShell";
+// TEAM-UI-SPEC (structure) — the one review page header (icon title row, no eyebrow).
+import { ReviewPageHeader } from "../../../../components/reviewer-experience/ReviewPageHeader";
 import { Badge } from "../../../../components/ui/Badge";
-import { EmptyState } from "../../../../components/ui/EmptyState";
-import { Button } from "../../../../components/ui/Button";
+import { useHealthDestination } from "../../../../lib/navigation/healthDestination";
+import "../../../../components/reviewer-experience/review-surfaces.css";
 import { escalationReasonLabel } from "../../../../lib/labels/governanceReviewLabels";
 import { ReviewHubNav } from "../../../../components/reviewer-experience/ReviewHubNav";
 import { useReviewDestination } from "../../../../components/reviewer-experience/reviewDestination";
@@ -149,6 +152,14 @@ function SlaDashboardPageInner() {
   const policyDestination = useReviewDestination("review.settings", {
     label: "Review settings",
   });
+  // ADM-013 — the ONE authority for where "check the health" goes for THIS
+  // actor (label with href; null → no link). TEAM-UI-SPEC §3 moved it here.
+  const healthDestination = useHealthDestination();
+  const healthLink = healthDestination ? (
+    <Link href={healthDestination.href} className="app-ghost-action" data-sla-health-link>
+      {healthDestination.label}
+    </Link>
+  ) : undefined;
   const [dashboardAttempt, setDashboardAttempt] = useState(0);
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -240,11 +251,7 @@ function SlaDashboardPageInner() {
         width="full"
         data-sla-loading
         header={
-          <PageHeader
-            eyebrow="Reviewer operations"
-            title="SLA monitoring"
-            subtitle="Loading workspace…"
-          />
+          <ReviewPageHeader title="SLA monitoring" subtitle="Loading workspace…" />
         }
       />
     );
@@ -254,17 +261,14 @@ function SlaDashboardPageInner() {
       <PageShell
         width="full"
         header={
-          <PageHeader
-            eyebrow="Review"
-            title="SLA monitoring"
-          />
+          <ReviewPageHeader title="SLA monitoring" secondaryActions={healthLink} />
         }
       >
         <ReviewHubNav active="monitoring" monitoringView="sla" />
         {reminders && reminders.length > 0 ? (
-        <PageSection>
-          <Card padding="comfortable">
+        <section className="app-panel app-panel__body review-panel-stack">
             <h3 className="app-panel__title">Reminders</h3>
+            <div className="app-table-surface app-table-surface--scroll">
             <table className="app-table">
               <thead>
                 <tr>
@@ -283,26 +287,24 @@ function SlaDashboardPageInner() {
                 ))}
               </tbody>
             </table>
-          </Card>
-        </PageSection>
+            </div>
+        </section>
       ) : null}
 
       {error ? (
-          <Card variant="status" tone="risk" role="alert" data-sla-dashboard-error>
-            <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-              <span>{error}</span>
-              <Button
-                variant="secondary"
-                size="sm"
-                data-sla-dashboard-retry
-                onClick={() => setDashboardAttempt((n) => n + 1)}
-              >
-                Retry
-              </Button>
-            </div>
-          </Card>
+          <div className="app-alert app-alert--danger" role="alert" data-sla-dashboard-error>
+            {error}{" "}
+            <button
+              type="button"
+              className="app-secondary-action"
+              data-sla-dashboard-retry
+              onClick={() => setDashboardAttempt((n) => n + 1)}
+            >
+              Retry
+            </button>
+          </div>
         ) : (
-          <EmptyState variant="inline" title="Loading SLA dashboard…" />
+          <p className="app-field-help" aria-live="polite">Loading SLA dashboard…</p>
         )}
       </PageShell>
     );
@@ -312,22 +314,21 @@ function SlaDashboardPageInner() {
     <PageShell
       width="full"
       header={
-        <PageHeader
-          eyebrow="Review"
+        <ReviewPageHeader
           title="SLA monitoring"
           subtitle={
             <span data-sla-dashboard-intro>
-              Read-only operations dashboard reflecting current SLA pressure
-              across the workspace — backlog, overdue reviews, reviewer
-              workload and escalation hotspots. Review deadlines are set in{" "}
+              Read-only operations dashboard of current SLA pressure: backlog,
+              overdue reviews and reviewer workload. Review deadlines are set in{" "}
               {policyDestination ? (
                 <ReviewDestinationLink destination={policyDestination} />
               ) : (
                 "the workspace's review settings"
               )}
-              . No private review notes are shown.
+              .
             </span>
           }
+          secondaryActions={healthLink}
         />
       }
     >
@@ -338,16 +339,9 @@ function SlaDashboardPageInner() {
           status lives in the header indicator. */}
       <RuntimeStatusBanner requires={["reviewAutomation"]} />
 
-      <PageSection>
-        <Card padding="comfortable">
+      <section className="app-panel app-panel__body review-panel-stack">
         <h3 className="app-panel__title">Freshness and runtime</h3>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: 10,
-          }}
-        >
+        <div className="review-metric-grid">
           <Stat
             label="Latest workload snapshot"
             value={
@@ -367,25 +361,23 @@ function SlaDashboardPageInner() {
             tone=""
           />
                   </div>
-        <p style={{ marginTop: 10, fontSize: 12, color: "var(--silver-ink)" }}>
+        <p className="app-field-help">
           Workload and assignment suggestions refresh every few minutes.
           Escalation analytics refresh separately. When the status banner says
           review automation is delayed and no workload snapshot is shown, treat
           the workload sections as out of date rather than as zero.
         </p>
-        </Card>
-      </PageSection>
+      </section>
 
       {error ? (
-        <Card variant="status" tone="risk">
+        <div className="app-alert app-alert--danger" role="alert">
           {error}
-        </Card>
+        </div>
       ) : null}
 
-      <PageSection>
-        <Card padding="comfortable">
+      <section className="app-panel app-panel__body review-panel-stack">
         <h3 className="app-panel__title">Workspace pressure</h3>
-        <div style={statGridStyle}>
+        <div className="review-metric-grid">
           <Stat label="Unassigned" value={data.counts.unassigned} tone="" />
           <Stat
             label="Due soon"
@@ -410,17 +402,16 @@ function SlaDashboardPageInner() {
             tone={data.criticalEscalationsOpen > 0 ? "alert" : ""}
           />
         </div>
-        </Card>
-      </PageSection>
+      </section>
 
-      <PageSection>
-        <Card padding="comfortable">
+      <section className="app-panel app-panel__body review-panel-stack">
         <h3 className="app-panel__title">By stage</h3>
         <p className="app-field-help" data-sla-by-stage-definition>
           Counts reviews by their recorded stage. &ldquo;Escalated (manual
           decision)&rdquo; counts reviews a reviewer moved to the escalated
           stage. It is not the same as open escalations: {OPEN_ESCALATION_DEFINITION}
         </p>
+        <div className="app-table-surface app-table-surface--scroll">
         <table className="app-table">
           <thead>
             <tr>
@@ -442,17 +433,17 @@ function SlaDashboardPageInner() {
             ))}
           </tbody>
         </table>
-        </Card>
-      </PageSection>
+        </div>
+      </section>
 
-      <PageSection>
-        <Card padding="comfortable">
+      <section className="app-panel app-panel__body review-panel-stack">
         <h3 className="app-panel__title">Reviewer workload (latest snapshots)</h3>
         {data.workloadTop.length === 0 ? (
           <p className="app-field-help">
             No workload snapshot yet. It appears a few minutes after reviews are assigned.
           </p>
         ) : (
+          <div className="app-table-surface app-table-surface--scroll">
           <table className="app-table">
             <thead>
               <tr>
@@ -469,7 +460,7 @@ function SlaDashboardPageInner() {
               {data.workloadTop.map((w) => (
                 <tr key={w.reviewerUserId}>
                   <td>
-                    <span style={monoStyle}>
+                    <span className="app-table__muted">
                       {w.reviewerUserId.slice(0, 12)}…
                     </span>
                   </td>
@@ -491,48 +482,38 @@ function SlaDashboardPageInner() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
-        </Card>
-      </PageSection>
+      </section>
 
-      <PageSection>
-        <Card padding="comfortable">
+      <section className="app-panel app-panel__body review-panel-stack">
         <h3 className="app-panel__title">Assignment suggestions</h3>
         {data.suggestions.length === 0 ? (
           <p className="app-field-help">
             No suggestions yet. They appear once reviewer workload has been measured.
           </p>
         ) : (
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          <ul className="review-tools">
             {data.suggestions.map((s) => (
-              <li key={s.reviewerUserId} style={suggestionRowStyle}>
-                <span style={monoStyle}>
-                  {s.reviewerUserId.slice(0, 12)}…
+              <li key={s.reviewerUserId} className="review-tools__row">
+                <span className="review-chip-row">
+                  <code>{s.reviewerUserId.slice(0, 12)}…</code>
+                  <Badge tone={capacityTone(s.capacityScore)} subtle>
+                    {s.capacityScore}
+                  </Badge>
                 </span>
-                <Badge tone={capacityTone(s.capacityScore)} subtle>
-                  {s.capacityScore}
-                </Badge>
-                <span style={{ flex: 1, fontSize: 12, color: "var(--silver-ink)" }}>{s.rationale}</span>
+                <span className="app-field-help">{s.rationale}</span>
               </li>
             ))}
           </ul>
         )}
-        <p style={{ marginTop: 8, fontSize: 12, color: "var(--silver-ink)" }}>
+        <p className="app-field-help">
           Suggestions are advisory. Nothing is assigned automatically; you decide.
         </p>
-        </Card>
-      </PageSection>
+      </section>
 
-      <PageSection>
-        <Card padding="comfortable">
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 8,
-          }}
-        >
+      <section className="app-panel app-panel__body review-panel-stack">
+        <div className="app-panel__head-row">
           <h3 className="app-panel__title">Escalation analytics</h3>
           <AppListbox
             ariaLabel="Escalation analytics range"
@@ -550,7 +531,7 @@ function SlaDashboardPageInner() {
         {analyticsFailed ? (
           <p className="app-field-help" role="alert" data-sla-analytics-failed>
             Analytics could not be loaded.{" "}
-            <button type="button" onClick={() => setAnalyticsAttempt((n) => n + 1)}>
+            <button type="button" className="app-secondary-action" onClick={() => setAnalyticsAttempt((n) => n + 1)}>
               Retry
             </button>
           </p>
@@ -558,7 +539,7 @@ function SlaDashboardPageInner() {
           <p className="app-field-help">Loading analytics…</p>
         ) : (
           <>
-            <div style={statGridStyle}>
+            <div className="review-metric-grid">
               <Stat label="Open now" value={analytics.totalOpen} tone="" title={OPEN_ESCALATION_DEFINITION} />
               <Stat
                 label="Opened in range"
@@ -577,17 +558,14 @@ function SlaDashboardPageInner() {
               />
             </div>
 
-            <h4 style={{ marginTop: 16 }}>
-              Trend (opened vs resolved)
-            </h4>
+            <h4 className="app-field-label">Trend (opened vs resolved)</h4>
             <SparkBars buckets={analytics.byDay} />
 
-            <h4 style={{ marginTop: 16 }}>
-              Reason hotspots
-            </h4>
+            <h4 className="app-field-label">Reason hotspots</h4>
             {analytics.hotspots.length === 0 ? (
               <p className="app-field-help">No escalations in this range.</p>
             ) : (
+              <div className="app-table-surface app-table-surface--scroll">
               <table className="app-table">
                 <thead>
                   <tr>
@@ -601,7 +579,7 @@ function SlaDashboardPageInner() {
                   {analytics.hotspots.map((h) => (
                     <tr key={h.reason}>
                       <td>
-                        <span style={{ fontSize: 12, color: "var(--silver-ink)" }}>
+                        <span className="app-table__muted">
                           {escalationReasonLabel(h.reason)}
                         </span>
                       </td>
@@ -614,29 +592,27 @@ function SlaDashboardPageInner() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </>
         )}
-        </Card>
-      </PageSection>
+      </section>
 
-      <PageSection>
-        <Card padding="comfortable">
+      <section className="app-panel app-panel__body review-panel-stack">
         <h3 className="app-panel__title">Reviewer performance</h3>
         {analyticsFailed ? (
           <p className="app-field-help" role="alert" data-sla-reviewers-failed>
             Reviewer performance could not be loaded.{" "}
-            <button type="button" onClick={() => setAnalyticsAttempt((n) => n + 1)}>
+            <button type="button" className="app-secondary-action" onClick={() => setAnalyticsAttempt((n) => n + 1)}>
               Retry
             </button>
           </p>
         ) : !reviewers ? (
           <p className="app-field-help">Loading…</p>
         ) : reviewers.rows.length === 0 ? (
-          <div style={{ marginTop: 8 }}>
-            <NoWorkloadSnapshotsEmptyState />
-          </div>
+          <NoWorkloadSnapshotsEmptyState />
         ) : (
+          <div className="app-table-surface app-table-surface--scroll">
           <table className="app-table">
             <thead>
               <tr>
@@ -656,7 +632,7 @@ function SlaDashboardPageInner() {
               {reviewers.rows.map((r) => (
                 <tr key={r.reviewerUserId}>
                   <td>
-                    <span style={monoStyle}>
+                    <span className="app-table__muted">
                       {r.reviewerUserId.slice(0, 12)}…
                     </span>
                   </td>
@@ -683,9 +659,9 @@ function SlaDashboardPageInner() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
-        </Card>
-      </PageSection>
+      </section>
     </PageShell>
   );
 }
@@ -725,14 +701,14 @@ function SparkBars({
           <div
             style={{
               height: `${(b.opened / max) * 50}%`,
-              background: "#fca5a5",
+              background: "var(--status-risk-solid)",
               minHeight: b.opened > 0 ? 2 : 0,
             }}
           />
           <div
             style={{
               height: `${(b.resolved / max) * 50}%`,
-              background: "#86efac",
+              background: "var(--status-verified-solid)",
               minHeight: b.resolved > 0 ? 2 : 0,
             }}
           />
@@ -764,38 +740,18 @@ function Stat({
   /** Optional definition, shown as a tooltip. */
   title?: string;
 }) {
-  const palette = {
-    "": {
-      bg: "var(--surface-muted)",
-      fg: "var(--ink-primary)",
-      border: "var(--border-standard)",
-    },
-    warn: {
-      bg: "var(--warning-subtle-bg)",
-      fg: "var(--warning-strong)",
-      border: "var(--warning-border)",
-    },
-    alert: {
-      bg: "var(--danger-subtle-bg)",
-      fg: "var(--danger-strong)",
-      border: "var(--danger-border)",
-    },
-  } as const;
-  const p = palette[tone] ?? palette[""];
+  // TEAM-UI-SPEC §1 — the canonical metric card and its semantic tone; the
+  // tone still reaches the reader as a word, not only a colour.
+  const metricTone = tone === "alert" ? "danger" : tone === "warn" ? "warning" : "neutral";
   return (
     <div
-      style={{
-        padding: 12,
-        background: p.bg,
-        color: p.fg,
-        border: `1px solid ${p.border}`,
-        borderRadius: "var(--radius-md)",
-      }}
+      className="app-metric-card"
+      data-app-metric-tone={metricTone}
       data-sla-stat-tone={tone === "" ? "neutral" : tone}
       title={title}
     >
-      <div style={{ fontSize: 22, fontWeight: 700 }}>{value}</div>
-      <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.3 }}>
+      <div className="app-metric-card__value">{value}</div>
+      <div className="app-metric-card__label">
         {label}
         {tone === "alert" ? " · needs attention" : tone === "warn" ? " · watch" : ""}
       </div>
@@ -816,23 +772,4 @@ function capacityTone(score: number): "verified" | "pending" | "risk" | "info" {
   if (score < 80) return "info";
   return "verified";
 }
-
-const statGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-  gap: 10,
-};
-
-const suggestionRowStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 10,
-  alignItems: "center",
-  padding: "6px 0",
-  borderBottom: "1px solid var(--border-subtle)",
-};
-
-const monoStyle: React.CSSProperties = {
-  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-  fontSize: 12,
-};
 

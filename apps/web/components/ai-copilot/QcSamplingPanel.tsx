@@ -20,6 +20,7 @@ import Link from "next/link";
 
 import { apiFetch, isApiResponseError } from "../../lib/api";
 import { useActiveWorkspaceId } from "../../lib/platform-context";
+import "../reviewer-experience/review-surfaces.css";
 
 const STRATEGIES = [
   { value: "RISK_BASED", label: "Risk-based" },
@@ -128,82 +129,85 @@ export function QcSamplingPanel() {
 
   if (!teamId) return null;
 
+  // TEAM-UI-SPEC §1 — one app-panel; every per-sample action is secondary
+  // (Accept is the sample's forward step but sits in a repeated row, so no
+  // row carries a primary); Skip is ghost. Chips wrap on a phone.
   return (
-    <section className="app-panel app-panel__body" style={{ marginTop: 16 }} aria-label="AI QC sampling">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-        <h3 style={{ margin: 0 }}>AI QC sampling</h3>
-        {/* Wraps on a 320px phone instead of widening the page. */}
-        <span style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", minWidth: 0 }}>
+    <section className="app-panel review-qc-panel" aria-labelledby="qc-sampling-title" data-qc-sampling-panel>
+      <div className="app-panel__head">
+        <h3 className="app-panel__title" id="qc-sampling-title">AI QC sampling</h3>
+        <span className="review-chip-row">
           <span className="app-chip">Human quality control</span>
-          <label style={{ fontSize: 13, display: "flex", gap: 6, alignItems: "center" }}>
-            Strategy
-            <AppListbox
-              value={strategy}
-              options={[
-                ...STRATEGIES.map((s) => ({ value: s.value, label: s.label })),
-              ]}
-              onChange={(next) => setStrategy(next)}
-              ariaLabel={"Sampling strategy"}
-            />
-          </label>
+          <AppListbox
+            value={strategy}
+            options={[
+              ...STRATEGIES.map((s) => ({ value: s.value, label: s.label })),
+            ]}
+            onChange={(next) => setStrategy(next)}
+            ariaLabel={"Sampling strategy"}
+          />
         </span>
       </div>
-      <p style={{ fontSize: 13, opacity: 0.7, marginTop: 6 }}>
-        Sampled Copilot runs for human quality control. Sampling uses operational
-        signals only (edits, rejections, dropped citations, blocks) — never a claim
-        about evidence truth or reliability.
-      </p>
+      <div className="app-panel__body">
+        <p className="app-field-help">
+          Sampled Copilot runs for human quality control. Sampling uses operational
+          signals only (edits, rejections, dropped citations, blocks) — never a claim
+          about evidence truth or reliability.
+        </p>
 
-      {state.kind === "loading" ? <p style={{ opacity: 0.6 }} aria-live="polite">Loading samples…</p> : null}
-      {state.kind === "denied" ? <div className="app-alert" role="alert">Your role in this workspace does not include QC sampling.</div> : null}
-      {state.kind === "error" ? <div className="app-alert app-alert--warn" role="alert">QC sampling is unavailable right now. Review workflows are unaffected.</div> : null}
-      {state.kind === "ready" && !state.catalogAvailable ? (
-        <div className="app-alert">The AI run catalog is not provisioned in this environment yet.</div>
-      ) : null}
-      {state.kind === "ready" && state.catalogAvailable && state.samples.length === 0 ? (
-        <div className="app-alert">No Copilot runs match this sampling strategy yet.</div>
-      ) : null}
+        {state.kind === "loading" ? <p className="app-field-help" aria-live="polite">Loading samples…</p> : null}
+        {state.kind === "denied" ? <div className="app-alert" role="alert">Your role in this workspace does not include QC sampling.</div> : null}
+        {state.kind === "error" ? <div className="app-alert app-alert--warn" role="alert">QC sampling is unavailable right now. Review workflows are unaffected.</div> : null}
+        {state.kind === "ready" && !state.catalogAvailable ? (
+          <div className="app-alert">The AI run catalog is not provisioned in this environment yet.</div>
+        ) : null}
+        {state.kind === "ready" && state.catalogAvailable && state.samples.length === 0 ? (
+          <div className="app-alert">No Copilot runs match this sampling strategy yet.</div>
+        ) : null}
 
-      {state.kind === "ready" && state.samples.length > 0 ? (
-        <>
-          <ul style={{ listStyle: "none", margin: "10px 0 0", padding: 0 }}>
-            {state.samples.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((s) => {
-              const chip = qcChip(s);
-              return (
-                <li key={s.id} style={{ borderTop: "1px solid var(--app-border,#eee)", padding: "8px 0" }}>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                    <strong>{FEATURE_LABEL[s.feature] ?? s.feature}</strong>
-                    <span className="app-chip">{identifierLabel(s.status)}</span>
-                    <span className={`app-chip ${chip.cls}`}>{chip.label}</span>
-                    <span style={{ fontSize: 12, opacity: 0.6 }}>{formatUserDateTime(s.generatedAt)}</span>
-                  </div>
-                  <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
-                    {s.interactionCount} human interaction(s) · {s.editedCount} edited · {s.rejectedCount} rejected
-                    {s.criteriaVersion ? <> · criteria {s.criteriaVersion}</> : null}
-                    {s.reviewId ? <> · <Link className="app-link" href={`/reviewer-ops/${s.reviewId}`}>Open review</Link></> : null}
-                    {s.caseId ? <> · <Link className="app-link" href={`/cases/${s.caseId}`}>Open case</Link></> : null}
-                  </div>
-                  <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                    <button className="app-primary-action" disabled={busyId === s.id} onClick={() => void decide(s.id, "QC_ACCEPTED")}>Accept</button>
-                    <button className="app-secondary-action" disabled={busyId === s.id} onClick={() => void decide(s.id, "QC_REVIEWED")}>Mark reviewed</button>
-                    <button className="app-secondary-action" disabled={busyId === s.id} onClick={() => void decide(s.id, "QC_SKIPPED")}>Skip</button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-          {state.samples.length > PAGE_SIZE ? (
-            <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
-              <button className="app-secondary-action" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</button>
-              <span style={{ fontSize: 12, opacity: 0.6 }}>Page {page + 1} of {Math.ceil(state.samples.length / PAGE_SIZE)}</span>
-              <button className="app-secondary-action" disabled={(page + 1) * PAGE_SIZE >= state.samples.length} onClick={() => setPage((p) => p + 1)}>Next</button>
-            </div>
-          ) : null}
-        </>
-      ) : null}
-      <p style={{ fontSize: 11, opacity: 0.55, marginTop: 8 }}>
-        Every decision is recorded with your identity in the audit log.
-      </p>
+        {state.kind === "ready" && state.samples.length > 0 ? (
+          <>
+            <ul className="review-sample-list">
+              {state.samples.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((s) => {
+                const chip = qcChip(s);
+                return (
+                  <li key={s.id} data-qc-sample={s.id}>
+                    <div className="review-chip-row">
+                      <strong>{FEATURE_LABEL[s.feature] ?? s.feature}</strong>
+                      <span className="app-chip">{identifierLabel(s.status)}</span>
+                      <span className={`app-chip ${chip.cls}`}>{chip.label}</span>
+                      <span className="app-table__muted">{formatUserDateTime(s.generatedAt)}</span>
+                    </div>
+                    <div className="app-table__muted review-chip-row">
+                      <span>
+                        {s.interactionCount} human interaction(s) · {s.editedCount} edited · {s.rejectedCount} rejected
+                        {s.criteriaVersion ? <> · criteria {s.criteriaVersion}</> : null}
+                      </span>
+                      {s.reviewId ? <Link className="app-link" href={`/reviewer-ops/${s.reviewId}`}>Open review</Link> : null}
+                      {s.caseId ? <Link className="app-link" href={`/cases/${s.caseId}`}>Open case</Link> : null}
+                    </div>
+                    <div className="review-chip-row">
+                      <button type="button" className="app-secondary-action" data-qc-decision="QC_ACCEPTED" disabled={busyId === s.id} onClick={() => void decide(s.id, "QC_ACCEPTED")}>Accept</button>
+                      <button type="button" className="app-secondary-action" data-qc-decision="QC_REVIEWED" disabled={busyId === s.id} onClick={() => void decide(s.id, "QC_REVIEWED")}>Mark reviewed</button>
+                      <button type="button" className="app-ghost-action" data-qc-decision="QC_SKIPPED" disabled={busyId === s.id} onClick={() => void decide(s.id, "QC_SKIPPED")}>Skip</button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            {state.samples.length > PAGE_SIZE ? (
+              <div className="review-chip-row">
+                <button type="button" className="app-secondary-action" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</button>
+                <span className="app-table__muted">Page {page + 1} of {Math.ceil(state.samples.length / PAGE_SIZE)}</span>
+                <button type="button" className="app-secondary-action" disabled={(page + 1) * PAGE_SIZE >= state.samples.length} onClick={() => setPage((p) => p + 1)}>Next</button>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+        <p className="app-field-help">
+          Every decision is recorded with your identity in the audit log.
+        </p>
+      </div>
     </section>
   );
 }

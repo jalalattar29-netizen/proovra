@@ -234,7 +234,7 @@ export function QueueSignalCell({
 }) {
   if (state.kind === "LOADING") {
     return (
-      <span style={{ fontSize: 12, color: "var(--ink-secondary, #475569)" }}>
+      <span className="app-table__muted">
         Loading…
       </span>
     );
@@ -256,7 +256,7 @@ export function QueueSignalCell({
       <span
         data-queue-signal-state="RESTRICTED"
         title="Queue signals are restricted for your role in this workspace. This row was not evaluated."
-        style={{ fontSize: 12, color: "var(--ink-secondary, #475569)" }}
+        className="app-table__muted"
       >
         Restricted
       </span>
@@ -267,7 +267,7 @@ export function QueueSignalCell({
       <span
         data-queue-signal-state="UNAVAILABLE"
         title="Queue signals could not be loaded. This row was not evaluated."
-        style={{ fontSize: 12, color: "var(--ink-secondary, #475569)" }}
+        className="app-table__muted"
       >
         Unavailable
       </span>
@@ -278,7 +278,7 @@ export function QueueSignalCell({
       <span
         data-queue-signal-state="NOT_SCORED"
         title="This row was not covered by the queue-signal projection."
-        style={{ fontSize: 12, color: "var(--ink-secondary, #475569)" }}
+        className="app-table__muted"
       >
         Not scored
       </span>
@@ -295,7 +295,7 @@ export function QueueSignalCell({
         intelligence.stuckState?.isStuck ? "true" : "false"
       }
       data-queue-signal-blockers={blockers.length}
-      style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}
+      className="review-chip-row"
     >
       {intelligence.priority?.band ? (
         <Badge tone={BAND_TONE[intelligence.priority.band] ?? "neutral"}>
@@ -325,11 +325,11 @@ export function QueueSignalCell({
         </Badge>
       ))}
       {intelligence.reviewerPressure ? (
-        <span style={{ fontSize: 11, color: "var(--ink-secondary, #475569)" }}>
+        <span className="app-table__muted">
           {PRESSURE_LABEL[intelligence.reviewerPressure]}
         </span>
       ) : null}
-      <span style={{ fontSize: 11, color: "var(--ink-secondary, #475569)" }}>
+      <span className="app-table__muted">
         {/* An absent aging figure is unknown, not zero days open. */}
         {typeof intelligence.queueAging?.daysOpen === "number"
           ? `Open ${intelligence.queueAging.daysOpen}d`
@@ -353,7 +353,7 @@ export function QueueIntelligenceNotice({
     return (
       <div
         data-queue-intelligence-notice="PARTIAL"
-        style={noticeStyle}
+        className="app-alert"
       >
         {state.degradedCount > 0
           ? `${state.degradedCount} row${state.degradedCount === 1 ? "" : "s"} could not be scored and show no signals. `
@@ -368,38 +368,23 @@ export function QueueIntelligenceNotice({
     <div
       role="status"
       data-queue-intelligence-notice={state.kind}
-      style={noticeStyle}
+      className="app-alert"
     >
       {state.message}
       {state.kind === "ERROR" ? (
-        <button
-          type="button"
-          data-queue-intelligence-retry
-          onClick={onRetry}
-          style={{
-            marginLeft: 8,
-            background: "transparent",
-            border: "none",
-            padding: 0,
-            color: "var(--ink-primary, #0f172a)",
-            textDecoration: "underline",
-            fontWeight: 600,
-            fontSize: 12,
-            cursor: "pointer",
-          }}
-        >
-          Retry
-        </button>
+        <>
+          {" "}
+          <button
+            type="button"
+            className="app-secondary-action"
+            data-queue-intelligence-retry
+            onClick={onRetry}
+          >
+            Retry
+          </button>
+        </>
       ) : null}
     </div>
   );
 }
 
-const noticeStyle = {
-  padding: "8px 12px",
-  background: "var(--surface-muted, #f1f4f9)",
-  border: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
-  borderRadius: "var(--radius-md, 8px)",
-  fontSize: 12,
-  color: "var(--ink-secondary, #475569)",
-} as const;
