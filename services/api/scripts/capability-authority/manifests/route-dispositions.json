@@ -793,16 +793,6 @@
       "replacement": "POST /v1/teams"
     },
     {
-      "routeId": "POST /v1/reviewer-ops/reviews/:workflowId/reassign",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "no product contract to build, but the repository's own behavioural suite pins the registration",
-      "evidence": "PINNED CONTRACT — services/api/test/phase25-reviewer-ops.test.ts:270 pins the registration; the reviewer console wires approve/start/request-info/reject/pause through one helper and reassign is the remaining leg of that same set. NO visible control exists for it (zero product consumers in the canonical consumer analysis), so nothing disconnected is on screen. No release-completion credit; stays in the canonical backlog. Original absence proof retained: DEAD_CONFIRMED · surfaces searched: apps/web (rg 'reviewer-ops/reviews') -> the complete live set is /assign (apps/web/components/reviewer-experience/ReviewerConsole.tsx:428), /request-info (:468, and apps/web/lib/reviewer-workspace/reviewer-api.ts:821), /approve (reviewer-api.ts:774), /reject (reviewer-api.ts:796), /bulk (apps/web/components/reviewer-experience/ReviewerBulkOpsBar.tsx:137), plus a",
-      "reviewedAtUtc": "2026-08-17",
-      "revalidatedVerdict": "DEAD_CONFIRMED",
-      "revalidationConfidence": "HIGH",
-      "postReleaseDecision": "PRESERVED_POST_RELEASE_CONTRACT"
-    },
-    {
       "routeId": "POST /v1/search/reindex/evidence/:id",
       "disposition": "SUPERSEDED_REMOVE",
       "reason": "duplicate of the canonical route the product calls (ledger DUPLICATE_ENDPOINT); no UI owed",
