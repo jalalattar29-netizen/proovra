@@ -112,9 +112,12 @@ export function SelfServeHomeDashboard() {
           Search / inbox live in the global app header, not duplicated. */}
       <HomeHeader hero={vm.heroAction} />
 
-      {/* T-034 (stage B) — Team review step-up needs a second factor; say so
-          before the first verdict, not in the middle of one. */}
-      <TwoFactorPrompt enabled={vm.plan === "TEAM"} />
+      {/* T-034 (stage B) — review step-up needs a second factor; say so
+          before the first verdict, not in the middle of one. Gated on the
+          server-projected reviewer-operations capability
+          (planFeatures.reviewQueuesIncluded, fail-closed), never on a plan
+          name (Phase 12 point 7: ClientPlanNameAuthorities = 0). */}
+      <TwoFactorPrompt enabled={vm.features.reviewQueuesIncluded === true} />
 
       {/* F-21 — a transient read failure is said, with a retry, instead of
           rendering as an empty workspace. */}

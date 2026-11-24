@@ -94,12 +94,14 @@ export async function emitDecisionOutcomeSignals(
   if (completedAs) {
     bump(completedAs === "approved" ? "reviewer_review_approved_total" : "reviewer_review_rejected_total");
     bump("reviewer_review_completed_total");
-    safeEmitSecurityEvent({
-      teamId: input.teamId,
-      eventType: completedAs === "approved" ? "reviewer_review_approved" : "reviewer_review_rejected",
-      severity: "INFO",
-      details,
-    });
+    // Two literal calls (not one ternary) so every emitted type is a literal
+    // the signal-catalogue scan can read; the audit row below is not a
+    // security event.
+    if (completedAs === "approved") {
+      safeEmitSecurityEvent({ teamId: input.teamId, eventType: "reviewer_review_approved", severity: "INFO", details });
+    } else {
+      safeEmitSecurityEvent({ teamId: input.teamId, eventType: "reviewer_review_rejected", severity: "INFO", details });
+    }
     await audit(client, "reviewer.review_completed", input, {
       eventType: "reviewer_review_completed",
       decision: input.decision,

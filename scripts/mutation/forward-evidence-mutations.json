@@ -8719,7 +8719,7 @@
     "aud": "ENT-11",
     "name": "pricing sells Personal cases on PRO",
     "file": "apps/web/app/pricing/page.tsx",
-    "find": "        \"Not included\",\n        \"Cases, assignable to Collaboration Team members\",",
+    "find": "        \"Not included\",\n        \"Cases; assignment to Collaboration Team members with Team\",",
     "replace": "        \"Not included\",\n        \"Personal cases\",",
     "tests": [
       {

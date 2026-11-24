@@ -10,6 +10,7 @@ import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let plan: string = "TEAM";
+const reviewQueuesIncluded = () => ["TEAM", "ENTERPRISE"].includes(plan);
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: () => {}, replace: () => {}, back: () => {} }),
@@ -22,7 +23,12 @@ vi.mock("../../components/home-experience/useHomeData", async () => {
     HOME_PARTIAL_LOAD_MESSAGE: "",
     HOME_FOCUS_REFRESH_MIN_INTERVAL_MS: 30_000,
     useHomeData: () => {
-      const vm = vmMod.normalizeHomeViewModel({ plan } as never);
+      // The prompt follows the server-projected reviewer-operations
+      // capability (Team and above), not the plan name.
+      const vm = vmMod.normalizeHomeViewModel({
+        plan,
+        planFeatures: { reviewQueuesIncluded: reviewQueuesIncluded() },
+      } as never);
       return { status: "ready", viewModel: { ...vm, plan }, reload: () => {} };
     },
   };
@@ -57,7 +63,7 @@ function envelope() {
     account: { accountPlan: plan, accountStatus: "active" },
     flags: { isEnterpriseWorkspace: false },
     platform: { isPlatformAdmin: false },
-    planFeatures: {},
+    planFeatures: { reviewQueuesIncluded: reviewQueuesIncluded() },
   };
 }
 const mount = () =>

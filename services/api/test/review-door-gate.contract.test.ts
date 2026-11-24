@@ -10,6 +10,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { classifyReviewBulkRequest } from "@proovra/shared";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (rel: string) => readFileSync(resolve(here, rel), "utf8").replace(/\r\n/g, "\n");
@@ -17,6 +18,7 @@ const read = (rel: string) => readFileSync(resolve(here, rel), "utf8").replace(/
 const CONSOLE = read("../src/routes/reviewer-ops.routes.ts");
 const LEGACY = read("../src/routes/review-operations.routes.ts");
 const WORKSPACE = read("../src/routes/reviewer-workspace.routes.ts");
+const GATE = read("../src/services/reviewer-ops/review-action-gate.ts");
 
 function handlers(source: string): Array<{ method: string; path: string; body: string }> {
   const out: Array<{ method: string; path: string; body: string }> = [];
@@ -67,13 +69,41 @@ describe("review doors", () => {
   });
 
   it("every bulk door has the same gate", () => {
+    // T-030 / T-036 (stage B) — every bulk door hands its request to the ONE
+    // bulk-door gate, which classifies it by the shared
+    // `classifyReviewBulkRequest`: bulk decisions stay gated as "bulk",
+    // assignment is not a step-up action (direction 7), a single archive uses
+    // the archive gate. No door calls the gate with its own literal.
     expect(handlers(CONSOLE).find((x) => x.path === "/v1/reviewer-ops/reviews/bulk")?.body).toMatch(
-      /action: "bulk"/,
+      /enforceReviewBulkDoorGate\(req, reply, \{[\s\S]{0,200}action: body\.action,/,
     );
-    expect(handlers(LEGACY).find((x) => x.path === "/v1/review-operations/bulk")?.body).toMatch(/action: "bulk"/);
-    for (const path of ["/v1/reviewer/bulk/assign", "/v1/reviewer/bulk/decide", "/v1/reviewer/bulk/code"]) {
-      expect(handlers(WORKSPACE).find((x) => x.path === path)?.body, path).toMatch(/bulkGate\(req, reply, ctx/);
+    expect(handlers(LEGACY).find((x) => x.path === "/v1/review-operations/bulk")?.body).toMatch(
+      /enforceReviewBulkDoorGate\(req, reply, \{[\s\S]{0,200}action: body\.action,/,
+    );
+    for (const [path, action] of [
+      ["/v1/reviewer/bulk/assign", "ASSIGN"],
+      ["/v1/reviewer/bulk/decide", "DECIDE"],
+      ["/v1/reviewer/bulk/code", "CODE"],
+    ] as const) {
+      expect(handlers(WORKSPACE).find((x) => x.path === path)?.body, path).toMatch(
+        new RegExp(`bulkGate\\(req, reply, ctx, body\\.workflowIds, "${action}"\\)`),
+      );
     }
+    expect(WORKSPACE).toMatch(/async function bulkGate\([\s\S]{0,600}enforceReviewBulkDoorGate\(req, reply, \{/);
+    // The gate itself: the shared classification decides; a non-assignment
+    // goes through the canonical action gate with that classification.
+    expect(GATE).toMatch(/const classification = classifyReviewBulkRequest\(\{/);
+    expect(GATE).toMatch(/enforceReviewActionGate\(req, reply, \{[\s\S]{0,120}action: classification,/);
+
+    // The classification, behaviourally.
+    for (const action of ["DECIDE", "APPROVE", "REJECT", "CODE", "ESCALATE"]) {
+      expect(classifyReviewBulkRequest({ action, itemCount: 5 }), action).toBe("bulk");
+    }
+    expect(classifyReviewBulkRequest({ action: "CLOSE", itemCount: 5, scope: "bulk" })).toBe("bulk");
+    expect(classifyReviewBulkRequest({ action: "CLOSE", itemCount: 2, scope: "single" })).toBe("bulk");
+    expect(classifyReviewBulkRequest({ action: "CLOSE", itemCount: 1, scope: "single" })).toBe("archive");
+    expect(classifyReviewBulkRequest({ action: "ASSIGN", itemCount: 5 })).toBe("assignment");
+    expect(classifyReviewBulkRequest({ action: "reassign", itemCount: 1 })).toBe("assignment");
   });
 
   it("no route gates a review action through a private copy of the flags or the adaptive check", () => {

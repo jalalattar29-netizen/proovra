@@ -510,7 +510,7 @@ function ExternalReviewManagementConsole() {
         <ReviewPageHeader
           backToHub
           title="External review"
-          subtitle="External reviewer invitations, delivery and audit for this workspace — included on Pro, Team and Enterprise. Every action you take here is recorded on the grant's audit timeline."
+          subtitle="External reviewer invitations, delivery and audit for this workspace. Every action you take here is recorded on the grant's audit timeline."
           primaryAction={
             // T-136 — one entry point for one or many invitations. While the
             // form is open its Issue is the one primary.

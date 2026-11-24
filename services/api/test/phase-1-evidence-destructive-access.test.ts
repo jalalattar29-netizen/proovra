@@ -314,9 +314,21 @@ describe("evidence.routes — archive/unarchive/delete compose the canonical gat
     ] as const) {
       expect(SERVICE).toContain(`${action}: "${permission}"`);
     }
-    // Every denial class collapses to one public 404.
-    expect(SERVICE).toMatch(
-      /if \(!access\.allowed\) \{\s*return \{\s*ok: false,\s*statusCode: 404,/,
+    // T-119 / T-120 (stage E) — a denial is classified by the ONE refusal
+    // classifier (`evidenceRecordRefusal`, which answers 403 only for a
+    // record the caller can READ); every other denial class still collapses
+    // to one public 404 (anti-enumeration).
+    const denial = SERVICE.match(
+      /if \(!access\.allowed\) \{[\s\S]*?\n {2}\}\n/,
     );
+    expect(denial).not.toBeNull();
+    expect(denial![0]).toMatch(/const refusal = await evidenceRecordRefusal\(/);
+    expect(denial![0]).toMatch(/permission: ACTION_PERMISSION\[input\.action\],\s*denial: access\.internalReason,/);
+    expect(denial![0]).toMatch(/if \(refusal\.statusCode === 403\) \{\s*return \{\s*ok: false,\s*statusCode: 403,\s*code: refusal\.code,/);
+    expect(denial![0]).toMatch(
+      /\}\s*return \{\s*ok: false,\s*statusCode: 404,\s*code: "not_found",\s*message: "Evidence not found",\s*\};\s*\}\n$/,
+    );
+    // The typed 403 never carries the internal deny reason.
+    expect(denial![0]).not.toMatch(/internalReason[^,]*\}/);
   });
 });

@@ -259,12 +259,14 @@ describe("REPORT-004 held outputs (live PostgreSQL 16)", () => {
       teamId: A().teamId,
       actorUserId: A().ownerUserId,
       decision: "APPROVE",
+      // T-010: every verdict carries a rationale.
+      rationale: "Checked the record against the request.",
     });
     expect(decided.workflow.status).toBe("APPROVED_INTERNAL");
     expect((await held(id)).outputsHeldAtUtc).toBeNull();
     expect(await requests(id)).toBe(1);
     // A replay of the same decision issues nothing more.
-    await decisions.recordReviewDecision({ workflowId, teamId: A().teamId, actorUserId: A().ownerUserId, decision: "APPROVE" });
+    await decisions.recordReviewDecision({ workflowId, teamId: A().teamId, actorUserId: A().ownerUserId, decision: "APPROVE", rationale: "Checked the record against the request." });
     expect(await requests(id)).toBe(1);
   });
 
@@ -278,6 +280,8 @@ describe("REPORT-004 held outputs (live PostgreSQL 16)", () => {
       teamId: A().teamId,
       actorUserId: A().ownerUserId,
       decision: "APPROVE",
+      // T-010: every verdict carries a rationale.
+      rationale: "Checked the record against the request.",
     });
     expect(decided.workflow.status).toBe("APPROVED_INTERNAL");
     expect((await held(id)).outputsHeldAtUtc).not.toBeNull();

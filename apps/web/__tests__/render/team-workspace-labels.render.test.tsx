@@ -213,7 +213,9 @@ describe("T-116 / T-110 — Settings for a Team owner", () => {
     expect(text).not.toMatch(/Personal plan/);
     expect(text).toContain("Team plan on your workspace");
     expect(text).toContain("Dana Reyes's personal workspace");
-    expect(text).toContain("Team Workspace");
+    // Team is a plan on a Personal Workspace, never a workspace kind.
+    expect(text).toContain("Personal Workspace with members");
+    expect(text).not.toContain("Team Workspace");
     expect(rail()).toContain("Roles & permissions");
   });
 

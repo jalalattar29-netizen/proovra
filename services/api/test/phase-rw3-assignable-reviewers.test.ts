@@ -88,6 +88,13 @@ vi.mock("../src/services/identity/access-policy.service.js", () => ({
   evaluateMemberAccess: evaluateMemberAccessMock,
 }));
 
+// Stage E (T-099/T-100): the projection now states whether each reviewer is
+// placed. Placement has its own suite; here every reviewer counts as placed.
+vi.mock("../src/services/assignment/placement-policy.js", () => ({
+  assignmentRequiresPlacement: vi.fn(async () => false),
+  placedUserIdsForWorkspace: vi.fn(async (_t: string, ids: string[]) => new Set(ids)),
+}));
+
 vi.mock("../src/services/ops/metrics.service.js", () => ({
   bump: vi.fn(),
   setGauge: vi.fn(),
@@ -298,9 +305,10 @@ describe("Phase RW3-2 — bounded projection (no PII)", () => {
     expect(reviewers).toHaveLength(2);
     for (const r of reviewers) {
       expect(Object.keys(r).sort()).toEqual(
-        // currentWorkloadCount is OMITTED when no snapshot exists, so
-        // the sorted key set is exactly four. That's the bounded shape.
-        ["displayName", "role", "status", "userId"],
+        // currentWorkloadCount is OMITTED when no snapshot exists. Stage E
+        // (T-099/T-100) adds the placement answer (placed +
+        // notAssignableReason) — still no PII. That is the bounded shape.
+        ["displayName", "notAssignableReason", "placed", "role", "status", "userId"],
       );
       // Tight type assertions on the bounded shape.
       expect(typeof r.userId).toBe("string");

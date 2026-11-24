@@ -278,7 +278,10 @@ describe("Intake-link routes + orchestration wire the new signals", () => {
   it("addExternalEvidencePart writes server-computed clientSignals", () => {
     const src = read("services/api/src/services/external-intake-orchestration.service.ts");
     assert.match(src, /buildIntakeClientSignals\(\{/);
-    assert.match(src, /clientSignals: clientSignals as Prisma\.InputJsonValue/);
+    // T-129 (stage F) — the server-computed signals are written together with
+    // the part's content binding (digest + size); the client never supplies
+    // them.
+    assert.match(src, /clientSignals: withPartBinding\(clientSignals, declared\) as Prisma\.InputJsonValue/);
   });
   it("submitExternalIntake sanitises deviceTime and hands it to the seal (never writes it itself)", () => {
     const src = read("services/api/src/services/external-intake-orchestration.service.ts");

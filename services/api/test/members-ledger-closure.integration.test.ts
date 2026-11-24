@@ -391,13 +391,14 @@ describe("Members ledger closure (live PostgreSQL)", () => {
     // ... then the account is OAuth-only with a fresh session, the shape the
     // add-a-password route serves (its account step-up is the recent sign-in).
     await prisma.mfaFactor.deleteMany({ where: { userId: user.id } });
-    await prisma.authenticatedSession.create({
-      data: {
-        userId: user.id,
-        teamId: null,
-        sessionIdHash: hashSessionId(mintedSessionClaims(token).sid),
-        expiresAtUtc: new Date(Date.now() + 86_400_000),
-      },
+    // T-038: the earlier request already adopted this token into the
+    // inventory, so the fixture shapes that row rather than inserting a twin.
+    const sessionIdHash = hashSessionId(mintedSessionClaims(token).sid);
+    await prisma.authenticatedSession.upsert({
+      where: { userId_sessionIdHash: { userId: user.id, sessionIdHash } },
+      create: { userId: user.id, teamId: null, sessionIdHash, expiresAtUtc: new Date(Date.now() + 86_400_000) },
+      // A fresh sign-in, as the original fixture inserted (issued now).
+      update: { teamId: null, authMethod: null, issuedAtUtc: new Date(), lastSeenAtUtc: new Date(), expiresAtUtc: new Date(Date.now() + 86_400_000), revokedAtUtc: null },
     });
     const added = await h.app.inject({
       method: "POST",

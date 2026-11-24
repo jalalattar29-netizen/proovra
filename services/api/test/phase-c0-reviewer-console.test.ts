@@ -26,6 +26,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { REVIEW_GATE_TABLE } from "@proovra/shared";
 import { describe, expect, it } from "vitest";
 
 function readSource(rel: string): string {
@@ -117,14 +118,17 @@ describe("Phase C0 — sensitive review decision step-up enforcement", () => {
   it("APPROVE_INTERNAL answers to requireStepUpForApprove", () => {
     expect(REVIEW_OPS_ROUTES).toMatch(/gateForVerdict\(body\.decision\)/);
     expect(REVIEW_GATE).toContain('"APPROVE_INTERNAL"');
-    expect(REVIEW_GATE).toContain('"requireStepUpForApprove"');
-    expect(REVIEW_GATE).toContain('"REVIEW_APPROVAL_HIGH_RISK"');
+    // Stage B (T-021): flag and purpose live in the ONE shared table that the
+    // gate, the settings page and the step-up copy all read.
+    expect(REVIEW_GATE).toContain("REVIEW_GATE_TABLE");
+    expect(REVIEW_GATE_TABLE.approve.flag).toBe("requireStepUpForApprove");
+    expect(REVIEW_GATE_TABLE.approve.purpose).toBe("REVIEW_APPROVAL_HIGH_RISK");
   });
 
   it("REJECT_INSUFFICIENT answers to requireStepUpForReject", () => {
     expect(REVIEW_GATE).toContain('"REJECT_INSUFFICIENT"');
-    expect(REVIEW_GATE).toContain('"requireStepUpForReject"');
-    expect(REVIEW_GATE).toContain('"REVIEWER_OPS_REJECT"');
+    expect(REVIEW_GATE_TABLE.reject.flag).toBe("requireStepUpForReject");
+    expect(REVIEW_GATE_TABLE.reject.purpose).toBe("REVIEWER_OPS_REJECT");
   });
 
   it("step-up flag-off proceeds without a step-up unless adaptive auth asks for one", () => {
@@ -132,7 +136,8 @@ describe("Phase C0 — sensitive review decision step-up enforcement", () => {
     // `requireStepUpForSensitiveAction` when the flag is set, or when the
     // runtime adaptive gate has decided this session must step up
     // (20ef15600): the adaptive decision is answered here, not ignored.
-    expect(REVIEW_GATE).toMatch(/if \(!flags\[gate\.flag\] && !adaptive\.stepUpRequired\) return true/);
+    expect(REVIEW_GATE).toMatch(/const flagOn = flags\[gate\.flag\] === true;/);
+    expect(REVIEW_GATE).toMatch(/if \(!flagOn && !adaptive\.stepUpRequired\) return true/);
   });
 });
 

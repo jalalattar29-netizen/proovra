@@ -30,6 +30,11 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import {
+  EXTERNAL_REVIEW_GRANT_MAX_LIFETIME_MS,
+  EXTERNAL_REVIEW_GRANT_MIN_LIFETIME_MS,
+  externalReviewExpiryIsValid,
+} from "@proovra/shared";
 
 import {
   EXTERNAL_REVIEW_SCOPE_KINDS,
@@ -179,8 +184,21 @@ describe("Phase 27/28 — external-review-grant.service.ts source contract", () 
   });
 
   it("issueExternalReviewGrant validates scope cardinality + expiry bounds", () => {
-    expect(src).toMatch(/MIN_GRANT_LIFETIME_MS\s*=\s*15 \* 60 \* 1000/);
-    expect(src).toMatch(/MAX_GRANT_LIFETIME_MS\s*=\s*30 \* 24 \* 60 \* 60 \* 1000/);
+    // T-155 (stage F) — the bounds live in ONE place (packages/shared
+    // external-review-portal.ts), read by the grant service, the issue routes
+    // and the console. 15 minutes .. 30 days, unchanged.
+    expect(EXTERNAL_REVIEW_GRANT_MIN_LIFETIME_MS).toBe(15 * 60 * 1000);
+    expect(EXTERNAL_REVIEW_GRANT_MAX_LIFETIME_MS).toBe(30 * 24 * 60 * 60 * 1000);
+    const now = Date.UTC(2026, 10, 24);
+    expect(externalReviewExpiryIsValid(new Date(now + 15 * 60 * 1000), now)).toBe(true);
+    expect(externalReviewExpiryIsValid(new Date(now + 15 * 60 * 1000 - 1), now)).toBe(false);
+    expect(externalReviewExpiryIsValid(new Date(now + 30 * 24 * 60 * 60 * 1000), now)).toBe(true);
+    expect(externalReviewExpiryIsValid(new Date(now + 30 * 24 * 60 * 60 * 1000 + 1), now)).toBe(false);
+    // The service (the authority) binds its bounds to the shared constants
+    // and enforces both ends.
+    expect(src).toMatch(/MIN_GRANT_LIFETIME_MS\s*=\s*EXTERNAL_REVIEW_GRANT_MIN_LIFETIME_MS;/);
+    expect(src).toMatch(/MAX_GRANT_LIFETIME_MS\s*=\s*EXTERNAL_REVIEW_GRANT_MAX_LIFETIME_MS;/);
+    expect(src).toMatch(/expiresMs < MIN_GRANT_LIFETIME_MS \|\|\s*expiresMs > MAX_GRANT_LIFETIME_MS/);
     expect(src).toMatch(/return\s*\{\s*ok:\s*false,\s*reason:\s*"invalid_expiry"\s*\}/);
     expect(src).toMatch(/return\s*\{\s*ok:\s*false,\s*reason:\s*"invalid_scope"\s*\}/);
   });

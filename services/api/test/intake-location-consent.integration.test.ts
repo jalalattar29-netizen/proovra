@@ -129,7 +129,9 @@ describe("F-36 — intake location consent controls collection (live PostgreSQL 
       where: { id: (r.json() as { part: { id: string } }).part.id },
       select: { storageBucket: true, storageKey: true, evidenceId: true },
     });
-    objects.set(`${p.storageBucket}/${p.storageKey}`, Buffer.from(`bytes-${randomUUID()}`));
+    // T-129: the bytes the presign declared (a real store enforces the signed
+    // checksum, and the seal re-checks the bound digest).
+    objects.set(`${p.storageBucket}/${p.storageKey}`, Buffer.from("x"));
     return p.evidenceId;
   }
   const submit = (t: string, sid: string, payload: unknown) =>

@@ -229,7 +229,10 @@ describe("Phase ROUTE-FIX — sidebar / account-menu projection", () => {
     expect(sidebarIds).not.toContain("workspace.cases");
   });
 
-  it("PERSONAL FREE user sees Billing + Teams in the sidebar (account-level surfaces)", () => {
+  // T-125 (team remediation): /workspaces is an Enterprise-only web surface
+  // (lib/surface/tiers.ts), so the server no longer advertises it to a
+  // personal or Team context; it would open a "not found" page.
+  it("PERSONAL FREE user sees Billing in the sidebar, and never the Enterprise-only Workspaces list", () => {
     const caps = resolveCapabilities({
       scope: "PERSONAL",
       role: "OWNER",
@@ -239,10 +242,10 @@ describe("Phase ROUTE-FIX — sidebar / account-menu projection", () => {
     const { sidebar } = buildNavigationProjection(caps, FREE_GATE);
     const sidebarIds = sidebar.groups.flatMap((g) => g.items.map((i) => i.id));
     expect(sidebarIds).toContain("admin.billing");
-    expect(sidebarIds).toContain("admin.teams");
+    expect(sidebarIds).not.toContain("admin.teams");
   });
 
-  it("PERSONAL PRO user sees the same usable sidebar (no plan-level hide of Billing/Teams)", () => {
+  it("PERSONAL PRO user sees the same usable sidebar (Billing, Settings; no Enterprise-only Workspaces list)", () => {
     const caps = resolveCapabilities({
       scope: "PERSONAL",
       role: "OWNER",
@@ -252,7 +255,7 @@ describe("Phase ROUTE-FIX — sidebar / account-menu projection", () => {
     const { sidebar } = buildNavigationProjection(caps, PRO_GATE);
     const sidebarIds = sidebar.groups.flatMap((g) => g.items.map((i) => i.id));
     expect(sidebarIds).toContain("admin.billing");
-    expect(sidebarIds).toContain("admin.teams");
+    expect(sidebarIds).not.toContain("admin.teams");
     expect(sidebarIds).toContain("admin.settings");
   });
 

@@ -153,6 +153,9 @@ function makeFake() {
   const evidence: EvidenceRow[] = [];
   const custody: CustodyRow[] = [];
   const audit: AuditRow[] = [];
+  // T-113 (stage E) — a demotion ends the CaseAssignment rows the new role
+  // cannot exercise (standing-reach releaseWorkBeyondRoleTx).
+  const caseAssignments: Array<{ id: string; teamId: string; assignedToUserId: string; role: string; status: string; removedAtUtc: Date | null; removedByUserId: string | null }> = [];
   // Guard: fail loudly if any code path ever tries a hard delete.
   let deleteAttempts = 0;
 
@@ -176,6 +179,7 @@ function makeFake() {
     _evidence: evidence,
     _custody: custody,
     _audit: audit,
+    _caseAssignments: caseAssignments,
     get _deleteAttempts() {
       return deleteAttempts;
     },
@@ -436,6 +440,23 @@ function makeFake() {
     // (assignment/release-held-work.ts) in its own transaction; this fixture
     // holds none, so every pool reads empty.
     evidenceReviewWorkflow: { findMany: async () => [] },
+    caseAssignment: {
+      async findMany({ where }: { where: { teamId: string; assignedToUserId: string; status: string } }) {
+        return caseAssignments
+          .filter((a) => a.teamId === where.teamId && a.assignedToUserId === where.assignedToUserId && a.status === where.status)
+          .map((a) => ({ id: a.id, role: a.role }));
+      },
+      async updateMany({ where, data }: { where: { id: { in: string[] }; status: string }; data: { status: string; removedAtUtc: Date; removedByUserId: string | null } }) {
+        let count = 0;
+        for (const a of caseAssignments) {
+          if (where.id.in.includes(a.id) && a.status === where.status) {
+            Object.assign(a, data);
+            count += 1;
+          }
+        }
+        return { count };
+      },
+    },
     reviewEscalation: { findMany: async () => [] },
     collaborationTeamAssignment: { findMany: async () => [] },
     operationalWorkflow: { findMany: async () => [] },
@@ -665,9 +686,20 @@ describe("SCIM User lifecycle — supported attribute updates", () => {
   });
 
   it("role update to VIEWER persists to TeamMember.role", async () => {
+    // T-113 (stage E) — a demotion runs the role-change release: an ACTIVE
+    // case assignment the new role cannot exercise is ended; a read-only
+    // OBSERVER assignment is kept.
+    fake._caseAssignments.push(
+      { id: "ca-investigator", teamId: TEAM, assignedToUserId: userId, role: "INVESTIGATOR", status: "ACTIVE", removedAtUtc: null, removedByUserId: null },
+      { id: "ca-observer", teamId: TEAM, assignedToUserId: userId, role: "OBSERVER", status: "ACTIVE", removedAtUtc: null, removedByUserId: null },
+    );
     const res = await scimUpdateUserAttributes(CTX, userId, { role: "VIEWER" }, fake as never);
     expect(res.ok).toBe(true);
     expect(fake._members.find((m) => m.userId === userId)?.role).toBe("VIEWER");
+    const byId = Object.fromEntries(fake._caseAssignments.map((a) => [a.id, a]));
+    expect(byId["ca-investigator"].status).toBe("REMOVED");
+    expect(byId["ca-investigator"].removedAtUtc).toBeInstanceOf(Date);
+    expect(byId["ca-observer"].status).toBe("ACTIVE");
   });
 
   it("never assigns/demotes a privileged (OWNER/ADMIN) member via SCIM role", async () => {

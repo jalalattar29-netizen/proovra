@@ -54,7 +54,12 @@ describe("canonical account step-up verifier", () => {
     );
     // The policy itself is unchanged: live session, this user, inside window.
     expect(SERVICE).toMatch(/revokedAtUtc: null/);
-    expect(SERVICE).toContain("where: { userId, sessionIdHash, revokedAtUtc: null }");
+    // T-038 (stage B) — the same live-session predicate (this user, this
+    // session, not revoked), plus: a server-ADOPTED legacy row never proves a
+    // recent sign-in (a null method is an older real sign-in and still counts).
+    expect(SERVICE).toMatch(
+      /prisma\.authenticatedSession\.findFirst\(\{[\s\S]{0,400}?where: \{\s*userId,\s*sessionIdHash,\s*revokedAtUtc: null,\s*(?:\/\/[^\n]*\n\s*)*OR: \[\{ authMethod: null \}, \{ authMethod: \{ not: ADOPTED_LEGACY_AUTH_METHOD \} \}\],\s*\}/,
+    );
     expect(SERVICE).toMatch(/RECENT_AUTH_WINDOW_MS/);
   });
 

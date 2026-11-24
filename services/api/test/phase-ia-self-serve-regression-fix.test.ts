@@ -223,6 +223,11 @@ describe("Phase IA-self-serve-regression-fix — BUG 3: user-scoped reports", ()
       /e\.statusCode === 404[\s\S]{0,200}tryUserScopedReports\(workspaceId\)/,
     );
     // The fallback adapter calls GET /v1/reports, scoped to that workspace.
-    expect(INDEX).toMatch(/apiFetch\(`\/v1\/reports\?teamId=\$\{encodeURIComponent\(workspaceId\)\}`/);
+    // T-146 (stage F) — the adapter also carries the user-scoped list's own
+    // page cursor when "Next" was pressed on that list; the workspace scope is
+    // always first and always sent.
+    expect(INDEX).toMatch(
+      /apiFetch\(\s*`\/v1\/reports\?teamId=\$\{encodeURIComponent\(workspaceId\)\}(?:`|\$\{cursor \? `&cursor=\$\{encodeURIComponent\(cursor\)\}` : ""\}`)/,
+    );
   });
 });

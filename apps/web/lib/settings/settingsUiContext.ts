@@ -39,8 +39,12 @@ export type SettingsUiContext = {
   activeWorkspaceName: string;
   /**
    * T-116 — what sort of workspace this is, for the overview "Type" fact:
-   * "Personal Workspace", "Team Workspace" (a collaboration plan with other
-   * members, own or joined) or "Organization Workspace".
+   * "Personal Workspace", "Personal Workspace with members" (a collaboration
+   * plan with other members, own or joined) or "Organization Workspace".
+   * Team is a plan on a Personal Workspace, never a workspace kind
+   * (Phase 7 constitutional vocabulary), so the kind stays "Personal
+   * Workspace"; the plan is stated by the Scope fact ("Team plan on your
+   * workspace").
    */
   workspaceTypeLabel: string;
   /**
@@ -253,7 +257,7 @@ export function deriveSettingsUiContext(
     workspaceTypeLabel: isOrg
       ? "Organization Workspace"
       : input.workspaceDescription?.teamWorkspace === true
-        ? "Team Workspace"
+        ? "Personal Workspace with members"
         : "Personal Workspace",
     isPersonalWorkspace: !isOrg,
     // AI assistance/governance is a real per-workspace surface for

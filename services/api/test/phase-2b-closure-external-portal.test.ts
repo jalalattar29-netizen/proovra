@@ -508,10 +508,15 @@ describe("Phase 2B Closure — Operator Console UI", () => {
       "Accepted",
       "Expired",
       "Revoked",
-      "Bulk Invite",
     ]) {
       expect(UI_OPERATOR).toMatch(new RegExp(`label:\\s*"${tab}"`));
     }
+    // T-136 (stage F) — inviting is an ACTION, not a status tab: the
+    // "Bulk Invite" tab became one "Invite reviewer" action whose form takes
+    // one or many recipients (behaviour: render team-f-external-review-console).
+    expect(UI_OPERATOR).not.toMatch(/label:\s*"Bulk Invite"/);
+    expect(UI_OPERATOR).toMatch(/data-invite-reviewer-action/);
+    expect(UI_OPERATOR).toMatch(/>\s*Invite reviewer\s*</);
   });
 
   it("exposes the bulk invite paste UI + per-row preview", () => {

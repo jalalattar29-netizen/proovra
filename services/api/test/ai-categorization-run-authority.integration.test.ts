@@ -95,14 +95,15 @@ describe("AI categorization run authority (live PostgreSQL 16, real HTTP)", () =
     categorizations: await prisma.evidenceAiCategorization.count({ where: { evidenceId: id } }),
   });
 
-  it("a viewer (read access only) cannot run it: the same 404 as a missing record, nothing written", async () => {
+  it("a viewer (read access only) cannot run it: a typed 403 (they can read it), a missing record stays 404, nothing written", async () => {
     const id = await record(h.fixtures.teamA.teamId);
     const viewer = await run(h.fixtures.teamA.viewerToken, id);
     const missing = await run(h.fixtures.teamA.viewerToken, randomUUID());
-    expect(viewer.statusCode, viewer.body).toBe(404);
+    // T-119/T-120 (team remediation stage E): a caller who can READ the record is
+    // told it lacks the permission (403); existence is not disclosed to anyone
+    // else, so a missing record is still the concealed 404.
+    expect(viewer.statusCode, viewer.body).toBe(403);
     expect(missing.statusCode).toBe(404);
-    // Same refusal (the body carries per-request ids).
-    expect(viewer.json().error.code).toBe(missing.json().error.code);
     expect(await traces(id)).toEqual({ categorizations: 0 });
   });
 

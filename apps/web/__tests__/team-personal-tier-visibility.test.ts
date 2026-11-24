@@ -286,7 +286,8 @@ test("T-116 — a TEAM owner's scope reads 'Team plan on your workspace', not 'P
   const ui = settingsUi(personalEnvelope("TEAM", 3), "TEAM");
   assert.equal(ui.billing.scopeLabel, "Team plan on your workspace");
   assert.equal(ui.activeWorkspaceName, "Dana Reyes's personal workspace");
-  assert.equal(ui.workspaceTypeLabel, "Team Workspace");
+  // Team is a plan on a Personal Workspace, never a workspace kind.
+  assert.equal(ui.workspaceTypeLabel, "Personal Workspace with members");
 });
 
 test("T-116 — FREE keeps 'Personal plan' / Personal Space; Enterprise keeps its agreement", () => {

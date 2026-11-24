@@ -368,6 +368,8 @@ vi.mock("../src/db.js", () => ({
   prisma: {
     user: {
       findUnique: async () => ({ id: H.actorUserId, currentWorkspaceId: H.currentWorkspaceId }),
+      // T-133: the request queue names assignees (display names only).
+      findMany: async () => [],
     },
     teamMember: {
       // PHASE 12 REMEDIATION — AUTH-005 (2026-08-06). INTENTIONAL CONTRACT
@@ -608,11 +610,13 @@ vi.mock("../src/services/evidence-request.service.js", async (importOriginal) =>
     evidenceRequestsFeatureDisabledReason: () =>
       H.evidenceRequestsEnabled ? null : "feature_flag_off",
     isEvidenceRequestsFeatureEnabled: () => H.evidenceRequestsEnabled,
-    listEvidenceRequests: async (i: { status?: string }) =>
+    // T-133: the priority filter is part of the service query (before the
+    // page bound), so the stand-in applies it the way the query does.
+    listEvidenceRequests: async (i: { status?: string; priority?: string }) =>
       [
         { id: "req-1", priority: "HIGH", assignedReviewerUserId: null, title: "Provide the incident photo" },
         { id: "req-2", priority: "LOW", assignedReviewerUserId: ACTOR, title: "Provide the receipt" },
-      ].map((r) => ({
+      ].filter((r) => !i.priority || r.priority === i.priority).map((r) => ({
         ...requestRow(i.status ?? "OPEN"),
         ...r,
       })),

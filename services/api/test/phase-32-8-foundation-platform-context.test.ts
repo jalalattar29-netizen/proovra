@@ -397,7 +397,17 @@ describe("Phase 32.8 Foundation — navigation registry", () => {
     expect(teams!.href).toBe("/workspaces");
   });
 
-  it("Teams nav visible to every team member AND to personal users (as create-team entry)", () => {
+  // T-125 (team remediation): the Workspaces list (/workspaces) is an
+  // Enterprise-only web surface, so it is advertised only where it loads.
+  it("Workspaces nav is advertised to Enterprise members only (never to Team or personal contexts)", () => {
+    const enterpriseNav = filterNavigationRegistry(
+      resolveCapabilities({ scope: "TEAM", role: "MEMBER", plan: "ENTERPRISE", isPlatformAdmin: false }),
+      ENTERPRISE_GATE,
+    );
+    expect(
+      enterpriseNav.find((g) => g.id === "administration")?.items.some((i) => i.id === "admin.teams") ?? false,
+    ).toBe(true);
+
     // Phase ROUTE-FIX — Teams is now an ACCOUNT-tier entry point.
     // Personal users see it in the sidebar as a "create your first
     // team workspace" CTA. Team management (TEAM_MANAGE) remains
@@ -412,7 +422,7 @@ describe("Phase 32.8 Foundation — navigation registry", () => {
       TEAM_ORG_GATE,
     );
     const adminGroup = teamMemberNav.find((g) => g.id === "administration");
-    expect(adminGroup?.items.some((i) => i.id === "admin.teams")).toBe(true);
+    expect(adminGroup?.items.some((i) => i.id === "admin.teams") ?? false).toBe(false);
 
     const personalNav = filterNavigationRegistry(
       resolveCapabilities({
@@ -428,7 +438,7 @@ describe("Phase 32.8 Foundation — navigation registry", () => {
     );
     expect(
       personalAdminGroup?.items.some((i) => i.id === "admin.teams") ?? false,
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("filterNavigationRegistry hides empty groups", () => {
