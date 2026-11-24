@@ -13,7 +13,8 @@
  *   - It does not render any workspace-internal data (the API never sends
  *     it). No internal notes, no reviewer comments, no billing data.
  *   - It does not call any authenticated endpoint. Every fetch passes
- *     `auth: false` so the user's session (if any) is not attached.
+ *     INTAKE_PUBLIC_FETCH (anonymous transport): no bearer, no cookies and
+ *     no workspace header, so the visitor's session (if any) is not attached.
  *   - It does not run the authenticated capture orchestration. Uploads go
  *     straight to S3 via presigned PUT URLs returned by the public API.
  *
@@ -48,6 +49,15 @@ import {
   skipLocationState,
   type LocationState,
 } from "./location-outcome";
+import {
+  INTAKE_PUBLIC_FETCH,
+  acceptAttributeForKinds,
+  formatIntakeBytes,
+  intakeLoadErrorClass,
+  intakeLoadErrorRetryable,
+  nextPartIndex,
+  remainingSessionBytes,
+} from "./intake-client-model";
 
 /**
  * Intake-links P0 bugfix — friendly public error mapper. The backend
@@ -154,6 +164,9 @@ function friendlyIntakeError(err: {
   const map: Record<string, string> = {
     RATE_LIMITED:
       "Too many requests. Please wait a moment and try again.",
+    // T-152 — no answer reached the page (offline, a dropped connection).
+    NETWORK_ERROR:
+      "We couldn't reach PROOVRA. Check your connection and try again.",
     SUBMITTER_IDENTITY_INVALID:
       "Please enter a display name to continue.",
     INVALID_OR_EXPIRED_LINK:
@@ -297,6 +310,8 @@ type LinkView = {
   maxFileCountPerSession: number | null;
   /** The largest single file the server accepts, stated before the transfer. */
   maxFileBytes?: number | null;
+  /** T-127 — the per-submission byte cap (a decimal string), null for none. */
+  maxBytesPerSession?: string | null;
   expiresAtUtc: string;
   /** Per-link operator setting — NONE | OPTIONAL | REQUIRED. */
   locationPolicy?: string;
@@ -471,6 +486,10 @@ export default function ExternalIntakePage({
     | "submitted"
   >("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // T-151 / T-152 — the CODE a failed first load answered (classification is
+  // by code, never by translated copy), and a counter Retry bumps to load again.
+  const [loadErrorCode, setLoadErrorCode] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [link, setLink] = useState<LinkView | null>(null);
   const [session, setSession] = useState<SessionView | null>(null);
   const [request, setRequest] = useState<RequestView | null>(null);
@@ -504,7 +523,7 @@ export default function ExternalIntakePage({
     apiFetch(`/v1/external-intake/${encodeURIComponent(token)}`, {
       method: "GET",
       ...(resumeId ? { headers: { "x-proovra-intake-session": resumeId } } : {}),
-    }, { auth: false })
+    }, INTAKE_PUBLIC_FETCH)
       .then((res: {
         link: LinkView;
         session: SessionView;
@@ -548,13 +567,14 @@ export default function ExternalIntakePage({
           setPhase("already_submitted");
           return;
         }
+        setLoadErrorCode(err?.code ?? null);
         setErrorMessage(friendlyIntakeError(err));
         setPhase("error");
       });
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, loadAttempt]);
 
   // UC-WEB-003 — warn before leaving while files are staged but not submitted.
   useEffect(() => {
@@ -585,6 +605,9 @@ export default function ExternalIntakePage({
   // for a request already in flight. NONE never gates on location.
   const locationBlockReason = locationSubmitBlock(locationPolicy, locationState);
   const locationBlocksSubmit = locationBlockReason !== null;
+
+  // T-127 — the allowance left under the link's per-submission byte cap.
+  const remainingBytes = remainingSessionBytes(link?.maxBytesPerSession, parts);
 
   const canSubmit =
     parts.length > 0 &&
@@ -680,7 +703,7 @@ export default function ExternalIntakePage({
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ pseudonym: chosen }),
           },
-          { auth: false },
+          INTAKE_PUBLIC_FETCH,
         );
       } catch (err) {
         const e = err as { code?: string; message?: string };
@@ -721,7 +744,7 @@ export default function ExternalIntakePage({
                 ...(email ? { submitterEmail: email.slice(0, 320) } : {}),
               }),
             },
-            { auth: false },
+            INTAKE_PUBLIC_FETCH,
           );
           disclosedIdentity = true;
         } catch (err) {
@@ -769,7 +792,7 @@ export default function ExternalIntakePage({
             },
           }),
         },
-        { auth: false },
+        INTAKE_PUBLIC_FETCH,
       );
       setSession(res.session);
       setPhase("upload");
@@ -797,8 +820,14 @@ export default function ExternalIntakePage({
    * same local counter) so it can't be tripped by stale React state.
    * The backend remains the authoritative cap enforcer.
    */
-  async function stageFile(file: File, partIndex: number) {
-    if (!link || !session) return;
+  /**
+   * T-128 — resolves true when the server reserved the file's index (even if
+   * its upload then failed: the row is held and Retry re-posts that index),
+   * false when the file was refused before or by the server. Only a reserved
+   * index advances the caller's counter.
+   */
+  async function stageFile(file: File, partIndex: number): Promise<boolean> {
+    if (!link || !session) return false;
     if (
       link.allowedAcceptedKinds.length > 0 &&
       !link.allowedAcceptedKinds.includes(kindFromMime(file.type))
@@ -806,7 +835,7 @@ export default function ExternalIntakePage({
       setErrorMessage(
         `Files of type "${file.type}" are not accepted by this link.`,
       );
-      return;
+      return false;
     }
 
     // INGEST-002 — said before the transfer, and before reading the whole file
@@ -814,7 +843,7 @@ export default function ExternalIntakePage({
     const maxFileBytes = link?.maxFileBytes ?? null;
     if (typeof maxFileBytes === "number" && file.size > maxFileBytes) {
       setErrorMessage(`This file is larger than this link accepts (${Math.floor(maxFileBytes / (1024 * 1024))} MB).`);
-      return;
+      return false;
     }
 
     let checksum: string;
@@ -822,7 +851,7 @@ export default function ExternalIntakePage({
       checksum = await sha256Base64OfBlob(file);
     } catch {
       setErrorMessage("Unable to compute file checksum in this browser.");
-      return;
+      return false;
     }
 
     try {
@@ -876,7 +905,7 @@ export default function ExternalIntakePage({
                 : null,
           }),
         },
-        { auth: false },
+        INTAKE_PUBLIC_FETCH,
       );
 
       // Stage the part with progress 0 before upload. A retry (ET-INT-02)
@@ -933,7 +962,7 @@ export default function ExternalIntakePage({
               : p,
           ),
         );
-        return;
+        return true;
       }
       setParts((prev) =>
         prev.map((p) =>
@@ -942,6 +971,7 @@ export default function ExternalIntakePage({
             : p,
         ),
       );
+      return true;
     } catch (err) {
       const e = err as {
         code?: string;
@@ -961,6 +991,54 @@ export default function ExternalIntakePage({
         denial ? null : (e.requestId ?? e.details?.requestId ?? null),
       );
       setErrorMessage(friendlyIntakeError(e));
+      return false;
+    }
+  }
+
+  /**
+   * T-128 / T-127 / T-153 — the ONE path a picked or dropped selection takes.
+   *
+   * A new file goes to a FRESH index: one past the highest index the session
+   * holds (`parts.length` re-targeted an occupied index after a middle file
+   * was removed). A file refused before or by the server does not consume an
+   * index. The file-count cap counts files, not indexes; the per-submission
+   * byte cap is checked before anything is hashed or sent, against what is
+   * already staged. React state does not update across awaits, so both are
+   * tracked locally for the whole selection.
+   */
+  async function addFiles(files: File[]) {
+    if (!link || !session || files.length === 0) return;
+    const cap =
+      typeof link.maxFileCountPerSession === "number" && link.maxFileCountPerSession > 0
+        ? link.maxFileCountPerSession
+        : null;
+    let nextIndex = nextPartIndex(parts);
+    let stagedCount = parts.length;
+    let bytesLeft = remainingSessionBytes(link.maxBytesPerSession, parts);
+    for (const f of files) {
+      if (cap !== null && stagedCount >= cap) {
+        /*
+         * A LIMIT REACHED IS NOT A SERVER BANNER. The person chose more files
+         * than the link allows — an ordinary mistake, and one that belongs
+         * beside the control they used, not at the top of the page next to
+         * the crash treatment.
+         */
+        setFileError(
+          `This link accepts up to ${cap} files. The rest of your selection was not added.`,
+        );
+        break;
+      }
+      if (bytesLeft !== null && f.size > bytesLeft) {
+        setFileError(
+          `"${f.name}" (${formatIntakeBytes(f.size)}) is larger than what is left for this submission (${formatIntakeBytes(bytesLeft)}). It was not added.`,
+        );
+        continue;
+      }
+      if (await stageFile(f, nextIndex)) {
+        nextIndex += 1;
+        stagedCount += 1;
+        if (bytesLeft !== null) bytesLeft = Math.max(0, bytesLeft - f.size);
+      }
     }
   }
 
@@ -980,7 +1058,7 @@ export default function ExternalIntakePage({
       await apiFetch(
         `/v1/external-intake/${encodeURIComponent(token)}/sessions/${session.id}/parts/${partId}`,
         { method: "DELETE" },
-        { auth: false },
+        INTAKE_PUBLIC_FETCH,
       );
       setParts((prev) => prev.filter((p) => p.id !== partId));
       setErrorMessage(null);
@@ -1006,7 +1084,7 @@ export default function ExternalIntakePage({
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ checklistStepId: stepId || null }),
         },
-        { auth: false },
+        INTAKE_PUBLIC_FETCH,
       );
       setParts((prev) =>
         prev.map((p) => (p.id === partId ? { ...p, checklistStepId: stepId || null } : p)),
@@ -1066,7 +1144,7 @@ export default function ExternalIntakePage({
           headers: { "content-type": "application/json" },
           body: JSON.stringify(submitBody),
         },
-        { auth: false },
+        INTAKE_PUBLIC_FETCH,
       );
       setSession(res.session);
       writeStoredIntakeSession(token, null);
@@ -1187,17 +1265,10 @@ export default function ExternalIntakePage({
     // contributor sees a clear next step rather than a generic
     // failure message, and the operator can recognise the error
     // class from the data attribute.
-    const errorClass =
-      errorMessage?.toLowerCase().includes("expired") ||
-      errorMessage?.toLowerCase().includes("revoked")
-        ? "expired-or-revoked"
-        : errorMessage?.toLowerCase().includes("not valid")
-          ? "invalid"
-          : errorMessage?.toLowerCase().includes("not enabled")
-            ? "feature-disabled"
-            : errorMessage?.toLowerCase().includes("too many")
-              ? "rate-limited"
-              : "generic";
+    // T-151 — classified by the error CODE, never by the translated copy.
+    const errorClass = intakeLoadErrorClass(loadErrorCode);
+    // T-152 — a load that failed for a passing reason offers Retry.
+    const retryable = phase === "error" && intakeLoadErrorRetryable(errorClass);
     return (
       <main
         className="ipk"
@@ -1230,8 +1301,23 @@ export default function ExternalIntakePage({
           ) : errorClass === "rate-limited" ? (
             <p className="ipk-outcome__note">
               For security, this link briefly limits repeated requests. Wait a
-              moment and reload the page.
+              minute, then try again.
             </p>
+          ) : null}
+          {retryable ? (
+            <button
+              type="button"
+              className="app-primary-action"
+              data-intake-load-retry="true"
+              onClick={() => {
+                setErrorMessage(null);
+                setLoadErrorCode(null);
+                setPhase("loading");
+                setLoadAttempt((n) => n + 1);
+              }}
+            >
+              Try again
+            </button>
           ) : null}
         </div>
       </main>
@@ -1540,43 +1626,26 @@ export default function ExternalIntakePage({
             {link.maxFileCountPerSession
               ? `Up to ${link.maxFileCountPerSession} files.`
               : null}
+            {remainingBytes !== null ? (
+              <>
+                {" "}
+                <span data-intake-remaining-bytes={remainingBytes}>
+                  {formatIntakeBytes(remainingBytes)} left of{" "}
+                  {formatIntakeBytes(Number(link.maxBytesPerSession))} for this submission.
+                </span>
+              </>
+            ) : null}
           </p>
           <input
             ref={fileInputRef}
             type="file"
             style={{ display: "none" }}
             multiple
+            // T-154 — the picker is filtered to the link's allowed kinds.
+            accept={acceptAttributeForKinds(link.allowedAcceptedKinds)}
+            data-intake-file-input="true"
             onChange={async (e) => {
-              // Snapshot the queue length ONCE before iterating. React
-              // state does not update synchronously across awaits, so
-              // we maintain a local counter for both the per-file
-              // partIndex and the local cap check. Without this,
-              // every file in a multi-select sent the same partIndex
-              // and the backend's (evidenceId, partIndex) unique
-              // constraint rejected all but the first.
-              const files = Array.from(e.target.files ?? []);
-              const cap =
-                typeof link?.maxFileCountPerSession === "number" &&
-                link.maxFileCountPerSession > 0
-                  ? link.maxFileCountPerSession
-                  : null;
-              let nextIndex = parts.length;
-              for (const f of files) {
-                if (cap !== null && nextIndex >= cap) {
-                  /*
-                   * A LIMIT REACHED IS NOT A SERVER BANNER. The person chose
-                   * more files than the link allows — an ordinary mistake, and
-                   * one that belongs beside the control they used, not at the
-                   * top of the page next to the crash treatment.
-                   */
-                  setFileError(
-                    `This link accepts up to ${cap} files. The rest of your selection was not added.`,
-                  );
-                  break;
-                }
-                await stageFile(f, nextIndex);
-                nextIndex += 1;
-              }
+              await addFiles(Array.from(e.target.files ?? []));
               if (fileInputRef.current) fileInputRef.current.value = "";
             }}
           />
@@ -1595,6 +1664,19 @@ export default function ExternalIntakePage({
             onClick={() => {
               setFileError(null);
               fileInputRef.current?.click();
+            }}
+            // T-153 — the drop area takes dropped files through the same
+            // path as the picker (kind, size and count checks included).
+            onDragOver={(e) => {
+              if (phase === "submitting") return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "copy";
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (phase === "submitting") return;
+              setFileError(null);
+              void addFiles(Array.from(e.dataTransfer?.files ?? []));
             }}
             disabled={phase === "submitting"}
             data-intake-add-files-btn="true"
@@ -1616,7 +1698,7 @@ export default function ExternalIntakePage({
             </svg>
             <span className="ipk-drop__title">Add files</span>
             <span className="ipk-drop__hint">
-              Tap to choose — you can select more than one
+              Tap to choose, or drop files here — you can add more than one
             </span>
           </button>
           {fileError ? (
