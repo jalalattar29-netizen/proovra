@@ -127,8 +127,7 @@ const EXPECTED_CONSUMERS = [
   // issue form and scope search). The review-layout gate opens these pages.
   "app/(app)/review/disagreements/page.tsx",
   "app/(app)/review/external/page.tsx",
-  "app/(app)/review/qc/page.tsx",
-  "app/(app)/review/workspace/page.tsx",
+  "app/(app)/review/qc/_section.tsx",
   "components/external-review/ExternalReviewSubjectPanel.tsx",
   "components/external-review/ReviewScopePicker.tsx",
   // TEAM-SPEC (2026-11-23) — the review inspector's decision form, the
@@ -199,8 +198,9 @@ const EXPECTED_CONSUMERS = [
   // the console's saved-view form, the Review settings SLA policy form, and
   // the SLA page's analytics sub-headings. The review-layout browser gate
   // opens the hub pages and measures them.
-  "app/(app)/reviewer-ops/sla/page.tsx",
-  "components/reviewer-experience/ReviewerConsole.tsx",
+  "app/(app)/reviewer-ops/sla/_sections.tsx",
+  "components/reviewer-experience/ReviewInbox.tsx",
+  "components/reviewer-experience/ChallengeDecision.tsx",
   "components/reviewer-experience/ReviewerPickerModal.tsx",
   "components/reviewer-experience/ReviewerSlaPolicyPanel.tsx",
 ];

@@ -72,7 +72,7 @@ const OWNER_DESTRUCTION_PANEL = "apps/web/app/(app)/evidence/[id]/components/Own
 const REGISTER = "apps/web/app/register/page.tsx";
 const EXCHANGE = "apps/web/app/(app)/exchange/page.tsx";
 const MANAGE_VERIFICATION_PAGE = "apps/web/components/evidence-outputs/ManageVerificationPagePanel.tsx";
-const QC_REVIEW = "apps/web/app/(app)/review/qc/page.tsx";
+const QC_REVIEW = "apps/web/app/(app)/review/qc/_section.tsx";
 const SSO_CONNECTIONS = "apps/web/app/(app)/security-center/sso/_sections/IdentityProvidersSection.tsx";
 // MOBILE-002 — the native SSO handoff is answered by the mobile app, not the web.
 const NATIVE_SSO = "apps/mobile/src/auth/use-sso-sign-in.ts";

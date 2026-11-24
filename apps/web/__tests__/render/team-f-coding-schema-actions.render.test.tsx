@@ -24,7 +24,7 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-import CodingSchemasPage from "../../app/(app)/review/schemas/page";
+import { CodingSchemasSection as CodingSchemasPage } from "../../app/(app)/review/schemas/_section";
 
 let schemas: Array<Record<string, unknown>>;
 let seedPosts: number;

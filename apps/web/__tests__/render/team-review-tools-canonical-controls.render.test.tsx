@@ -69,10 +69,11 @@ vi.mock("../../components/ui", async (orig) => ({
   useToast: () => ({ addToast: () => {} }),
 }));
 
-import QcPage from "../../app/(app)/review/qc/page";
-import CodingSchemasPage from "../../app/(app)/review/schemas/page";
+// Stage D (T-078 / T-079) — QC is Monitoring → Quality, schemas a Review settings section.
+import { QcSection as QcPage } from "../../app/(app)/review/qc/_section";
+import { CodingSchemasSection as CodingSchemasPage } from "../../app/(app)/review/schemas/_section";
 import DisagreementsPage from "../../app/(app)/review/disagreements/page";
-import ReviewerMetricsPage from "../../app/(app)/review/metrics/page";
+import { MetricsSection as ReviewerMetricsPage } from "../../app/(app)/review/metrics/_section";
 import ExternalInvitationsPage from "../../app/(app)/review/external/page";
 
 const INVITATION = {
@@ -164,7 +165,9 @@ describe("QC", () => {
       return el as HTMLButtonElement;
     });
     await waitFor(() => expect(fail.hasAttribute("disabled")).toBe(false));
-    expectCanonicalHeader("Quality control");
+    // A Monitoring section: its own h2 under the Monitoring page header.
+    expect(screen.getByRole("heading", { level: 2, name: "Quality control samples" })).toBeTruthy();
+    expect(document.querySelectorAll("h1")).toHaveLength(0);
     for (const v of ["PASS", "FAIL", "PARTIAL"]) {
       const b = document.querySelector(`[data-qc-verdict-btn="${v}"]`);
       expect(cls(b)).toBe("app-secondary-action");
@@ -188,7 +191,7 @@ describe("Coding schemas", () => {
     expect(cls(document.querySelector("[data-coding-seed-defaults]"))).toBe("app-primary-action");
     expect(document.querySelectorAll(".app-primary-action")).toHaveLength(1);
     expect(document.querySelectorAll(".app-danger-action")).toHaveLength(0);
-    expectCanonicalHeader("Coding schemas");
+    expect(document.querySelectorAll("h1")).toHaveLength(0);
     expectNoLegacyButtons();
   });
 });
@@ -201,7 +204,9 @@ describe("Disagreements", () => {
       expect(el).not.toBeNull();
       return el as HTMLButtonElement;
     });
-    expectCanonicalHeader("Disagreements");
+    // T-081 (stage D) — filed challenges are named for what they are.
+    expectCanonicalHeader("Challenged decisions");
+    expect(document.body.textContent).not.toMatch(/different outcomes/);
     for (const b of Array.from(document.querySelectorAll("[data-disagreement-transition-btn]"))) {
       expect(cls(b)).toBe("app-secondary-action");
     }

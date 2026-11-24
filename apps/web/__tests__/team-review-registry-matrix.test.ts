@@ -12,12 +12,27 @@
  * capability-registry.ts` for each role under each plan.
  */
 import { strict as assert } from "node:assert";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 import { ROUTE_REGISTRY } from "../lib/navigation/routeRegistry";
 import { resolveRouteAccess } from "../lib/navigation/routeAccessResolver";
 import { canAccessSurface, ruleEntitlement, type SurfaceUserContext } from "../lib/surface/access";
 import { findSurfaceTierRule } from "../lib/surface/tiers";
+import { reviewQueuesRedirectTarget } from "../lib/reviewer-workspace/inbox-views";
+import { orderPaletteCandidates } from "../lib/navigation/paletteModel";
+
+const webRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+test("T-065 — /review/queues?queue=X lands on /review?view=X", () => {
+  assert.equal(reviewQueuesRedirectTarget({ queue: "OVERDUE" }), "/review?view=OVERDUE");
+  assert.equal(reviewQueuesRedirectTarget({ queue: "MY_REVIEWS" }), "/review");
+  assert.equal(reviewQueuesRedirectTarget({ queue: "AWAITING_ADJUDICATION" }), "/review?view=AWAITING_ADJUDICATION");
+  assert.equal(reviewQueuesRedirectTarget({ queue: "NOT_A_QUEUE" }), "/review");
+  assert.equal(reviewQueuesRedirectTarget({}), "/review");
+});
 
 type Ctx = {
   name: string;
@@ -156,10 +171,32 @@ test("one sidebar entry for review: Review → /review; queues, escalations and 
     reviewSidebar.map((r) => r.id),
     ["workspace.review"],
   );
-  for (const id of ["review.escalations", "review.sla", "workspace.review_queues", "review.settings"]) {
+  for (const id of ["review.sla", "review.settings"]) {
     const route = ROUTE_REGISTRY.find((r) => r.id === id)!;
     assert.equal(route.commandPaletteVisible, true, `${id} stays reachable from the palette`);
   }
+});
+
+test("stage D — the retired review routes are redirects and are not offered in the palette (T-065, T-077, T-078, T-079)", () => {
+  const retired: Array<[string, string, RegExp]> = [
+    ["workspace.review_queues", "app/(app)/review/queues/page.tsx", /reviewQueuesRedirectTarget/],
+    ["review.escalations", "app/(app)/reviewer-ops/escalations/page.tsx", /monitoringHref\("escalations"/],
+    ["workspace.review_qc", "app/(app)/review/qc/page.tsx", /monitoringHref\("quality"\)/],
+    ["workspace.review_metrics", "app/(app)/review/metrics/page.tsx", /monitoringHref\("metrics"\)/],
+    ["workspace.coding_schemas", "app/(app)/review/schemas/page.tsx", /\/review\/settings\?section=schemas/],
+  ];
+  for (const [id, file, target] of retired) {
+    const route = ROUTE_REGISTRY.find((r) => r.id === id)!;
+    assert.equal(route.commandPaletteVisible, false, id);
+    assert.equal(route.allToolsVisible, false, id);
+    const src = readFileSync(resolve(webRoot, file), "utf8");
+    assert.match(src, /redirect\(/, `${file} redirects`);
+    assert.match(src, target, `${file} redirects to its new home`);
+  }
+  // The workspace route opens focus mode on the next item (a client redirect).
+  const ws = ROUTE_REGISTRY.find((r) => r.id === "workspace.review_workspace")!;
+  assert.equal(ws.commandPaletteVisible, false);
+  assert.match(readFileSync(resolve(webRoot, "app/(app)/review/workspace/page.tsx"), "utf8"), /mode: "focus"|focus: true/);
 });
 
 test("Review settings has a surface-tier rule on reviewerOperationsIncluded; /governance/policy stays Enterprise", () => {
@@ -170,4 +207,35 @@ test("Review settings has a surface-tier rule on reviewerOperationsIncluded; /go
   assert.equal(canAccessSurface(team, "/review/settings"), true);
   assert.equal(canAccessSurface(pro, "/review/settings"), false);
   assert.equal(canAccessSurface(team, "/governance/policy"), false);
+});
+
+test("T-087 — the palette offers few Review entries, in user language", () => {
+  const ctx = CONTEXTS.find((c) => c.name === "TEAM personal Owner")!;
+  const offered = ROUTE_REGISTRY.filter((route) => {
+    if (!route.commandPaletteVisible || /[:[]/.test(route.href)) return false;
+    const decision = resolveRouteAccess({
+      route,
+      activeSpaceType: ctx.activeSpaceType,
+      isPlatformAdmin: false,
+      capabilities: ctx.capabilities,
+      workspace: { id: "w-1", status: "active" },
+      personalSpace: { id: "p-1", status: "active" },
+      isEnterpriseWorkspace: ctx.isEnterpriseWorkspace,
+      planFeatures: ctx.planFeatures,
+    });
+    return decision.canSeeNav && decision.canLoad;
+  });
+  const ranked = orderPaletteCandidates(
+    offered.map((route) => ({ route, canLoad: true, item: route })),
+    "review",
+  ).map((c) => c.route);
+  const reviewHub = ranked.filter((r) => r.domain === "REVIEW_OPERATIONS");
+  assert.ok(reviewHub.length <= 5, `review entries: ${reviewHub.map((r) => r.id).join(", ")}`);
+  assert.deepEqual(
+    reviewHub.map((r) => r.id).sort(),
+    ["review.settings", "review.sla", "workspace.review", "workspace.review_external"].sort(),
+  );
+  for (const r of ROUTE_REGISTRY.filter((x) => x.commandPaletteVisible)) {
+    assert.doesNotMatch(r.description, /Phase \d|bulk action bar|Reviewer operations|surface —/i, r.id);
+  }
 });

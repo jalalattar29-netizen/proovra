@@ -18,14 +18,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 
 import ReviewWorkspacePage from "../../app/(app)/reviewer-ops/[reviewId]/page";
-import MetricsPage from "../../app/(app)/review/metrics/page";
+import { MetricsSection as MetricsPage } from "../../app/(app)/review/metrics/_section";
 import { formatUserDate } from "../../lib/date";
 import {
   escalationSummaryText,
   governingDeadlineText,
   presentDeadlines,
 } from "../../lib/reviewer-workspace/sla-presentation";
-import { slaSignalLabel } from "../../app/(app)/review/queues/_queue-intelligence";
+import { slaSignalLabel } from "../../components/reviewer-experience/queueIntelligence";
 
 const teamId = "44444444-4444-4444-8444-444444444444";
 const workflowId = "22222222-2222-4222-8222-222222222222";

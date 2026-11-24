@@ -38,7 +38,7 @@ const PAGE_PATH = resolve(
   "(app)",
   "review",
   "metrics",
-  "page.tsx",
+  "_section.tsx", // stage D (T-078): Monitoring → Metrics
 );
 const PAGE_SOURCE = readFileSync(PAGE_PATH, "utf8");
 

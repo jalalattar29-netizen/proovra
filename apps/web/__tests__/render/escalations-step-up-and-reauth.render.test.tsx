@@ -39,7 +39,7 @@ import {
 } from "../../lib/platform-context/types";
 import { ToastProvider } from "../../components/ui";
 import { ConfirmActionProvider } from "../../components/ui/ConfirmActionModal";
-import EscalationsPage from "../../app/(app)/reviewer-ops/escalations/page";
+import { EscalationsSection as EscalationsPage } from "../../app/(app)/reviewer-ops/escalations/_section";
 import { reauthWindow } from "../../components/identity-security/StepUpModal";
 import { setActiveWorkspaceId } from "../../lib/api";
 

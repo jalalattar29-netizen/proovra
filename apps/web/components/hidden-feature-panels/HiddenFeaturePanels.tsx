@@ -30,7 +30,7 @@
  *      Host: `/security-center/page.tsx`
  *
  *   8. `ReviewerRoutingRecommendationsPane` — `GET /v1/reviewer/routing-recommendations`
- *      Host: `ReviewerConsole.tsx`
+ *      Host: Monitoring → Workload (`reviewer-ops/sla/_sections.tsx`)
  *
  *   9. `AccessAnomaliesCard`          — `GET /v1/security-center/access-anomalies`
  *      Host: `/security-center/page.tsx`

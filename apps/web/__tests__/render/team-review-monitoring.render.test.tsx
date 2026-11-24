@@ -40,8 +40,9 @@ import {
 import { ToastProvider } from "../../components/ui";
 import { ConfirmActionProvider } from "../../components/ui/ConfirmActionModal";
 import { NoEscalationsEmptyState } from "../../components/operational";
-import EscalationsPage from "../../app/(app)/reviewer-ops/escalations/page";
-import SlaPage from "../../app/(app)/reviewer-ops/sla/page";
+import { EscalationsSection as EscalationsPage } from "../../app/(app)/reviewer-ops/escalations/_section";
+// Stage D (T-078) — the SLA page's content is the Monitoring Deadlines and Workload sections.
+import { DeadlinesSection, WorkloadSection } from "../../app/(app)/reviewer-ops/sla/_sections";
 import { setActiveWorkspaceId } from "../../lib/api";
 
 const WS = "88888888-8888-4888-8888-888888888888";
@@ -204,7 +205,9 @@ describe("Escalations page", () => {
     expect(tr.tagName).toBe("TR");
     const table = tr.closest("table")!;
     expect(table.classList.contains("app-table")).toBe(true);
-    expect(table.hasAttribute("data-responsive")).toBe(true);
+    // T-088 (stage D) — the card layout starts at ~900 px so every row action stays visible at 768 px.
+    expect(table.classList.contains("review-cards-900")).toBe(true);
+    expect(tr.querySelectorAll("[data-row-action]").length).toBe(4);
     for (const cell of ["ref", "priority", "status", "due", "actions"]) {
       expect(tr.querySelector(`[data-review-cell="${cell}"]`), cell).not.toBeNull();
     }
@@ -287,7 +290,12 @@ describe("SLA page", () => {
       if (p.startsWith("/v1/reviewer-ops/reminders")) return { status: 200, body: { reminders: [] } };
       return null;
     };
-    mount(<SlaPage />);
+    mount(
+      <>
+        <DeadlinesSection teamId={WS} />
+        <WorkloadSection teamId={WS} />
+      </>,
+    );
     await settle();
     const compliance = document.querySelector("[data-sla-compliance]")!;
     expect(compliance.getAttribute("data-sla-compliance")).toBe("none");
@@ -323,10 +331,10 @@ describe("SLA page", () => {
       }
       return null;
     };
-    mount(<SlaPage />);
+    mount(<DeadlinesSection teamId={WS} />);
     await settle();
     expect(document.querySelector("[data-sla-dashboard-error]")).not.toBeNull();
-    expect(document.body.textContent).not.toContain("Loading SLA dashboard");
+    expect(document.body.textContent).not.toContain("Loading monitoring figures");
     await act(async () => {
       fireEvent.click(document.querySelector("[data-sla-dashboard-retry]")!);
     });
