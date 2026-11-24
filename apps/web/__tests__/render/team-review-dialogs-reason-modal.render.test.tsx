@@ -198,8 +198,13 @@ describe("ReviewerShortcutsHelp", () => {
   it("lists the console keys by default", async () => {
     render(<ReviewerShortcutsHelp open onClose={() => {}} />);
     const dialog = await screen.findByRole("dialog");
-    for (const k of ["J / K", "Enter", "A", "E", "M", "/"]) {
+    for (const k of ["J / K", "Enter", "A", "/"]) {
       expect(within(dialog).getByText(k, { selector: "kbd" })).toBeTruthy();
+    }
+    // ARCH-18 — the console handles no E (escalate) or M (request info) key,
+    // so the help does not list them.
+    for (const k of ["E", "M"]) {
+      expect(within(dialog).queryByText(k, { selector: "kbd" })).toBeNull();
     }
   });
 });
