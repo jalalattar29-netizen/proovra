@@ -214,7 +214,7 @@ describe("every assignment writer obeys the one assignee authority (live Postgre
     const url = `/v1/review-operations/evidence/${wf.evidenceId}/claim`;
     const refused = await post(url, unplaced.token, { teamId: A().teamId });
     expect(refused.statusCode, refused.body).toBe(422);
-    expect(errorCode(refused)).toBe("assignee_not_placed");
+    expect(errorCode(refused)).toBe("REVIEW_ASSIGNEE_NOT_PLACED");
     const ok = await post(url, placed.token, { teamId: A().teamId });
     expect(ok.statusCode, ok.body).toBe(200);
     expect(await assigneeOf(wf.workflowId)).toBe(placed.id);
@@ -596,7 +596,7 @@ describe("every assignment writer obeys the one assignee authority (live Postgre
       const url = `/v1/cases/${c.id}/assignments`;
       const refused = await post(url, P().token, { assignedToUserId: unplaced.id, role: "INVESTIGATOR" });
       expect(refused.statusCode, refused.body).toBe(422);
-      expect(errorCode(refused)).toBe("assignee_not_placed");
+      expect(errorCode(refused)).toBe("REVIEW_ASSIGNEE_NOT_PLACED");
       const ok = await post(url, P().token, { assignedToUserId: placed.id, role: "INVESTIGATOR" });
       expect(ok.statusCode, ok.body).toBe(200);
       expect(await prisma.caseAssignment.count({ where: { caseId: c.id } })).toBe(1);

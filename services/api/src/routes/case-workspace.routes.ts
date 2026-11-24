@@ -138,6 +138,12 @@ function handleCaseError(reply: FastifyReply, err: unknown): boolean {
             : err.code === "assignee_not_placed"
               ? 422
               : 400;
+    // Team remediation T-098 — the canonical placement code (with the engine's
+    // lowercase reason), as every other assignment door answers it.
+    if (err.code === "assignee_not_placed") {
+      reply.code(status).send({ error: { code: "REVIEW_ASSIGNEE_NOT_PLACED", details: { reason: "assignee_not_placed" } } });
+      return true;
+    }
     reply.code(status).send({ error: { code: err.code } });
     return true;
   }

@@ -124,6 +124,7 @@ import { caseVisibleToWhere, OPEN_CASE_STATUSES } from "../services/cases/case-v
 import { resolveCollaborationEntitlement } from "../services/collaboration-team/collaboration-entitlement.service.js";
 import { accessibleWorkspaceIdsFor, caseClosedTo } from "../services/access/record-reach.js";
 import { explainMemberAccess } from "../services/access/access-explanation.service.js";
+import { presentableWorkspaceName } from "../services/platform-context/workspace-bootstrap.service.js";
 import { countWorkHeldBy } from "../services/assignment/release-held-work.js";
 import { previewWorkBeyondRole } from "../services/identity/standing-reach.js";
 import { resolveCaseRecordAccess } from "../services/cases/case-permission.service.js";
@@ -212,11 +213,12 @@ async function deliverWorkspaceInvite(input: {
     if (!emailService.isConfigured()) return false;
     const team = await prisma.team.findUnique({
       where: { id: input.teamId },
-      select: { name: true },
+      select: { name: true, owner: { select: { firstName: true, lastName: true, displayName: true } } },
     });
     await emailService.sendTeamInvitation(
       input.email,
-      team?.name || "PROOVRA",
+      // T-117 — the invitee never sees the owner's e-mail as the workspace name.
+      team?.name ? presentableWorkspaceName(team.name, team.owner ?? null) : "PROOVRA",
       input.rawToken,
     );
     return true;

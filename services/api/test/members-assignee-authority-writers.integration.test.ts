@@ -835,7 +835,7 @@ describe("the one assignee authority holds for every writer, and a departure rel
       const res = await result;
       expect(waited, "case assignment waited on the archive").toBe(true);
       expect(res.statusCode, res.body).toBe(422);
-      expect(errorCode(res)).toBe("assignee_not_placed");
+      expect(errorCode(res)).toBe("REVIEW_ASSIGNEE_NOT_PLACED");
       expect(await prisma.caseAssignment.count({ where: { caseId: c.id } })).toBe(0);
     }
 

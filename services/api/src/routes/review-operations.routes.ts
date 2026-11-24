@@ -181,8 +181,13 @@ function reviewErrorToReply(err: unknown, reply: FastifyReply): void {
               : err.code === "already_assigned_elsewhere" || err.code === "already_in_stage"
                 ? 409
                 : 400;
+    // Team remediation T-098 (JRN-01b) — ONE code for the placement
+    // prerequisite on every door: the claim refusal said `assignee_not_placed`
+    // while assignment said REVIEW_ASSIGNEE_NOT_PLACED, and only the latter
+    // had user copy. The lowercase engine code stays as `details.reason`.
+    const code = err.code === "assignee_not_placed" ? "REVIEW_ASSIGNEE_NOT_PLACED" : err.code;
     reply.code(status).send({
-      error: { code: err.code, details: status === 404 ? (err.details ?? null) : withReason(err.code, err.details) },
+      error: { code, details: status === 404 ? (err.details ?? null) : withReason(err.code, err.details) },
     });
     return;
   }

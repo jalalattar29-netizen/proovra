@@ -68,6 +68,7 @@ import {
   type AuthorizedWorkspaceContext,
 } from "../../middleware/authorize.js";
 import { readWorkspaceHeader } from "../access/request-workspace.js";
+import { sendWorkspaceContextMismatch } from "../../http/workspace-context.js";
 
 /**
  * The workspace the request NAMES, or null.
@@ -105,6 +106,15 @@ export async function authorizeCollaborationWorkspace(
   permission: Permission,
   client: PrismaClient = defaultPrisma,
 ): Promise<AuthorizedWorkspaceContext | null> {
+  // Team remediation T-118 (MEM-05 family) — a request that names its
+  // workspace twice, differently (header X, `?workspaceId=Y`), is refused:
+  // the header used to win silently, so the query a client sent was ignored.
+  const header = readWorkspaceHeader(req);
+  const query = (req.query as Record<string, unknown> | undefined)?.workspaceId;
+  if (header && typeof query === "string" && query.length > 0 && query.toLowerCase() !== header.toLowerCase()) {
+    void sendWorkspaceContextMismatch(reply, req);
+    return null;
+  }
   const named = readNamedWorkspaceId(req);
   const ctx = named
     ? await authorizeWorkspaceOrFail(req, reply, {

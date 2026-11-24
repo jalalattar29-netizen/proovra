@@ -1055,6 +1055,7 @@ export async function buildPlatformContext(
   const resolvedPersona = resolvePersona({
     scope: workspace.scope,
     role: workspace.membership.role,
+    collaborationIncluded: collaborationLimits.maxCollaborationTeamsPerWorkspace > 0,
   });
 
   // -------------------------------------------------------------------------

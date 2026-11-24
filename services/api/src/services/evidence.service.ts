@@ -210,6 +210,14 @@ function resolveRootEvidenceDisplayFileName(params: {
  * Secure intake does not come through here: it creates on the link's
  * authority, which the intake gates decide.
  */
+/** T-123 — the one answer for a workspace the caller cannot enter (or that does not exist). */
+function workspaceNotFoundError(): Error & { statusCode: number; code: string } {
+  const err = new Error("Workspace not found") as Error & { statusCode: number; code: string };
+  err.statusCode = 404;
+  err.code = "WORKSPACE_NOT_FOUND";
+  return err;
+}
+
 export async function assertInteractiveEvidenceCreateAllowed(params: {
   ownerUserId: string;
   teamId: string | null | undefined;
@@ -220,6 +228,17 @@ export async function assertInteractiveEvidenceCreateAllowed(params: {
     select: { isPersonal: true, ownerUserId: true },
   });
   if (target?.isPersonal === true && target.ownerUserId === params.ownerUserId) return;
+  // Team remediation T-123 (MEM-S2) — a workspace the caller is not an ACTIVE
+  // member of, and one that does not exist, are the same answer: 404 (as the
+  // header path and every read answer them). A member who may not write gets
+  // 403 SHARED_WORKSPACE_FORBIDDEN: they already know the workspace exists.
+  const membership = target
+    ? await prisma.teamMember.findUnique({
+        where: { teamId_userId: { teamId: params.teamId, userId: params.ownerUserId } },
+        select: { status: true },
+      })
+    : null;
+  if (!target || membership?.status !== "ACTIVE") throw workspaceNotFoundError();
   const { evaluateMemberAccess } = await import("./identity/access-policy.service.js");
   const decision = target
     ? await evaluateMemberAccess({
@@ -450,12 +469,8 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
       // the caller's own personal team.
       await ensurePersonalWorkspace({ userId: params.ownerUserId }, db as never);
     } else if (!activeMembership) {
-      const err: Error & { statusCode?: number; code?: string } = new Error(
-        "Forbidden team workspace"
-      );
-      err.statusCode = 403;
-      err.code = "SHARED_WORKSPACE_FORBIDDEN";
-      throw err;
+      // T-123 — not an ACTIVE member: answered as a missing workspace.
+      throw workspaceNotFoundError();
     }
   } else {
     const personal = await ensurePersonalWorkspace(

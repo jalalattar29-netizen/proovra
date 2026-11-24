@@ -59,6 +59,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { appendCustodyEventTx } from "../custody-events.service.js";
 import { evaluateEffectiveLegalHold, UNSEALED_EVIDENCE_STATUSES } from "@proovra/shared-runtime";
 import { resolveEvidenceDestructiveAccess } from "./evidence-destructive-access.service.js";
+import { evidenceRecordRefusal } from "./evidence-record-access.service.js";
 
 /**
  * The trash recovery-grace window.
@@ -118,6 +119,8 @@ export type EvidenceLifecycleMutationResult =
       message: string;
       /** Present when the refusal came from the canonical authority. */
       blockReason?: EvidenceLifecycleBlockReason;
+      /** T-119 — the typed reason of a 403 on a record the caller can read. */
+      details?: { reason: string };
     };
 
 /**
@@ -243,6 +246,29 @@ export async function applyEvidenceLifecycleAction(
     client,
   );
   if (!access.allowed) {
+    // T-119 / T-120 — 404 only for a caller who cannot see the record; a
+    // reader who lacks the action's permission is told so (403, typed).
+    const refusal = await evidenceRecordRefusal(
+      {
+        userId: input.actorUserId,
+        evidenceId: input.evidenceId,
+        permission: ACTION_PERMISSION[input.action],
+        denial: access.internalReason,
+      },
+      client,
+    );
+    if (refusal.statusCode === 403) {
+      return {
+        ok: false,
+        statusCode: 403,
+        code: refusal.code,
+        message:
+          refusal.code === "session_quarantined"
+            ? "This session cannot make changes right now. Sign in again to continue."
+            : "Your role in this workspace does not allow this action on the record. Ask a workspace owner or admin.",
+        details: { reason: refusal.reason },
+      };
+    }
     return {
       ok: false,
       statusCode: 404,

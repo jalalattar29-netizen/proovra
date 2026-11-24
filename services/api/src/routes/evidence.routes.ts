@@ -398,6 +398,7 @@ import { verifyJwt } from "../services/jwt.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { claimPublicVerifyAuditSlot } from "../services/public-verify/public-verify-audit-coalescer.js";
 import { isLimiterUnavailable, replyLimiterUnavailable } from "../http/limiter-unavailable.js";
+import { namedMutationWorkspace, sendWorkspaceContextMismatch } from "../http/workspace-context.js";
 import { admitPublicVerifyClient } from "../services/public-verify/public-verify-gate.js";
 import { readVerificationViewCounts } from "../services/public-verify/view-counts.service.js";
 // Phase A.1D — explicit retry/regenerate path for report artifacts.
@@ -488,6 +489,7 @@ import {
   projectEvidenceActorCapabilities,
   resolveEvidenceOperationAccess,
   resolveEvidenceRecordAccess,
+  evidenceRecordRefusal,
   type EvidenceRecordPermission,
 } from "../services/evidence/evidence-record-access.service.js";
 import { buildEvidenceIntelligence } from "../services/evidence-intelligence.service.js";
@@ -4254,6 +4256,21 @@ async function getEvidenceWithReadAccess(
  * (anti-enumeration); the internal reason stays in the audit trail written
  * by the canonical engine.
  */
+/**
+ * T-119 — the body of a refused record action: the message, plus (for a typed
+ * 403 on a readable record) the code and reason, flat and nested so both the
+ * legacy readers and the web's ApiError path see them.
+ */
+function recordRefusalBody(err: unknown, message: string): Record<string, unknown> {
+  const e = err as { publicCode?: string; publicReason?: string } | null;
+  if (!e || typeof e.publicCode !== "string") return { message };
+  return {
+    message,
+    code: e.publicCode,
+    error: { code: e.publicCode, message, details: { reason: e.publicReason ?? e.publicCode } },
+  };
+}
+
 async function getEvidenceWithRecordAccess(
   userId: string,
   evidenceId: string,
@@ -4265,6 +4282,20 @@ async function getEvidenceWithRecordAccess(
     permission,
   });
   if (!access.allowed) {
+    // T-119 — the anti-enumeration 404 is for callers who cannot see the
+    // record; a reader lacking this permission gets a typed 403.
+    const refusal = await evidenceRecordRefusal({ userId, evidenceId, permission, denial: access.internalReason });
+    if (refusal.statusCode === 403) {
+      const err: Error & { statusCode?: number; publicCode?: string; publicReason?: string } = new Error(
+        refusal.code === "session_quarantined"
+          ? "This session cannot make changes right now. Sign in again to continue."
+          : "Your role in this workspace does not allow this action on the record. Ask a workspace owner or admin.",
+      );
+      err.statusCode = 403;
+      err.publicCode = refusal.code;
+      err.publicReason = refusal.reason;
+      throw err;
+    }
     const err: Error & { statusCode?: number } = new Error(
       "Evidence not found",
     );
@@ -6609,7 +6640,17 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
   app.post("/v1/evidence", { preHandler: requireAuthAndLegal }, async (req, reply) => {
     await _emitEvidenceCreateSpans(req.body);
-    const body = CreateEvidenceBody.parse(req.body);
+    const parsedBody = CreateEvidenceBody.parse(req.body);
+    // Team remediation T-118 (MEM-09) — the workspace a capture lands in: the
+    // body `teamId`, else the workspace the request names in its header (it
+    // used to fall back to the caller's PERSONAL space even when the header
+    // named a shared one); a header and body that disagree are refused (409).
+    // A request that names no workspace at all keeps the documented capture
+    // default, the caller's own Personal Workspace (a private, always-writable
+    // place; the web capture omits `teamId` only for a Personal Space).
+    const namedWorkspace = namedMutationWorkspace(req, parsedBody.teamId ?? null);
+    if (namedWorkspace.kind === "mismatch") return sendWorkspaceContextMismatch(reply, req);
+    const body = namedWorkspace.kind === "named" ? { ...parsedBody, teamId: namedWorkspace.teamId } : parsedBody;
     const ownerUserId = getAuthUserId(req);
     const plan = await getThrottlePlan(ownerUserId, body.teamId ?? null);
     const limit = getTierLimit(plan);
@@ -7144,7 +7185,7 @@ if (
         // handler (logged, bounded body); only a declared 4xx keeps its message.
         if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
+        return reply.code(statusCode).send(recordRefusalBody(err, message));
       }
 
       const { projectVerifyTechnicalMetadata } = await import(
@@ -7183,7 +7224,7 @@ if (
         // handler (logged, bounded body); only a declared 4xx keeps its message.
         if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
+        return reply.code(statusCode).send(recordRefusalBody(err, message));
       }
 
       if (evidence.deletedAt) {
@@ -7713,7 +7754,7 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${o
         if (refusedCode === "PART_INDEX_TAKEN") {
           return reply.code(409).send({ message, code: refusedCode });
         }
-        return reply.code(statusCode).send({ message });
+        return reply.code(statusCode).send(recordRefusalBody(err, message));
       }
     }
   );
@@ -7740,7 +7781,7 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${o
         // handler (logged, bounded body); only a declared 4xx keeps its message.
         if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
+        return reply.code(statusCode).send(recordRefusalBody(err, message));
       }
 
       const parts = await prisma.evidencePart.findMany({
@@ -8005,7 +8046,7 @@ return {
         // handler (logged, bounded body); only a declared 4xx keeps its message.
         if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
+        return reply.code(statusCode).send(recordRefusalBody(err, message));
       }
 
       if (
@@ -8157,7 +8198,7 @@ return {
         // handler (logged, bounded body); only a declared 4xx keeps its message.
         if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
+        return reply.code(statusCode).send(recordRefusalBody(err, message));
       }
 
       if (!evidence.lockedAt) {
@@ -8316,9 +8357,15 @@ return {
         resourceId: input.id,
         metadata: { reason: outcome.code },
       });
-      return reply
-        .code(outcome.statusCode)
-        .send({ code: outcome.code, message: outcome.message });
+      // T-119 — a typed 403 also carries the nested envelope, so the web's
+      // apiFetch raises an ApiError with the code and reason.
+      return reply.code(outcome.statusCode).send({
+        code: outcome.code,
+        message: outcome.message,
+        ...(outcome.details
+          ? { error: { code: outcome.code, message: outcome.message, details: outcome.details } }
+          : {}),
+      });
     }
 
     const updated = await prisma.evidence.findUnique({
@@ -12193,7 +12240,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
         // handler (logged, bounded body); only a declared 4xx keeps its message.
         if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
+        return reply.code(statusCode).send(recordRefusalBody(err, message));
       }
     }
   );
@@ -12398,7 +12445,7 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
         // handler (logged, bounded body); only a declared 4xx keeps its message.
         if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
+        return reply.code(statusCode).send(recordRefusalBody(err, message));
       }
     }
   );
@@ -12429,7 +12476,7 @@ try {
         // handler (logged, bounded body); only a declared 4xx keeps its message.
         if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
+        return reply.code(statusCode).send(recordRefusalBody(err, message));
       }
 
       // PRO-C1-01 — a web page that switched workspace never seals the record
@@ -12931,7 +12978,7 @@ return reply.code(200).send({
         // handler (logged, bounded body); only a declared 4xx keeps its message.
         if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
+        return reply.code(statusCode).send(recordRefusalBody(err, message));
       }
 
       // Phase C #12: extracted to a bounded helper so route file shrinks
@@ -13601,7 +13648,7 @@ return reply.code(200).send({
         // handler (logged, bounded body); only a declared 4xx keeps its message.
         if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
+        return reply.code(statusCode).send(recordRefusalBody(err, message));
       }
 
       // Phase 9.5 / Phase 12 Point 4 — THE shared download gate (workspace
@@ -14198,7 +14245,7 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         // handler (logged, bounded body); only a declared 4xx keeps its message.
         if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
+        return reply.code(statusCode).send(recordRefusalBody(err, message));
       }
 
       if (!evidence.storageBucket || !evidence.storageKey) {
@@ -14453,7 +14500,7 @@ displayName: resolvedDisplayName,
         // handler (logged, bounded body); only a declared 4xx keeps its message.
         if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
+        return reply.code(statusCode).send(recordRefusalBody(err, message));
       }
 
       // Phase 9.5 / Phase 4A / Phase 12 Point 4 — THE shared download gate
