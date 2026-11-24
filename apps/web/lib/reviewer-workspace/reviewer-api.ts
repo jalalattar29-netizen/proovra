@@ -651,6 +651,23 @@ export type BulkOutcome = {
   denial?: string;
 };
 
+/**
+ * T-167 (stage B) — the bulk doors answer 401 STEP_UP_REQUIRED (bulk checkbox,
+ * session risk) and 401 reauth_required (4 h window). Folding those into a
+ * `{ denial }` left the Queues page unable to satisfy them. A caller that hosts
+ * the shared step-up dialog passes the challenge header and asks for those two
+ * refusals to be thrown, so `runStepUpAction` can handle them.
+ */
+export type BulkCallOptions = {
+  headers?: Record<string, string>;
+  rethrowChallenges?: boolean;
+};
+
+function isChallengeRefusal(err: unknown): boolean {
+  const e = err as { code?: unknown; statusCode?: unknown } | null;
+  return e?.statusCode === 401 && (e.code === "STEP_UP_REQUIRED" || e.code === "reauth_required");
+}
+
 export async function bulkAssign(input: {
   assigneeUserId: string;
   workflowIds: string[];
@@ -661,6 +678,7 @@ export async function bulkAssign(input: {
   outcomes: BulkOutcome[];
 } | { denial: string }> {
   try {
+    // T-036 — assignment is not a step-up action; no challenge header.
     return await apiFetch(
       withTeamId("/v1/reviewer/bulk/assign", input.teamId),
       {
@@ -679,7 +697,7 @@ export async function bulkDecide(input: {
   rationale?: string;
   workflowIds: string[];
   teamId?: string | null;
-}): Promise<{
+}, opts: BulkCallOptions = {}): Promise<{
   total: number;
   succeeded: number;
   outcomes: BulkOutcome[];
@@ -689,10 +707,12 @@ export async function bulkDecide(input: {
       withTeamId("/v1/reviewer/bulk/decide", input.teamId),
       {
         method: "POST",
+        ...(opts.headers ? { headers: opts.headers } : {}),
         body: JSON.stringify(input),
       },
     );
   } catch (err) {
+    if (opts.rethrowChallenges && isChallengeRefusal(err)) throw err;
     // PRO-R2Z-06 — the fields apiFetch actually sets.
     return { denial: reviewerDenialFromError(err) };
   }

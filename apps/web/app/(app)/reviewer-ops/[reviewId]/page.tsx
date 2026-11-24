@@ -40,7 +40,12 @@ import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 // the workflow has moved under them.
 import { PresenceIndicator } from "../../../../components/presence/PresenceIndicator";
 import { CollisionWarning } from "../../../../components/presence/CollisionWarning";
-import { StepUpModal, isStepUpCancelled, useStepUpAction } from "../../../../components/identity-security/StepUpModal";
+import {
+  StepUpModal,
+  isStepUpCancelled,
+  stepUpCancelMessage,
+  useStepUpAction,
+} from "../../../../components/identity-security/StepUpModal";
 import { ReviewerCopilotPanel } from "../../../../components/ai-copilot/ReviewerCopilotPanel";
 import {
   ReviewerReasonModal,
@@ -492,7 +497,9 @@ function ReviewWorkspacePageInner() {
         reloadAll();
         return null;
       } catch (err) {
-        if (isStepUpCancelled(err)) return STEP_UP_CANCELLED;
+        // T-027 (stage B) — closing the enrolment or re-sign-in state is not
+        // "cancelling a confirmation"; the line says what is needed instead.
+        if (isStepUpCancelled(err)) return stepUpCancelMessage(err, STEP_UP_CANCELLED);
         reloadAll();
         return refusalMessage(err, "The decision could not be recorded. Nothing was changed.");
       }
@@ -527,30 +534,29 @@ function ReviewWorkspacePageInner() {
     async (input: EscalateInput): Promise<string | null> => {
       if (!teamId) return "No active workspace.";
       try {
-        await stepUp.runStepUpAction((headers) =>
-          apiFetch("/v1/reviewer-ops/escalations", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", ...(headers ?? {}) },
-            body: JSON.stringify({
-              teamId,
-              workflowId,
-              reason: input.reason,
-              severity: input.severity,
-              safeSummary: input.safeSummary,
-            }),
+        // T-037 (stage B) — raising an escalation is never step-up gated, so
+        // it is not wrapped (the wrapper was a no-op that implied otherwise).
+        await apiFetch("/v1/reviewer-ops/escalations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            teamId,
+            workflowId,
+            reason: input.reason,
+            severity: input.severity,
+            safeSummary: input.safeSummary,
           }),
-        );
+        });
         setError(null);
         setNotice("Escalation raised.");
         setDialog(null);
         reloadAll();
         return null;
       } catch (err) {
-        if (isStepUpCancelled(err)) return "Identity confirmation was cancelled. The escalation was not raised.";
         return refusalMessage(err, "The escalation could not be raised. Nothing was changed.");
       }
     },
-    [teamId, workflowId, reloadAll, stepUp],
+    [teamId, workflowId, reloadAll],
   );
 
   /**
@@ -571,6 +577,9 @@ function ReviewWorkspacePageInner() {
               teamId,
               workflowIds: [workflowId],
               action: "CLOSE",
+              // T-030 (stage B) — one review, archived from the review: its own
+              // action (reject checkbox, 8 h window), never labelled bulk.
+              scope: "single",
               ...(note ? { note } : {}),
             }),
           }),
@@ -586,7 +595,9 @@ function ReviewWorkspacePageInner() {
         reloadAll();
         return null;
       } catch (err) {
-        if (isStepUpCancelled(err)) return "Identity confirmation was cancelled. The review was not archived.";
+        if (isStepUpCancelled(err)) {
+          return stepUpCancelMessage(err, "Identity confirmation was cancelled. The review was not archived.");
+        }
         return refusalMessage(err, "The review could not be archived. Nothing was changed.");
       }
     },

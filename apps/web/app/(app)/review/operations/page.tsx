@@ -23,6 +23,12 @@ import Link from "next/link";
 import { reviewSlaLabel, reviewStageFilterLabel, reviewWorkflowStateLabel, identifierLabel } from "@proovra/shared";
 
 import { apiFetch } from "../../../../lib/api";
+import {
+  StepUpModal,
+  isStepUpCancelled,
+  stepUpCancelMessage,
+  useStepUpAction,
+} from "../../../../components/identity-security/StepUpModal";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { Badge } from "../../../../components/ui/Badge";
 import { statusTone } from "../../../../components/ui/StatusBadge";
@@ -99,6 +105,9 @@ function ReviewOperationsPageBody() {
   // the counts reflect what was just done.
   const [reloadTick, setReloadTick] = useState(0);
   const teamId = useTeamId();
+  // T-032 (stage B) — until this page is retired (T-007), its bulk door's
+  // step-up and re-sign-in can be satisfied here too.
+  const stepUp = useStepUpAction({ teamId: teamId ?? null });
   const meUserId = usePlatformContext().envelope?.user.id ?? null;
   const [counts, setCounts] = useState<Counts | null>(null);
   const [workflows, setWorkflows] = useState<Workflow[] | null>(null);
@@ -225,16 +234,18 @@ useEffect(() => {
           failed: number;
           items: Array<{ evidenceId: string; ok: boolean; reason?: string }>;
         };
-      } = await apiFetch(`/v1/review-operations/bulk`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          teamId,
-          evidenceIds: selectedIds,
-          action,
-          note,
+      } = await stepUp.runStepUpAction((headers) =>
+        apiFetch(`/v1/review-operations/bulk`, {
+          method: "POST",
+          headers: { "content-type": "application/json", ...(headers ?? {}) },
+          body: JSON.stringify({
+            teamId,
+            evidenceIds: selectedIds,
+            action,
+            note,
+          }),
         }),
-      });
+      );
       const r = res.result;
       alert(
         `${r.succeeded} succeeded · ${r.failed} failed (of ${r.total}).`,
@@ -243,6 +254,10 @@ useEffect(() => {
       setReloadTick((t) => t + 1);
     } catch (err) {
       const e = err as { message?: string };
+      if (isStepUpCancelled(err)) {
+        alert(stepUpCancelMessage(err, "Nothing was changed: identity confirmation was cancelled."));
+        return;
+      }
       alert(toSafeUserError(e, { message: "Bulk action failed." }).message);
     } finally {
       setBusy(false);
@@ -454,6 +469,7 @@ useEffect(() => {
           </section>
         </>
       )}
+      <StepUpModal control={stepUp} />
     </div>
   );
 }

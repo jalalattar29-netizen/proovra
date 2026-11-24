@@ -149,6 +149,8 @@ import {
 } from "../../../../components/reviewer-experience/ReviewerPickerModal";
 import {
   StepUpModal,
+  isStepUpCancelled,
+  stepUpCancelMessage,
   useStepUpAction,
 } from "../../../../components/identity-security/StepUpModal";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
@@ -606,11 +608,22 @@ function QueuesShell() {
   ) {
     // Server-side bulk cap is 100; slice the selection to stay inside.
     const ids = Array.from(selected).slice(0, BULK_ACTION_CAP);
-    const res = await bulkDecide({
-      verdict,
-      workflowIds: ids,
-      teamId,
-    });
+    // T-167 (stage B) — the bulk door is step-up gated (bulk checkbox,
+    // session risk) and age gated; the shared dialog satisfies it in place.
+    let res: Awaited<ReturnType<typeof bulkDecide>>;
+    try {
+      res = await stepUp.runStepUpAction((headers) =>
+        bulkDecide({ verdict, workflowIds: ids, teamId }, { headers, rethrowChallenges: true }),
+      );
+    } catch (err) {
+      setBanner(
+        isStepUpCancelled(err)
+          ? stepUpCancelMessage(err, "Nothing was changed: identity confirmation was cancelled.")
+          : toSafeUserError(err, { message: "The bulk action could not be completed. Nothing was changed." }).message,
+      );
+      setPendingConfirmation(null);
+      return;
+    }
     // PRO-R2-02 — this writes a coded verdict VALUE, not a review decision.
     setBanner(summariseOutcome(`Coded verdict "${identifierLabel(verdict)}"`, ids.length, res));
     setBulkOutcomes(outcomeMap(res));
@@ -643,28 +656,22 @@ function QueuesShell() {
   };
 
   // One row, one reviewer: the audited single-assign endpoint (the same one
-  // the console and the inspector use), step-up honoured.
+  // the console and the inspector use). T-036 (stage B) — assignment is not a
+  // step-up action, so there is no step-up wrapper here.
   async function runRowAssign(workflowId: string, assigneeUserId: string) {
     if (!teamId) return;
     setRowAssignBusy(true);
     try {
-      await stepUp.runStepUpAction(async (headers) =>
-        apiFetch(`/v1/reviewer-ops/reviews/${encodeURIComponent(workflowId)}/assign`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...(headers ?? {}) },
-          body: JSON.stringify({ teamId, assignedToUserId: assigneeUserId, note: null }),
-        }),
-      );
+      await apiFetch(`/v1/reviewer-ops/reviews/${encodeURIComponent(workflowId)}/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamId, assignedToUserId: assigneeUserId, note: null }),
+      });
       setBanner("Reviewer assigned.");
       closePicker();
       await refresh();
     } catch (err) {
-      const code = (err as { code?: string }).code;
-      setBanner(
-        code === "STEP_UP_CANCEL"
-          ? "Step-up cancelled — assignment not saved."
-          : toSafeUserError(err, { message: "Could not assign reviewer." }).message,
-      );
+      setBanner(toSafeUserError(err, { message: "Could not assign reviewer." }).message);
       closePicker();
     } finally {
       setRowAssignBusy(false);

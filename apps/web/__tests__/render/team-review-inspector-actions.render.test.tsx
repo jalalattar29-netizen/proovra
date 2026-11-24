@@ -564,7 +564,9 @@ describe("Next step panel", () => {
     expect(within(dialog).queryAllByRole("button").filter((b) => b.classList.contains("app-primary-action"))).toHaveLength(0);
     fireEvent.click(confirm);
     await screen.findByText("Review archived.");
-    expect(posts(bulkPath)[0]!.body).toEqual({ teamId, workflowIds: [workflowId], action: "CLOSE" });
+    // T-030 (stage B) — a single Archive names itself: its own action class
+    // (reject checkbox, 8 h window), never labelled bulk.
+    expect(posts(bulkPath)[0]!.body).toEqual({ teamId, workflowIds: [workflowId], action: "CLOSE", scope: "single" });
   });
 
   it("an archive refused row stays in the dialog", async () => {

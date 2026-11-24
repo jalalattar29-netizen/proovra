@@ -351,38 +351,34 @@ export function ReviewerConsole({
       setActionBusyKey(key);
       setActionError(null);
       try {
-        await stepUp.runStepUpAction(async (headers) => {
-          return await apiFetch(
-            `/v1/reviewer-ops/reviews/${encodeURIComponent(workflowId)}/assign`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json", ...(headers ?? {}) },
-              body: JSON.stringify({
-                teamId,
-                assignedToUserId,
-                note: note && note.length > 0 ? note : null,
-              }),
-            },
-          );
-        });
+        // T-036 (stage B) — assignment is not a step-up action: no wrapper.
+        // Authorization, the eligible-reviewer check and the audit row are
+        // the server's.
+        await apiFetch(
+          `/v1/reviewer-ops/reviews/${encodeURIComponent(workflowId)}/assign`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              teamId,
+              assignedToUserId,
+              note: note && note.length > 0 ? note : null,
+            }),
+          },
+        );
         setActionState({ kind: "idle" });
         picker.close();
         flash("Reviewer assigned.");
         await reload();
       } catch (err) {
-        const code = (err as { code?: string }).code;
-        if (code === "STEP_UP_CANCEL") {
-          setActionError("Step-up cancelled — assignment not saved.");
-        } else {
-          setActionError(
-            toSafeUserError(err, { message: "Could not assign reviewer." }).message,
-          );
-        }
+        setActionError(
+          toSafeUserError(err, { message: "Could not assign reviewer." }).message,
+        );
       } finally {
         setActionBusyKey(null);
       }
     },
-    [flash, picker, reload, stepUp, teamId],
+    [flash, picker, reload, teamId],
   );
 
   /** Opens the reviewer picker for one row — only where Assign is offered. */
@@ -676,6 +672,7 @@ export function ReviewerConsole({
             onClearSelection={() => setBulkSelection(new Set<string>())}
             onMutated={() => void reload()}
             onResult={setBulkResult}
+            runStepUpAction={stepUp.runStepUpAction}
           />
           <QueueTable
             rows={activeRows}

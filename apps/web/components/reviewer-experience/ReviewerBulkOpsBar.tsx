@@ -37,6 +37,21 @@ import { useCallback, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import { useConfirmAction } from "../ui/ConfirmActionModal";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
+import {
+  isStepUpCancelled,
+  stepUpCancelMessage,
+  type StepUpAction,
+} from "../identity-security/StepUpModal";
+
+/**
+ * T-167 (stage B) — the caller's `useStepUpAction().runStepUpAction`. Bulk
+ * close, priority, pause, request information and escalate are gated by the
+ * bulk checkbox, session risk and the 4 h window; without the runner a
+ * STEP_UP_REQUIRED or reauth_required here could not be satisfied.
+ * Assignment is not step-up gated (T-036), but goes through the same runner
+ * harmlessly (session trust refusals still surface).
+ */
+export type BulkStepUpRunner = <T>(action: StepUpAction<T>) => Promise<T>;
 
 export type BulkAction =
   | "ASSIGN_TO_ME"
@@ -70,9 +85,12 @@ export function ReviewerBulkOpsBar({
   onClearSelection,
   onMutated,
   onResult,
+  runStepUpAction,
 }: {
   teamId: string | null;
   selection: ReadonlySet<string>;
+  /** T-167 — the page's step-up runner (its StepUpModal hosts the dialog). */
+  runStepUpAction?: BulkStepUpRunner;
   callerUserId: string | null;
   /** Plan feature + role capability, decided by the caller (never workspace kind). */
   enabled: boolean;
@@ -141,11 +159,13 @@ export function ReviewerBulkOpsBar({
       setLastResult(null);
       onResult(null);
       try {
-        const resp = (await apiFetch("/v1/reviewer-ops/reviews/bulk", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(body),
-        })) as {
+        const send = (headers?: Record<string, string>) =>
+          apiFetch("/v1/reviewer-ops/reviews/bulk", {
+            method: "POST",
+            headers: { "content-type": "application/json", ...(headers ?? {}) },
+            body: JSON.stringify(body),
+          });
+        const resp = (await (runStepUpAction ? runStepUpAction(send) : send())) as {
           total?: number;
           succeeded?: number;
           failed?: number;
@@ -168,7 +188,9 @@ export function ReviewerBulkOpsBar({
         setNoteText("");
       } catch (err) {
         const e = err as { statusCode?: number; message?: string };
-        if (e.statusCode === 400) {
+        if (isStepUpCancelled(err)) {
+          setError(stepUpCancelMessage(err, "Nothing was changed: identity confirmation was cancelled."));
+        } else if (e.statusCode === 400) {
           setError(
             toSafeUserError(e, {
               message: "Bulk request was rejected. Check the action + note.",
@@ -192,7 +214,7 @@ export function ReviewerBulkOpsBar({
         setSubmitting(false);
       }
     },
-    [bulkDisabled, callerUserId, onMutated, onResult, selection, teamId],
+    [bulkDisabled, callerUserId, onMutated, onResult, runStepUpAction, selection, teamId],
   );
 
   // TEAM-UI-SPEC §1/§4 — every bar control is secondary (the confirm dialog

@@ -41,7 +41,12 @@ import {
 import { apiFetch } from "../../../../../lib/api";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
-import { StepUpModal, useStepUpAction } from "../../../../../components/identity-security/StepUpModal";
+import {
+  StepUpModal,
+  isStepUpCancelled,
+  stepUpCancelMessage,
+  useStepUpAction,
+} from "../../../../../components/identity-security/StepUpModal";
 import { ReasonedActionButton } from "./ReasonedActionButton";
 
 /** The review routes' refusal codes, said in words a reviewer can act on. */
@@ -201,7 +206,11 @@ export function EvidenceReviewActionsPanel({
       await onChanged?.();
       setOutcome({
         tone: "error",
-        text: refusalMessage(err, "The review could not be updated. Try again."),
+        // T-027 (stage B) — a closed enrolment / re-sign-in state says what is
+        // needed; the typed reason stays in the form either way.
+        text: isStepUpCancelled(err)
+          ? stepUpCancelMessage(err, "Nothing was recorded: identity confirmation was cancelled.")
+          : refusalMessage(err, "The review could not be updated. Try again."),
       });
     } finally {
       setPending(null);
