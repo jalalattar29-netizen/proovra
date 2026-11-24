@@ -94,6 +94,10 @@ import { ReasonedActionButton } from "../../../app/(app)/evidence/[id]/component
 // pre-redesign modal language.
 import { Modal } from "../matter-modals/Modal";
 import { MatterAccessTab } from "../MatterAccessTab";
+// T-113 — the ONE case-assignment surface, shared with the Enterprise Matter
+// Workspace (which itself imports this module's header and settings tab; the
+// two modules reference each other only inside render functions).
+import { AssignmentsTab } from "../MatterWorkspace";
 // The one status chip. Tone is its only colour input; the row previously
 // carried a private three-tone palette built by hand.
 import {
@@ -127,7 +131,7 @@ import {
   summariseDeliverables,
 } from "./helpers";
 
-type TabId = "overview" | "evidence" | "reports" | "notes" | "settings";
+type TabId = "overview" | "evidence" | "reports" | "notes" | "assignments" | "settings";
 
 const TAB_ORDER: ReadonlyArray<{ id: TabId; label: string }> = [
   { id: "overview", label: "Overview" },
@@ -136,6 +140,21 @@ const TAB_ORDER: ReadonlyArray<{ id: TabId; label: string }> = [
   { id: "notes", label: "Notes" },
   { id: "settings", label: "Settings" },
 ];
+
+/**
+ * T-113 — "Assignments" (CaseAssignment rows) is offered where the plan sells
+ * review assignments (`planFeatures.reviewerOperationsIncluded`: Team and
+ * Enterprise). A plan without it (Free, Pro) keeps the five tabs above.
+ */
+function caseTabs(assignmentsIncluded: boolean): ReadonlyArray<{ id: TabId; label: string }> {
+  if (!assignmentsIncluded) return TAB_ORDER;
+  const settingsAt = TAB_ORDER.findIndex((t) => t.id === "settings");
+  return [
+    ...TAB_ORDER.slice(0, settingsAt),
+    { id: "assignments", label: "Assignments" },
+    ...TAB_ORDER.slice(settingsAt),
+  ];
+}
 
 // ---------------------------------------------------------------------------
 // CaseButton — a local NAME for the canonical actions, not a second button.
@@ -205,6 +224,12 @@ export function SimpleCaseDetail({
   const { confirm } = useConfirmAction();
   // AUD-0062 — the breadcrumb names the workspace that owns the case.
   const platformEnvelope = usePlatformContext().envelope;
+  // T-113 — server-projected, read from the same envelope as the breadcrumb
+  // (the usePlanFeatureGate rule: known true, or a platform admin). Unknown or
+  // absent reads as not included.
+  const assignmentsIncluded =
+    platformEnvelope?.platform?.isPlatformAdmin === true ||
+    platformEnvelope?.planFeatures?.reviewerOperationsIncluded === true;
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   // PRO-K1-09 — the row menu's Rename asks for the name field (?focus=name).
@@ -221,6 +246,7 @@ export function SimpleCaseDetail({
       requested === "evidence" ||
       requested === "reports" ||
       requested === "notes" ||
+      requested === "assignments" ||
       requested === "settings"
     ) {
       setActiveTab(requested);
@@ -417,7 +443,7 @@ export function SimpleCaseDetail({
         aria-label="Case sections"
         data-simple-case-tabs
       >
-        {TAB_ORDER.map((tab) => (
+        {caseTabs(assignmentsIncluded).map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -446,14 +472,14 @@ export function SimpleCaseDetail({
             onGoToTab={setActiveTab}
           />
           {/*
-            Team responsibility on the PERSONAL / small-workspace branch too.
+            Team responsibility on the Personal Workspace branch too.
 
-            This branch has no Assignments tab at all, so before this it had no
-            way whatsoever to say who was carrying the case — and it is exactly
-            the branch a PRO workspace sees, which is the plan that sells five
-            seats. Gating the answer on Enterprise would have made the
-            reverse projection invisible to the customers who most need a
-            second person to know what they are on.
+            Every non-Enterprise case opens here: Free, Pro and Team (Team is a
+            personal-workspace tier). Pro and Team sell collaboration, so a
+            second person may be carrying the case; gating this answer on
+            Enterprise would hide it from exactly those customers. Where the
+            plan includes reviewer operations (Team), the Assignments tab
+            below holds the case assignments themselves (T-113).
           */}
           <TeamResponsibilityPanel targetType="CASE" targetId={caseId} />
         </>
@@ -545,6 +571,15 @@ export function SimpleCaseDetail({
           addToast={addToast}
           confirm={confirm}
         />
+      ) : null}
+      {activeTab === "assignments" && assignmentsIncluded ? (
+        <section data-simple-case-assignments aria-label="Case assignments">
+          <AssignmentsTab
+            envelope={workspace}
+            caseId={caseId}
+            onChanged={() => void reload()}
+          />
+        </section>
       ) : null}
       {activeTab === "settings" ? (
         <SettingsTab
