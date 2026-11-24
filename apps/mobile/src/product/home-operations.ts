@@ -235,7 +235,7 @@ export function buildWorkspaceHealth(inputs: HealthInputs): HealthMetric[] {
       : unknown("need_report", "Need a report"),
     {
       key: "active_cases",
-      label: "Active matters",
+      label: "Active cases",
       // An unknown count is "—", never 0: a workspace whose cases could not be
       // read has not been told it has none.
       value: casesKnown ? String(inputs.activeCases) : "—",
@@ -275,11 +275,24 @@ export type WorkspaceHealthVerdict = "healthy" | "needs_attention" | "action_req
  */
 export function workspaceHealthOverall(
   metrics: ReadonlyArray<HealthMetric>,
-  opts?: { noWorkspace?: boolean },
+  opts?: {
+    noWorkspace?: boolean;
+    /**
+     * T-135 — the "What needs attention" items. An unresolved CRITICAL item
+     * makes the workspace "Action required" and a warning "Needs attention":
+     * the card never says "Healthy" beside a critical priority (web parity).
+     */
+    priorities?: ReadonlyArray<{ severity: string }>;
+  },
 ): WorkspaceHealthVerdict {
   if (opts?.noWorkspace) return "unknown";
-  if (metrics.some((m) => m.known !== false && m.tone === "danger")) return "action_required";
-  if (metrics.some((m) => m.known !== false && m.tone === "warn")) return "needs_attention";
+  const priorities = opts?.priorities ?? [];
+  if (metrics.some((m) => m.known !== false && m.tone === "danger") || priorities.some((p) => p.severity === "critical")) {
+    return "action_required";
+  }
+  if (metrics.some((m) => m.known !== false && m.tone === "warn") || priorities.some((p) => p.severity === "warning")) {
+    return "needs_attention";
+  }
   if (metrics.length === 0 || metrics.some((m) => m.known === false)) return "unknown";
   return "healthy";
 }

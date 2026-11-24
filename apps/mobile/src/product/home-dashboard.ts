@@ -927,7 +927,7 @@ export function buildHomeKpis(s: HomeSources, opts: HomeKpiOptions = {}): HomeKp
   const mattersAttention = caseHealth ? caseHealth.gapsCount + caseHealth.blockersCount : 0;
   const mattersKpi: HomeKpi = {
     key: "matters",
-    label: "Active matters",
+    label: "Active cases",
     value: formatKpiNumber(caseCount),
     subtitle:
       caseCount === null

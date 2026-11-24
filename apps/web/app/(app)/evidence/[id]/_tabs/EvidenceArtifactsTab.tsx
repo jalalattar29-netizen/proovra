@@ -881,6 +881,8 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
    * The server now sends the canonical state and the action, and this file
    * renders them. No plan name, no absence, no precedence puzzle.
    */
+  // T-139 — the header's record-level gates apply to every version download.
+  const versionBlock = ctx.versionDownloadBlock ?? { report: null, package: null };
   const reportOutput = workspace.artifactStatus.outputs.report;
   const packageOutput = workspace.artifactStatus.outputs.verificationPackage;
 
@@ -955,11 +957,14 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           type="button"
           className="app-secondary-action"
           onClick={() => void ctx.downloadReportVersion(latestPair.reportVersion)}
+          disabled={versionBlock.report !== null}
+          title={versionBlock.report ?? undefined}
+          data-evidence-disabled-reason={versionBlock.report ?? undefined}
           data-testid="truth-download-report"
           // The stable download hook the full-stack specs read (it lived on the
           // retired per-family card's "Download latest" button).
           data-evidence-artifact-download="report"
-          data-evidence-artifact-downloadable="true"
+          data-evidence-artifact-downloadable={versionBlock.report === null ? "true" : "false"}
         >
           Download Report PDF v{latestPair.reportVersion}
         </button>
@@ -969,9 +974,12 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           type="button"
           className="app-secondary-action"
           onClick={() => void ctx.downloadVerificationPackageVersion(latestPair.package!.version)}
+          disabled={versionBlock.package !== null}
+          title={versionBlock.package ?? undefined}
+          data-evidence-disabled-reason={versionBlock.package ?? undefined}
           data-testid="truth-download-package"
           data-evidence-artifact-download="package"
-          data-evidence-artifact-downloadable="true"
+          data-evidence-artifact-downloadable={versionBlock.package === null ? "true" : "false"}
         >
           Download Verification Package ZIP v{latestPair.package.version}
         </button>
@@ -1096,6 +1104,7 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           onDownloadPackageVersion={(v) => void ctx.downloadVerificationPackageVersion(v)}
           onDownloadExternalPackageVersion={(v) => void ctx.downloadExternalDisclosurePackageVersion(v)}
           packageAccess={workspace.artifactStatus.packageAccess ?? null}
+          downloadBlock={versionBlock}
           latestPackageAction={
             packageOutput.action !== "NONE" && packageOutput.action !== "REGENERATE" ? (
               <OutputActionButton ctx={ctx} kind="verificationPackage" output={packageOutput} />
@@ -1119,6 +1128,7 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           reportDisabledReason={reportDisabledReason}
           packageDownloadable={packageDownloadable}
           packageDisabledReason={packageDisabledReason}
+          versionDownloadBlock={versionBlock}
         />
       )}
 

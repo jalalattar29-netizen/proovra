@@ -162,12 +162,16 @@ export function EvidenceDerivedReviewTab({
   // answers 404 — the client never decides tenancy (UC-DER-010).
   const teamId = workspace.reviewWorkflow?.teamId ?? activeWorkspaceId ?? null;
   const [offset, setOffset] = useState(0);
-  const { state, generate } = useDerivedReview({ evidenceId, teamId, offset, limit: PAGE_SIZE });
+  const { state, generate, refresh } = useDerivedReview({ evidenceId, teamId, offset, limit: PAGE_SIZE });
   const [busy, setBusy] = useState(false);
   const [actionNote, setActionNote] = useState<string | null>(null);
 
   const data = state.data;
-  const status = data?.status.status ?? "NOT_REQUESTED";
+  // T-141 (audit JRN-08 e) — a failed status read is NOT "not requested": with
+  // no answer at all the status is unknown, Generate is not offered, and the
+  // failure is said with Retry.
+  const readFailed = state.error !== null && data === null;
+  const status = data?.status.status ?? (readFailed ? "UNKNOWN" : "NOT_REQUESTED");
   const projection = (data?.projection ?? null) as (DerivedReviewProjection & ProjectionExtras) | null;
   const release: ReleaseState | null = data?.release ?? null;
   const keyframeUrls = data?.keyframeBytesUrls ?? {};
@@ -236,6 +240,14 @@ export function EvidenceDerivedReviewTab({
           loading={state.loading}
           errorCode={state.error?.code ?? null}
         />
+        {readFailed ? (
+          <p className="evidence-detail-muted uc4-derived-error" role="alert" data-derived-review-read-error>
+            The derived review status could not be loaded, so whether one exists is unknown.{" "}
+            <button type="button" className="app-btn" onClick={() => void refresh()} disabled={state.loading}>
+              Retry
+            </button>
+          </p>
+        ) : null}
         <div className="uc4-derived-actions">
           {status === "NOT_REQUESTED" && (
             <button
@@ -418,7 +430,9 @@ function DerivedStatusRow({
           ? "Failed"
           : status === "DISMISSED"
             ? "Dismissed — retry to generate a new review"
-            : "Not requested";
+            : status === "UNKNOWN"
+              ? "Unknown (could not be loaded)"
+              : "Not requested";
   return (
     <div>
       <span className="evidence-detail-muted">

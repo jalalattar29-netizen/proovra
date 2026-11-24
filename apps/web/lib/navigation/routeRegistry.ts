@@ -2947,6 +2947,9 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredPlanFeature: "redactionIncluded",
     readRetainedPlanFeature: "redactionReadRetained",
     requiredCapabilities: [],
+    // T-125 — shown in navigation only while redaction is included; a direct
+    // visit loads and the surface (tiers.ts, redactionReadRetained) decides.
+    navPlanFeature: "redactionIncluded",
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "REQUEST_ACCESS",
 

@@ -169,7 +169,7 @@ test("Home renders the five canonical KPIs", async () => {
   const r = await render();
   for (const label of [
     "Total evidence",
-    "Active matters",
+    "Active cases",
     "End-to-end ready",
     "Reports & packages",
     "Intake & submissions",
@@ -181,7 +181,7 @@ test("Home renders the five canonical KPIs", async () => {
 test("Home renders the canonical overview sections", async () => {
   const r = await render();
   assert.ok(r.hasText("What needs you now"));
-  assert.ok(r.hasText("Active matters"));
+  assert.ok(r.hasText("Active cases"));
 });
 
 test("the priority queue leads with the critical workspace fact, with why and what to do", async () => {

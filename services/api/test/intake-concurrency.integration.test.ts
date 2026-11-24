@@ -114,7 +114,8 @@ describe("ET-INT-09 — intake races (live PostgreSQL 16)", () => {
     h.app.inject({ remoteAddress: ip, method: "POST", url: `/v1/external-intake/${t}/sessions/${sid}/parts`, payload: partBody(i) });
   async function upload(partId: string) {
     const p = await prisma.evidencePart.findUniqueOrThrow({ where: { id: partId }, select: { storageBucket: true, storageKey: true } });
-    objects.set(`${p.storageBucket}/${p.storageKey}`, Buffer.from(`bytes-${randomUUID()}`));
+    // The bytes the presign declared (and a real store enforces through the signed checksum).
+    objects.set(`${p.storageBucket}/${p.storageKey}`, Buffer.from("x"));
   }
 
   it("concurrent submits on a ONE_TIME link finalize exactly ONE record", async () => {

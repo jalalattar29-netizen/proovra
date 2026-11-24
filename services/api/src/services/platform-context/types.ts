@@ -52,6 +52,12 @@ export type PlatformContextPlanFeatures = {
   intakeIncluded: boolean;
   casesIncluded: boolean;
   reviewerOperationsIncluded: boolean;
+  /**
+   * T-126 — BASIC_RECORD_REVIEW on the effective review ladder (always
+   * projected; a web navigation gate reads it). Typed here so every key a UI
+   * gate reads is part of the declared envelope contract.
+   */
+  basicRecordReviewIncluded: boolean;
   /** External Review inclusion (PlanCapabilities), projected per workspace. */
   externalReviewIncluded: boolean;
   /**

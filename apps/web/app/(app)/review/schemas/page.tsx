@@ -21,7 +21,7 @@
 import { PLAN_REFUSAL_COPY, isPlanRefusal } from "../../../../lib/feedback/plan-refusal";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { identifierLabel, type ReviewerCapability } from "@proovra/shared";
+import { CODING_SCHEMA_DEFAULT_SLUGS, identifierLabel, type ReviewerCapability } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalEmptyState } from "../../../../components/operational";
@@ -236,6 +236,19 @@ function SchemasWorkspace({ teamId }: { teamId: string }) {
   );
 
   const rows = list.kind === "ready" ? list.rows : [];
+  // T-134 (audit PRD-08) — seeding installs only the built-in schemas this
+  // workspace does not hold (archived ones count as held). With all six
+  // present it would change nothing, so it is not offered as an action.
+  const missingDefaults =
+    list.kind === "ready"
+      ? CODING_SCHEMA_DEFAULT_SLUGS.filter((slug) => !rows.some((r) => r.slug === slug)).length
+      : null;
+  const seedReason =
+    missingDefaults === null
+      ? "Loading the schemas in this workspace…"
+      : missingDefaults === 0
+        ? "All six default schemas are already in this workspace."
+        : null;
 
   return (
     <PageShell
@@ -251,9 +264,15 @@ function SchemasWorkspace({ teamId }: { teamId: string }) {
               variant="primary"
               onClick={onSeed}
               busy={seeding}
+              disabled={seedReason !== null}
+              disabledReason={seedReason ?? undefined}
               data-coding-seed-defaults
             >
-              {seeding ? "Seeding…" : "Seed 6 default schemas"}
+              {seeding
+                ? "Seeding…"
+                : missingDefaults !== null && missingDefaults > 0 && missingDefaults < CODING_SCHEMA_DEFAULT_SLUGS.length
+                  ? `Add ${missingDefaults} missing default schema${missingDefaults === 1 ? "" : "s"}`
+                  : "Seed 6 default schemas"}
             </CanonicalActionButton>
           }
         />
@@ -335,9 +354,7 @@ function SchemasWorkspace({ teamId }: { teamId: string }) {
             <tbody>
               {rows.map((s) => {
                 const reason =
-                  s.status === "ARCHIVED"
-                    ? "This schema is already archived."
-                    : archivingId && archivingId !== s.id
+                  archivingId && archivingId !== s.id
                       ? "Another schema is being archived."
                       : authorReason;
                 return (
@@ -363,6 +380,12 @@ function SchemasWorkspace({ teamId }: { teamId: string }) {
                     <td data-label="">
                       {/* TEAM-UI-SPEC §1 — Archive is irreversible: a
                           `--danger` entry point that opens the danger confirm. */}
+                      {/* T-134 — an archived schema offers no Archive. */}
+                      {s.status === "ARCHIVED" ? (
+                        <span className="app-table__muted" data-coding-schema-archived={s.id}>
+                          Archived
+                        </span>
+                      ) : (
                       <CanonicalActionButton
                         variant="danger-entry"
                         busy={archivingId === s.id}
@@ -374,6 +397,7 @@ function SchemasWorkspace({ teamId }: { teamId: string }) {
                       >
                         Archive
                       </CanonicalActionButton>
+                      )}
                     </td>
                   </tr>
                 );

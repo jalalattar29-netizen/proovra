@@ -49,6 +49,8 @@ function src(rel: string): string {
 }
 
 const DETAIL_PAGE = src("apps/web/app/(app)/evidence/[id]/page.tsx");
+// T-138 (stage F) — the dialog body (failed / empty / select) lives beside the page.
+const LOAD_STATES = src("apps/web/app/(app)/evidence/[id]/components/EvidenceLoadStates.tsx");
 const CASES_ROUTES = src("services/api/src/routes/cases.routes.ts");
 
 // ===========================================================================
@@ -86,12 +88,12 @@ test("Assign Case modal renders the spec-locked empty-state copy when cases.leng
   // Find the modal block by its title anchor and assert the empty
   // state appears as a conditional branch.
   const block = assignCaseModal(DETAIL_PAGE);
-  assert.match(block, /\{cases\.length === 0 \? \(/);
-  assert.match(
-    block,
-    /No attachable cases are available in this workspace\./,
-  );
-  assert.match(block, /data-evidence-assign-case-empty/);
+  assert.match(block, /<AssignCaseDialogBody cases=\{cases\} casesFailed=\{casesFailed\}/);
+  assert.match(LOAD_STATES, /if \(cases\.length === 0\) \{/);
+  assert.match(LOAD_STATES, /No attachable cases are available in this workspace\./);
+  assert.match(LOAD_STATES, /data-evidence-assign-case-empty/);
+  // T-138 — a failed read is its own branch, decided before "empty".
+  assert.ok(LOAD_STATES.indexOf("if (casesFailed)") < LOAD_STATES.indexOf("if (cases.length === 0)"));
 });
 
 test("Assign Case modal Save button is disabled when there are no cases", () => {
@@ -100,7 +102,7 @@ test("Assign Case modal Save button is disabled when there are no cases", () => 
   // expression so an empty selector cannot submit.
   assert.match(
     block,
-    /disabled=\{actionBusy \|\| !selectedCaseId \|\| cases\.length === 0\}/,
+    /disabled=\{actionBusy \|\| !selectedCaseId \|\| cases\.length === 0 \|\| casesFailed\}/,
   );
   // And the Cancel button still disables itself while a mutation is
   // in flight (consistency with the lifecycle modals from the prior
@@ -109,7 +111,7 @@ test("Assign Case modal Save button is disabled when there are no cases", () => 
 });
 
 test("Assign Case dropdown carries a stable data attribute for E2E", () => {
-  assert.match(DETAIL_PAGE, /data-evidence-assign-case-select/);
+  assert.match(LOAD_STATES, /data-evidence-assign-case-select/);
 });
 
 // ===========================================================================

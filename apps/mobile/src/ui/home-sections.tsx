@@ -61,7 +61,7 @@ export function HomeActiveMattersSection({
       ].filter((c): c is NonNullable<typeof c> => c !== null)
     : [];
   return (
-    <ProovraSection title="Active matters">
+    <ProovraSection title="Active cases">
       {chips.length > 0 ? (
         <View testID="home-case-health-summary" style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s1, marginBottom: theme.space.s2 }}>
           {chips.map((c) => (

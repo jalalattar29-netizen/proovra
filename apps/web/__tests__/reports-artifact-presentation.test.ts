@@ -278,7 +278,8 @@ test("the user-scoped fallback fires ONLY on the unfiltered view", () => {
 });
 
 test("the user-scoped fallback stays in the selected workspace and rows keep their authority", () => {
-  assert.match(INDEX, /`\/v1\/reports\?teamId=\$\{encodeURIComponent\(workspaceId\)\}`/);
+  // T-146 (stage F) — the same workspace-scoped list, now carrying its own cursor.
+  assert.match(INDEX, /`\/v1\/reports\?teamId=\$\{encodeURIComponent\(workspaceId\)\}\$\{cursor \?/);
   assert.match(INDEX, /teamId:\s*row\.teamId \?\? null/);
   assert.match(INDEX, /teamId=\{row\.teamId\}/);
 });
@@ -580,7 +581,8 @@ test("Next reaches different records, and Previous comes back", () => {
   // `nextCursor`, Previous pops — so page 2 is a different query, not a
   // client-side slice of the same 25 rows.
   assert.match(INDEX, /const \[cursors, setCursors\] = useState<string\[\]>\(\[\]\)/);
-  assert.match(INDEX, /setCursors\(\(c\) => \[\.\.\.c, next\]\)/);
+  // T-146 (stage F) — a cursor keeps the list that issued it.
+  assert.match(INDEX, /setCursors\(\(c\) => \[\.\.\.c, userScopedView \? `\$\{USER_SCOPED_CURSOR_PREFIX\}\$\{next\}` : next\]\)/);
   assert.match(INDEX, /setCursors\(\(c\) => c\.slice\(0, -1\)\)/);
   assert.match(INDEX, /params\.set\("cursor", currentCursor\)/);
   // Both ends are truthfully disabled.

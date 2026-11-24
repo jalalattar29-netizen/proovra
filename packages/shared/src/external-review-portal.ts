@@ -201,6 +201,42 @@ export type BulkInvitationResultRow = {
 
 export const BULK_INVITATION_MAX_ROWS = 100;
 
+/**
+ * T-155 — THE lifetime bounds of an External Review invitation, read by the
+ * grant service (the authority), the issue routes (a refusal before any row
+ * is attempted) and the console (Issue is disabled outside them).
+ */
+export const EXTERNAL_REVIEW_GRANT_MIN_LIFETIME_MS = 15 * 60 * 1000;
+export const EXTERNAL_REVIEW_GRANT_MAX_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
+/** The console's "Expires in (hours)" field: whole hours, 1 h to 30 days. */
+export const EXTERNAL_REVIEW_EXPIRY_HOURS_MIN = 1;
+export const EXTERNAL_REVIEW_EXPIRY_HOURS_MAX = 30 * 24;
+
+/**
+ * The invitation expiry check: a parseable instant at least the minimum
+ * lifetime and at most the maximum lifetime after `nowMs`. A past or present
+ * instant is never valid.
+ */
+export function externalReviewExpiryIsValid(expiresAt: string | Date, nowMs: number = Date.now()): boolean {
+  const t = expiresAt instanceof Date ? expiresAt.getTime() : new Date(expiresAt).getTime();
+  if (!Number.isFinite(t)) return false;
+  const lifetime = t - nowMs;
+  return lifetime >= EXTERNAL_REVIEW_GRANT_MIN_LIFETIME_MS && lifetime <= EXTERNAL_REVIEW_GRANT_MAX_LIFETIME_MS;
+}
+
+/**
+ * The console's hours field, parsed: a whole number of hours within bounds,
+ * or null (empty, non-numeric, fractional, zero, negative or too long).
+ */
+export function parseExternalReviewExpiryHours(raw: string): number | null {
+  const text = raw.trim();
+  if (!/^\d+$/.test(text)) return null;
+  const hours = Number(text);
+  if (!Number.isSafeInteger(hours)) return null;
+  if (hours < EXTERNAL_REVIEW_EXPIRY_HOURS_MIN || hours > EXTERNAL_REVIEW_EXPIRY_HOURS_MAX) return null;
+  return hours;
+}
+
 // =============================================================================
 // 3. External decision verdicts
 //

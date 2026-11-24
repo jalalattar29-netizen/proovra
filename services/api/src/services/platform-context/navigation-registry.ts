@@ -856,7 +856,108 @@ function isAdvertised(
   caps: CapabilityMap,
   gate: NavigationGateContext,
 ): boolean {
-  return passesCapabilityGate(item, caps) && passesWorkspaceGate(item, gate);
+  // Stage E (registry flags) and stage F (per-item web-route table) both
+  // implement T-125; an item is advertised only when BOTH agree, so neither
+  // check can re-open a route the other closes.
+  return (
+    passesCapabilityGate(item, caps) &&
+    passesWorkspaceGate(item, gate) &&
+    passesSurfaceGate(item, {
+      isPlatformAdmin: gate.isPlatformAdmin,
+      isEnterpriseWorkspace: gate.isEnterpriseWorkspace,
+      activeSpaceType: gate.activeSpaceType,
+      planFeatures: (gate.planFeatures ?? {}) as Readonly<Record<string, unknown>>,
+    })
+  );
+}
+
+/**
+ * T-125 (Team remediation stage F, audit PRD-01/O-01) — WHO A NAVIGATION ITEM
+ * MAY BE ADVERTISED TO, beyond its capability.
+ *
+ * The web decides whether a route loads (apps/web routeRegistry +
+ * resolveRouteAccess, and the /path surface rules in lib/surface/tiers.ts).
+ * This payload used to filter by capability only, so a Team workspace was
+ * advertised /workflows, /intelligence, /investigation, /packaging, /redaction
+ * and /evidence-lifecycle, which that context cannot open. Each item names
+ * the web route it opens and the same gates; the web contract test
+ * `navigation-contract-resolves.test.ts` proves, for FREE, PRO, TEAM and
+ * ENTERPRISE contexts, that every advertised item resolves to a page that
+ * loads. Platform admins bypass the commercial gates (as on the web); the
+ * organization-workspace requirement applies to everyone.
+ */
+export type NavSurfaceContext = {
+  isPlatformAdmin: boolean;
+  isEnterpriseWorkspace: boolean;
+  activeSpaceType: "PERSONAL" | "ORGANIZATION" | null;
+  planFeatures: Readonly<Record<string, unknown>>;
+};
+export type NavSurfaceGate = {
+  /** The web route registry id this item opens. */
+  webRouteId: string;
+  enterpriseOnly?: true;
+  organizationOnly?: true;
+  platformAdminOnly?: true;
+  /** A planFeatures key that must be true (requiredPlanFeature / navPlanFeature on the web). */
+  planFeature?: string;
+};
+const ENT_ORG = { enterpriseOnly: true, organizationOnly: true } as const;
+export const NAV_SURFACE_GATES: Readonly<Record<string, NavSurfaceGate>> = {
+  "workspace.home": { webRouteId: "workspace.home" },
+  "workspace.capture": { webRouteId: "workspace.capture" },
+  "workspace.evidence": { webRouteId: "workspace.evidence" },
+  "workspace.cases": { webRouteId: "workspace.cases", planFeature: "casesIncluded" },
+  "workspace.team_governance": { webRouteId: "workspace.collaboration_teams", planFeature: "teamCollaborationIncluded" },
+  "workspace.reports": { webRouteId: "workspace.reports" },
+  "workspace.search": { webRouteId: "workspace.search" },
+  "workspace.packaging": { webRouteId: "workspace.packaging", ...ENT_ORG },
+  "workspace.evidence_lifecycle": { webRouteId: "workspace.evidence_lifecycle", ...ENT_ORG },
+  "workspace.operations": { webRouteId: "workspace.operations" },
+  "workspace.governance_platform": { webRouteId: "workspace.governance_platform", ...ENT_ORG },
+  "review.queue": { webRouteId: "workspace.review", planFeature: "reviewerOperationsIncluded" },
+  "review.sla": { webRouteId: "review.sla", planFeature: "reviewerOperationsIncluded" },
+  "review.escalations": { webRouteId: "review.escalations", planFeature: "reviewerOperationsIncluded" },
+  "review.workflows": { webRouteId: "workspace.workflows", enterpriseOnly: true },
+  "review.intelligence": { webRouteId: "workspace.intelligence", enterpriseOnly: true },
+  "review.investigation": { webRouteId: "investigation.hub", enterpriseOnly: true },
+  "governance.hub": { webRouteId: "governance.hub", ...ENT_ORG },
+  "workspace.review_redaction": { webRouteId: "workspace.review_redaction", planFeature: "redactionIncluded" },
+  "workspace.executive": { webRouteId: "workspace.executive", ...ENT_ORG },
+  "workspace.audit_transparency": { webRouteId: "workspace.audit_transparency", ...ENT_ORG },
+  "workspace.intelligence_quality": { webRouteId: "workspace.intelligence_quality", ...ENT_ORG },
+  "workspace.budget_center": { webRouteId: "workspace.budget_center", ...ENT_ORG },
+  "governance.lifecycle": { webRouteId: "governance.lifecycle", ...ENT_ORG },
+  "governance.policy": { webRouteId: "governance.policy", ...ENT_ORG },
+  "governance.retention": { webRouteId: "governance.retention", ...ENT_ORG },
+  "governance.destruction": { webRouteId: "governance.destruction", ...ENT_ORG },
+  "platform.observability": { webRouteId: "platform.observability", platformAdminOnly: true },
+  "platform.runbooks": { webRouteId: "platform.runbooks", platformAdminOnly: true },
+  "platform.security_center": { webRouteId: "workspace.security_center", enterpriseOnly: true },
+  "platform.identity_admin": { webRouteId: "security_center.identity", ...ENT_ORG },
+  // /workspaces (the switcher list) is an Enterprise surface (tiers.ts); the
+  // self-serve owner's workspace page is /teams/:id, not advertised here.
+  "admin.teams": { webRouteId: "admin.teams", enterpriseOnly: true },
+  "admin.billing": { webRouteId: "account.billing" },
+  "admin.integrations": { webRouteId: "workspace.integrations", enterpriseOnly: true },
+  "admin.intake_links": { webRouteId: "workspace.intake_links", planFeature: "intakeIncluded" },
+  "admin.communications": { webRouteId: "workspace.communications", enterpriseOnly: true },
+  "admin.settings": { webRouteId: "account.settings" },
+  "admin.platform": { webRouteId: "platform.admin", platformAdminOnly: true },
+};
+
+/** True when the item may be advertised in this context (capability aside). */
+export function passesSurfaceGate(item: NavRegistryItem, ctx: NavSurfaceContext | undefined): boolean {
+  if (!ctx) return true;
+  const gate = NAV_SURFACE_GATES[item.id];
+  // An item with no declared gate is never advertised once a context is
+  // known: an undeclared route is how the 404s above got into this payload.
+  if (!gate) return false;
+  if (gate.platformAdminOnly) return ctx.isPlatformAdmin;
+  if (gate.organizationOnly && ctx.activeSpaceType !== "ORGANIZATION") return false;
+  if (ctx.isPlatformAdmin) return true;
+  if (gate.enterpriseOnly && !ctx.isEnterpriseWorkspace) return false;
+  if (gate.planFeature && ctx.planFeatures[gate.planFeature] !== true) return false;
+  return true;
 }
 
 function projectItem(item: NavRegistryItem): PlatformContextNavItem {

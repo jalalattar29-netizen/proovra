@@ -121,7 +121,7 @@ function posts() {
 }
 async function openBulkTab() {
   render(<ExternalInvitationsPage />);
-  fireEvent.click(document.querySelector('[data-tab="bulk"]') as HTMLElement);
+  fireEvent.click(document.querySelector("[data-invite-reviewer-action]") as HTMLElement);
   fireEvent.change(document.querySelector("[data-bulk-paste]") as HTMLElement, {
     target: { value: "sue@acme.com,Sue Q.,Acme" },
   });

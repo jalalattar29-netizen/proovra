@@ -166,8 +166,17 @@ const HEALTH_OVERALL: Record<WorkspaceHealthVerdict, { label: string; tone: "ver
   unknown: { label: "Unknown", tone: "neutral" },
 };
 
-export function HomeWorkspaceHealthCard({ health, noWorkspace = false }: { health: HealthMetric[]; noWorkspace?: boolean }) {
-  const verdict = HEALTH_OVERALL[workspaceHealthOverall(health, { noWorkspace })];
+export function HomeWorkspaceHealthCard({
+  health,
+  noWorkspace = false,
+  priorities = [],
+}: {
+  health: HealthMetric[];
+  noWorkspace?: boolean;
+  /** T-135 — the same attention items the priorities card lists. */
+  priorities?: ReadonlyArray<{ severity: string }>;
+}) {
+  const verdict = HEALTH_OVERALL[workspaceHealthOverall(health, { noWorkspace, priorities })];
   return (
     <HomeCard title="Workspace health" testID="home-workspace-health">
       <View style={{ flexDirection: "row" }}>

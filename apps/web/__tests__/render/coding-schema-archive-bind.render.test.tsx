@@ -81,10 +81,10 @@ describe("coding schema archive", () => {
     expect(writes(archiveUrl)).toHaveLength(1);
     const calls = mocks.fetch.mock.calls.map((c) => c[0] as string);
     expect(calls.lastIndexOf(listUrl)).toBeGreaterThan(calls.indexOf(archiveUrl));
-    const row = screen.getByRole("button", { name: "Archive Privilege review" });
-    expect(row.hasAttribute("disabled")).toBe(true);
-    expect(row.getAttribute("data-disabled-reason")).toBe("This schema is already archived.");
-    expect(screen.getByText("Archived")).toBeTruthy();
+    // T-134 (stage F) — an archived schema offers no Archive at all.
+    expect(screen.queryByRole("button", { name: "Archive Privilege review" })).toBeNull();
+    expect(document.querySelector(`[data-coding-schema-archived="${schemaId}"]`)).not.toBeNull();
+    expect(screen.getAllByText("Archived").length).toBeGreaterThan(0);
     expect(screen.queryByText("PUBLISHED")).toBeNull();
   });
 

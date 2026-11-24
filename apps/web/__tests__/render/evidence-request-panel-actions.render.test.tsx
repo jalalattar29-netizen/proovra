@@ -262,7 +262,12 @@ describe("R1-F-01 — 'Needs additional context' runs the canonical request-more
     await waitFor(() => expect(screen.getByText("Open one")).toBeTruthy());
     await askForMore("Need more");
     expect(calls.filter((c) => c.method === "POST" && c.path.endsWith("/request-more"))).toHaveLength(1);
-    expect(globalThis.alert).toHaveBeenCalledWith(expect.stringMatching(/closed or cancelled/i));
+    // T-143 (stage F) — said inline (role="alert"), never through alert().
+    expect(globalThis.alert).not.toHaveBeenCalled();
+    const inline = document.querySelector("[data-evidence-request-action-error]") as HTMLElement;
+    expect(inline).not.toBeNull();
+    expect(inline.getAttribute("role")).toBe("alert");
+    expect(inline.textContent).toMatch(/closed or cancelled/i);
     expect(screen.queryByRole("dialog", { name: /follow-up link created/i })).toBeNull();
   });
 
