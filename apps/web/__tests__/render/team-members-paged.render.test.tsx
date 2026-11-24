@@ -5,10 +5,12 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
   toast: vi.fn(),
+  // T-099 — a role change is confirmed first; the role tests answer yes.
+  confirm: vi.fn(async () => false),
   platform: { envelope: { user: { id: "me-user" } }, contextGeneration: 1 },
 }));
 vi.mock("../../lib/api", () => ({ apiFetch: mocks.fetch, ApiError: class ApiError extends Error {} }));
-vi.mock("../../components/ui/ConfirmActionModal", () => ({ useConfirmAction: () => ({ confirm: async () => false }) }));
+vi.mock("../../components/ui/ConfirmActionModal", () => ({ useConfirmAction: () => ({ confirm: mocks.confirm }) }));
 vi.mock("../../lib/sentry", () => ({ captureException: () => {} }));
 vi.mock("../../components/ui", async (orig) => ({ ...((await orig()) as object), useToast: () => ({ addToast: mocks.toast }) }));
 vi.mock("../../components/navigation/PageRouteGate", () => ({ PageRouteGate: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
@@ -77,6 +79,8 @@ beforeEach(() => {
   mocks.fetch.mockReset();
   mocks.fetch.mockImplementation(async (path: string, init?: RequestInit) => reply(path, init));
   mocks.toast.mockReset();
+  mocks.confirm.mockReset();
+  mocks.confirm.mockImplementation(async () => false);
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -144,6 +148,7 @@ describe("workspace people — server-paged roster", () => {
   });
 
   it("changes a role and announces it only after rereading the loaded rows", async () => {
+    mocks.confirm.mockImplementation(async () => true);
     const panel = await roster();
     fireEvent.click(within(panel).getByTestId("people-load-more"));
     await within(panel).findByText("Person 51");
@@ -161,6 +166,7 @@ describe("workspace people — server-paged roster", () => {
   });
 
   it("does not announce a role change the reread contradicts", async () => {
+    mocks.confirm.mockImplementation(async () => true);
     mocks.fetch.mockImplementation(async (path: string, init?: RequestInit) => {
       if (init?.method === "PATCH") return { member: {} };
       return reply(path, init);
