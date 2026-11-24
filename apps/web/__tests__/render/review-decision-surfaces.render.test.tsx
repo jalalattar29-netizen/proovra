@@ -132,16 +132,13 @@ describe("review queue — shared labels, never raw enums", () => {
 });
 
 describe("review queue page — source pins", () => {
-  it("renders the state label and the server decision, never the raw stage or SLA enum", async () => {
+  // Team remediation T-007 — the Phase 13 queue page is retired: it only
+  // redirects to the review inbox, so it renders no stage or SLA of its own.
+  it("is a redirect to the review inbox, rendering no queue of its own", async () => {
     const { readFileSync } = await import("node:fs");
     const { resolve } = await import("node:path");
     const src = readFileSync(resolve(__dirname, "../../app/(app)/review/operations/page.tsx"), "utf8");
-    expect(src).not.toMatch(/>\{w\.stage\}</);
-    expect(src).not.toMatch(/\{w\.slaStatus\}\n/);
-    expect(src).toMatch(/data-review-queue-decision/);
-    expect(src).toMatch(/w\.decisionLabel/);
-    expect(src).not.toMatch(/label="Approved \(internal\)"/);
-    expect(src).not.toMatch(/reviewStatusLabel\(/);
-    expect(src).toMatch(/reviewStageFilterLabel\(s\)/);
+    expect(src).toMatch(/redirect\(reviewOperationsRedirectTarget/);
+    expect(src).not.toMatch(/w\.stage|w\.slaStatus/);
   });
 });

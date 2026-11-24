@@ -99,7 +99,7 @@ async function heldRecord(title: string) {
 }
 
 const approveAsMember = (workflowId: string) =>
-  call(T.member.token, "POST", `/v1/reviewer-ops/reviews/${workflowId}/approve`, { teamId: T.teamId, note: null });
+  call(T.member.token, "POST", `/v1/reviewer-ops/reviews/${workflowId}/approve`, { teamId: T.teamId, note: "Looks complete" });
 const closeViaRoute = (evidenceId: string) =>
   call(T.owner.token, "POST", `/v1/review-operations/evidence/${evidenceId}/decision`, { decision: "CLOSE", note: "done" });
 /** Layer 2 alone: the lifecycle service, no route in front of it. */

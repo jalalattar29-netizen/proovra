@@ -82,12 +82,11 @@ describe("review stage maps to the value the column actually stores", () => {
     }
   });
 
-  it("the rationale rule the card must satisfy is still APPROVE-only", () => {
-    // If this ever widens, the card's required-reason set has to widen with
-    // it — which is why the rule is asserted here rather than assumed.
-    expect(DECISION_SERVICE).toContain(
-      'rationale.length === 0 && input.decision !== "APPROVE"',
-    );
+  it("the rationale rule is every verdict (Team remediation T-010), and the card asks for it on approve too", () => {
+    // The authority now refuses an empty rationale for EVERY kind, approval
+    // included — so the card's required-reason set covers approve as well.
+    expect(DECISION_SERVICE).toContain("if (rationale.length === 0) {");
+    expect(CARD).toMatch(/DECISION_REQUIRES_REASON[\s\S]{0,200}"APPROVE_INTERNAL"/);
   });
 });
 
@@ -95,7 +94,7 @@ describe("review stage maps to the value the column actually stores", () => {
 // The 422 and the 404 — what the card sends
 // ===========================================================================
 describe("the card sends a request the server can accept", () => {
-  it("asks for the reason the two verdicts require", () => {
+  it("asks for the reason every verdict requires (Team remediation T-010)", () => {
     expect(CARD).toContain("DECISION_REQUIRES_REASON");
     const set = CARD.slice(
       CARD.indexOf("const DECISION_REQUIRES_REASON"),
@@ -103,9 +102,8 @@ describe("the card sends a request the server can accept", () => {
     );
     expect(set).toContain('"REQUEST_MORE_INFO"');
     expect(set).toContain('"REJECT_INSUFFICIENT"');
-    // APPROVE is the one the server does not require a rationale for; asking
-    // for one would be inventing a requirement.
-    expect(set).not.toContain('"APPROVE_INTERNAL"');
+    // Every verdict needs a rationale now (the authority refuses an empty one).
+    expect(set).toContain('"APPROVE_INTERNAL"');
   });
 
   it("cannot submit an empty reason", () => {

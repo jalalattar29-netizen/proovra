@@ -24,6 +24,13 @@
  *
  * Internal only: decisions and notes never reach public verification, the
  * report or external contributors, and they do not change the evidence.
+ *
+ * ONE REVIEW EXPERIENCE (Team remediation T-008, 2026-11-24 — binding
+ * direction 10). Where reviewer operations are included (Team, Enterprise)
+ * the Review page is the place to decide: this panel shows the state, an
+ * "Open review" link to it and at most Claim — never a parallel verdict door.
+ * Pro cannot open the Review page, so it keeps the full panel; both use the
+ * same server semantics (`outcome`) and the shared outcome and refusal copy.
  */
 
 import { useId, useState } from "react";
@@ -37,6 +44,9 @@ import {
   type ReviewWorkflowAction,
   type ReviewWorkflowActionAvailability,
 } from "@proovra/shared";
+
+import { describeReviewOutcome, describeReviewRefusal, type ReviewDecisionOutcomeCopyInput } from "@proovra/shared";
+import Link from "next/link";
 
 import { apiFetch } from "../../../../../lib/api";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
@@ -122,11 +132,28 @@ export async function claimAndBeginReview(evidenceId: string, teamId: string): P
 }
 
 function refusalMessage(err: unknown, fallback: string): string {
-  const e = (err ?? {}) as { body?: { error?: { code?: string } }; code?: string };
+  const e = (err ?? {}) as {
+    statusCode?: number;
+    body?: { error?: { code?: string; details?: { reason?: unknown } | null } };
+    code?: string;
+    details?: { reason?: unknown } | null;
+  };
   const code = e.body?.error?.code ?? e.code ?? null;
   if (code && REFUSAL_COPY[code]) return REFUSAL_COPY[code]!;
-  return toSafeUserError(err, { message: fallback }).message;
+  // The decision authority's refusal reason, in the copy every door shares.
+  const reason = e.details?.reason ?? e.body?.error?.details?.reason ?? null;
+  const shared = describeReviewRefusal(
+    { status: typeof e.statusCode === "number" ? e.statusCode : 0, code, reason: typeof reason === "string" ? reason : null },
+    "",
+  );
+  return shared || toSafeUserError(err, { message: fallback }).message;
 }
+
+const VERDICT_KIND: Partial<Record<ReviewWorkflowAction, "approve" | "reject" | "request_info">> = {
+  APPROVE_INTERNAL: "approve",
+  REJECT_INSUFFICIENT: "reject",
+  REQUEST_MORE_INFO: "request_info",
+};
 
 export function EvidenceReviewActionsPanel({
   evidenceId,
@@ -138,6 +165,7 @@ export function EvidenceReviewActionsPanel({
   availableActions,
   workflowUpdatedAt,
   onChanged,
+  reviewPageHref = null,
 }: {
   evidenceId: string;
   teamId: string | null;
@@ -155,6 +183,12 @@ export function EvidenceReviewActionsPanel({
   workflowUpdatedAt?: string | null;
   /** Re-reads the record from the server. Awaited before success is shown. */
   onChanged?: () => Promise<void> | void;
+  /**
+   * T-008 — the canonical Review page for this record, when reviewer
+   * operations are included. Then this panel links there and offers at most
+   * Claim; verdicts, close and reopen happen on the Review page.
+   */
+  reviewPageHref?: string | null;
 }) {
   const { confirm } = useConfirmAction();
   // A decision takes a fresh step-up. Without the shared modal the panel could
@@ -172,6 +206,7 @@ export function EvidenceReviewActionsPanel({
     if (pending) return;
     setPending(action);
     setOutcome(null);
+    let decisionOutcome: { outcome?: ReviewDecisionOutcomeCopyInput | null } | null = null;
     try {
       if (action === "CLAIM") {
         await apiFetch(`/v1/review-operations/evidence/${evidenceId}/claim`, {
@@ -183,7 +218,7 @@ export function EvidenceReviewActionsPanel({
         // Audit F7: the panel had no way from Claim to a verdict.
         await beginReview(evidenceId, workflowUpdatedAt);
       } else {
-        await stepUp.runStepUpAction((headers) =>
+        decisionOutcome = (await stepUp.runStepUpAction((headers) =>
           apiFetch(`/v1/review-operations/evidence/${evidenceId}/decision`, {
             method: "POST",
             headers: { "content-type": "application/json", ...(headers ?? {}) },
@@ -194,12 +229,18 @@ export function EvidenceReviewActionsPanel({
               ...(action === "ESCALATE" ? { escalationReason: note } : {}),
             }),
           }),
-        );
+        )) as { outcome?: ReviewDecisionOutcomeCopyInput | null } | null;
       }
       await onChanged?.();
       setReasonFor(null);
       setReason("");
-      setOutcome({ tone: "success", text: SUCCESS_COPY[action] });
+      // A verdict says what it actually did (a first-of-two decision is not an
+      // approval), in the copy the Review page uses.
+      const verdictKind = VERDICT_KIND[action];
+      setOutcome({
+        tone: "success",
+        text: verdictKind && decisionOutcome?.outcome ? describeReviewOutcome(verdictKind, decisionOutcome.outcome) : SUCCESS_COPY[action],
+      });
     } catch (err) {
       // A refusal often means the record moved under us: re-read it so the
       // panel shows the state the message refers to.
@@ -261,7 +302,9 @@ export function EvidenceReviewActionsPanel({
         (a) =>
           a.blockedBy !== "NOT_FROM_STAGE" &&
           // Claiming a review you already own is not an action to offer.
-          a.blockedBy !== "ALREADY_YOURS",
+          a.blockedBy !== "ALREADY_YOURS" &&
+          // T-008 — with the Review page available, only Claim is offered here.
+          (!reviewPageHref || a.action === "CLAIM"),
       );
 
   return (
@@ -291,7 +334,17 @@ export function EvidenceReviewActionsPanel({
         <span className="evd-muted" data-evidence-review-assignee>
           Reviewer: {reviewAssigneeLabel(assignedTo, viewerUserId)}
         </span>
+        {reviewPageHref ? (
+          <Link href={reviewPageHref} className="app-secondary-action" data-evidence-review-open-review>
+            Open review
+          </Link>
+        ) : null}
       </div>
+      {reviewPageHref ? (
+        <p className="evd-muted" data-evidence-review-decide-on-review-page>
+          Decisions, archive and reopen are recorded on the review page.
+        </p>
+      ) : null}
 
       {outcome ? (
         <p

@@ -72,7 +72,7 @@ const claim = (token: string, ev: string, teamId: string) =>
 const decide = (token: string, ev: string, decision: string, note?: string) =>
   call(token, "POST", `/v1/review-operations/evidence/${ev}/decision`, {
     decision,
-    note: note ?? null,
+    note: note ?? (decision === "APPROVE_INTERNAL" || decision === "REQUEST_MORE_INFO" ? "Reviewed — rationale required for every verdict (T-010)." : null),
     ...(decision === "ESCALATE" ? { escalationReason: note } : {}),
   });
 const workflowOf = (ev: string) => prisma.evidenceReviewWorkflow.findUniqueOrThrow({ where: { evidenceId: ev } });
@@ -836,8 +836,11 @@ describe("third audit — side effects after commit, legacy rounds, console, cus
     const wf = await workflowOf(ev);
     const res = await call(A.adminToken, "GET", `/v1/reviewer-ops/workspace/${wf.id}/decisions?teamId=${A.teamId}`);
     expect(res.status, JSON.stringify(res.body)).toBe(200);
-    // Settled by the request: the next verdict opens a new round, never "second".
-    expect(res.body.state).toBe("resolved");
+    // Settled by the request: the next verdict opens a new round, never
+    // "second" — the lineage reads the CURRENT round as the authority does
+    // (Team remediation: loadCurrentRoundDecisionState), i.e. a fresh round.
+    expect(res.body.state).toBe("first_required");
+    expect(res.body.continuedFrom).toBe("request_info");
   });
 
   it("Review edits write no custody; the audit records only a real change (no status, the same status, bulk Mark in review on a review in review)", async () => {
@@ -1101,7 +1104,7 @@ describe("a lifecycle move that commits between a verdict's read and its write i
     });
     await expect(
       recordReviewDecision(
-        { workflowId: wf.id, teamId: A.teamId, actorUserId: A.memberUserId, decision: "APPROVE", rationale: null, actorIsAdjudicator: false } as never,
+        { workflowId: wf.id, teamId: A.teamId, actorUserId: A.memberUserId, decision: "APPROVE", rationale: "Consistent", actorIsAdjudicator: false } as never,
         client as never,
       ),
     ).rejects.toMatchObject({ code: "stale_decision" });

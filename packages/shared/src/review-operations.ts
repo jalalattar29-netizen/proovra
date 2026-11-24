@@ -248,7 +248,9 @@ export function decisionTargetStage(
  * justification so audit history is meaningful.
  */
 export const REVIEW_DECISIONS_REQUIRING_NOTE: ReadonlySet<ReviewDecisionType> =
-  new Set(["REJECT_INSUFFICIENT", "ESCALATE", "REOPEN"]);
+  // Team remediation T-010 — every verdict carries a written rationale (the
+  // decision authority refuses an empty one on every door).
+  new Set(["APPROVE_INTERNAL", "REQUEST_MORE_INFO", "REJECT_INSUFFICIENT", "ESCALATE", "REOPEN"]);
 
 export function decisionRequiresNote(d: ReviewDecisionType): boolean {
   return REVIEW_DECISIONS_REQUIRING_NOTE.has(d);

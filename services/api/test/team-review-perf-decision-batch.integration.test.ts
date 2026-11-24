@@ -137,7 +137,7 @@ async function referenceDecisions(workflows: ReadonlyArray<Ref>, client: any): P
 
 // --- Seeding ------------------------------------------------------------------
 
-type Trigger = "none" | "escalatedStatus" | "openEsc" | "openEscOtherTeam" | "resolvedEsc" | "hold" | "holdOtherTeam" | "releasedHold" | "redaction";
+type Trigger = "none" | "escalatedStatus" | "openEsc" | "autoEsc" | "openEscOtherTeam" | "resolvedEsc" | "hold" | "holdOtherTeam" | "releasedHold" | "redaction";
 type EventShape = "none" | "round" | "noRound" | "noRoundSettledByInfo" | "roundSettledByInfo" | "sameMs" | "noRoundBefore";
 type Spec = {
   status: string;
@@ -220,9 +220,21 @@ async function mk(spec: Spec): Promise<Ref> {
       data: { workflowId: id, evidenceId, actorUserId: team.ownerId, eventType: h.eventType as never, nextValue: h.nextValue as never, createdAt: tick() },
     });
   }
-  const esc = (teamId: string, status: string) =>
+  // Team remediation T-013 — a PERSON's escalation forces a second review;
+  // one the automatic overdue sweep raised alone (autoEsc) does not.
+  const esc = (teamId: string, status: string, automatic = false) =>
     prisma.reviewEscalation.create({
-      data: { teamId, workflowId: id, evidenceId, reason: "REVIEW_OVERDUE", severity: "WARNING", status, safeSummary: "trp", fingerprint: `trp:${randomUUID()}` },
+      data: {
+        teamId,
+        workflowId: id,
+        evidenceId,
+        reason: automatic ? "REVIEW_OVERDUE" : "INTEGRITY_RISK",
+        severity: "WARNING",
+        status,
+        safeSummary: "trp",
+        fingerprint: `trp:${randomUUID()}`,
+        createdByUserId: automatic ? null : team.ownerId,
+      },
     });
   const hold = (teamId: string, status: string) =>
     prisma.evidenceLegalHold.create({
@@ -234,6 +246,9 @@ async function mk(spec: Spec): Promise<Ref> {
       break;
     case "openEsc":
       await esc(team.teamId, "ACKNOWLEDGED");
+      break;
+    case "autoEsc":
+      await esc(team.teamId, "OPEN", true);
       break;
     case "openEscOtherTeam":
       await esc(B.teamId, "OPEN");
@@ -278,7 +293,7 @@ function rnd(): number {
 }
 const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(rnd() * xs.length)]!;
 
-const TRIGGERS: Trigger[] = ["none", "escalatedStatus", "openEsc", "openEscOtherTeam", "resolvedEsc", "hold", "holdOtherTeam", "releasedHold", "redaction"];
+const TRIGGERS: Trigger[] = ["none", "escalatedStatus", "openEsc", "autoEsc", "openEscOtherTeam", "resolvedEsc", "hold", "holdOtherTeam", "releasedHold", "redaction"];
 const EVENTS: EventShape[] = ["none", "round", "noRound", "noRoundSettledByInfo", "roundSettledByInfo", "sameMs", "noRoundBefore"];
 
 const named: Record<string, Spec> = {};
@@ -371,9 +386,14 @@ describe("batched current-round decisions equal the per-workflow derivation", ()
     const got = await outcome.loadCurrentReviewDecisions([...refs.values()], prisma as never);
     const v = (name: string) => got.get(refs.get(name)!.id);
     // No trigger, or a trigger that does not count (another team, no longer active): the first verdict stands.
-    for (const t of ["none", "openEscOtherTeam", "resolvedEsc", "holdOtherTeam", "releasedHold"]) {
+    for (const t of ["none", "autoEsc", "openEscOtherTeam", "resolvedEsc", "holdOtherTeam", "releasedHold"]) {
       expect(v(`first-APPROVE-${t}-noRound`), t).toBe("APPROVED");
-      expect(v(`first-REJECT-${t}-round`), t).toBe("NOT_ACCEPTED");
+      // Team remediation T-017 / binding direction 4 — a FIRST decision logged
+      // for THIS round as "second review required" keeps that requirement once
+      // its trigger is gone (an event with no recorded cause is treated as
+      // pinned): lifting the trigger never finalises the first verdict. The
+      // explicit re-evaluation (T-014) is the way out for such legacy rounds.
+      expect(v(`first-REJECT-${t}-round`), t).toBe("NO_DECISION");
     }
     // Each live trigger holds the round at "second review required".
     for (const t of ["escalatedStatus", "openEsc", "hold", "redaction"]) {

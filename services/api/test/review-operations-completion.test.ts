@@ -207,7 +207,15 @@ describe("review decision → notification dispatch", () => {
       ),
       "utf8",
     );
-    expect(lifecycleSrc).toMatch(/notifyReviewEscalated\(/);
+    // Team remediation T-170 — the escalation engine notifies whoever holds a
+    // person's escalation, for every creator (the Evidence-page ESCALATE
+    // included), so the lifecycle service no longer sends its own.
+    const escalationSrc = await readFile(
+      fileURLToPath(new URL("../src/services/reviewer-ops/escalation-engine.service.ts", import.meta.url)),
+      "utf8",
+    );
+    expect(escalationSrc).toMatch(/notifyEscalationRaised\(/);
+    expect(lifecycleSrc).not.toMatch(/notifyReviewEscalated\(/);
     // Verdict notifications no longer live in the lifecycle service.
     expect(lifecycleSrc).not.toMatch(/notifyReviewNeedsMoreInfo/);
 

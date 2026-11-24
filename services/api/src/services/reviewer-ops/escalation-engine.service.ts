@@ -33,7 +33,9 @@ import type {
 } from "@prisma/client";
 import {
   REVIEW_ESCALATION_REASONS,
+  escalationForcesIndependentReview,
   isAllowedEscalationStatusTransition,
+  isReviewOpenDbStatus,
   isTerminalReviewEscalationStatus,
   stringContainsForbiddenOverclaim,
   type ReviewEscalationReason,
@@ -52,6 +54,7 @@ import {
   assertWorkAssigneeEligible,
 } from "../assignment/assignee-eligibility.js";
 import { withinAssignmentWrite } from "../assignment/assignment-write.js";
+import { notifyEscalationRaised } from "../review-operations/review-notifications.service.js";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -147,6 +150,8 @@ export type EscalationProjection = {
   incidentId: string | null;
   createdAt: string;
   updatedAt: string;
+  /** T-013/T-019 — whether this escalation forces an independent second review. */
+  forcesIndependentReview: boolean;
 };
 
 export function projectEscalation(row: DbEscalation): EscalationProjection {
@@ -172,6 +177,7 @@ export function projectEscalation(row: DbEscalation): EscalationProjection {
     incidentId: row.incidentId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    forcesIndependentReview: escalationForcesIndependentReview(row),
   };
 }
 
@@ -561,6 +567,23 @@ export async function createEscalation(
     },
     auditClient,
   );
+  // T-170 — a PERSON raised it: whoever now holds it is told (never the
+  // person who raised it). Every creator reaches this one place.
+  if (input.createdByUserId) {
+    await notifyEscalationRaised(
+      {
+        workflow: {
+          id: input.workflowId,
+          teamId: input.teamId,
+          evidenceId: workflow.evidenceId,
+          assignedToUserId: workflow.assignedToUserId,
+        },
+        escalationAssigneeUserId: created.assignedToUserId,
+        raisedByUserId: input.createdByUserId,
+      },
+      auditClient,
+    ).catch(() => null);
+  }
   };
   if (!input.deferAuditToCaller) await announce(client);
 
@@ -710,10 +733,101 @@ export async function reassignEscalation(
   return projectEscalation(updated);
 }
 
+/**
+ * T-016 (Team remediation, 2026-11-24) — THE TWO-PERSON RULE IS NEVER LIFTED BY
+ * THE PERSON IT CONSTRAINS.
+ *
+ * An escalation that forces an independent second review
+ * (`escalationForcesIndependentReview`) on a review that is still open may be
+ * resolved or suppressed only by an OWNER or ADMIN who is neither the review's
+ * assignee nor a decider in its current round. Before, any reviewer-capable
+ * member could resolve it — the assignee included — and the requirement went
+ * with it. An automatic sweep escalation (which forces nothing) and an
+ * escalation on a finished review keep the old rule; PROOVRA's own resolve on
+ * a final verdict or a Close (`systemFinish`) is exempt.
+ *
+ * Refusals are audited (`reviewer.escalation.resolve_refused`, outcome denied).
+ */
+export async function assertEscalationActorIndependent(
+  row: Pick<DbEscalation, "id" | "teamId" | "workflowId" | "reason" | "createdByUserId">,
+  actor: { userId: string; role?: string | null; move: "resolve" | "suppress" },
+  client: PrismaClient | Prisma.TransactionClient = defaultPrisma,
+): Promise<void> {
+  if (!escalationForcesIndependentReview(row)) return;
+  const wf = await client.evidenceReviewWorkflow.findUnique({
+    where: { id: row.workflowId },
+    select: { status: true, assignedToUserId: true, decisionRound: true },
+  });
+  if (!wf || !isReviewOpenDbStatus(String(wf.status))) return;
+  let role = actor.role;
+  if (role === undefined) {
+    const member = await client.teamMember.findFirst({
+      where: { teamId: row.teamId, userId: actor.userId, status: "ACTIVE" },
+      select: { role: true },
+    });
+    role = member?.role ?? null;
+  }
+  let reason: string | null = null;
+  if (role !== "OWNER" && role !== "ADMIN") reason = "independent_resolver_required";
+  else if (wf.assignedToUserId === actor.userId) reason = "resolver_is_assignee";
+  else {
+    const decided = await client.workflowReviewDecision.findFirst({
+      where: { workflowId: row.workflowId, round: wf.decisionRound, reviewerUserId: actor.userId },
+      select: { stage: true },
+    });
+    if (decided) reason = "resolver_decided_this_round";
+  }
+  if (!reason) return;
+  await emitTenantAudit(
+    {
+      action: actor.move === "resolve" ? "reviewer.escalation.resolve_refused" : "reviewer.escalation.suppress_refused",
+      outcome: "denied",
+      sourceApp: "API",
+      actorUserId: actor.userId,
+      workspaceId: row.teamId,
+      resourceType: "review_escalation",
+      resourceId: row.id,
+      metadata: { workflowId: row.workflowId, reason, escalationReason: row.reason },
+    },
+    client as PrismaClient,
+  ).catch(() => null);
+  throw new EscalationEngineError("REVIEW_PERMISSION_DENIED", {
+    reason,
+    forcesIndependentReview: true,
+  });
+}
+
+/**
+ * The side-effect-free pre-check a route runs BEFORE the step-up gate
+ * (CONSUMER-MAP §0.2: no challenge is ever requested for an action the
+ * authority would refuse). The move re-checks inside itself.
+ */
+export async function precheckEscalationMove(
+  input: { teamId: string; escalationId: string; actorUserId: string; actorRole?: string | null; move: "resolve" | "suppress" },
+  client: PrismaClient = defaultPrisma,
+): Promise<void> {
+  const row = await loadAndAssertOpen(input, client);
+  await assertEscalationActorIndependent(
+    row,
+    { userId: input.actorUserId, role: input.actorRole, move: input.move },
+    client,
+  );
+}
+
 export async function resolveEscalation(
   // Resolve alone may be PROOVRA's own act (the reconciler): a null actor is
   // recorded as a system action.
-  input: Omit<TransitionContext, "actorUserId"> & { actorUserId: string | null; resolutionNote: string },
+  input: Omit<TransitionContext, "actorUserId"> & {
+    actorUserId: string | null;
+    resolutionNote: string;
+    /** The actor's proven workspace role (routes pass it; read when absent). */
+    actorRole?: string | null;
+    /**
+     * PROOVRA resolving it because the review itself was finished (a final
+     * verdict, Close): exempt from the independence rule (T-016).
+     */
+    systemFinish?: boolean;
+  },
   client: PrismaClient = defaultPrisma,
 ): Promise<EscalationProjection> {
   if (input.resolutionNote.trim().length === 0) {
@@ -721,6 +835,13 @@ export async function resolveEscalation(
   }
   const row = await loadAndAssertOpen(input, client);
   assertTransition(row.status as ReviewEscalationStatus, "RESOLVED");
+  if (input.actorUserId && !input.systemFinish) {
+    await assertEscalationActorIndependent(
+      row,
+      { userId: input.actorUserId, role: input.actorRole, move: "resolve" },
+      client,
+    );
+  }
   const now = new Date();
   const updated = await swapEscalationStatus(client, row, "RESOLVED", {
     status: "RESOLVED",
@@ -761,7 +882,7 @@ export async function resolveEscalation(
 }
 
 export async function suppressEscalation(
-  input: TransitionContext & { suppressionReason: string },
+  input: TransitionContext & { suppressionReason: string; actorRole?: string | null },
   client: PrismaClient = defaultPrisma,
 ): Promise<EscalationProjection> {
   if (input.suppressionReason.trim().length === 0) {
@@ -769,6 +890,11 @@ export async function suppressEscalation(
   }
   const row = await loadAndAssertOpen(input, client);
   assertTransition(row.status as ReviewEscalationStatus, "SUPPRESSED");
+  await assertEscalationActorIndependent(
+    row,
+    { userId: input.actorUserId, role: input.actorRole, move: "suppress" },
+    client,
+  );
   const now = new Date();
   const updated = await swapEscalationStatus(client, row, "SUPPRESSED", {
     status: "SUPPRESSED",
@@ -933,6 +1059,9 @@ export async function resolveOpenReviewEscalation(
           escalationId: esc.id,
           actorUserId: input.actorUserId,
           resolutionNote: input.note,
+          // The review itself was finished: PROOVRA resolves what was raised
+          // about it, whoever decided (T-016 exemption).
+          systemFinish: true,
         },
         client,
       );

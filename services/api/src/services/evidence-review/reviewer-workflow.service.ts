@@ -8,7 +8,17 @@ import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 // PHASE 12 POINT 4 PASS C1 — the ONE definition of "this status is a verdict".
 import { isDecisionDerivedWorkflowStatus } from "./review-status-vocabulary.js";
 import { AppError, ErrorCode } from "../../errors.js";
-import { isAllowedReviewStageTransition, mapDbStatusToReviewStage, presentReviewOutcome, type ReviewDecision } from "@proovra/shared";
+import {
+  deriveDecisionProjection,
+  deriveReviewState,
+  isAllowedReviewStageTransition,
+  mapDbStatusToReviewStage,
+  presentReviewOutcome,
+  roundContinuesInNewRound,
+  type ReviewDecision,
+} from "@proovra/shared";
+import { secondReviewForRound } from "./second-review.service.js";
+import { notifyReviewAssigned } from "../review-operations/review-notifications.service.js";
 import { loadCurrentReviewDecision } from "./review-outcome.service.js";
 import { assertWorkAssigneeEligible } from "../assignment/assignee-eligibility.js";
 import {
@@ -237,7 +247,7 @@ export async function upsertEvidenceReviewerWorkflow(params: {
   // ONE TRANSACTION (2026-10-23): the row and its events are written
   // together, so a workflow can no longer exist without its creation event or
   // carry events for a write that did not land.
-  const { workflow } = await prisma.$transaction(async (tx) => {
+  const { workflow, existing } = await prisma.$transaction(async (tx) => {
     const existing = await tx.evidenceReviewWorkflow.findUnique({
       where: { evidenceId: params.evidenceId },
       select: {
@@ -248,6 +258,7 @@ export async function upsertEvidenceReviewerWorkflow(params: {
         assignedToUserId: true,
         assignedByUserId: true,
         updatedAt: true,
+        decisionRound: true,
       },
     });
 
@@ -298,6 +309,43 @@ export async function upsertEvidenceReviewerWorkflow(params: {
           "That review state is not reachable from the current one.",
           { reason: "invalid_stage_transition", from, to },
         );
+      }
+    }
+
+    // T-166 (Team remediation) — this PATCH is an ADAPTER over the canonical
+    // lifecycle rules, so it cannot do what the review console refuses:
+    //   - hand a review awaiting its SECOND decision back to the FIRST reviewer
+    //     (the hand-off independence rule of assignReviewerToWorkflow);
+    //   - Close a review whose round awaits a second decision or an
+    //     adjudication (the Close guard of every other Close door).
+    // The round state is read with the same shared derivation the decision
+    // authority uses (current round, round requirement, continuation).
+    if (existing && params.teamId) {
+      const assigneeChanges =
+        !!params.assignedToUserId && params.assignedToUserId !== (existing.assignedToUserId ?? null);
+      const closing = params.status === "CLOSED" && existing.status !== "CLOSED";
+      if (assigneeChanges || closing) {
+        const pending = await pendingRoundState(tx, {
+          id: existing.id,
+          teamId: params.teamId,
+          evidenceId: params.evidenceId,
+          status: String(existing.status),
+          decisionRound: existing.decisionRound,
+        });
+        if (assigneeChanges && pending.state === "second_required" && pending.firstReviewerUserId === params.assignedToUserId) {
+          throw new AppError(
+            ErrorCode.INVALID_STATE_TRANSITION,
+            "The second review must be given by someone other than the first reviewer.",
+            { reason: "second_reviewer_not_independent", field: "assignedToUserId" },
+          );
+        }
+        if (closing && (pending.state === "second_required" || pending.state === "conflict_detected")) {
+          throw new AppError(
+            ErrorCode.INVALID_STATE_TRANSITION,
+            "This review is waiting for a second review or an adjudication and cannot be closed yet.",
+            { reason: "second_review_pending", reviewState: pending.state },
+          );
+        }
       }
     }
 
@@ -539,5 +587,44 @@ export async function upsertEvidenceReviewerWorkflow(params: {
     });
   }
 
+  // T-166 — the person a review is handed to is told, as on every other
+  // assignment door (a hand-off for the SECOND review says so). Never the
+  // person who assigned it to themself. Best-effort, after commit.
+  if (
+    params.teamId &&
+    workflow.assignedToUserId &&
+    workflow.assignedToUserId !== params.actorUserId &&
+    workflow.assignedToUserId !== (existing?.assignedToUserId ?? null)
+  ) {
+    await notifyReviewAssigned(
+      { workflow, actorUserId: params.actorUserId, isReassignment: !!existing?.assignedToUserId },
+    ).catch(() => null);
+  }
+
   return getEvidenceReviewerWorkflowSummary(params.evidenceId);
+}
+
+/** The current round's decision state, by the shared derivation (T-166). */
+async function pendingRoundState(
+  tx: Prisma.TransactionClient,
+  wf: { id: string; teamId: string; evidenceId: string; status: string; decisionRound: number },
+): Promise<{ state: string; firstReviewerUserId: string | null }> {
+  const rows = await tx.workflowReviewDecision.findMany({
+    where: { workflowId: wf.id, teamId: wf.teamId, round: wf.decisionRound },
+    orderBy: { decidedAt: "asc" },
+    select: { stage: true, decision: true, reviewerUserId: true },
+  });
+  if (rows.length === 0) return { state: "first_required", firstReviewerUserId: null };
+  const requirement = await secondReviewForRound(
+    { workflowId: wf.id, teamId: wf.teamId, evidenceId: wf.evidenceId, round: wf.decisionRound },
+    tx,
+  );
+  const projection = deriveDecisionProjection(rows, requirement.required);
+  if (roundContinuesInNewRound(rows, projection, mapDbStatusToReviewStage(wf.status)) !== null) {
+    return { state: "first_required", firstReviewerUserId: null };
+  }
+  return {
+    state: deriveReviewState({ decisions: rows, requiresSecond: requirement.required }),
+    firstReviewerUserId: rows.find((r) => r.stage === "FIRST")?.reviewerUserId ?? null,
+  };
 }

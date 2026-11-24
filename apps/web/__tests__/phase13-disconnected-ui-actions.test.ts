@@ -107,7 +107,9 @@ test("NEW-030: ApiError carries the normalized body every call site branches on"
   const readers = [
     "app/(app)/settings/_sections/PrivacySection.tsx",
     "app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx",
-    "app/(app)/reviewer-ops/[reviewId]/page.tsx",
+    // Team remediation — the Review page's refusal reader moved beside the
+    // shared decision panel (used by the Review page and its focus mode).
+    "app/(app)/reviewer-ops/[reviewId]/_components/DecisionLineagePanel.tsx",
     "app/(app)/workflows/[id]/page.tsx",
   ];
   for (const r of readers) {

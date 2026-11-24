@@ -28,11 +28,9 @@
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { reviewerDenialMessage } from "@proovra/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import Link from "next/link";
 
 import {
-  REVIEWER_DEFAULT_HOTKEYS,
   type ReviewerCapability,
   type ReviewerWorkspaceProjection,
   identifierLabel,
@@ -63,8 +61,6 @@ import { EmptyState } from "../../../../components/ui/EmptyState";
 import { CodingPanel } from "../../../../components/reviewer-workspace/CodingPanel";
 import { useReviewerHotkeys } from "../../../../lib/reviewer-workspace/reviewer-hotkeys";
 import {
-  approveReview,
-  createEscalation,
   fetchAnnotationsForEvidence,
   fetchCodingState,
   fetchEvidenceArtifactsStatus,
@@ -76,15 +72,12 @@ import {
   fetchSchema,
   fileDisagreement,
   listWorkflowDecisions,
-  rejectReview,
-  requestInfoReview,
   type CodingFieldRow,
   type CodingValueRow,
   type EvidenceArtifactsResult,
   type EvidencePreviewMeta,
   type EvidenceSidePaneResult,
   type ExtractedTextsResult,
-  type LifecycleCallResult,
   type ReviewerOpsWorkspaceSummary,
   type WorkflowDecisionRow,
   writeCodingValue,
@@ -103,6 +96,11 @@ import {
 import { SidePaneEvidence } from "../../../../components/reviewer-workspace/SidePaneEvidence";
 import { SidePaneExtractedTexts } from "../../../../components/reviewer-workspace/SidePaneExtractedTexts";
 import { SidePaneReport } from "../../../../components/reviewer-workspace/SidePaneReport";
+// Team remediation T-001…T-006 — focus mode decides through the Review page's
+// decision component and the canonical door.
+import { FocusDecisionColumn, type FocusHotkeyRequest } from "./_components/FocusDecisionColumn";
+import type { DecisionSubmitBody } from "../../reviewer-ops/[reviewId]/_components/DecisionPanel";
+import type { DecisionOutcome } from "../../reviewer-ops/[reviewId]/_components/inspector-model";
 
 export default function ReviewerWorkspacePage() {
   return (
@@ -179,17 +177,19 @@ function ReviewerWorkspaceShell() {
     | { phase: "READY"; result: EvidenceArtifactsResult }
     | null
   >(null);
-  // Phase 1 lifecycle wiring — bounded inline form replacing window.prompt
-  // for actions that require operator-supplied reason text (reject /
-  // request-info / escalate). The form is rendered inline above the
-  // decision bar; nothing fancy, just enough to capture a typed reason
-  // and submit it through the canonical reviewer-ops endpoints.
-  const [reasonForm, setReasonForm] = useState<{
-    kind: "REJECT" | "NEEDS_INFO" | "ESCALATE";
-  } | null>(null);
-  // Inflight guard so double-clicks / repeat hotkey presses cannot
-  // double-fire a lifecycle transition while one is already in flight.
-  const [lifecycleBusy, setLifecycleBusy] = useState(false);
+  // Team remediation T-002/T-003 — the result of a decision is shown next to
+  // the decision column (never in the ribbon), in the shared outcome copy.
+  const [decisionNotice, setDecisionNotice] = useState<string | null>(null);
+  // a / r / i / e drive the shared decision controls (FocusDecisionColumn).
+  const [hotkeyRequest, setHotkeyRequest] = useState<FocusHotkeyRequest | null>(null);
+  const hotkeyNonce = useRef(0);
+  const requestHotkey = useCallback((kind: FocusHotkeyRequest["kind"]) => {
+    hotkeyNonce.current += 1;
+    setHotkeyRequest({ kind, nonce: hotkeyNonce.current });
+  }, []);
+  // T-003 — the summary card is refetched after EVERY mutation, not only when
+  // the active review changes.
+  const [summaryVersion, setSummaryVersion] = useState(0);
   // PHASE 2 — Disagreement filing. The canonical
   // fileDisagreement service requires a real originalDecisionId
   // (UUID) tied to the workflow + team — we can't synthesize one
@@ -294,7 +294,7 @@ function ReviewerWorkspaceShell() {
     return () => {
       cancelled = true;
     };
-  }, [activeWorkflowId, teamId]);
+  }, [activeWorkflowId, teamId, summaryVersion]);
 
   // PHASE 1 — Reset the side-pane caches when the active evidence
   // changes so a stale OCR / TRANSCRIPT / EVIDENCE / REPORT projection
@@ -487,185 +487,28 @@ function ReviewerWorkspaceShell() {
     }
   }, [teamId]);
 
-  // PHASE 1 — Lifecycle wiring.
-  //
-  // The Reviewer Workspace MUST actually close the workflow, not just
-  // record a CodingValue. Order of operations (per the partial-failure
-  // hard rule):
-  //
-  //   1. Persist the REVIEWER_VERDICT coding value (current behavior,
-  //      best-effort — if no verdict field exists on the schema, skip
-  //      this step and proceed with the lifecycle call. The lifecycle
-  //      endpoints are the source of truth for workflow state.).
-  //   2. Call the canonical reviewer-ops lifecycle endpoint.
-  //   3. On lifecycle FAILURE: surface a clear partial-failure banner
-  //      and DO NOT advance. Operator must retry.
-  //   4. On lifecycle SUCCESS: refresh workspace projection and
-  //      advance to the next assigned workflow.
-  //
-  // Every lifecycle call site is wrapped in try/catch via the helper's
-  // own classifyLifecycleError + structured warn log here.
-  const runLifecycle = useCallback(
-    async (
-      kind: "APPROVE" | "REJECT" | "NEEDS_INFO" | "ESCALATE",
-      reason: string | null,
-    ) => {
-      if (!activeWorkflowId) return;
-      if (!teamId) {
-        setStatusBanner(
-          "No active workspace — switch to a workspace before deciding.",
-        );
-        return;
-      }
-      if (lifecycleBusy) return;
-      setLifecycleBusy(true);
-
-      // PRO-R2-02 — the canonical lifecycle endpoint answers FIRST. The coded
-      // verdict value is written only after the decision was actually
-      // recorded, so a refused approval never leaves an APPROVE coding value
-      // on a review that was not approved.
-      // 1. Call the canonical lifecycle endpoint.
-      let res: LifecycleCallResult;
-      try {
-        if (kind === "APPROVE") {
-          res = await approveReview({
-            workflowId: activeWorkflowId,
-            teamId,
-            note: reason ?? null,
-          });
-        } else if (kind === "REJECT") {
-          res = await rejectReview({
-            workflowId: activeWorkflowId,
-            teamId,
-            reason: reason ?? "",
-          });
-        } else if (kind === "NEEDS_INFO") {
-          res = await requestInfoReview({
-            workflowId: activeWorkflowId,
-            teamId,
-            message: reason ?? "",
-          });
-        } else {
-          res = await createEscalation({
-            workflowId: activeWorkflowId,
-            teamId,
-            reason: "WORKFLOW_STALLED",
-            safeSummary: reason ?? "",
-            severity: "WARNING",
-          });
-        }
-      } catch (err) {
-        // The helpers swallow API errors into a tagged failure, but a
-        // network exception could still escape. Surface it explicitly
-        // and DO NOT advance.
-        // eslint-disable-next-line no-console
-        console.warn("[reviewer-workspace] lifecycle call threw", {
-          kind,
-          workflowId: activeWorkflowId,
-          err,
-        });
-        setStatusBanner(
-          "The decision could not be sent: workflow not closed, nothing was recorded — please retry.",
-        );
-        setLifecycleBusy(false);
-        return;
-      }
-
-      // 2. Refusal → keep operator on the same item, and say what happened.
-      if (!res.ok) {
-        // eslint-disable-next-line no-console
-        console.warn("[reviewer-workspace] lifecycle endpoint denied", {
-          kind,
-          workflowId: activeWorkflowId,
-          status: res.status,
-          code: res.code,
-        });
-        setStatusBanner(
-          `The decision was refused (${identifierLabel(res.code)}): workflow not closed, nothing was recorded.`,
-        );
-        setLifecycleBusy(false);
-        return;
-      }
-
-      // 3. The decision is recorded: now the coded verdict value, best effort
-      // (a coverage artifact, never the decision itself).
-      const verdictField = fields.find(
-        (f) => f.fieldType === "REVIEWER_VERDICT",
-      );
-      if (verdictField) {
+  // Team remediation T-001 — a decision recorded through the shared panel.
+  // The coded verdict value (a coverage artifact, never the decision) is
+  // written only after the decision was recorded; a decision that moved the
+  // review out of this reviewer's hands advances to the next item (the server
+  // no longer selects a review awaiting this reviewer's own second review).
+  const onDecided = useCallback(
+    async (body: DecisionSubmitBody, _outcome: DecisionOutcome | null, moved: boolean) => {
+      const verdictField = fields.find((f) => f.fieldType === "REVIEWER_VERDICT");
+      const verdict = body.decision === "REQUEST_INFO" ? "NEEDS_INFO" : body.decision;
+      if (verdictField && (verdict === "APPROVE" || verdict === "REJECT" || verdict === "NEEDS_INFO")) {
         try {
-          await onWrite({
-            fieldId: verdictField.id,
-            value: { verdict: kind },
-            rationale: reason ?? undefined,
-          });
+          await onWrite({ fieldId: verdictField.id, value: { verdict }, rationale: body.rationale });
         } catch (err) {
           // eslint-disable-next-line no-console
-          console.warn(
-            "[reviewer-workspace] verdict coding-value write threw",
-            { kind, workflowId: activeWorkflowId, err },
-          );
+          console.warn("[reviewer-workspace] verdict coding-value write threw", { workflowId: activeWorkflowId, err });
         }
       }
-
-      // 4. Success → refresh + advance.
-      setStatusBanner(`Workflow ${kind.toLowerCase()} recorded.`);
-      setLifecycleBusy(false);
-      await advanceToNext();
+      if (moved) await advanceToNext();
     },
-    [
-      activeWorkflowId,
-      advanceToNext,
-      fields,
-      lifecycleBusy,
-      onWrite,
-      teamId,
-    ],
+    [fields, onWrite, advanceToNext, activeWorkflowId],
   );
-
-  // Decision entry point. APPROVE has no required reason and fires
-  // immediately. REJECT / NEEDS_INFO / ESCALATE require a typed reason
-  // — we open an inline form (NOT window.prompt, per Phase 1 UX rule)
-  // and submit through runLifecycle from the form handler.
-  // PRO-R2-05 — an approval is an immutable verdict: the button and the "a"
-  // key ask first through the shared confirm dialog (one dialog at a time).
-  const { confirm: confirmAction } = useConfirmAction();
-  const approvePending = useRef(false);
-  const onDecision = useCallback(
-    (kind: "APPROVE" | "REJECT" | "ESCALATE" | "NEEDS_INFO") => {
-      if (!activeWorkflowId) return;
-      if (kind === "APPROVE") {
-        if (approvePending.current) return;
-        approvePending.current = true;
-        void confirmAction({
-          title: "Approve this review?",
-          description: "The approval is recorded as an immutable decision and may release outputs held for review.",
-          confirmLabel: "Approve",
-          tone: "warning",
-        })
-          .then((ok) => (ok ? runLifecycle("APPROVE", null) : undefined))
-          .finally(() => {
-            approvePending.current = false;
-          });
-        return;
-      }
-      setReasonForm({ kind });
-    },
-    [activeWorkflowId, runLifecycle, confirmAction],
-  );
-
-  const submitReasonForm = useCallback(
-    (reason: string) => {
-      if (!reasonForm) return;
-      const kind = reasonForm.kind;
-      setReasonForm(null);
-      void runLifecycle(kind, reason);
-    },
-    [reasonForm, runLifecycle],
-  );
-  const cancelReasonForm = useCallback(() => {
-    setReasonForm(null);
-  }, []);
+  const onMutated = useCallback(() => setSummaryVersion((v) => v + 1), []);
 
   // ---------------------------------------------------------------------------
   // PHASE 2 — Disagree wiring.
@@ -774,11 +617,9 @@ function ReviewerWorkspaceShell() {
   // PRO-P3DZ-02 — ONE predicate for the decision bar and its keys: a key
   // never does what its disabled button refuses (no review.decide, a
   // decision in flight, a reason or disagreement form open).
-  const canDecide =
-    (workspace?.capabilities ?? []).includes("review.decide") &&
-    !lifecycleBusy &&
-    reasonForm === null &&
-    disagreeForm === null;
+  // T-005 — whether a verdict is open is the SERVER's answer (viewer.actions in
+  // the shared panel); a key only asks the panel, which enforces it.
+  const canDecide = activeWorkflowId !== null && disagreeForm === null;
   const hotkeys = useReviewerHotkeys(
     useMemo(
       () => ({
@@ -786,16 +627,16 @@ function ReviewerWorkspaceShell() {
         // either opens the reason form (REJECT / ESCALATE / NEEDS_INFO)
         // or runs the APPROVE lifecycle, which advances on success.
         // Hotkeys MUST NOT pre-advance — that would mask partial failure.
-        APPROVE: () => (canDecide ? onDecision("APPROVE") : undefined),
-        REJECT: () => (canDecide ? onDecision("REJECT") : undefined),
-        ESCALATE: () => (canDecide ? onDecision("ESCALATE") : undefined),
-        REQUEST_INFO: () => (canDecide ? onDecision("NEEDS_INFO") : undefined),
+        APPROVE: () => (canDecide ? requestHotkey("APPROVE") : undefined),
+        REJECT: () => (canDecide ? requestHotkey("REJECT") : undefined),
+        ESCALATE: () => (canDecide ? requestHotkey("ESCALATE") : undefined),
+        REQUEST_INFO: () => (canDecide ? requestHotkey("REQUEST_INFO") : undefined),
         NEXT_ITEM: () => void advanceToNext(),
         TOGGLE_ANNOTATIONS: () => setSidePaneMode("ANNOTATIONS"),
         FOCUS_CODING_PANEL: () => setSidePaneMode("CODING"),
         HELP: () => setHelpOpen((o) => !o),
       }),
-      [onDecision, advanceToNext, canDecide],
+      [requestHotkey, advanceToNext, canDecide],
     ),
     activeWorkflowId !== null,
   );
@@ -911,24 +752,30 @@ function ReviewerWorkspaceShell() {
           ) : (
             <WorkspaceGuidanceCard />
           )}
+          {decisionNotice ? (
+            <p role="status" className="app-alert app-alert--ok" data-focus-decision-notice style={{ margin: 0 }}>
+              {decisionNotice}
+            </p>
+          ) : null}
+          {activeWorkflowId && teamId ? (
+            <FocusDecisionColumn
+              key={activeWorkflowId}
+              teamId={teamId}
+              workflowId={activeWorkflowId}
+              hotkeyRequest={hotkeyRequest}
+              onNotice={setDecisionNotice}
+              onDecided={(body, outcome, moved) => void onDecided(body, outcome, moved)}
+              onMutated={onMutated}
+            />
+          ) : null}
           <DecisionBar
             capabilities={capabilities}
-            disabled={
-              lifecycleBusy || reasonForm !== null || disagreeForm !== null
-            }
-            onDecision={onDecision}
+            disabled={disagreeForm !== null}
             onDisagree={() => {
               void openDisagreeForm();
             }}
             hotkeys={hotkeys}
           />
-          {reasonForm ? (
-            <ReasonForm
-              kind={reasonForm.kind}
-              onSubmit={submitReasonForm}
-              onCancel={cancelReasonForm}
-            />
-          ) : null}
           {disagreeForm ? (
             <DisagreeForm
               state={disagreeForm}
@@ -1476,90 +1323,9 @@ function formatRelativeTime(iso: string): string {
 // Phase 2A Closure — legacy EvidenceViewer replaced by
 // EvidenceViewerColumn + MediaViewer; the old function is removed.
 
-// ---------------------------------------------------------------------------
-// Phase 1 lifecycle wiring — inline reason form.
-//
-// Replaces window.prompt for the three reason-bearing actions
-// (REJECT / NEEDS_INFO / ESCALATE). Reject and request-info both
-// require BoundedNote (server schema: min 1, max 1000). Escalate
-// requires safeSummary (max 400). We cap the input at the tightest
-// bound (400) so the same form is reusable; longer reject narratives
-// would not improve workflow closure.
-// ---------------------------------------------------------------------------
-
-function ReasonForm({
-  kind,
-  onSubmit,
-  onCancel,
-}: {
-  kind: "REJECT" | "NEEDS_INFO" | "ESCALATE";
-  onSubmit: (reason: string) => void;
-  onCancel: () => void;
-}) {
-  const [value, setValue] = useState("");
-  const trimmed = value.trim();
-  const maxLen = 400;
-  const tooLong = trimmed.length > maxLen;
-  const ready = trimmed.length > 0 && !tooLong;
-  const title =
-    kind === "REJECT"
-      ? "Reject — reason required"
-      : kind === "NEEDS_INFO"
-        ? "Request info — message required"
-        : "Escalate — summary required";
-  const placeholder =
-    kind === "REJECT"
-      ? "Why is this workflow being rejected?"
-      : kind === "NEEDS_INFO"
-        ? "What additional information is needed?"
-        : "Brief summary of why this is being escalated.";
-  return (
-    <section
-      data-reviewer-reason-form={kind}
-      className="app-panel"
-      aria-label={title}
-    >
-      <div className="app-panel__body" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <h2 className="app-panel__title">{title}</h2>
-      <textarea
-        data-reviewer-reason-input
-        aria-label={title}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder={placeholder}
-        rows={4}
-        className="app-input"
-        style={{ resize: "vertical" }}
-        autoFocus
-      />
-      {/* TEAM-UI-SPEC §1 — Cancel secondary + the one primary submit (a
-          rejection is a verdict, not data destruction). */}
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <span className={tooLong ? "app-field-error" : "app-field-help"} style={{ margin: 0 }}>
-          {trimmed.length}/{maxLen}
-        </span>
-        <span style={{ flex: 1 }} />
-        <CanonicalActionButton
-          variant="secondary"
-          data-reviewer-reason-cancel
-          onClick={onCancel}
-        >
-          Cancel
-        </CanonicalActionButton>
-        <CanonicalActionButton
-          variant="primary"
-          data-reviewer-reason-submit
-          disabled={!ready}
-          disabledReason={tooLong ? `Keep it to ${maxLen} characters.` : "Write a reason first."}
-          onClick={() => onSubmit(trimmed)}
-        >
-          Submit
-        </CanonicalActionButton>
-      </div>
-      </div>
-    </section>
-  );
-}
+// Team remediation T-001 — the inline reason form (which dropped the typed
+// reason before the server answered) is gone: every verdict and escalation is
+// entered in the shared decision panel and Escalate dialog (FocusDecisionColumn).
 
 // ---------------------------------------------------------------------------
 // PHASE 2 — Inline Disagree form.
@@ -1742,94 +1508,52 @@ function DisagreeForm({
   );
 }
 
+/**
+ * Team remediation T-001 / T-005 — the bar keeps Disagree and the hotkey list.
+ * Verdicts are no longer buttons here: they are entered in the shared decision
+ * panel, whose controls are opened by the server's viewer.actions (the keys
+ * a / r / i focus it with that choice; e opens the shared Escalate dialog).
+ */
 function DecisionBar({
   capabilities,
-  onDecision,
   onDisagree,
   hotkeys,
   disabled = false,
 }: {
   capabilities: Set<ReviewerCapability>;
-  onDecision: (kind: "APPROVE" | "REJECT" | "ESCALATE" | "NEEDS_INFO") => void;
   onDisagree: () => void;
   hotkeys: ReadonlyArray<{ code: string; key: string }>;
   disabled?: boolean;
 }) {
-  const canDecide = capabilities.has("review.decide") && !disabled;
   const canDisagree = capabilities.has("review.disagree") && !disabled;
-  const decideReason = disabled
-    ? "Finish or cancel the open form first."
-    : "Your reviewer role cannot record decisions here.";
   const disagreeReason = disabled
     ? "Finish or cancel the open form first."
     : "Your reviewer role cannot file disagreements here.";
-  // TEAM-UI-SPEC §1 — one primary (Approve, the forward action) per region;
-  // every other decision entry is secondary. Reject is a verdict, not data
-  // destruction, so it carries no destructive styling.
   return (
-    <section
-      data-reviewer-decision-bar
-      className="app-panel"
-      aria-label="Decision"
-    >
-      <div
-        className="app-panel__body"
-        style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}
-      >
-      <DecisionBtn
-        label="Approve"
-        hotkey={REVIEWER_DEFAULT_HOTKEYS.APPROVE}
-        tone="primary"
-        disabled={!canDecide}
-        disabledReason={decideReason}
-        onClick={() => onDecision("APPROVE")}
-      />
-      <DecisionBtn
-        label="Reject"
-        hotkey={REVIEWER_DEFAULT_HOTKEYS.REJECT}
-        tone="secondary"
-        disabled={!canDecide}
-        disabledReason={decideReason}
-        onClick={() => onDecision("REJECT")}
-      />
-      <DecisionBtn
-        label="Escalate"
-        hotkey={REVIEWER_DEFAULT_HOTKEYS.ESCALATE}
-        tone="secondary"
-        disabled={!canDecide}
-        disabledReason={decideReason}
-        onClick={() => onDecision("ESCALATE")}
-      />
-      <DecisionBtn
-        label="Request info"
-        hotkey={REVIEWER_DEFAULT_HOTKEYS.REQUEST_INFO}
-        tone="secondary"
-        disabled={!canDecide}
-        disabledReason={decideReason}
-        onClick={() => onDecision("NEEDS_INFO")}
-      />
-      <DecisionBtn
-        label="Disagree"
-        hotkey=""
-        tone="secondary"
-        disabled={!canDisagree}
-        disabledReason={disagreeReason}
-        onClick={onDisagree}
-      />
-      <span style={{ flex: 1 }} />
-      <details>
-        <summary className="app-ghost-action" style={{ display: "inline-flex" }}>
-          Hotkeys
-        </summary>
-        <ul className="app-field-help" style={{ margin: 6, padding: 0, listStyle: "none" }}>
-          {hotkeys.map((b) => (
-            <li key={b.code} style={{ display: "flex", gap: 8 }}>
-              <kbd>{b.key}</kbd>
-              <span>{reviewerHotkeyLabel(b.code)}</span>
-            </li>
-          ))}
-        </ul>
-      </details>
+    <section data-reviewer-decision-bar className="app-panel" aria-label="More actions">
+      <div className="app-panel__body" style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        <DecisionBtn
+          label="Disagree"
+          hotkey=""
+          tone="secondary"
+          disabled={!canDisagree}
+          disabledReason={disagreeReason}
+          onClick={onDisagree}
+        />
+        <span style={{ flex: 1 }} />
+        <details>
+          <summary className="app-ghost-action" style={{ display: "inline-flex" }}>
+            Hotkeys
+          </summary>
+          <ul className="app-field-help" style={{ margin: 6, padding: 0, listStyle: "none" }}>
+            {hotkeys.map((b) => (
+              <li key={b.code} style={{ display: "flex", gap: 8 }}>
+                <kbd>{b.key}</kbd>
+                <span>{reviewerHotkeyLabel(b.code)}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
       </div>
     </section>
   );

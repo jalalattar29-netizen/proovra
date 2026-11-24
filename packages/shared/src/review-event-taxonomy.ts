@@ -190,3 +190,30 @@ export function classifyLegacyReviewCustody(payload: unknown): ReviewEventCode {
 export function reviewEventLabel(code: ReviewEventCode): string {
   return REVIEW_EVENT_LABELS[code];
 }
+
+// -----------------------------------------------------------------------------
+// Team remediation (2026-11-24, T-162) — the tenant-audit ACTIONS written by
+// the review lifecycle behaviours this programme introduced, beside the
+// existing ones they are distinguished from. One catalog, pinned by
+// tests/team-rem-a-review-audit-catalog.test.mjs; the API writes these
+// strings through `emitTenantAudit` (no second audit system).
+// -----------------------------------------------------------------------------
+
+export const REVIEW_LIFECYCLE_AUDIT_ACTIONS = {
+  /** A FIRST decision recorded under a second-review requirement (not a completion). */
+  FIRST_DECISION_RECORDED: "reviewer.first_decision_recorded",
+  /** A verdict that finished the review (approved / rejected). Never written for a first-of-two. */
+  REVIEW_COMPLETED: "reviewer.review_completed",
+  /** A single Archive from the Review page (source REVIEW_PAGE) — never "bulk triage". */
+  REVIEW_ARCHIVED: "reviewer.review.archive",
+  /** A real bulk triage, unchanged. */
+  BULK_TRIAGE: "reviewer.bulk_triage",
+  /** T-016 — the assignee / a decider / a non-admin was refused resolving a forcing escalation. */
+  ESCALATION_RESOLVE_REFUSED: "reviewer.escalation.resolve_refused",
+  ESCALATION_SUPPRESS_REFUSED: "reviewer.escalation.suppress_refused",
+  /** T-014 — the explicit second-review policy re-evaluation of one review. */
+  SECOND_REVIEW_POLICY_REEVALUATED: "reviewer.second_review_policy.reevaluated",
+} as const;
+
+export type ReviewLifecycleAuditAction =
+  (typeof REVIEW_LIFECYCLE_AUDIT_ACTIONS)[keyof typeof REVIEW_LIFECYCLE_AUDIT_ACTIONS];

@@ -40,7 +40,6 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { triggerReviewAssigned } from "../automation/automation-triggers.js";
 import {
   notifyReviewAssigned,
-  notifyReviewEscalated,
   notifyReviewSlaBreached,
 } from "./review-notifications.service.js";
 // Track 1C — canonical review-decision authority. Reviewer VERDICTS
@@ -787,8 +786,8 @@ export async function recordLifecycleTransition(
     });
     // The escalation's security event and audit entry, then the operational
     // notification — after commit, best-effort.
+    // The escalation engine notifies whoever holds it (T-170), once.
     await afterCommit?.().catch(() => null);
-    notifyReviewEscalated({ workflow: updated, actorUserId: input.actorUserId }, client).catch(() => null);
     return updated;
   }
 
@@ -1314,6 +1313,7 @@ export async function bulkReviewAction(
               actorUserId: input.actorUserId,
               decision: "REQUEST_INFO",
               rationale: input.note,
+              source: "bulk",
             },
             client,
           );

@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "82cc966200a6882a84f98a9182c5b3b228bd8f817647fce2c30662979af215e5",
+  "capabilityRouteInventoryHash": "80a823e1c216b8437889da27dde88821c8c31cab10dfafb2eed4dd09097251b9",
   "totals": {
-    "routes": 1274,
+    "routes": 1276,
     "routesWithAnyTestCaller": 59,
     "testOnlyRoutes": 8,
     "testCallSites": 156,
@@ -7115,6 +7115,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/reviewer-ops/maintenance/second-review-reevaluation",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/reviewer-ops/queue-intelligence",
       "testCallerCount": 0,
       "testOnly": false,
@@ -7133,6 +7139,12 @@
       "testCallerFiles": [
         "services/api/test/phase-37-98-reviewer-workflow-lifecycle.integration.test.ts"
       ]
+    },
+    {
+      "routeId": "POST /v1/reviewer-ops/reviews/:workflowId/archive",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
     },
     {
       "routeId": "POST /v1/reviewer-ops/reviews/:workflowId/assign",
@@ -7791,5 +7803,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "5ea8f8a3c2f228d879c5ec9fb804b017e3701ed53f51c61229471fce5f8d4445"
+  "contentHash": "829dc067cef65b6656809cffcc9bcc804a5ae50f773473f1bd81a702be1c5e27"
 }

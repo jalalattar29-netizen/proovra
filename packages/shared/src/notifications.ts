@@ -108,6 +108,10 @@ export const NOTIFICATION_EVENT_TYPES = [
   // TEAM-SPEC R3 — a first decision was recorded and an independent second
   // reviewer must be assigned. Addressed to the workspace's assignment managers.
   "REVIEW_SECOND_REVIEW_REQUIRED",
+  // Team remediation G (2026-11-24) — the reviewer a second review was handed
+  // to (T-159), and the workspace owner when nobody can give it (T-160).
+  "REVIEW_SECOND_REVIEW_ASSIGNED",
+  "REVIEW_SECOND_REVIEWER_UNAVAILABLE",
   // Phase 16 — collaboration notifications. Internal-only; bodies
   // never include the message text or thread internals.
   "DISCUSSION_MENTION_RECEIVED",
