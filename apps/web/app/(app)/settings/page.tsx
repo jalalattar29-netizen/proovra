@@ -44,6 +44,7 @@ import { useAuth } from "../../providers";
 import { usePlatformContext } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { deriveSettingsUiContext } from "../../../lib/settings/settingsUiContext";
+import { describeActiveWorkspace } from "../../../lib/platform-context/workspaceLabel";
 import { useAccountSecuritySummary } from "../../../lib/security/useAccountSecuritySummary";
 import { useEnterpriseSurfaceAccess } from "../../../lib/platform-context";
 import {
@@ -169,6 +170,8 @@ function SettingsWorkspace() {
     isEnterpriseWorkspace: envelope?.flags?.isEnterpriseWorkspace === true,
     organizations: envelope?.organizations ?? [],
     planFeatures: envelope?.planFeatures ?? null,
+    // T-115 / T-116 — the ONE Team-aware workspace label rule.
+    workspaceDescription: describeActiveWorkspace(envelope),
   });
 
   const security = useAccountSecuritySummary(Boolean(user?.id));

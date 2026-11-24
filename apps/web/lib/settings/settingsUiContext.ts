@@ -38,6 +38,12 @@ export type SettingsUiContext = {
   showNotifications: boolean;
   activeWorkspaceName: string;
   /**
+   * T-116 — what sort of workspace this is, for the overview "Type" fact:
+   * "Personal Workspace", "Team Workspace" (a collaboration plan with other
+   * members, own or joined) or "Organization Workspace".
+   */
+  workspaceTypeLabel: string;
+  /**
    * The viewer's role in the ACTIVE organization, or null outside one.
    *
    * LEGACY FIELD MIGRATION (2026-09-04) — Settings read this from
@@ -123,8 +129,30 @@ export type SettingsUiContextInput = {
      * null = custom/Enterprise, undefined = envelope predates the field).
      */
     aiAssistanceMonthlyOperations?: number | null;
+    /**
+     * T-116 — collaboration included on the active workspace plan
+     * (`planFeatures.teamCollaborationIncluded`). Absent = unknown: the scope
+     * keeps the plain "Personal plan" wording.
+     */
+    teamCollaborationIncluded?: boolean;
+  } | null;
+  /**
+   * T-115 / T-116 — the ONE Team-aware workspace description
+   * (`describeActiveWorkspace`), when the page has it. A Team owner
+   * workspace with members is named by it instead of "Personal Space".
+   */
+  workspaceDescription?: {
+    kind: "PERSONAL_SOLO" | "TEAM_OWNER" | "SHARED" | "ORGANIZATION" | "UNKNOWN";
+    name: string | null;
+    teamWorkspace: boolean;
   } | null;
 };
+
+/** "TEAM" -> "Team", for prose. Display only, never a decision. */
+function planTitle(plan: string): string {
+  const p = plan.toLowerCase();
+  return p === "payg" ? "Pay-as-you-go" : p.charAt(0).toUpperCase() + p.slice(1);
+}
 
 function planLabel(plan: string | null | undefined): string {
   return (plan ?? "FREE").toUpperCase();
@@ -176,10 +204,17 @@ export function deriveSettingsUiContext(
       managedByOrgName: null,
     };
   } else if (!isOrg) {
+    const displayPlan = planLabel(input.accountPlan ?? input.workspacePlan);
     billing = {
       contextType: "personal",
-      displayPlan: planLabel(input.accountPlan ?? input.workspacePlan),
-      scopeLabel: "Personal plan",
+      displayPlan,
+      // T-116 — Team is a personal-workspace tier: a plan that sells
+      // collaboration is bought FOR the workspace other people work in, so it
+      // is not called a "Personal plan" (which read "PERSONAL PLAN · TEAM").
+      scopeLabel:
+        input.planFeatures?.teamCollaborationIncluded === true
+          ? `${planTitle(displayPlan)} plan on your workspace`
+          : "Personal plan",
       canManageBilling,
       billingHref: canManageBilling ? "/billing" : null,
       managedByOrgName: null,
@@ -212,7 +247,14 @@ export function deriveSettingsUiContext(
       ? orgName
       : sharedPersonal
         ? (input.activeSpace?.displayName ?? "Shared workspace")
-        : "Personal Space",
+        : input.workspaceDescription?.kind === "TEAM_OWNER" && input.workspaceDescription.name
+          ? input.workspaceDescription.name
+          : "Personal Space",
+    workspaceTypeLabel: isOrg
+      ? "Organization Workspace"
+      : input.workspaceDescription?.teamWorkspace === true
+        ? "Team Workspace"
+        : "Personal Workspace",
     isPersonalWorkspace: !isOrg,
     // AI assistance/governance is a real per-workspace surface for
     // personal AND org workspaces (route workspace.ai_settings; API

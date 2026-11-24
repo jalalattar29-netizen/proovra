@@ -430,7 +430,8 @@ export type TeamWork = {
   submissionsAwaitingReview: number;
   reportsToday: number;
   members: number;
-  pendingInvites: number;
+  /** T-109 — null where no honest count exists (a personal workspace). */
+  pendingInvites: number | null;
   manageHref: string;
 };
 
@@ -1954,24 +1955,47 @@ function buildTeamWork(args: {
   activeSpaceType: ActiveSpaceType;
   orgs: HomeOrgsInput | null;
   workspaceId: string | null;
+  /**
+   * T-109 — the ACTIVE workspace's own member count (owner included), read
+   * from the envelope's workspace membership. `null` = unknown.
+   */
+  workspaceMemberCount: number | null;
   submissionsCount: number;
   reportsToday: number;
 }): TeamWork | null {
-  // Team Work is ONLY meaningful inside an organization workspace.
-  // A PRO user sitting in their Personal Space must NOT see it, even
-  // if they belong to a team elsewhere (Phase 10 rule).
-  if (args.activeSpaceType !== "ORGANIZATION") return null;
+  // T-109 (ARCH-01) — Team Work follows the PLAN FEATURE, never the workspace
+  // kind. Team is sold on a Personal Workspace, so the old ORGANIZATION-only
+  // gate hid the card from every Team customer. It shows where the active
+  // workspace's plan includes collaboration AND somebody other than the
+  // viewer works there (a solo owner has no team work to summarise; a
+  // Personal Space whose plan sells no collaboration — FREE — never shows
+  // it). An Enterprise organization workspace keeps showing it as before.
   if (!args.teamCollaborationIncluded) return null;
+  const isOrg = args.activeSpaceType === "ORGANIZATION";
+  const workspaceMembers =
+    typeof args.workspaceMemberCount === "number" && Number.isFinite(args.workspaceMemberCount)
+      ? args.workspaceMemberCount
+      : null;
+  if (!isOrg) {
+    if (args.activeSpaceType !== "PERSONAL") return null;
+    if (workspaceMembers === null || workspaceMembers < 2) return null;
+  }
   const orgs = args.orgs ?? [];
-  // Scope to the active workspace's org when we can match it; otherwise
-  // fall back to the active orgs the user owns.
-  const active = orgs.filter((o) => o.membershipStatus === "ACTIVE");
-  const scoped = args.workspaceId
-    ? active.filter((o) => o.id === args.workspaceId)
-    : active;
-  const orgsForCount = scoped.length > 0 ? scoped : active;
-  const members = orgsForCount.reduce((sum, o) => sum + (o.memberCount ?? 0), 0);
-  const pending = orgs.filter((o) => o.membershipStatus === "PENDING").length;
+  // Members come from the WORKSPACE. The `organizations[]` sum (scoped to the
+  // active workspace's entry when it matches) is only the fallback for an
+  // organization envelope that does not carry the count.
+  let members = workspaceMembers ?? 0;
+  if (workspaceMembers === null) {
+    const active = orgs.filter((o) => o.membershipStatus === "ACTIVE");
+    const scoped = args.workspaceId
+      ? active.filter((o) => o.id === args.workspaceId)
+      : active;
+    const orgsForCount = scoped.length > 0 ? scoped : active;
+    members = orgsForCount.reduce((sum, o) => sum + (o.memberCount ?? 0), 0);
+  }
+  // `organizations[]` PENDING rows are invitations addressed TO the viewer;
+  // they describe this workspace only in the organization view.
+  const pending = isOrg ? orgs.filter((o) => o.membershipStatus === "PENDING").length : null;
   return {
     submissionsAwaitingReview: args.submissionsCount,
     reportsToday: args.reportsToday,
@@ -3724,6 +3748,12 @@ export type NormalizeInputs = {
   /** AUD-0047 — true inside a personal workspace the viewer joined. */
   activeSpaceShared?: boolean | null;
   /**
+   * T-109 — the active workspace member count (owner included), from the
+   * envelope workspace membership. Absent/null = unknown: no Team Work card
+   * in a personal workspace.
+   */
+  workspaceMemberCount?: number | null;
+  /**
    * B2A-F-01 — whether `billing` (the viewer's own account) describes the
    * active space. Absent: only an unshared Personal Space qualifies.
    */
@@ -3915,6 +3945,7 @@ export function normalizeHomeViewModel(
     activeSpaceType: inputs.activeSpaceType,
     orgs: inputs.orgs,
     workspaceId: inputs.workspaceId,
+    workspaceMemberCount: inputs.workspaceMemberCount ?? null,
     submissionsCount: submissionsAwaitingReview,
     reportsToday,
   });

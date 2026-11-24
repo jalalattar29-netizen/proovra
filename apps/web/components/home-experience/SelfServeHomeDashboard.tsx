@@ -299,7 +299,7 @@ export function SelfServeHomeDashboard() {
             </div>
           </PageSection>
 
-          {/* Team Work — organization workspaces only (null in Personal). */}
+          {/* Team Work — a collaboration plan with other members (T-109). */}
           {vm.teamWork ? <TeamWorkCard team={vm.teamWork} /> : null}
         </div>
       ) : null}

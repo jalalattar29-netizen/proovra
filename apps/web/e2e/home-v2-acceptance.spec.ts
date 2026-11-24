@@ -4,8 +4,10 @@
  * Drives the REAL Home in a browser for the four seeded personas and
  * enforces the pre-push acceptance gate:
  *
- *   A. Layout    — no nav-duplicate button row; no Team Work in Personal
- *                  Space; no broken placeholder cards.
+ *   A. Layout    — no nav-duplicate button row; no Team Work in a solo
+ *                  Personal Space (T-109: the card follows
+ *                  teamCollaborationIncluded plus other members, never the
+ *                  workspace kind); no broken placeholder cards.
  *   B. CTAs      — every CTA navigates to a route that renders (no 404,
  *                  no blank page); banned routes (/workspaces,
  *                  bare /evidence-requests, /v/) never appear.
@@ -76,7 +78,8 @@ test.describe("Home V2 acceptance", () => {
     await page.waitForSelector("[data-self-serve-home-state='ready']");
     await page.screenshot({ path: "playwright-report/pro-empty.png", fullPage: true });
 
-    // A. No Team Work in Personal Space.
+    // A. No Team Work in a solo Personal Space: this PRO persona has no other
+    // members (T-109 — a Pro/Team workspace WITH members does show it).
     await expect(page.locator("[data-self-serve-section='team-work']")).toHaveCount(0);
 
     // Executive Summary shows the onboarding capture action.
@@ -103,7 +106,8 @@ test.describe("Home V2 acceptance", () => {
     await page.waitForSelector("[data-self-serve-home-state='ready']");
     await page.screenshot({ path: "playwright-report/pro-populated.png", fullPage: true });
 
-    // No Team Work in Personal Space even though plan is PRO.
+    // No Team Work: plan PRO includes collaboration, but this persona works
+    // alone (T-109 gates the card on other members, not on the plan alone).
     await expect(page.locator("[data-self-serve-section='team-work']")).toHaveCount(0);
 
     // C. Trust State shows LIVE counts (not static copy).
@@ -171,7 +175,8 @@ test.describe("Home V2 acceptance", () => {
     await page.waitForSelector("[data-self-serve-home-state='ready']");
     await page.screenshot({ path: "playwright-report/team-org.png", fullPage: true });
 
-    // Team Work IS present in an organization workspace and carries live counts.
+    // Team Work IS present in an organization workspace and carries live
+    // counts (unchanged by T-109: the plan includes collaboration).
     await expect(page.locator("[data-self-serve-section='team-work']")).toBeVisible();
     await expect(page.locator("[data-self-serve-section='team-work']")).toContainText(/Awaiting review/i);
 

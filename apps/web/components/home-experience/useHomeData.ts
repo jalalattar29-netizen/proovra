@@ -37,6 +37,7 @@ import {
   useOrganizations,
 } from "../../lib/platform-context";
 import { usePlatformContext } from "../../lib/platform-context/PlatformContextProvider";
+import { activeWorkspaceMemberCount } from "../../lib/platform-context/workspaceLabel";
 import { surfaceUserContextFromEnvelope } from "../../lib/surface/useSurfaceUserContext";
 
 import {
@@ -105,6 +106,8 @@ export function useHomeData(): HomeData {
   // Space; in a joined or organization workspace its figures are not shown.
   const ownPersonal = isOwnPersonalActiveSpace(envelope);
   const activeSpaceShared = activeSpace?.type === "PERSONAL" && activeSpace.shared === true;
+  // T-109 — the ACTIVE workspace member count gates the Team Work card.
+  const workspaceMemberCount = activeWorkspaceMemberCount(envelope);
   const orgs = useOrganizations();
   // Read `orgs` through a ref inside `reload` so the callback's identity
   // does NOT change on every render when `useOrganizations()` returns a
@@ -374,6 +377,7 @@ export function useHomeData(): HomeData {
         workspaceName: activeSpace?.displayName ?? null,
         activeSpaceType,
         activeSpaceShared,
+        workspaceMemberCount,
         billingDescribesActiveSpace: ownPersonal,
         recordAllowance: settled.recordAllowance,
         commandCenter: settled.cc,
@@ -456,7 +460,7 @@ export function useHomeData(): HomeData {
 
     // `orgs` is intentionally read via `orgsRef` (not a dep) so this
     // callback stays referentially stable across renders.
-  }, [workspaceId, activeSpaceType, activeSpaceShared, ownPersonal, activeSpace?.displayName, plan, planFeatures, messagingOperator]);
+  }, [workspaceId, activeSpaceType, activeSpaceShared, workspaceMemberCount, ownPersonal, activeSpace?.displayName, plan, planFeatures, messagingOperator]);
 
   useEffect(() => {
     void reload();
