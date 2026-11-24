@@ -47,7 +47,13 @@ import {
   type ReactNode,
 } from "react";
 
-import { apiFetch } from "../../lib/api";
+import {
+  reauthRequiredSentence,
+  stepUpEnrollmentSentence,
+  stepUpReasonSentence,
+} from "@proovra/shared/user-facing-errors";
+
+import { apiFetch, setApiToken } from "../../lib/api";
 import { getPasskeyAssertion } from "../../lib/identity/webauthn";
 import { useDialogFocus } from "../../lib/ui/dialogFocus";
 
@@ -55,6 +61,12 @@ export type StepUpRequiredDetails = {
   purpose: string;
   resourceKind: string | null;
   resourceId: string | null;
+  /**
+   * T-028 (additive) — WHY the server asked: `policy_flag:<flag>`,
+   * `elevated_session_risk`, `save_policy_requires_mfa`, … Rendered as a
+   * sentence; absent on routes that name none.
+   */
+  reason?: string | null;
 };
 
 export type StepUpAction<T> = (headers?: Record<string, string>) => Promise<T>;
@@ -77,6 +89,36 @@ export function isStepUpCancelled(err: unknown): boolean {
   return (err as ApiErrorLike | null | undefined)?.code === "STEP_UP_CANCEL";
 }
 
+/**
+ * T-029 — a privileged action needs a RECENT sign-in (`401 reauth_required`).
+ * The session is valid for everything else, so this is never "signed out".
+ */
+export function isReauthRequiredError(err: unknown): err is ApiErrorLike {
+  if (!err || typeof err !== "object") return false;
+  const e = err as ApiErrorLike;
+  return e.code === "reauth_required" && e.statusCode === 401;
+}
+
+/** Which dialog state the person left when they closed it (T-027). */
+export type StepUpCancelStage = "challenge" | "enrollment_required" | "reauth_required";
+
+/**
+ * T-027 — the inline line a caller shows after the dialog was closed. Closing
+ * the enrolment or re-sign-in state is not "cancelling a confirmation": the
+ * person had nothing to confirm with yet, so the sentence says what is needed
+ * instead. `fallback` is the caller's own sentence for an ordinary cancel.
+ */
+export function stepUpCancelMessage(err: unknown, fallback: string): string {
+  const stage = (err as { stage?: StepUpCancelStage } | null | undefined)?.stage;
+  if (stage === "enrollment_required") {
+    return "Nothing was recorded. This action needs a second factor: set one up under Settings → Security, then try again.";
+  }
+  if (stage === "reauth_required") {
+    return "Nothing was recorded. Sign in again when you're ready, then try again — what you typed is still here.";
+  }
+  return fallback;
+}
+
 function extractDetails(
   details: Record<string, unknown> | undefined,
 ): StepUpRequiredDetails {
@@ -91,8 +133,36 @@ function extractDetails(
       details && typeof details.resourceId === "string"
         ? details.resourceId
         : null,
+    reason: details && typeof details.reason === "string" ? details.reason : null,
   };
 }
+
+/** The current page, as the place a sign-in or enrolment returns to. */
+function currentReturnPath(): string {
+  if (typeof window === "undefined") return "/";
+  const { pathname, search, hash } = window.location;
+  return `${pathname}${search}${hash}`;
+}
+
+/** Settings → Security, remembering where to come back to (T-027). */
+export function stepUpEnrollmentHref(returnTo: string = currentReturnPath()): string {
+  return `/settings?returnTo=${encodeURIComponent(returnTo)}#security`;
+}
+
+/**
+ * T-029 — the separate sign-in window. It ends on /auth/reauth-complete, which
+ * tells the person to come back here; this page (and the text in its forms)
+ * stays as it was.
+ */
+export const REAUTH_SIGN_IN_HREF = `/login?reauth=1&next=${encodeURIComponent("/auth/reauth-complete")}`;
+
+/** Indirection so tests can observe the sign-in window without opening one. */
+export const reauthWindow = {
+  open(url: string): boolean {
+    if (typeof window === "undefined") return false;
+    return window.open(url, "proovra-reauth", "popup,width=520,height=760") !== null;
+  },
+};
 
 // ---------------------------------------------------------------------------
 // useStepUpAction hook
@@ -139,7 +209,22 @@ type ModalState =
       /** A passkey ceremony or IdP window is in progress. */
       working: boolean;
     }
-  | { kind: "enrollment_required" }
+  | { kind: "enrollment_required"; reason: string | null }
+  | {
+      /**
+       * T-029 — the action needs a recent sign-in. The page and its typed
+       * text stay; the person signs in again in a separate window and then
+       * chooses Continue, which re-runs the action ONCE. Nothing runs on its
+       * own.
+       */
+      kind: "reauth_required";
+      details: Record<string, unknown> | null;
+      /** Who was signed in when the refusal came, so a different account never continues. */
+      userId: string | null;
+      signInOpened: boolean;
+      notice: string | null;
+      working: boolean;
+    }
   | {
       kind: "failed";
       reason: string;
@@ -237,6 +322,31 @@ export function useStepUpAction({
       try {
         return await action();
       } catch (err) {
+        if (isReauthRequiredError(err)) {
+          return new Promise<T>((resolve, reject) => {
+            pendingActionRef.current = action as StepUpAction<unknown>;
+            onSuccessRef.current = (value) => resolve(value as T);
+            onFailureRef.current = (e) => reject(e);
+            const flow = flowRef.current;
+            setState({
+              kind: "reauth_required",
+              details: err.details ?? null,
+              userId: null,
+              signInOpened: false,
+              notice: null,
+              working: false,
+            });
+            // Who is signed in now, read with the same credential, so Continue
+            // can refuse to run the action as a different account.
+            void apiFetch("/v1/auth/me")
+              .then((me) => {
+                const id = (me as { user?: { id?: unknown } } | null)?.user?.id;
+                if (flowRef.current !== flow || typeof id !== "string") return;
+                setState((s) => (s.kind === "reauth_required" ? { ...s, userId: id } : s));
+              })
+              .catch(() => undefined);
+          });
+        }
         if (!isStepUpRequiredError(err)) {
           throw err;
         }
@@ -263,8 +373,17 @@ export function useStepUpAction({
     [teamId],
   );
 
+  const stateKindRef = useRef<ModalState["kind"]>("idle");
+  stateKindRef.current = state.kind;
+
   const cancel = useCallback(() => {
     const onFail = onFailureRef.current;
+    const stage: StepUpCancelStage =
+      stateKindRef.current === "enrollment_required"
+        ? "enrollment_required"
+        : stateKindRef.current === "reauth_required"
+          ? "reauth_required"
+          : "challenge";
     flowRef.current += 1;
     pendingActionRef.current = null;
     onSuccessRef.current = null;
@@ -273,9 +392,102 @@ export function useStepUpAction({
     if (onFail) {
       const cancelErr = new Error("Step-up cancelled by operator");
       (cancelErr as ApiErrorLike).code = "STEP_UP_CANCEL";
+      // T-027 — which state was closed, so the caller's line can say what is
+      // needed instead of "cancelled" when there was nothing to confirm with.
+      (cancelErr as unknown as { stage: StepUpCancelStage }).stage = stage;
       onFail(cancelErr);
     }
   }, []);
+
+  /** T-029 — open the separate sign-in window; the page stays as it is. */
+  const openReauthSignIn = useCallback(() => {
+    const opened = reauthWindow.open(REAUTH_SIGN_IN_HREF);
+    setState((s) =>
+      s.kind === "reauth_required"
+        ? {
+            ...s,
+            signInOpened: true,
+            notice: opened
+              ? null
+              : "Your browser blocked the sign-in window. Use the link below to sign in in a new tab, then come back and choose Continue.",
+          }
+        : s,
+    );
+  }, []);
+
+  /**
+   * T-029 — the person says they have signed in again. The fresh session is
+   * the browser's session cookie; the in-memory credential this tab started
+   * with is the old one and would win, so it is dropped. The action runs once,
+   * now, because the person asked — never on its own. A different account, or
+   * no fresh sign-in yet, does not run it.
+   */
+  const continueAfterReauth = useCallback(async () => {
+    if (state.kind !== "reauth_required") return;
+    const current = state;
+    setState({ ...current, working: true, notice: null });
+    setApiToken(null);
+    let meId: string | null = null;
+    try {
+      const me = (await apiFetch("/v1/auth/me")) as { user?: { id?: unknown } } | null;
+      meId = typeof me?.user?.id === "string" ? me.user.id : null;
+    } catch {
+      meId = null;
+    }
+    if (!meId) {
+      setState({ ...current, working: false, notice: "We couldn't confirm the new sign-in. Sign in again, then choose Continue." });
+      return;
+    }
+    if (current.userId && meId !== current.userId) {
+      setState({
+        ...current,
+        working: false,
+        notice: "A different account signed in, so nothing was run. Reload the page to continue as that account.",
+      });
+      return;
+    }
+    const action = pendingActionRef.current;
+    if (!action) {
+      setState({ kind: "idle" });
+      return;
+    }
+    try {
+      const value = await action();
+      const onSuccess = onSuccessRef.current;
+      pendingActionRef.current = null;
+      onSuccessRef.current = null;
+      onFailureRef.current = null;
+      setState({ kind: "idle" });
+      if (onSuccess) onSuccess(value);
+    } catch (err) {
+      if (isReauthRequiredError(err)) {
+        setState({
+          ...current,
+          working: false,
+          notice: "That sign-in is not recent enough yet. Sign in again, then choose Continue.",
+        });
+        return;
+      }
+      if (isStepUpRequiredError(err)) {
+        // The fresh sign-in passed the window; the action still needs a
+        // second factor (flag or risk): the ordinary challenge takes over.
+        const refusalTeamId =
+          err.details && typeof err.details.teamId === "string" ? err.details.teamId : null;
+        setState({ kind: "starting", details: extractDetails(err.details), teamId: refusalTeamId ?? teamId });
+        return;
+      }
+      const onFail = onFailureRef.current;
+      pendingActionRef.current = null;
+      onSuccessRef.current = null;
+      onFailureRef.current = null;
+      setState({
+        kind: "failed",
+        reason: toSafeUserError(err, { message: "The action could not be completed." }).message,
+        restart: null,
+      });
+      if (onFail) onFail(err);
+    }
+  }, [state, teamId]);
 
   /**
    * Start a challenge — on entry, or to SWITCH factor while one is in hand.
@@ -384,7 +596,7 @@ export function useStepUpAction({
           return;
         }
         if (enrollment) {
-          setState({ kind: "enrollment_required" });
+          setState({ kind: "enrollment_required", reason: from.details.reason ?? null });
           return;
         }
         setState({
@@ -600,6 +812,8 @@ export function useStepUpAction({
       verifyPasskey,
       startIdpReauth,
       checkIdpStatus,
+      openReauthSignIn,
+      continueAfterReauth,
     }),
     [
       state,
@@ -612,6 +826,8 @@ export function useStepUpAction({
       verifyPasskey,
       startIdpReauth,
       checkIdpStatus,
+      openReauthSignIn,
+      continueAfterReauth,
     ],
   );
 }
@@ -661,6 +877,8 @@ export function StepUpModal({
     verifyPasskey,
     startIdpReauth,
     checkIdpStatus,
+    openReauthSignIn,
+    continueAfterReauth,
   } = control;
   const [code, setCode] = useState("");
   const codeRef = useRef<HTMLInputElement | null>(null);
@@ -714,7 +932,22 @@ export function StepUpModal({
   const purposeLabel =
     state.kind === "starting" || state.kind === "verifying"
       ? PURPOSE_LABEL[state.details.purpose] ?? "Complete sensitive action"
-      : "Step-up required";
+      : state.kind === "reauth_required"
+        ? "Sign in again to continue"
+        : state.kind === "enrollment_required"
+          ? "Set up two-factor authentication to continue"
+          : "Step-up required";
+  // T-028 — why the server asked, when it said.
+  const reasonSentence =
+    state.kind === "starting" || state.kind === "verifying"
+      ? stepUpReasonSentence(state.details.reason)
+      : null;
+  const intro =
+    state.kind === "reauth_required"
+      ? "You're still signed in. Nothing happens until you sign in again and choose Continue."
+      : state.kind === "enrollment_required"
+        ? "Nothing has been changed. What you entered on this page stays as it is."
+        : "This action requires an additional step-up confirmation. Nothing happens until you confirm it's you.";
 
   return (
     <div
@@ -756,9 +989,13 @@ export function StepUpModal({
               lineHeight: 1.5,
             }}
           >
-            This action requires an additional step-up confirmation. Nothing
-            happens until you confirm it&apos;s you.
+            {intro}
           </p>
+          {reasonSentence ? (
+            <p data-step-up-reason style={{ margin: "6px 0 0", fontSize: 13, color: "#334155", lineHeight: 1.5 }}>
+              {reasonSentence}
+            </p>
+          ) : null}
         </header>
 
         {/*
@@ -797,15 +1034,16 @@ export function StepUpModal({
          */}
         {state.kind === "enrollment_required" ? (
           <div data-step-up-enrollment-required>
-            <p style={{ margin: 0, fontSize: 13, color: "#475569" }}>
-              This action needs a verified way to confirm it&apos;s you — a
-              passkey or security key, your organization&apos;s sign-in, an
-              authenticator app, or (where allowed) a verified phone — and this
-              account has none it can use here. Set one up under{" "}
-              <a href="/settings#security" data-step-up-enroll-link>
+            <p data-step-up-enrollment-reason style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.5 }}>
+              {stepUpEnrollmentSentence(state.reason)}
+            </p>
+            <p style={{ margin: "8px 0 0", fontSize: 13, color: "#475569", lineHeight: 1.5 }}>
+              Set one up under{" "}
+              <a href={stepUpEnrollmentHref()} data-step-up-enroll-link>
                 Settings → Security
               </a>
-              , then start this action again. Lost every factor?{" "}
+              ; a link there brings you back here to try again. Lost every
+              factor?{" "}
               <a href="/auth/mfa-challenge" data-step-up-recovery-link>
                 Use account recovery
               </a>
@@ -818,8 +1056,69 @@ export function StepUpModal({
                 data-step-up-cancel
                 style={secondaryButtonStyle}
               >
-                Close
+                Not now
               </button>
+              {/*
+               * T-027 — enrolment always offers an actionable path, never
+               * only Close: set one up now, then come back to this page.
+               */}
+              <a
+                href={stepUpEnrollmentHref()}
+                data-step-up-enroll-now
+                style={{ ...primaryButtonStyle, textDecoration: "none", display: "inline-block" }}
+              >
+                Set up two-factor
+              </a>
+            </div>
+          </div>
+        ) : null}
+
+        {state.kind === "reauth_required" ? (
+          <div data-step-up-reauth-required>
+            <p data-step-up-reauth-reason style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.5 }}>
+              {reauthRequiredSentence(state.details as { reason?: unknown; windowHours?: unknown } | null)}
+            </p>
+            <p style={{ margin: "8px 0 0", fontSize: 13, color: "#475569", lineHeight: 1.5 }}>
+              {state.signInOpened
+                ? "Finish signing in in the other window, then come back and choose Continue. This page and what you typed stay as they are."
+                : "Sign in again in a separate window. This page and what you typed stay as they are."}
+            </p>
+            {state.notice ? (
+              <p role="status" data-step-up-reauth-notice style={noticeStyle}>
+                {state.notice}
+              </p>
+            ) : null}
+            {state.signInOpened ? (
+              <p style={noticeStyle}>
+                <a href={REAUTH_SIGN_IN_HREF} target="_blank" rel="noopener" data-step-up-reauth-link>
+                  Open the sign-in page in a new tab
+                </a>
+              </p>
+            ) : null}
+            <div style={actionsRow}>
+              <button type="button" onClick={cancel} data-step-up-cancel style={secondaryButtonStyle}>
+                Not now
+              </button>
+              {state.signInOpened ? (
+                <button
+                  type="button"
+                  data-step-up-reauth-continue
+                  style={primaryButtonStyle}
+                  disabled={state.working}
+                  onClick={() => void continueAfterReauth()}
+                >
+                  {state.working ? "Checking…" : "Continue"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  data-step-up-reauth-sign-in
+                  style={primaryButtonStyle}
+                  onClick={openReauthSignIn}
+                >
+                  Sign in again
+                </button>
+              )}
             </div>
           </div>
         ) : null}

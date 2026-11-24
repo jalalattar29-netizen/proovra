@@ -35,6 +35,12 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import { apiFetch } from "../../../../lib/api";
+import {
+  StepUpModal,
+  isStepUpCancelled,
+  stepUpCancelMessage,
+  useStepUpAction,
+} from "../../../../components/identity-security/StepUpModal";
 import { useActiveSpaceId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import {
@@ -188,6 +194,11 @@ function EscalationsConsolePageInner() {
     }
   }, [focusEscalationId, rows]);
 
+  // T-032 (stage B) — resolve and suppress are step-up gated (escalation
+  // checkbox, session risk) and age gated (re-sign-in). The shared dialog runs
+  // here, in place: a challenge retries once without re-typing, and a refusal
+  // keeps the reason modal and its text open.
+  const stepUp = useStepUpAction({ teamId });
   const act = useCallback(
     async (
       label: string,
@@ -199,26 +210,30 @@ function EscalationsConsolePageInner() {
       if (!teamId) return false;
       setBusy(`${id}:${label}`);
       try {
-        await apiFetch(
-          `/v1/reviewer-ops/escalations/${encodeURIComponent(id)}/${path}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ teamId, ...body }),
-          },
+        await stepUp.runStepUpAction((headers) =>
+          apiFetch(
+            `/v1/reviewer-ops/escalations/${encodeURIComponent(id)}/${path}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json", ...(headers ?? {}) },
+              body: JSON.stringify({ teamId, ...body }),
+            },
+          ),
         );
         load();
         return true;
       } catch (err) {
         setError(
-          toSafeUserError(err, { message: `Could not ${label} the escalation.` }).message,
+          isStepUpCancelled(err)
+            ? stepUpCancelMessage(err, `The escalation was not ${label === "suppress" ? "suppressed" : label === "resolve" ? "resolved" : "changed"}: identity confirmation was cancelled.`)
+            : toSafeUserError(err, { message: `Could not ${label} the escalation.` }).message,
         );
         return false;
       } finally {
         setBusy(null);
       }
     },
-    [teamId, load],
+    [teamId, load, stepUp],
   );
 
   // While the envelope is still hydrating, render the bounded loading shell.
@@ -458,6 +473,7 @@ function EscalationsConsolePageInner() {
           if (ok) setReasonModal(null);
         }}
       />
+      <StepUpModal control={stepUp} />
     </PageShell>
   );
 }
