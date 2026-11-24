@@ -56,7 +56,7 @@ test("hasActiveFilters detects any non-ALL refinement", () => {
 test("the eight KPI cards read the workspace summary, and say so", () => {
   const summary = mod.parseLibrarySummary({ scope: "active", source: "workspace_total", totalActiveRecords: 20, reportsReadyCount: 12, packagesReadyCount: 9, packagesMissingCount: 3, storageProtectedCount: 7, storageNeedsReviewCount: 13, multipartCount: 2, verificationIssuesCount: 1, unassignedCount: 5, needsActionCount: 6 });
   const m = mod.buildLibraryMetrics(summary, [{ id: "a", reviewReadyAtUtc: "2026-09-01T00:00:00Z" }]);
-  assert.deepEqual(m.map((x) => x.label), ["Active records", "Reports ready", "Verification packages ready", "Verification packages missing", "Storage protection", "Multipart packages", "Unassigned records", "Review-ready records"]);
+  assert.deepEqual(m.map((x) => x.label), ["Active records", "Reports ready", "Verification packages ready", "Verification packages missing", "Storage protection", "Multipart packages", "Records not in a case", "Review-ready markers"]);
   const byKey = Object.fromEntries(m.map((x) => [x.key, x]));
   assert.equal(byKey.active.value, "20");
   assert.equal(byKey.active.caption, "Workspace total");

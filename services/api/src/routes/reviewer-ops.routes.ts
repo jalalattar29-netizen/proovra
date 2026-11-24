@@ -46,6 +46,7 @@ import {
   REVIEW_ESCALATION_REASONS,
   REVIEW_ESCALATION_STATUSES,
   SAVED_VIEW_VISIBILITIES,
+  isReviewOpenDbStatus,
   stringContainsForbiddenOverclaim,
   type SavedViewVisibility,
 } from "@proovra/shared";
@@ -73,7 +74,7 @@ import { requestWorkspaceCandidate, workspaceMismatchRefusal } from "../services
 import {
   ReviewerOpsError,
   approveReview,
-  buildWorkflowProjection,
+  projectWorkflow,
   assignReviewerToWorkflow,
   buildDashboard,
   recordResponseReceived,
@@ -2072,7 +2073,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             noteGiven: note.length > 0,
           },
         }).catch(() => null);
-        return reply.code(200).send({ projection: buildWorkflowProjection(updated) });
+        return reply.code(200).send({ projection: await projectWorkflow(updated, prisma as never) });
       } catch (err) {
         if (sendEngineError(reply, err) || sendArchiveRefusal(reply, err)) return;
         throw err;
@@ -3368,6 +3369,10 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       for (const wf of workflows) {
         const derived = classified.get(wf.id) ?? "first_required";
         const state: StateBucket = derived === "adjudication_required" ? "conflict_detected" : derived;
+        // T-058 (stage C) — "awaiting first review", "awaiting second review"
+        // and "conflict" are OPEN work: a finished review (closed, approved,
+        // rejected) is never counted as awaiting anything.
+        if (state !== "resolved" && !isReviewOpenDbStatus(String(wf.status))) continue;
 
         // Only push to a bucket if we still have room for preview rows
         // OR if we're counting (always counted).
@@ -3385,6 +3390,10 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const summary = {
         windowDays: SUMMARY_WINDOW_DAYS,
         workflowsInWindow: workflows.length,
+        /** Every figure counts reviews; the pending buckets count open reviews only. */
+        unit: "reviews" as const,
+        /** True when the 500-row input bound was reached (figures are lower bounds). */
+        capped: workflows.length >= 500,
         byState: {
           first_required: buckets.first_required.length,
           second_required: buckets.second_required.length,

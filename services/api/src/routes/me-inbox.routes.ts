@@ -125,6 +125,7 @@ import {
   parseOtsChainFailureCode,
   formatTimestampForReportUtc,
   OTS_FAILURE_LABELS,
+  REVIEW_ESCALATION_ACTIVE_STATUSES,
   type OtsFailureCode, TSA_NOT_OBTAINED_SUPPORT_STATEMENT, tsaFailureNote } from "@proovra/shared";
 import { evidenceScopeForMany } from "@proovra/shared-runtime";
 import { conditionMessageFor, conditionTextFor } from "../services/operations/condition-presentation.service.js";
@@ -2526,7 +2527,10 @@ export async function buildInboxAggregation(
                   // in workspaces the caller owns or administers — where a
                   // reviewer escalation goes (2026-10-23).
                   where: {
-                    status: "OPEN",
+                    // T-060 / T-169 (stage C) — active means OPEN, ACKNOWLEDGED
+                    // or REASSIGNED (the shared set). Acknowledging an
+                    // escalation never makes it "no longer active".
+                    status: { in: [...REVIEW_ESCALATION_ACTIVE_STATUSES] },
                     // N1 sweep — the review queue's own reach: an escalation
                     // (its summary and record id) on a record linked to a
                     // restricted case the caller cannot see is not offered.

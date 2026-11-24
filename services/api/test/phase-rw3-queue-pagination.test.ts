@@ -68,6 +68,9 @@ vi.mock("../src/db.js", () => ({
   prisma: {
     evidenceReviewWorkflow: { findMany: findManyMock },
     reviewEscalation: { findMany: escalationFindManyMock },
+    // Stage C follow-up — read-time SLA facts (first decision, sweep stamps).
+    workflowReviewDecision: { groupBy: vi.fn(async () => []) },
+    evidenceReviewWorkflowEvent: { findMany: vi.fn(async () => []) },
   },
 }));
 

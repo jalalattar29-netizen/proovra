@@ -127,6 +127,10 @@ const ENTRYPOINTS = Object.freeze({
     // PRO-BL2-01 (WS-BILL) — dry-run by default; lowers inflated downgrade
     // grandfathers. `pnpm --filter proovra-api ops:repair-legacy-record-cap-override`.
     "services/api/src/scripts/repair-legacy-record-cap-override.ts",
+    // Stage C (team remediation, T-047/T-050/T-044) — dry-run by default;
+    // repairs sweep-stamped deadlines, drifted escalation pointers and the
+    // first-decision time. `pnpm --filter proovra-api ops:repair-review-sla-truth`.
+    "services/api/src/scripts/repair-review-sla-truth.ts",
     // PRO-A2-02 (WS-ORG) — dry-run by default; classifies legacy Organization
     // identity links on self-serve accounts by evidence. Run in the API image,
     // `node dist/scripts/remediate-admin-manual-identity-links.js [--apply]`.

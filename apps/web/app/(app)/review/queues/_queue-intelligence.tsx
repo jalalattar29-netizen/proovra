@@ -26,7 +26,7 @@
  *   - No raw error text: failures go through toSafeUserError.
  */
 
-import { identifierLabel } from "@proovra/shared";
+import { escalationSummaryText } from "../../../../lib/reviewer-workspace/sla-presentation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
@@ -52,6 +52,26 @@ export type QueueGovernanceBlockers = {
   retentionExpired: boolean;
 };
 
+/**
+ * T-061 (stage C) — the SLA signal: Overdue, Due soon or Paused, from the same
+ * rollup the Review page header uses. Falls back to the stored status (OVERDUE
+ * read as a breach) for an older API.
+ */
+export function slaSignalLabel(sla: { status?: string | null; signal?: string | null } | null | undefined): string | null {
+  if (!sla) return null;
+  const signal = sla.signal !== undefined ? sla.signal : sla.status === "BREACHED" || sla.status === "OVERDUE" ? "OVERDUE" : sla.status === "DUE_SOON" ? "DUE_SOON" : sla.status === "PAUSED" ? "PAUSED" : null;
+  switch (signal) {
+    case "OVERDUE":
+      return "Overdue";
+    case "DUE_SOON":
+      return "Due soon";
+    case "PAUSED":
+      return "Paused";
+    default:
+      return null;
+  }
+}
+
 export type QueueWorkflowIntelligence = {
   workflowId: string;
   evidenceId: string | null;
@@ -62,16 +82,22 @@ export type QueueWorkflowIntelligence = {
   governanceBlockers: QueueGovernanceBlockers;
   slaState: {
     status: WorkflowSlaStatus;
+    /** T-061 (stage C) — the Review page's presented rollup; older APIs omit it. */
+    signal?: "OVERDUE" | "DUE_SOON" | "PAUSED" | null;
     dueAtUtc: string | null;
     breachedAtUtc: string | null;
   };
   escalationState: {
     activeEscalationId: string | null;
     severity: EscalationSeverity;
+    /** unit: escalations (T-049). */
+    activeCount?: number;
   };
   queueAging: {
     createdAtUtc: string;
-    daysOpen: number;
+    /** T-063 (stage C) — null on a finished review (no age). */
+    daysOpen: number | null;
+    agedFrom?: "assigned" | "created" | null;
     lastReviewerTouchAtUtc: string | null;
   };
 };
@@ -307,16 +333,15 @@ export function QueueSignalCell({
           Stuck
         </Badge>
       ) : null}
-      {intelligence.slaState?.status &&
-      intelligence.slaState.status !== "ON_TRACK" ? (
-        <Badge tone="pending">SLA {identifierLabel(intelligence.slaState.status)}</Badge>
+      {slaSignalLabel(intelligence.slaState) ? (
+        <Badge tone="pending" data-queue-signal-sla>{slaSignalLabel(intelligence.slaState)}</Badge>
       ) : null}
       {intelligence.escalationState?.activeEscalationId ? (
-        <Badge tone="risk">
-          Escalated{" "}
-          {intelligence.escalationState.severity
-            ? identifierLabel(intelligence.escalationState.severity)
-            : ""}
+        <Badge tone="risk" data-queue-signal-escalation>
+          {escalationSummaryText(
+            intelligence.escalationState.severity,
+            intelligence.escalationState.activeCount,
+          ) ?? "Escalated"}
         </Badge>
       ) : null}
       {blockers.map((k) => (
@@ -329,12 +354,15 @@ export function QueueSignalCell({
           {PRESSURE_LABEL[intelligence.reviewerPressure]}
         </span>
       ) : null}
-      <span className="app-table__muted">
-        {/* An absent aging figure is unknown, not zero days open. */}
-        {typeof intelligence.queueAging?.daysOpen === "number"
-          ? `Open ${intelligence.queueAging.daysOpen}d`
-          : "Age not recorded"}
-      </span>
+      {/* T-063 (stage C) — a finished review has no age; an open one counts
+          from its assignment (or creation while unassigned). */}
+      {typeof intelligence.queueAging?.daysOpen === "number" ? (
+        <span className="app-table__muted" data-queue-signal-age>
+          {intelligence.queueAging.agedFrom === "assigned"
+            ? `Assigned ${intelligence.queueAging.daysOpen}d ago`
+            : `Open ${intelligence.queueAging.daysOpen}d`}
+        </span>
+      ) : null}
     </div>
   );
 }

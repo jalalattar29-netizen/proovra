@@ -59,10 +59,13 @@ import {
   isShortcutTarget,
   useReviewerHelpHotkey,
 } from "../components/ReviewerShortcutsHelp";
+import { formatCellDateTime } from "../../../../lib/date";
 import {
-  formatCellDateTime,
-  formatRelativeDeadline,
-} from "../../../../lib/date";
+  escalationSummaryText,
+  governingDeadlineText,
+  presentDeadlines,
+  type SlaDimensionWire,
+} from "../../../../lib/reviewer-workspace/sla-presentation";
 import { PageShell } from "../../../../components/ui/PageShell";
 // TEAM-UI-SPEC (structure) — the one review page header, with the
 // "← My reviews" back link above the title (Evidence Detail's breadcrumb slot).
@@ -94,11 +97,8 @@ import {
   VERDICT_CHOICES,
   deriveActions,
   describeOutcome,
-  headerSlaLabel,
   lifecycleLabel,
   nextStepPrimary,
-  slaDimensionLabel,
-  slaStateLabel,
   type ActionMap,
   type DecisionOutcome,
   type LifecycleActionKind,
@@ -123,11 +123,7 @@ type WorkspaceResponse = {
     slaPausedAtUtc: string | null;
     pausedReason: string | null;
     slaRollupState: SlaState;
-    slaDimensions: Array<{
-      dimension: string;
-      dueAtUtc: string | null;
-      state: SlaState;
-    }>;
+    slaDimensions: Array<SlaDimensionWire & { state: SlaState }>;
   };
   openEscalation: null | {
     id: string;
@@ -138,6 +134,8 @@ type WorkspaceResponse = {
     createdAt: string;
     assignedToUserId: string | null;
   };
+  /** unit: escalations — how many are active on this review (T-049). */
+  activeEscalationCount?: number;
   /** Kept by the API for compatibility; the page renders `viewer.actions`. */
   allowedLifecycleTransitions: LifecycleState[];
   /**
@@ -662,7 +660,9 @@ function ReviewWorkspacePageInner() {
                 {lifecycleLabel(p.lifecycleState)}
               </Badge>
               <Badge tone={statusTone(p.slaRollupState)} dot data-reviewer-sla-badge>
-                {headerSlaLabel(p.slaRollupState, p.lifecycleState)}
+                {/* T-043 / T-045 (stage C) — the governing deadline, never
+                    "SLA overdue" because an escalation is open. */}
+                {governingDeadlineText(p.slaDimensions).text}
               </Badge>
               <CopyIdButton value={p.evidenceId} label="Evidence" />
             </>
@@ -839,17 +839,20 @@ function ReviewWorkspacePageInner() {
             </div>
 
             <ul data-reviewer-sla-clocks style={{ listStyle: "none", padding: 0, margin: "12px 0 0", display: "grid", gap: 6 }}>
-              {p.slaDimensions.map((d) => (
+              {/* T-043 / T-045 / T-046 (stage C) — only the review's own
+                  deadlines that exist; "Met" carries the completion date. */}
+              {presentDeadlines(p.slaDimensions).map((d) => (
                 <li
                   key={d.dimension}
+                  data-reviewer-sla-dimension={d.dimension}
                   style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, fontSize: 13, minWidth: 0 }}
                 >
-                  <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{slaDimensionLabel(d.dimension)}</span>
-                  <Badge tone={statusTone(d.state)} subtle>
-                    {slaStateLabel(d.state)}
+                  <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{d.label}</span>
+                  <Badge tone={statusTone(d.toneKey)} subtle>
+                    {d.word}
                   </Badge>
-                  <span className="app-field-help" style={{ margin: 0 }}>
-                    {formatRelativeDeadline(d.dueAtUtc)}
+                  <span className="app-field-help" style={{ margin: 0 }} data-reviewer-sla-detail>
+                    {d.detail}
                   </span>
                 </li>
               ))}
@@ -866,7 +869,9 @@ function ReviewWorkspacePageInner() {
                     marginBottom: 6,
                   }}
                 >
-                  <strong>Open escalation</strong>
+                  <strong data-reviewer-escalation-summary>
+                    {escalationSummaryText(data.openEscalation.severity, data.activeEscalationCount) ?? "Active escalation"}
+                  </strong>
                   <Badge tone={severityTone(data.openEscalation.severity)} subtle>
                     {identifierLabel(data.openEscalation.severity)}
                   </Badge>

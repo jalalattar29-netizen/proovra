@@ -1799,6 +1799,10 @@ model EvidenceReviewWorkflow {
   priority         EvidenceReviewWorkflowPriority @default(NORMAL)
   dueAt            DateTime?                      @map("due_at") @db.Timestamptz(6)
   lastReviewedAt   DateTime?                      @map("last_reviewed_at") @db.Timestamptz(6)
+  /// Stage C (T-044) — when the FIRST decision of the review was recorded (any round).
+  /// The first-review SLA completes on this fact, never on Start. Written by the
+  /// decision authority; filled for older rows by the repair job (ops:repair-review-sla-truth).
+  firstDecidedAtUtc DateTime?                     @map("first_decided_at_utc") @db.Timestamptz(6)
   closedAt         DateTime?                      @map("closed_at") @db.Timestamptz(6)
 
   // Phase 13 — assignment metadata.

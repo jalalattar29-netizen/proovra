@@ -3,7 +3,7 @@ import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { buildEvidenceBulkRequest } from "@proovra/shared";
+import { EVIDENCE_LIBRARY_RECORD_FIGURE_COPY, buildEvidenceBulkRequest } from "@proovra/shared";
 import { X } from "lucide-react";
 import { PageShell, useToast } from "../../../components/ui";
 import { apiFetch } from "../../../lib/api";
@@ -900,24 +900,25 @@ function EvidenceLibraryPageInner() {
           detail: "Active batches",
         };
 
-    // Card 7 — Unassigned records (no case linkage).
+    // Card 7 — records with no case linkage. T-064 (stage C): these are
+    // RECORDS, not unassigned reviews, and the label says so.
     const unassignedCard = usingWorkspaceTotal
       ? {
-          label: "Unassigned records",
+          label: EVIDENCE_LIBRARY_RECORD_FIGURE_COPY.notInCase.label,
           value: String(workspaceSummary.unassignedCount),
-          detail: "Awaiting triage",
+          detail: EVIDENCE_LIBRARY_RECORD_FIGURE_COPY.notInCase.caption,
         }
       : {
-          label: "Unassigned records",
+          label: EVIDENCE_LIBRARY_RECORD_FIGURE_COPY.notInCase.label,
           value: String(pageUnassignedCount),
-          detail: "Awaiting triage",
+          detail: EVIDENCE_LIBRARY_RECORD_FIGURE_COPY.notInCase.caption,
         };
 
     // Card 8 — Review-ready markers (page only — no equivalent
     // workspace metric is needed for the operational view and the
     // existing list field is reliable per row).
     const reviewReadyCard = {
-      label: "Review-ready records",
+      label: EVIDENCE_LIBRARY_RECORD_FIGURE_COPY.reviewReadyMarker.label,
       value: String(pageReviewReadyCount),
       // The queue the operator acts on next — the target gives this value the
       // brand accent. Semantics unchanged: it is still the page-derived

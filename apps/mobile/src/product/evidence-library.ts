@@ -10,6 +10,7 @@
 import type { ProovraStatusTone } from "@proovra/ui";
 import type { EvidenceBulkActionName } from "@proovra/shared";
 import {
+  EVIDENCE_LIBRARY_RECORD_FIGURE_COPY,
   evidenceRecordStatusLabel,
   OTS_STATES,
   otsAnchoringCopy,
@@ -496,8 +497,10 @@ export function buildLibraryMetrics(summary: LibrarySummary | null, visible: rea
       : { key: "packages-missing", label: "Verification packages missing", value: "—", caption: "Package readiness unavailable" },
     { key: "storage", label: "Storage protection", value: summary ? String(summary.storageProtectedCount) : count((i) => i.storage?.verified === true), caption: "Encrypted states" },
     { key: "multipart", label: "Multipart packages", value: summary ? String(summary.multipartCount) : count((i) => (i.itemCount ?? 1) > 1), caption: "Active batches" },
-    { key: "unassigned", label: "Unassigned records", value: summary ? String(summary.unassignedCount) : count((i) => !i.caseId), caption: "Awaiting triage" },
-    { key: "review-ready", label: "Review-ready records", value: count((i) => Boolean(i.reviewReadyAtUtc)), caption: page, tone: "governance" },
+    // T-064 (stage C) — record figures say what they count (records without a
+    // case; a per-record marker), never "unassigned"/"review-ready" reviews.
+    { key: "unassigned", label: EVIDENCE_LIBRARY_RECORD_FIGURE_COPY.notInCase.label, value: summary ? String(summary.unassignedCount) : count((i) => !i.caseId), caption: EVIDENCE_LIBRARY_RECORD_FIGURE_COPY.notInCase.caption },
+    { key: "review-ready", label: EVIDENCE_LIBRARY_RECORD_FIGURE_COPY.reviewReadyMarker.label, value: count((i) => Boolean(i.reviewReadyAtUtc)), caption: page, tone: "governance" },
   ];
 }
 

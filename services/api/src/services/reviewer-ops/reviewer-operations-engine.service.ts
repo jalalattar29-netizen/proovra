@@ -86,9 +86,17 @@ import {
 } from "./review-decision.service.js";
 import {
   createEscalation,
+  findActiveEscalationSummaryForWorkflow,
   findOpenEscalationForWorkflow,
   type EscalationProjection,
 } from "./escalation-engine.service.js";
+import {
+  activeEscalationWhere,
+  escalatedReviewWhere,
+  hasActiveEscalationWhere,
+} from "./review-count-definitions.js";
+import { withReadTimeSlaFacts } from "./review-sla-read-facts.js";
+import { REVIEW_ESCALATION_ACTIVE_STATUSES, selectGoverningEscalation } from "@proovra/shared";
 import {
   snapshotWorkspaceWorkload,
   suggestReviewers,
@@ -232,6 +240,25 @@ export function buildWorkflowProjection(
   };
 }
 
+/**
+ * Stage C follow-up — THE async projection for one row read after a write:
+ * read-time SLA facts (first decision, sweep-stamped-after deadlines) and,
+ * unless the caller states it, whether an escalation is active (by query).
+ */
+export async function projectWorkflow(
+  row: DbWorkflow,
+  client: PrismaClient,
+  opts?: { hasOpenEscalation?: boolean; nowUtc?: Date },
+): Promise<ReviewerOpsWorkflowProjection> {
+  const [facts] = await withReadTimeSlaFacts([row], client);
+  const hasOpenEscalation =
+    opts?.hasOpenEscalation ??
+    (row.teamId
+      ? !!(await findOpenEscalationForWorkflow({ teamId: row.teamId, workflowId: row.id }, client))
+      : false);
+  return buildWorkflowProjection(facts!, { ...opts, hasOpenEscalation });
+}
+
 // -----------------------------------------------------------------------------
 // Lifecycle transition gate
 // -----------------------------------------------------------------------------
@@ -354,10 +381,10 @@ async function listReviewerOpsQueueInner(
       baseWhere.slaStatus = "DUE_SOON";
       break;
     case "ESCALATED":
-      baseWhere.OR = [
-        { status: "ESCALATED" },
-        { activeEscalationId: { not: null } },
-      ];
+      // T-050 / T-052 (stage C) — "escalated" is decided by query (EXISTS an
+      // active escalation), never by the denormalised pointer, which drifted
+      // when escalations were resolved out of order.
+      Object.assign(baseWhere, escalatedReviewWhere());
       break;
     case "HIGH_PRIORITY":
       baseWhere.priority = { in: ["HIGH", "URGENT"] };
@@ -370,21 +397,14 @@ async function listReviewerOpsQueueInner(
       // through the included filter shape.
       baseWhere.evidence = { legalHolds: { some: { status: "ACTIVE" } } };
       break;
-    case "INTEGRITY_RISK": {
+    case "INTEGRITY_RISK":
       // An ordinary SLA escalation is not an integrity risk (WORKFLOW-013).
-      const escalations = await client.reviewEscalation.findMany({
-        where: {
-          teamId: input.teamId,
-          status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
-          reason: { in: ["INTEGRITY_RISK", "VERIFICATION_MISMATCH"] },
-        },
-        select: { id: true },
-        orderBy: { createdAt: "desc" },
-        take: 1000,
-      });
-      baseWhere.activeEscalationId = { in: escalations.map((e) => e.id) };
+      // Any active integrity escalation counts, whichever the pointer names (T-050).
+      Object.assign(
+        baseWhere,
+        hasActiveEscalationWhere({ reason: { in: ["INTEGRITY_RISK", "VERIFICATION_MISMATCH"] } }),
+      );
       break;
-    }
     case "EXTERNAL_INTAKE":
       baseWhere.workspaceType = "EXTERNAL_INTAKE";
       break;
@@ -451,14 +471,16 @@ async function listReviewerOpsQueueInner(
           where: {
             teamId: input.teamId,
             workflowId: { in: workflowIds },
-            status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
+            status: { in: [...REVIEW_ESCALATION_ACTIVE_STATUSES] },
           },
           select: { workflowId: true },
         });
   const escSet = new Set(openEsc.map((e) => e.workflowId));
 
   const now = new Date();
-  const projected = rows.map((r) =>
+  // Stage C follow-up — read-time SLA facts for rows the repair has not touched.
+  const factRows = await withReadTimeSlaFacts(rows, client);
+  const projected = factRows.map((r) =>
     buildWorkflowProjection(r, {
       hasOpenEscalation: escSet.has(r.id),
       nowUtc: now,
@@ -607,7 +629,7 @@ async function listHandoffQueue(
           where: {
             teamId: input.teamId,
             workflowId: { in: ids },
-            status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
+            status: { in: [...REVIEW_ESCALATION_ACTIVE_STATUSES] },
           },
           select: { workflowId: true },
         });
@@ -621,7 +643,9 @@ async function listHandoffQueue(
     details: { queue: input.queue, returned: kept.length, actorUserId: input.meUserId },
   });
   return {
-    rows: kept.map((r) => buildWorkflowProjection(r, { hasOpenEscalation: escSet.has(r.id), nowUtc: now })),
+    rows: (await withReadTimeSlaFacts(kept, client)).map((r) =>
+      buildWorkflowProjection(r, { hasOpenEscalation: escSet.has(r.id), nowUtc: now }),
+    ),
     nextCursor,
   };
 }
@@ -631,9 +655,14 @@ async function listHandoffQueue(
 // -----------------------------------------------------------------------------
 
 export type ReviewerOpsDashboard = {
+  /** unit: reviews (T-052). */
   counts: Awaited<ReturnType<typeof legacyGetReviewQueueCounts>>;
+  /** unit: escalations — active escalation rows, not reviews (COR-A). */
   openEscalations: number;
+  /** unit: escalations */
   criticalEscalationsOpen: number;
+  /** T-052 (stage C) — the unit of every figure, so no surface guesses. */
+  units: { counts: "reviews"; openEscalations: "escalations"; criticalEscalationsOpen: "escalations" };
   workloadTop: ReadonlyArray<WorkloadDashboardRow>;
   suggestions: ReadonlyArray<ReviewerSuggestion>;
 };
@@ -662,7 +691,7 @@ async function buildDashboardInner(
       client.reviewEscalation.count({
         where: {
           teamId: input.teamId,
-          status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
+          status: { in: [...REVIEW_ESCALATION_ACTIVE_STATUSES] },
           // PRO-R2-12 — WORKFLOW-003: an escalation on a closed record moves no count.
           workflow: { evidence: evidenceVisibleThroughCasesWhere(input.meUserId) },
         },
@@ -670,7 +699,7 @@ async function buildDashboardInner(
       client.reviewEscalation.count({
         where: {
           teamId: input.teamId,
-          status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
+          status: { in: [...REVIEW_ESCALATION_ACTIVE_STATUSES] },
           severity: "CRITICAL",
           workflow: { evidence: evidenceVisibleThroughCasesWhere(input.meUserId) },
         },
@@ -692,6 +721,7 @@ async function buildDashboardInner(
     counts,
     openEscalations: openEsc,
     criticalEscalationsOpen: critEsc,
+    units: { counts: "reviews", openEscalations: "escalations", criticalEscalationsOpen: "escalations" },
     workloadTop,
     suggestions,
   };
@@ -733,7 +763,13 @@ export type ReviewerViewerProjection = {
 
 export type ReviewerOpsWorkspaceProjection = {
   projection: ReviewerOpsWorkflowProjection;
+  /**
+   * The GOVERNING active escalation (T-049): highest severity, then newest.
+   * Acknowledged and reassigned escalations are active.
+   */
   openEscalation: EscalationProjection | null;
+  /** unit: escalations — how many are active on this review (T-049). */
+  activeEscalationCount: number;
   allowedLifecycleTransitions: ReadonlyArray<ReviewerOpsLifecycleState>;
   /** TEAM-SPEC §2.5 — present when the caller states who is viewing. */
   viewer?: ReviewerViewerProjection;
@@ -896,11 +932,11 @@ export async function getReviewerOpsWorkspace(
     },
   });
   if (!row) throw new ReviewerOpsError("REVIEW_WORKFLOW_NOT_FOUND");
-  const open = await findOpenEscalationForWorkflow(
+  const { top: open, activeCount } = await findActiveEscalationSummaryForWorkflow(
     { teamId: input.teamId, workflowId: row.id },
     client,
   );
-  const projection = buildWorkflowProjection(row, {
+  const projection = buildWorkflowProjection((await withReadTimeSlaFacts([row], client))[0]!, {
     hasOpenEscalation: !!open,
   });
   // Allowed transitions = the shared lifecycle matrix for the current
@@ -938,6 +974,7 @@ export async function getReviewerOpsWorkspace(
   return {
     projection,
     openEscalation: open,
+    activeEscalationCount: activeCount,
     allowedLifecycleTransitions: allowed,
     ...(viewer ? { viewer } : {}),
     ...(handoff ? { handoff } : {}),
@@ -1217,7 +1254,7 @@ async function assignReviewerToWorkflowInner(
     },
     client,
   );
-  return buildWorkflowProjection(updated, {
+  return projectWorkflow(updated, client, {
     hasOpenEscalation: await findOpenEscalationForWorkflow(
       { teamId: ctx.teamId, workflowId: row.id },
       client,
@@ -1289,9 +1326,7 @@ export async function startReview(
     severity: "INFO",
     details: { workflowId: row.id, actorUserId: ctx.actorUserId },
   });
-  return buildWorkflowProjection(updated, {
-    hasOpenEscalation: false,
-  });
+  return projectWorkflow(updated, client);
 }
 
 // ----- pauseReview ------------------------------------------------------------
@@ -1357,7 +1392,7 @@ export async function pauseReview(
     severity: "INFO",
     details: { workflowId: row.id, actorUserId: ctx.actorUserId },
   });
-  return buildWorkflowProjection(updated);
+  return projectWorkflow(updated, client);
 }
 
 /**
@@ -1465,7 +1500,7 @@ export async function resumeReview(
     severity: "INFO",
     details: { workflowId: row.id, actorUserId: ctx.actorUserId },
   });
-  return buildWorkflowProjection(updated);
+  return projectWorkflow(updated, client);
 }
 
 // ----- Decision outcome (TEAM-SPEC §2.3) --------------------------------------
@@ -1548,7 +1583,7 @@ export async function requestInformation(
   const updated = result.workflow;
   const outcome = outcomeOf(result, String(row.status));
   // The authority emitted the outcome signals (T-171).
-  return { projection: buildWorkflowProjection(updated), outcome };
+  return { projection: await projectWorkflow(updated, client), outcome };
 }
 
 // ----- recordResponseReceived (TEAM-SPEC §2.4) --------------------------------
@@ -1616,7 +1651,7 @@ export async function recordResponseReceived(
   // Best effort, never undoes the move.
   await notifyReviewResponseReceived({ workflow: updated, actorUserId: ctx.actorUserId }, client).catch(() => null);
   const open = await findOpenEscalationForWorkflow({ teamId: ctx.teamId, workflowId: row.id }, client);
-  return buildWorkflowProjection(updated, { hasOpenEscalation: !!open });
+  return projectWorkflow(updated, client, { hasOpenEscalation: !!open });
 }
 
 // ----- approveReview ----------------------------------------------------------
@@ -1690,7 +1725,7 @@ async function approveReviewInner(
       });
     }
   }
-  return { projection: buildWorkflowProjection(updated), outcome };
+  return { projection: await projectWorkflow(updated, client), outcome };
 }
 
 // ----- rejectReview -----------------------------------------------------------
@@ -1745,7 +1780,7 @@ export async function rejectReview(
       });
     }
   }
-  return { projection: buildWorkflowProjection(updated), outcome };
+  return { projection: await projectWorkflow(updated, client), outcome };
 }
 
 // -----------------------------------------------------------------------------
@@ -1846,7 +1881,9 @@ async function runReconcileInner(
             closedAt: null,
           },
         ],
-        activeEscalationId: null,
+        // Stage C follow-up — "already escalated" by query, never the pointer
+        // (a drifted pointer either re-escalated or never escalated again).
+        escalations: { none: activeEscalationWhere() },
         status: { notIn: [...REVIEW_FINISHED_DB_STATUSES] },
       },
       orderBy: { escalationDueAtUtc: "asc" },
@@ -2035,7 +2072,11 @@ async function runReconcileInner(
           assignedAtUtc: true,
           lastReviewedAt: true,
           slaStatus: true,
-          activeEscalationId: true,
+          // Stage C follow-up — the governing active escalation by query.
+          escalations: {
+            where: activeEscalationWhere(),
+            select: { id: true, status: true, severity: true, createdAt: true },
+          },
           dueAt: true,
         },
       });
@@ -2044,18 +2085,9 @@ async function runReconcileInner(
         pageSize: nonTerminal.length,
         limit: stuckLimit,
       });
-      const activeIds = nonTerminal.flatMap((w) => (w.activeEscalationId ? [w.activeEscalationId] : []));
-      const active = new Map(
-        (activeIds.length === 0
-          ? []
-          : await client.reviewEscalation.findMany({
-              where: { id: { in: activeIds } },
-              select: { id: true, status: true, createdAt: true },
-            })
-        ).map((e) => [e.id, e] as const),
-      );
       const nowMs = Date.now();
       for (const wf of nonTerminal) {
+        const governing = selectGoverningEscalation(wf.escalations).top;
         // A row still stored OVERDUE predates "a missed deadline is a breach".
         const slaStatus: WorkflowSlaStatus =
           wf.slaStatus === "OVERDUE"
@@ -2076,13 +2108,9 @@ async function runReconcileInner(
           // RESPONSE_RECEIVED, so a row still waiting has none on record.
           lastContributorResponseAtEpochMs: null,
           slaStatus,
-          hasOpenEscalation: !!wf.activeEscalationId,
-          escalationAcknowledged: wf.activeEscalationId
-            ? active.get(wf.activeEscalationId)?.status === "ACKNOWLEDGED"
-            : false,
-          escalationRaisedAtEpochMs: wf.activeEscalationId
-            ? (active.get(wf.activeEscalationId)?.createdAt.getTime() ?? null)
-            : null,
+          hasOpenEscalation: !!governing,
+          escalationAcknowledged: governing?.status === "ACKNOWLEDGED",
+          escalationRaisedAtEpochMs: governing ? governing.createdAt.getTime() : null,
           // This sweep reads open reviews, and an approved review is finished,
           // so the export-blocked rule does not apply here.
           approvedButExportBlocked: false,
@@ -2097,7 +2125,7 @@ async function runReconcileInner(
         // escalation storm the engine explicitly guards against.
         if (
           classification.topSeverity === "CRITICAL" &&
-          !wf.activeEscalationId
+          !governing
         ) {
           const top = classification.reasons[0]!;
           // A person already dealt with this breach (WORKFLOW-005). Resolve

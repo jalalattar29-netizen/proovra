@@ -7,7 +7,8 @@
  *
  * SLA: a null compliance rate reads "No completed reviews in range" (never
  * 100%), a null mean / capacity reads "No data" (never 0 h), the by-stage
- * escalated row is "Escalated (manual decision)", and a failed dashboard
+ * escalated row is "Escalated status (conflict or escalation)" (stage C T-057)
+ * with open and finished reviews apart, and a failed dashboard
  * read shows an error with Retry instead of "Loading…" forever.
  *
  * Real pages, real apiFetch over a stubbed fetch, RTL cleanup().
@@ -236,7 +237,7 @@ describe("Escalations page", () => {
 });
 
 const DASHBOARD = {
-  counts: { byStage: { QUEUED: 3, ESCALATED: 1 }, overdue: 0, dueSoon: 1, unassigned: 3, assignedToMe: 0 },
+  counts: { byStage: { QUEUED: 3, ESCALATED: 1, CLOSED: 1 }, overdue: 0, dueSoon: 1, unassigned: 3, assignedToMe: 0 },
   openEscalations: 1,
   criticalEscalationsOpen: 0,
   workloadTop: [],
@@ -295,7 +296,14 @@ describe("SLA page", () => {
     expect(document.body.textContent).toContain("No data");
     // The stored escalated stage, relabelled, with the definition of "open escalation".
     const stage = document.querySelector('[data-sla-stage="ESCALATED"]')!;
-    expect(stage.textContent).toBe("Escalated (manual decision)");
+    // T-057 (stage C, COR-B) — the status also comes from a conflict or an
+    // unresolved adjudication: never "manual decision".
+    expect(stage.textContent).toBe("Escalated status (conflict or escalation)");
+    expect(document.body.textContent).not.toMatch(/manual decision/i);
+    // Open work and finished reviews are reported apart.
+    expect(stage.closest("[data-sla-stage-section]")!.getAttribute("data-sla-stage-section")).toBe("open");
+    const closed = document.querySelector('[data-sla-stage="CLOSED"]')!;
+    expect(closed.closest("[data-sla-stage-section]")!.getAttribute("data-sla-stage-section")).toBe("closed");
     expect(stage.getAttribute("title")).toMatch(/open, acknowledged or reassigned/);
     expect(document.body.textContent).not.toMatch(/\bSla\b/);
     // TEAM-UI-SPEC §1 — panels and metric cards, no legacy button.

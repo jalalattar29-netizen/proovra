@@ -1,5 +1,7 @@
 "use client";
 
+import type { SlaDimensionWire } from "./sla-presentation";
+
 /**
  * PROOVRA Phase 2A — Reviewer Workspace API client.
  *
@@ -268,13 +270,14 @@ export async function renderQcVerdict(input: {
   }
 }
 
+/** T-056 (stage C) — rates are per review; null means "No data". */
 export async function fetchReviewerMetrics(teamId?: string | null): Promise<{
   throughput7d: number;
-  approvalRate7dPct: number;
-  escalationRate7dPct: number;
-  disagreementRate7dPct: number;
-  qcFailureRate7dPct: number;
-  avgReviewDurationMs7d: number;
+  approvalRate7dPct: number | null;
+  escalationRate7dPct: number | null;
+  disagreementRate7dPct: number | null;
+  qcFailureRate7dPct: number | null;
+  avgReviewDurationMs7d: number | null;
 }> {
   const res = await apiFetch(withTeamId("/v1/reviewer/metrics", teamId), {
     method: "GET",
@@ -307,12 +310,11 @@ export type ReviewerOpsWorkspaceSummary = {
     assignedAtUtc: string | null;
     priority: string;
     slaRollupState: string;
-    slaDimensions: Array<{
-      dimension: string;
-      dueAtUtc: string | null;
-      state: string;
-    }>;
+    slaDimensions: Array<SlaDimensionWire>;
   };
+  /** unit: escalations — active escalations on the review (T-049). */
+  activeEscalationCount?: number;
+  /** The governing (highest-severity) active escalation (T-049). */
   openEscalation: null | {
     id: string;
     reason: string;

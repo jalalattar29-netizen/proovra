@@ -634,6 +634,9 @@ export async function recordReviewDecision(
     const data: Prisma.EvidenceReviewWorkflowUncheckedUpdateInput = {
       lastReviewedAt: now,
     };
+    // Stage C (T-044) — the first-review SLA completes on the review's first
+    // recorded decision (never on Start). Written once; later rounds keep it.
+    if (!wf.firstDecidedAtUtc) data.firstDecidedAtUtc = created.decidedAt;
     if (
       projection.projectedStage !== null &&
       projection.projectedStage !== currentStage

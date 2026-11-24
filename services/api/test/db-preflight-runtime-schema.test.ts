@@ -110,6 +110,8 @@ const CLOSURE_OBJECTS: ReadonlyArray<readonly [string, string, RegExp]> = [
   ["evidence_owner_destruction_approvals_cycle_key", "20281123050000_evidence_owner_destruction_approval", /i\.indisunique[\s\S]*x\.relname = 'evidence_owner_destruction_approvals_cycle_key'|x\.relname = 'evidence_owner_destruction_approvals_cycle_key'[\s\S]*i\.indisunique/],
   ["derived_asset_storage_intents.table", "20281123060000_derived_asset_storage_intent", /information_schema\.tables[\s\S]*table_name = 'derived_asset_storage_intents'/],
   ["evidence_part_derived_assets.storage_reservation_token", "20281123060000_derived_asset_storage_intent", /table_name = 'evidence_part_derived_assets'\s+AND column_name = 'storage_reservation_token'/],
+  // Team remediation stage C (T-044) — the review's first decision time.
+  ["evidence_review_workflows.first_decided_at_utc", "20281124010000_review_first_decided_at", /table_name = 'evidence_review_workflows'\s+AND column_name = 'first_decided_at_utc'/],
 ];
 const CLOSURE_IDS = CLOSURE_OBJECTS.map(([id]) => id);
 
@@ -785,7 +787,7 @@ describe("runtime schema requirements — identity link consents (20281123010000
   });
 });
 
-describe("runtime schema requirements — closure migrations 20281123020000..060000", () => {
+describe("runtime schema requirements — closure migrations 20281123020000..060000 and 20281124010000", () => {
   it("a database without any of them is refused, naming every object and its migration", async () => {
     const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } = await load();
     const result = await checkRuntimeSchemaRequirements(databaseWith({ ...FULLY_MIGRATED, closure: [] }));

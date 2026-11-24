@@ -63,8 +63,23 @@ test("the workspace rollup band and each group's open / overdue / high counts", 
   assert.equal(r.byLabel("Open work: 14. across 2 of 3 Teams").length, 1);
   assert.equal(r.byLabel("Unassigned: 4. held by a Team, not by a person").length, 1);
   assert.equal(r.byLabel("Needs attention: 5. 2 overdue · 3 high priority").length, 1);
-  assert.equal(r.byLabel("People carrying work: 6. heaviest load 7 open").length, 1);
+  assert.equal(r.byLabel("People carrying team tasks: 6. heaviest load 7 open team tasks").length, 1);
   assert.ok(r.texts().some((t) => t.includes("4 members · 5 open · 2 overdue · 1 high")), "the group row lost its work counts");
+});
+
+test("T-059 (stage C): with no team task held by a person, the card names its unit and never claims nothing is assigned", async () => {
+  routes["/v1/collaboration-teams"] = () => ({
+    teams: [],
+    nextCursor: null,
+    canGovernWorkspace: true,
+    rollup: { ...ROLLUP, workload: { people: 0, busiest: null } },
+  });
+  const r = await render();
+  assert.ok(!r.texts().some((t) => /nothing assigned to an individual/i.test(t)), "the card still claims nothing is assigned");
+  assert.equal(
+    r.byLabel("People carrying team tasks: 0. no team task is assigned to a person (reviews are counted in Review)").length,
+    1,
+  );
 });
 
 test("a participation-scoped response (no rollup) hides the band", async () => {

@@ -867,6 +867,14 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
     "a derived reservation names its durable intent; a reservation with a token is counted through the intent",
     "20281123060000_derived_asset_storage_intent",
   ),
+  // Stage C (team remediation, T-044) — the decision authority writes the
+  // review's first decision time and every review projection reads it.
+  newColumn(
+    "evidence_review_workflows",
+    "first_decided_at_utc",
+    "the first-review SLA completes on the first recorded decision; the decision authority writes it",
+    "20281124010000_review_first_decided_at",
+  ),
 ]);
 
 /**
@@ -1020,9 +1028,10 @@ function uniqueIndexProbe(table, index, partial = false) {
 /**
  * The suppliers whose `newColumn`/`newTable` probes are derived from their ids:
  * the 0376721d9 release (20281121*), the release after it (20281122*, M676
- * first) and the closure migrations (20281123*, PRO-A2-02 first).
+ * first), the closure migrations (20281123*, PRO-A2-02 first) and the team
+ * remediation (20281124*, stage C first).
  */
-const DERIVED_PROBE_SUPPLIER = /^2028112[123]\d{6}_/;
+const DERIVED_PROBE_SUPPLIER = /^2028112[1234]\d{6}_/;
 
 /**
  * The catalog probes, one per requirement id.

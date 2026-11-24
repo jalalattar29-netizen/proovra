@@ -28,6 +28,10 @@ import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import { resolveReviewerRole } from "./reviewer-roles.js";
 import { getQcAccuracy7d } from "./qc-sample.service.js";
 import { getReviewerMetrics7d } from "./reviewer-metrics.service.js";
+import {
+  countQcSamplesAwaitingVerdict,
+  countReviewFigures,
+} from "../reviewer-ops/review-count-definitions.js";
 
 /** How many assigned reviews are considered when picking the caller's next one (T-003). */
 const ACTIVE_REVIEW_CANDIDATES = 25;
@@ -59,12 +63,11 @@ export async function projectReviewerWorkspace(
   const closedWorkflowIds = await hiddenWorkflowIdsInWorkspace(input.teamId, input.userId, prisma);
   const notClosed = closedWorkflowIds.length > 0 ? { workflowId: { notIn: closedWorkflowIds } } : {};
 
+  // T-053 (stage C) — the rail's figures are the shared count definitions, so
+  // each one equals the Inbox slice it links to (MY_REVIEWS, UNASSIGNED,
+  // ESCALATED, COMPLETED_RECENTLY) for the same reader.
   const [
-    assigned,
-    unassigned,
-    inProgress,
-    escalated,
-    completed,
+    figures,
     qcRow,
     challengerActive,
     awaitingAdj,
@@ -72,25 +75,7 @@ export async function projectReviewerWorkspace(
     metrics,
     activeCandidates,
   ] = await Promise.all([
-    prisma.evidenceReviewWorkflow.count({
-      where: { teamId: input.teamId, evidence, assignedToUserId: input.userId, status: { in: ["ASSIGNED", "QUEUED"] } },
-    }),
-    prisma.evidenceReviewWorkflow.count({
-      where: { teamId: input.teamId, evidence, assignedToUserId: null, status: "QUEUED" },
-    }),
-    prisma.evidenceReviewWorkflow.count({
-      where: { teamId: input.teamId, evidence, status: "IN_REVIEW" },
-    }),
-    prisma.evidenceReviewWorkflow.count({
-      where: { teamId: input.teamId, evidence, status: "ESCALATED" },
-    }),
-    prisma.evidenceReviewWorkflow.count({
-      where: {
-        teamId: input.teamId,
-        evidence,
-        status: { in: ["APPROVED_INTERNAL", "REJECTED_INSUFFICIENT", "CLOSED"] },
-      },
-    }),
+    countReviewFigures({ teamId: input.teamId, viewerUserId: input.userId }, prisma),
     getQcAccuracy7d({ prisma, teamId: input.teamId }),
     prisma.reviewerDisagreement.count({
       where: {
@@ -156,10 +141,11 @@ export async function projectReviewerWorkspace(
       }
     : null;
 
-  // Pending QC samples — visible to QC reviewers + supervisors.
-  const pendingSamples = await prisma.qcSample.count({
-    where: { teamId: input.teamId, ...notClosed, state: { in: ["SAMPLED", "ASSIGNED", "IN_PROGRESS"] } },
-  });
+  // Pending QC samples — the ONE "awaiting verdict" definition (T-054).
+  const pendingSamples = await countQcSamplesAwaitingVerdict(
+    { teamId: input.teamId, viewerUserId: input.userId },
+    prisma,
+  );
 
   return {
     schemaVersion: REVIEWER_WORKSPACE_SCHEMA_VERSION,
@@ -167,12 +153,12 @@ export async function projectReviewerWorkspace(
     role: roleResolution.role,
     capabilities: roleResolution.capabilities,
     queues: {
-      assigned,
-      unassigned,
-      in_progress: inProgress,
-      escalated,
+      assigned: figures.myReviews,
+      unassigned: figures.unassignedReviews,
+      in_progress: figures.inProgressReviews,
+      escalated: figures.escalatedReviews,
       qc: pendingSamples,
-      completed,
+      completed: figures.completedReviews7d,
     },
     disagreements: {
       asChallenger: challengerActive,

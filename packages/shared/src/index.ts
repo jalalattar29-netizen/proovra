@@ -1654,6 +1654,35 @@ export {
   rollupReviewerOpsSlaState,
 } from "./reviewer-ops.js";
 
+// Stage C (team remediation) — SLA truth, escalation selector, count units.
+export type {
+  GoverningReviewDeadline,
+  ReviewCountKey,
+  ReviewCountUnit,
+  ReviewSlaDimensionOutcome,
+  ReviewSlaRowFacts,
+} from "./reviewer-ops.js";
+
+export {
+  COLLABORATION_TEAM_WORKLOAD_COPY,
+  EVIDENCE_LIBRARY_RECORD_FIGURE_COPY,
+  QC_SAMPLE_PENDING_STATES,
+  REVIEW_COUNT_DEFINITIONS,
+  REVIEW_COUNT_UNITS,
+  REVIEW_DEADLINE_DIMENSIONS,
+  REVIEW_ESCALATED_STATUS_LABEL,
+  REVIEW_ESCALATION_ACTIVE_STATUSES,
+  REVIEW_ESCALATION_SEVERITY_RANK,
+  compareReviewEscalationsBySeverity,
+  formatReviewCount,
+  governingReviewDeadline,
+  isActiveReviewEscalationStatus,
+  presentReviewSlaDimensions,
+  reviewEscalationSeverityRank,
+  reviewSlaDimensionOutcome,
+  selectGoverningEscalation,
+} from "./reviewer-ops.js";
+
 // -----------------------------------------------------------------------------
 // Phase 26 — Enterprise RBAC engine
 // -----------------------------------------------------------------------------
