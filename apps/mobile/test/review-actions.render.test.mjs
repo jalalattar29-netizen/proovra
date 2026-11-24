@@ -62,7 +62,9 @@ test("an unassigned review can be claimed for the record's workspace, and the pa
   await r.press("Claim review");
   await settle();
   assert.deepEqual(posts()[0], { path: "/v1/review-operations/evidence/ev-1/claim", method: "POST", body: { teamId: "t-1" } });
-  assert.ok(r.hasText("assigned to u-me-123…"), "the claim was not re-read");
+  // T-084 / T-086 — named, never an id fragment (the stub projects no name or e-mail).
+  assert.ok(r.hasText("assigned to a workspace member"), "the claim was not re-read");
+  assert.ok(!r.hasText("u-me-123"), "the assignee is shown as an id fragment");
 });
 
 // Team remediation T-010 — every verdict carries a written rationale (the

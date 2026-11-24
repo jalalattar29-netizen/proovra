@@ -154,7 +154,9 @@ describe("R6 Part 3 — HubQuickActionsBar mounted on each hub page", () => {
     // HubQuickActionsBar wrapper used by Investigation / Governance /
     // Ops. The hub-bar invariant therefore no longer applies to the
     // reviewer surface; the canonical mount is asserted instead.
-    expect(REVIEWER_PAGE).toMatch(/<ReviewerConsole\b/);
+    // Team remediation stage D (T-065): the console became the one Review
+    // Inbox (`ReviewInbox`, views over the queue slices).
+    expect(REVIEWER_PAGE).toMatch(/<ReviewInbox\b/);
     // PageRouteGate still wraps the canonical surface with the
     // `review.queue` route id (asserted again under PART 6 below).
     expect(REVIEWER_PAGE).toMatch(/routeId="review\.queue"/);

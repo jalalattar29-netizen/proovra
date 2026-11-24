@@ -453,6 +453,16 @@ export const NATIVE_DESTINATIONS = {
       "T-16 / RC-20 CORRECTION: creation was ALSO withheld \"for the same reason\" — it is not the same reason. The create response carries the raw token, so the creating session can show, share and send it. Native now creates links ((stack)/intake-link-create.tsx): the 4-step wizard, the shared message preview, and the one-time link view with send-by-email/SMS in that session.",
     ],
   },
+  "/evidence-requests": {
+    routeFile: "(stack)/evidence-requests.tsx",
+    status: "PARTIAL",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/(app)/evidence-requests/page.tsx"],
+    gaps: [
+      "Team remediation T-066 (stage D): the web list page is new - the evidence-request review queue moved here out of the review Inbox. The native list already exists ((stack)/evidence-requests.tsx, GET /v1/evidence-requests?teamId=) and each row opens the native request page.",
+      "the web page lists the requests AWAITING REVIEW (GET /v1/review/queue, the 'awaiting review' statuses by default); the native list shows every request the member participates in and has no awaiting-review filter. Named here rather than implied by CODE_PARITY.",
+    ],
+  },
   "/evidence-requests/[id]": {
     routeFile: "(stack)/evidence-request/[id].tsx",
     status: "CODE_PARITY",
