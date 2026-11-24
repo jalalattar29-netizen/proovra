@@ -54,7 +54,6 @@ import {
 } from "../components/ReviewerReasonModal";
 // Batch J — POST /v1/reviewer/work/:workflowId/bind-schema (coding fields
 // only appear once a review is bound to a published schema).
-import { CodingSchemaBindingPanel } from "../components/CodingSchemaBindingPanel";
 import { ReviewerShortcutsHelp } from "../components/ReviewerShortcutsHelp";
 import {
   escalationSummaryText,

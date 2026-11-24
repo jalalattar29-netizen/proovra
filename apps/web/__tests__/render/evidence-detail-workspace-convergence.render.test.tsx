@@ -120,15 +120,11 @@ import {
 import { ToastProvider } from "../../components/ui";
 import { ConfirmActionProvider } from "../../components/ui/ConfirmActionModal";
 import EvidenceDetailPage from "../../app/(app)/evidence/[id]/page";
-import { makeWorkspace as makeFixtureWorkspace, respondEvidenceDetail } from "./_fixtures/evidence-detail-fixture";
+import { respondEvidenceDetail } from "./_fixtures/evidence-detail-fixture";
 
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
-
-function makeWorkspace(): unknown {
-  return makeFixtureWorkspace(EVIDENCE_ID);
-}
 
 function respond(path: string): unknown {
   return respondEvidenceDetail(path, {

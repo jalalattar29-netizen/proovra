@@ -47,7 +47,6 @@ import { fileURLToPath } from "node:url";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { REVIEWER_OPS_QUEUE_TYPES } from "@proovra/shared";
 
 // ---------------------------------------------------------------------------
 // Source-contract helpers

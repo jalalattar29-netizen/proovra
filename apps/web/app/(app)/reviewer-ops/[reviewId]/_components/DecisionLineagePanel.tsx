@@ -37,7 +37,6 @@ import type { AppTone } from "../../../../../components/app-primitives/AppStatus
 import { formatUserDateTime } from "../../../../../lib/date";
 import { PLAN_REFUSAL_COPY, isPlanRefusal } from "../../../../../lib/feedback/plan-refusal";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
-import { recordReference } from "../../../../../lib/short-id";
 import { DecisionForm, type DecisionFocusRequest, type DecisionSubmitBody } from "./DecisionPanel";
 import { DECISION_ANCHOR_ID } from "./InspectorActions";
 import {

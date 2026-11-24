@@ -12,7 +12,7 @@
  */
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render } from "@testing-library/react";
 import { PLAN_CAPABILITIES } from "@proovra/shared-billing";
 
 const H = vi.hoisted(() => ({ envelope: null as unknown }));

@@ -32,7 +32,6 @@ import {
   seedDefaultSchemas,
   type CodingSchemaRow,
 } from "../../../../lib/reviewer-workspace/reviewer-api";
-import { Badge } from "../../../../components/ui/Badge";
 import { CanonicalActionButton } from "../../../../components/external-review/CanonicalActionButton";
 import { AppStatusText } from "../../../../components/app-primitives/AppStatusText";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";

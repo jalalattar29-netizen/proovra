@@ -15,7 +15,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { identifierLabel } from "@proovra/shared";
 
 import { apiFetch } from "../../lib/api";
 import {

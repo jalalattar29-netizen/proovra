@@ -173,10 +173,8 @@ import { buildReviewerOpsRuntimeProbe } from "../services/reviewer-ops/reviewer-
 // shares the same derivation helpers so read + write cannot drift.
 import {
   ReviewDecisionAuthorityError,
-  deriveReviewState,
   loadCurrentRoundDecisionState,
   recordReviewDecision as recordCanonicalReviewDecision,
-  secondReviewForRound,
 } from "../services/reviewer-ops/review-decision.service.js";
 import { classifyCurrentRounds, countEligibleSecondReviewers } from "../services/reviewer-ops/review-handoff.service.js";
 

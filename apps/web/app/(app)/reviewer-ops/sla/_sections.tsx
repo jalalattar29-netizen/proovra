@@ -33,7 +33,6 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
-import { useActiveSpaceId } from "../../../../lib/platform-context";
 import {
   NoWorkloadSnapshotsEmptyState,
   RuntimeStatusBanner,

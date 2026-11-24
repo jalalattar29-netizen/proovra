@@ -53,7 +53,7 @@ import {
   DISAGREEMENT_STATES,
   REVIEWER_VERDICTS,
   type DisagreementState,
-  type ReviewerVerdict, identifierLabel } from "@proovra/shared";
+  type ReviewerVerdict } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalEmptyState } from "../../../../components/operational";

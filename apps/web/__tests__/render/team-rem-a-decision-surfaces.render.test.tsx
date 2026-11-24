@@ -22,7 +22,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { DecisionForm } from "../../app/(app)/reviewer-ops/[reviewId]/_components/DecisionPanel";
 import { ReviewerDecisionLineagePanel } from "../../app/(app)/reviewer-ops/[reviewId]/_components/DecisionLineagePanel";
@@ -30,7 +30,6 @@ import { InspectorActions } from "../../app/(app)/reviewer-ops/[reviewId]/_compo
 import { EscalateDialog } from "../../app/(app)/reviewer-ops/[reviewId]/_components/InspectorDialogs";
 import { EvidenceReviewActionsPanel } from "../../app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel";
 import {
-  FIRST_ONLY_MESSAGE,
   deriveActions,
   nextStepPrimary,
   type Viewer,
@@ -88,7 +87,6 @@ const fetchMock = vi.fn();
 
 const wsPath = `/v1/reviewer-ops/workspace/${workflowId}?teamId=${teamId}`;
 const decPath = `/v1/reviewer-ops/workspace/${workflowId}/decisions?teamId=${teamId}`;
-const decisionsPostPath = `/v1/reviewer-ops/workspace/${workflowId}/decisions`;
 
 function workspaceBody(lifecycle: string, viewer: Viewer) {
   return {
@@ -133,13 +131,6 @@ afterEach(() => {
 
 const choice = (kind: string) => document.querySelector(`[data-decision-choice="${kind}"]`) as HTMLButtonElement | null;
 const rationale = () => document.querySelector("[data-decision-form-rationale]") as HTMLTextAreaElement | null;
-
-async function chooseAndType(kind: string, text: string) {
-  await waitFor(() => expect(choice(kind)).toBeTruthy());
-  fireEvent.click(choice(kind)!);
-  fireEvent.change(rationale()!, { target: { value: text } });
-  fireEvent.click(document.querySelector("[data-decision-form-submit]")!);
-}
 
 // T-001 … T-006 — focus mode is the Review page itself since stage D (T-077):
 // its decision, Start, refusal and Escalate behaviour is proven on the page in
