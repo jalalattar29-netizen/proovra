@@ -1,4 +1,4 @@
-# Commercial authorities: which one answers which question
+# Commercial entitlements: which source answers which question
 
 Team remediation stage F, T-126 (audit ARCH-14). Three commercial authorities
 exist. They are not alternatives for the same question; each answers its own,
