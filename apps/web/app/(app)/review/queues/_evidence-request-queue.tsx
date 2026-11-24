@@ -41,7 +41,7 @@
  */
 
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import {
@@ -59,6 +59,19 @@ import { EmptyState } from "../../../../components/ui/EmptyState";
 /** Server cap for GET /v1/review/queue (`limit` max 200). */
 const REVIEW_QUEUE_LIMIT = 100;
 
+/**
+ * T-133 (audit REV-06/REV-24/REV-28) — the list is titled "awaiting review",
+ * so it opens on the statuses that ARE awaiting a reviewer, asked of the
+ * server as one set (`statuses=`). "Any status" stays one choice away.
+ */
+const AWAITING_REVIEW = "AWAITING_REVIEW";
+const AWAITING_REVIEW_STATUSES: ReadonlyArray<EvidenceRequestStatus> = [
+  "RESPONSE_RECEIVED",
+  "UNDER_REVIEW",
+  "PARTIALLY_FULFILLED",
+];
+const ANY_STATUS = "";
+
 type ReviewQueueItem = {
   id: string;
   evidenceId: string | null;
@@ -69,6 +82,8 @@ type ReviewQueueItem = {
   title: string;
   dueAtUtc: string | null;
   assignedReviewerUserId: string | null;
+  /** T-133 — projected by the API (a display name, never an address). */
+  assignedReviewerDisplayName?: string | null;
   createdAt: string;
 };
 
@@ -93,7 +108,10 @@ export function EvidenceRequestReviewQueue({
   activeTeamRef: { readonly current: string | null };
 }) {
   const [state, setState] = useState<PanelState>({ kind: "LOADING" });
-  const [status, setStatus] = useState<EvidenceRequestStatus | "">("");
+  const [status, setStatus] = useState<EvidenceRequestStatus | typeof AWAITING_REVIEW | typeof ANY_STATUS>(AWAITING_REVIEW);
+  // T-133 — only the newest request may write the panel (a slow answer for an
+  // older filter never overwrites a newer one).
+  const generation = useRef(0);
   const [priority, setPriority] = useState<EvidenceRequestPriority | "">("");
   const [unassignedOnly, setUnassignedOnly] = useState<boolean>(false);
 
@@ -106,29 +124,33 @@ export function EvidenceRequestReviewQueue({
       return;
     }
     const requestTeamId = teamId;
+    const mine = (generation.current += 1);
+    const stale = () => mine !== generation.current || requestTeamId !== activeTeamRef.current;
     setState({ kind: "LOADING" });
     const params = new URLSearchParams({
       teamId: requestTeamId,
       limit: String(REVIEW_QUEUE_LIMIT),
     });
-    if (status) params.set("status", status);
+    if (status === AWAITING_REVIEW) params.set("statuses", AWAITING_REVIEW_STATUSES.join(","));
+    else if (status) params.set("status", status);
     if (priority) params.set("priority", priority);
     if (unassignedOnly) params.set("unassigned", "true");
     try {
       const res = (await apiFetch(`/v1/review/queue?${params.toString()}`, {
         method: "GET",
       })) as { items?: ReadonlyArray<ReviewQueueItem> } | null;
-      // Stale-context rejection.
-      if (requestTeamId !== activeTeamRef.current) return;
+      // Stale-context and stale-filter rejection.
+      if (stale()) return;
       setState({
         kind: "READY",
         items: Array.isArray(res?.items) ? res.items : [],
         loadedAt: new Date().toISOString(),
       });
     } catch (err) {
-      if (requestTeamId !== activeTeamRef.current) return;
+      if (stale()) return;
       const httpStatus = (err as { statusCode?: number } | null)?.statusCode;
-      if (httpStatus === 403 || httpStatus === 404) {
+      const code = (err as { code?: string } | null)?.code;
+      if (httpStatus === 403) {
         setState({
           kind: "FORBIDDEN",
           message:
@@ -136,7 +158,17 @@ export function EvidenceRequestReviewQueue({
         });
         return;
       }
-      if (httpStatus === 503) {
+      // T-133 — a 404 is "not available here", not a role restriction.
+      if (httpStatus === 404) {
+        setState({
+          kind: "FORBIDDEN",
+          message: "Evidence requests are not available in this workspace.",
+        });
+        return;
+      }
+      // T-133 — only FEATURE_DISABLED means the module is off; any other 503
+      // is an outage the reader can retry.
+      if (httpStatus === 503 && code === "FEATURE_DISABLED") {
         setState({
           kind: "FORBIDDEN",
           message:
@@ -156,6 +188,8 @@ export function EvidenceRequestReviewQueue({
   useEffect(() => {
     void load();
   }, [load]);
+
+  const filtersNarrowed = status !== AWAITING_REVIEW || priority !== "" || unassignedOnly;
 
   // TEAM-UI-SPEC §1 / §4 (round 3) — an app-panel; filters are canonical
   // fields in one row; the table rides the shared `[data-responsive]` card
@@ -187,10 +221,11 @@ export function EvidenceRequestReviewQueue({
             value={status}
             ariaLabel="Status"
             options={[
-              { value: "", label: "Any" },
+              { value: AWAITING_REVIEW, label: "Awaiting review" },
+              { value: ANY_STATUS, label: "Any status" },
               ...EVIDENCE_REQUEST_STATUSES.map((s) => ({ value: s, label: identifierLabel(s) })),
             ]}
-            onChange={(next) => setStatus(next as EvidenceRequestStatus | "")}
+            onChange={(next) => setStatus(next as EvidenceRequestStatus | typeof AWAITING_REVIEW | typeof ANY_STATUS)}
             triggerProps={{ "data-evidence-request-queue-status": "" }}
           />
           <span className="review-toolbar__label">Priority</span>
@@ -247,12 +282,23 @@ export function EvidenceRequestReviewQueue({
         ) : null}
 
         {state.kind === "READY" && state.items.length === 0 ? (
-          <div data-evidence-request-queue-empty>
-            <EmptyState
-              title="No evidence requests match this filter"
-              purpose="Requests appear here once they are sent to a contributor and are waiting on a reviewer."
-            />
-          </div>
+          // T-133 — "nothing awaits review" and "your filter matched nothing"
+          // are different facts.
+          filtersNarrowed ? (
+            <div data-evidence-request-queue-empty="filtered">
+              <EmptyState
+                title="No evidence requests match these filters"
+                purpose="Change or clear the filters to see other requests."
+              />
+            </div>
+          ) : (
+            <div data-evidence-request-queue-empty="none">
+              <EmptyState
+                title="No evidence requests are awaiting review"
+                purpose="Requests appear here once a contributor responds and a reviewer is needed."
+              />
+            </div>
+          )
         ) : null}
 
         {state.kind === "READY" && state.items.length > 0 ? (
@@ -277,7 +323,7 @@ export function EvidenceRequestReviewQueue({
                         <span className="app-table__primary">{item.title}</span>
                       </td>
                       <td data-label="Type">
-                        <span className="app-table__muted">{item.requestType}</span>
+                        <span className="app-table__muted">{identifierLabel(item.requestType)}</span>
                       </td>
                       <td data-label="Status">
                         <Badge tone="info" subtle>
@@ -297,7 +343,7 @@ export function EvidenceRequestReviewQueue({
                       <td data-label="Assignee">
                         <span className="app-table__muted">
                           {item.assignedReviewerUserId
-                            ? `${item.assignedReviewerUserId.slice(0, 8)}…`
+                            ? (item.assignedReviewerDisplayName ?? "Workspace member")
                             : "Unassigned"}
                         </span>
                       </td>
