@@ -231,8 +231,10 @@ export type PlanCapabilities = {
    * `allowsPersonalWorkspace`, which was one boolean serving two questions.
    *
    * IT ANSWERS: "may this plan be PURCHASED with a Personal Workspace as the
-   * target?" TEAM says no — you buy
-   * TEAM for a team, not for yourself.
+   * target?" Every plan in this catalog says yes, TEAM included: Team is a
+   * personal-workspace tier, bought for the Personal Workspace the owner
+   * already uses and shared with the members they invite into it (self-serve
+   * checkout refuses any other target).
    *
    * IT DOES NOT ANSWER: "may this identity HAVE a Personal Space?" That is
    * `resolvePersonalSpaceEligibility` in services/api — identity mode plus the

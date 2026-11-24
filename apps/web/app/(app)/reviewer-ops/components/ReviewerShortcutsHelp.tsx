@@ -11,8 +11,10 @@
  * Two key sets, one per surface, so the help never lists a key the page does
  * not handle:
  *
- *   console    J / K move, Enter opens, A assigns, E escalates, M requests
- *              information, / focuses the filter.
+ *   console    J / K move, Enter opens, A assigns, / focuses the filter.
+ *              (ARCH-18: E and M were listed here and the console handles
+ *              neither — escalate and request information are row and
+ *              inspector actions, not console keys.)
  *   inspector  A starts the review; M moves focus to the "Record decision"
  *              panel with Request information preselected. There is no
  *              approve key (TEAM-UI-SPEC §2): a verdict is entered only in
@@ -29,12 +31,10 @@ export type ShortcutKey = "?" | "j" | "k" | "a" | "e" | "m" | "/" | "Enter";
 
 export type ShortcutsVariant = "console" | "inspector";
 
-const CONSOLE_ROWS: ReadonlyArray<{ key: string; label: string }> = [
+export const CONSOLE_ROWS: ReadonlyArray<{ key: string; label: string }> = [
   { key: "J / K", label: "Move to the next / previous review" },
   { key: "Enter", label: "Open the selected review" },
   { key: "A", label: "Assign the selected review (when allowed)" },
-  { key: "E", label: "Escalate the selected review" },
-  { key: "M", label: "Request more information" },
   { key: "/", label: "Focus the filter" },
   { key: "?", label: "Show or hide this help" },
 ];
