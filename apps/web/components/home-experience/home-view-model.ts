@@ -3051,7 +3051,7 @@ function buildWorkspaceHealth(args: {
   const metrics: WorkspaceHealthMetric[] = [
     { key: "complete", label: "Records with a report", value: reported, tone: reported > 0 ? "ok" : "neutral" },
     { key: "need_report", label: "Need a report", value: needReport, tone: needReport > 0 ? "warn" : "ok" },
-    { key: "active_cases", label: "Active matters", value: args.activeCasesCount, tone: "neutral" },
+    { key: "active_cases", label: "Active cases", value: args.activeCasesCount, tone: "neutral" },
     { key: "submissions", label: "Submissions waiting", value: submissionsWaiting, tone: submissionsWaiting > 0 ? "warn" : "ok" },
     { key: "reports_ready", label: "Reports ready", value: args.reportsReady, tone: reportsReadyTone },
     { key: "operational", label: "Records with delivery issues", value: operationalIssues, tone: operationalIssues > 0 ? "danger" : "ok" },
@@ -3549,14 +3549,15 @@ function buildKpis(args: {
       ? allowanceKpi(args.recordAllowance ?? null)
       : {
       key: "matters",
-      label: "Active matters",
+      // T-135 — the product word is "Cases" (navigation, pages, pricing).
+      label: "Active cases",
       value: formatKpiNumber(args.caseCount),
       subtitle:
         args.caseCount === 0
-          ? "No open matters"
+          ? "No open cases"
           : mattersAttention > 0
             ? `${mattersAttention} need${mattersAttention === 1 ? "s" : ""} attention`
-            : "All matters on track",
+            : "All cases on track",
       tone:
         mattersAttention > 0 ? "warn" : args.caseCount > 0 ? "ok" : "neutral",
       spark: null,
@@ -4149,10 +4150,18 @@ export function normalizeHomeViewModel(
     inputs.operationsSummary?.groups ?? null,
     inputs.surfaceAccess ?? ANONYMOUS_SURFACE_CONTEXT,
   );
+  /*
+   * T-135 (audit PRD-04 / O-07) — ONE verdict. The health card said "Healthy"
+   * beside a CRITICAL priority ("1 TSA timestamp failed") because it read only
+   * the health metrics; an unresolved critical attention item now makes the
+   * workspace "action required", and a warning one "needs attention".
+   */
   const workspaceHealthOverall: HomeViewModel["workspaceHealthOverall"] =
-    workspaceHealth.some((m) => m.tone === "danger")
+    workspaceHealth.some((m) => m.tone === "danger") ||
+    workspacePriorities.some((p) => p.severity === "critical")
       ? "action_required"
-      : workspaceHealth.some((m) => m.tone === "warn")
+      : workspaceHealth.some((m) => m.tone === "warn") ||
+          workspacePriorities.some((p) => p.severity === "warning")
         ? "needs_attention"
         : "healthy";
 

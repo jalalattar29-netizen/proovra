@@ -44,7 +44,7 @@ test("KPI labels and destinations match the canonical web surface", () => {
   const k = H.buildHomeKpis({}, { intakeIncluded: true });
   assert.deepEqual(
     k.map((x) => x.label),
-    ["Total evidence", "Active matters", "End-to-end ready", "Reports & packages", "Intake & submissions"],
+    ["Total evidence", "Active cases", "End-to-end ready", "Reports & packages", "Intake & submissions"],
   );
   assert.deepEqual(k.map((x) => x.href), ["/evidence", "/cases", "/evidence", "/reports", "/intake-links"]);
 });
