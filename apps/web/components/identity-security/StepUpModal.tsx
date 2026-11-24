@@ -154,7 +154,8 @@ export function stepUpEnrollmentHref(returnTo: string = currentReturnPath()): st
  * tells the person to come back here; this page (and the text in its forms)
  * stays as it was.
  */
-export const REAUTH_SIGN_IN_HREF = `/login?reauth=1&next=${encodeURIComponent("/auth/reauth-complete")}`;
+export const REAUTH_COMPLETE_PATH = "/auth/reauth-complete";
+export const REAUTH_SIGN_IN_HREF = `/login?reauth=1&next=${encodeURIComponent(REAUTH_COMPLETE_PATH)}`;
 
 /** Indirection so tests can observe the sign-in window without opening one. */
 export const reauthWindow = {

@@ -199,6 +199,15 @@ export const NATIVE_DESTINATIONS = {
       "NOT A GAP, a platform difference: the web callback route exists because a browser OAuth flow has to land somewhere after the redirect. Native OAuth returns in-app through expo-auth-session, so there is no redirect to land, and a native screen for it would be a page nothing can reach.",
     ],
   },
+  "/auth/reauth-complete": {
+    routeFile: "(stack)/auth.tsx",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/auth/reauth-complete/page.tsx","apps/mobile/src/ui/review-actions-panel.tsx"],
+    gaps: [
+      "NOT A GAP, a platform difference (stage B, T-029): this page only ends the separate web sign-in window a privileged action opens for `reauth_required`, telling the person to return to the tab they were working in. The native app keeps one session in the auth gateway; its review panel states the re-sign-in requirement (reauthRequiredSentence) and keeps the typed note, and signing in again is the auth gateway itself.",
+    ],
+  },
   "/auth/extension/continue": {
     routeFile: "(stack)/auth.tsx",
     status: "CODE_PARITY",

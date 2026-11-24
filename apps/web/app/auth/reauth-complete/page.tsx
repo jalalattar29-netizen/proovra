@@ -8,6 +8,7 @@
  * window only says so: go back there and choose Continue. It tries to close
  * itself when it was opened by that page; nothing here runs any action.
  */
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 export default function ReauthCompletePage() {
@@ -33,7 +34,9 @@ export default function ReauthCompletePage() {
         typed there is still there, and nothing ran while you were signing in.
       </p>
       {tried ? (
-        <p style={{ margin: "12px 0 0", color: "#475569" }}>You can close this window.</p>
+        <p style={{ margin: "12px 0 0", color: "#475569" }}>
+          You can close this window. Opened it by itself? <Link href="/home">Go to Home</Link>.
+        </p>
       ) : null}
     </main>
   );
