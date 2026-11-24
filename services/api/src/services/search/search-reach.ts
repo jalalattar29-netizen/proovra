@@ -21,10 +21,28 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { hiddenRecordIdsInWorkspace } from "../access/record-reach.js";
 
-type ReachClient = Pick<PrismaClient, "case" | "evidence" | "team" | "caseEvidenceLink">;
+type ReachClient = Pick<PrismaClient, "case" | "evidence" | "team" | "caseEvidenceLink" | "$queryRaw">;
 
-/** Below PostgreSQL's bind-parameter ceiling with room for the rest of the query. */
+/**
+ * The most ids one inlined list may carry: below PostgreSQL's bind-parameter
+ * ceiling (65,535 per statement) with room for the rest of the query.
+ */
 export const SEARCH_REACH_EXCLUSION_LIMIT = 20_000;
+
+/**
+ * T-132 (audit JRN-09) — raised only when BOTH the hidden and the visible
+ * document sets of one workspace exceed the inline bound for one caller
+ * (more than 20,000 index rows on each side). Search then answers an explicit
+ * refusal, never a silent "no results" and never a hidden row.
+ */
+export class SearchReachTooLargeError extends Error {
+  readonly statusCode = 503;
+  readonly code = "SEARCH_SCOPE_TOO_LARGE";
+  constructor() {
+    super("Search is not available for this workspace scope right now.");
+    this.name = "SearchReachTooLargeError";
+  }
+}
 
 export async function searchDocumentReachWhere(
   client: ReachClient,
@@ -37,13 +55,34 @@ export async function searchDocumentReachWhere(
     client,
   );
   /*
-   * The exclusion is inlined. A member off restricted Cases holding more
-   * Evidence than one statement can carry is refused EVERY match rather than
-   * shown any hidden row: the bound fails closed and never truncates the
-   * list (an SQL-side NOT EXISTS is the follow-up that removes the bound).
+   * T-132 — past the inline bound the audited code answered `id in []`: a
+   * member off more than 20,000 restricted records found NOTHING, for every
+   * query. The exclusion is now resolved by the database instead, with each
+   * hidden-id list bound as ONE array parameter (`= ANY($n::uuid[])`, no
+   * bound): the index rows of this workspace that name a hidden Case or
+   * record. The smaller side (those hidden rows, or the rows left visible) is
+   * then applied as the id filter, so the rule stays part of the WHERE (no
+   * post-filter; counts, facets and page lengths never see a hidden row).
    */
   if (hiddenCases.length + hiddenEvidence.length > SEARCH_REACH_EXCLUSION_LIMIT) {
-    return { AND: [{ id: { in: [] } }] };
+    const hiddenDocs = await client.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM evidence_search_documents
+       WHERE team_id = ${workspaceId}::uuid
+         AND (case_id = ANY(${hiddenCases}::uuid[]) OR evidence_id = ANY(${hiddenEvidence}::uuid[]))
+       LIMIT ${SEARCH_REACH_EXCLUSION_LIMIT + 1}::int`;
+    if (hiddenDocs.length <= SEARCH_REACH_EXCLUSION_LIMIT) {
+      return hiddenDocs.length > 0 ? { AND: [{ id: { notIn: hiddenDocs.map((d) => d.id) } }] } : {};
+    }
+    const visibleDocs = await client.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM evidence_search_documents
+       WHERE team_id = ${workspaceId}::uuid
+         AND (case_id IS NULL OR NOT (case_id = ANY(${hiddenCases}::uuid[])))
+         AND (evidence_id IS NULL OR NOT (evidence_id = ANY(${hiddenEvidence}::uuid[])))
+       LIMIT ${SEARCH_REACH_EXCLUSION_LIMIT + 1}::int`;
+    if (visibleDocs.length <= SEARCH_REACH_EXCLUSION_LIMIT) {
+      return { AND: [{ id: { in: visibleDocs.map((d) => d.id) } }] };
+    }
+    throw new SearchReachTooLargeError();
   }
   const and: Prisma.EvidenceSearchDocumentWhereInput[] = [];
   if (hiddenCases.length > 0) {

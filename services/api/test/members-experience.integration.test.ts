@@ -251,22 +251,40 @@ describe("members experience — reach, capacity and counts (live PostgreSQL)", 
     });
   });
 
-  describe("SEARCH — the exclusion bound fails closed", () => {
-    it("past the bound every match is refused rather than any hidden row shown", async () => {
+  describe("SEARCH — reach has no exclusion bound (T-132, audit JRN-09)", () => {
+    it("with more hidden records than any bind-parameter list can carry, a permitted record is still found and the hidden one still is not", async () => {
       const { searchDocumentReachWhere } = await import("../src/services/search/search-reach.js");
-      const many = Array.from({ length: 20_001 }, () => ({ id: randomUUID() }));
-      // Only the hidden-id lists are faked, at the delegates that produce them:
-      // closed Cases from `case`, closed Evidence from `caseEvidenceLink` (the
-      // capacity rewrite reads links, not records). The workspace scope is
-      // resolved through the real `team` delegate. Every delegate `ReachClient`
-      // names is present, so the fake cannot fall behind the type again.
+      const caseOwner = await person("MEMBER");
+      const needle = `quokka${tag()}`;
+      const hiddenCase = await newCase(caseOwner.id, `Matter ${needle} hidden`);
+      await restrict(hiddenCase.id, [caseOwner.id]);
+      const hiddenEv = await newEvidence(caseOwner.id, `Photo ${needle} hidden`);
+      await link(hiddenCase.id, hiddenEv);
+      const openEv = await newEvidence(caseOwner.id, `Photo ${needle} open`);
+      await indexDoc("CASE", hiddenCase.id, `Matter ${needle} hidden`, { caseId: hiddenCase.id });
+      await indexDoc("EVIDENCE", hiddenEv, `Photo ${needle} hidden`, { evidenceId: hiddenEv });
+      const permitted = await indexDoc("EVIDENCE", openEv, `Photo ${needle} open`, { evidenceId: openEv });
+      // 70,000 closed Cases and 70,000 closed records (more than PostgreSQL's
+      // 65,535 bind parameters): the audited code answered `id in []` past
+      // 20,000 and the member found nothing at all. Only the hidden-id lists
+      // are faked, at the delegates that produce them; the workspace scope is
+      // the real `team` delegate.
+      const manyCases = [{ id: hiddenCase.id }, ...Array.from({ length: 70_000 }, () => ({ id: randomUUID() }))];
+      const manyLinks = [{ evidenceId: hiddenEv }, ...Array.from({ length: 70_000 }, () => ({ evidenceId: randomUUID() }))];
       const fake: Record<keyof Parameters<typeof searchDocumentReachWhere>[0], unknown> = {
-        case: { findMany: async () => many },
+        case: { findMany: async () => manyCases },
         evidence: { findMany: async () => [] },
-        caseEvidenceLink: { findMany: async () => [] },
+        caseEvidenceLink: { findMany: async () => manyLinks },
         team: prisma.team,
+        $queryRaw: prisma.$queryRaw.bind(prisma),
       };
-      expect(await searchDocumentReachWhere(fake as never, A().teamId, "u")).toEqual({ AND: [{ id: { in: [] } }] });
+      const reach = await searchDocumentReachWhere(fake as never, A().teamId, "u");
+      expect(JSON.stringify(reach)).not.toContain('"in":[]');
+      const rows = await prisma.evidenceSearchDocument.findMany({
+        where: { AND: [{ teamId: A().teamId }, { title: { contains: needle } }, reach] },
+        select: { id: true },
+      });
+      expect(rows.map((r) => r.id)).toEqual([permitted.id]);
     });
   });
 
