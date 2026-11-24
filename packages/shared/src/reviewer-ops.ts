@@ -71,14 +71,20 @@ export type ReviewerOpsLifecycleState = z.infer<
 
 /**
  * Map the Phase 13 DB review stage + escalation flag to the Phase 25
- * lifecycle state. `hasOpenEscalation` wins over a non-terminal stage —
- * an escalation is always operator-visible.
+ * lifecycle state. `hasOpenEscalation` wins over an OPEN stage — an
+ * escalation is always operator-visible while the review is in progress.
+ *
+ * T-051 (stage C) — a FINISHED stage (approved, rejected, archived) wins over
+ * the escalation flag: a lingering escalation on a finished review is a
+ * monitoring item of its own, never a reason to call the review "Escalated".
  */
 export function deriveLifecycleState(
   stage: ReviewStage,
   hasOpenEscalation: boolean,
 ): ReviewerOpsLifecycleState {
-  if (hasOpenEscalation) return "ESCALATED";
+  const finished =
+    stage === "APPROVED_INTERNAL" || stage === "REJECTED_INSUFFICIENT" || stage === "CLOSED";
+  if (hasOpenEscalation && !finished) return "ESCALATED";
   switch (stage) {
     case "QUEUED":
       return "QUEUED";
@@ -200,7 +206,35 @@ export type ReviewSlaDimensionSnapshot = {
   state: ReviewerOpsSlaState;
   timeRemainingMs: number | null;
   breachDurationMs: number | null;
+  /**
+   * T-043 (stage C) — when the dimension's fact happened (assigned, first
+   * decision, finished). Null while it is still open. Distinct from `dueAtUtc`:
+   * "Met" is shown with THIS time, never with the deadline.
+   */
+  completedAtUtc: string | null;
+  /**
+   * True when the fact happened on or before the deadline, false when it came
+   * after it, null while open or when there was no deadline. Only `true` may
+   * be presented as "Met".
+   */
+  metOnTime: boolean | null;
 };
+
+/**
+ * T-045 (stage C) — the dimensions that are deadlines of the REVIEW. The
+ * ESCALATION dimension is the engine's automatic-escalation trigger time, not
+ * a promise to the reader: it is neither presented as a deadline nor allowed
+ * to make the review read overdue.
+ */
+export const REVIEW_DEADLINE_DIMENSIONS: ReadonlyArray<ReviewSlaDimension> = [
+  "ASSIGNMENT",
+  "FIRST_REVIEW",
+  "COMPLETION",
+];
+
+function isReviewDeadlineDimension(d: ReviewSlaDimension): boolean {
+  return REVIEW_DEADLINE_DIMENSIONS.includes(d);
+}
 
 // Phase 25 SLA state catalog. Wider than the Phase 13 ReviewSlaStatus
 // catalog so we can express "completed for this dimension" + "blocked".
@@ -256,6 +290,119 @@ export function isTerminalReviewEscalationStatus(
 ): boolean {
   return REVIEW_ESCALATION_TERMINAL.has(status);
 }
+
+/**
+ * T-060 / T-052 (stage C) — the ONE set of escalation statuses that are still
+ * active. Every surface (queues, counts, notifications, the Review page) reads
+ * this set: acknowledged and reassigned escalations are still active.
+ */
+export const REVIEW_ESCALATION_ACTIVE_STATUSES = ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] as const;
+
+export function isActiveReviewEscalationStatus(status: string): boolean {
+  return (REVIEW_ESCALATION_ACTIVE_STATUSES as ReadonlyArray<string>).includes(status);
+}
+
+/**
+ * T-049 (stage C) — escalation severity rank. Severity is stored as text, so a
+ * database `ORDER BY severity DESC` is alphabetical (WARNING > INFO > HIGH >
+ * CRITICAL) and must never be used to pick "the" escalation.
+ */
+export const REVIEW_ESCALATION_SEVERITY_RANK: Readonly<Record<string, number>> = {
+  CRITICAL: 4,
+  HIGH: 3,
+  WARNING: 2,
+  INFO: 1,
+};
+
+export function reviewEscalationSeverityRank(severity: string | null | undefined): number {
+  return REVIEW_ESCALATION_SEVERITY_RANK[String(severity ?? "").toUpperCase()] ?? 0;
+}
+
+/** Highest severity first, then newest. Stable for equal keys. */
+export function compareReviewEscalationsBySeverity(
+  a: { severity: string; createdAt: Date | string },
+  b: { severity: string; createdAt: Date | string },
+): number {
+  const rank = reviewEscalationSeverityRank(b.severity) - reviewEscalationSeverityRank(a.severity);
+  if (rank !== 0) return rank;
+  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+}
+
+/**
+ * T-049 (stage C) — the ONE selector: of a review's escalations, the active one
+ * with the highest severity (then the newest) plus how many are active.
+ * Resolving one never hides another that is still active.
+ */
+export function selectGoverningEscalation<
+  T extends { severity: string; status: string; createdAt: Date | string },
+>(rows: ReadonlyArray<T>): { top: T | null; activeCount: number } {
+  const active = rows.filter((r) => isActiveReviewEscalationStatus(r.status));
+  if (active.length === 0) return { top: null, activeCount: 0 };
+  const sorted = [...active].sort(compareReviewEscalationsBySeverity);
+  return { top: sorted[0]!, activeCount: active.length };
+}
+
+// -----------------------------------------------------------------------------
+// T-052 (stage C) — count units. A review count and an escalation count are
+// different measures (COR-A): one review can carry two active escalations.
+// Every count a surface shows names its unit from this map.
+// -----------------------------------------------------------------------------
+
+export const REVIEW_COUNT_UNITS = ["reviews", "escalations", "records", "samples", "tasks"] as const;
+export type ReviewCountUnit = (typeof REVIEW_COUNT_UNITS)[number];
+
+const REVIEW_COUNT_UNIT_WORDS: Readonly<Record<ReviewCountUnit, [string, string]>> = {
+  reviews: ["review", "reviews"],
+  escalations: ["escalation", "escalations"],
+  records: ["record", "records"],
+  samples: ["QC sample", "QC samples"],
+  tasks: ["team task", "team tasks"],
+};
+
+/** "1 review", "2 escalations". */
+export function formatReviewCount(count: number, unit: ReviewCountUnit): string {
+  const [one, many] = REVIEW_COUNT_UNIT_WORDS[unit];
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+export const REVIEW_COUNT_DEFINITIONS = {
+  openReviews: { label: "Open reviews", unit: "reviews", definition: "Reviews not approved, rejected or archived." },
+  unassignedReviews: { label: "Unassigned reviews", unit: "reviews", definition: "Open reviews with no assignee." },
+  myReviews: { label: "My reviews", unit: "reviews", definition: "Open reviews assigned to you." },
+  inProgressReviews: { label: "In progress", unit: "reviews", definition: "Open reviews a reviewer has started." },
+  escalatedReviews: {
+    label: "Escalated reviews",
+    unit: "reviews",
+    definition: "Open reviews with escalated status or at least one active escalation.",
+  },
+  activeEscalations: {
+    label: "Active escalations",
+    unit: "escalations",
+    definition: "Escalations that are open, acknowledged or reassigned. One review can carry several.",
+  },
+  completedReviews7d: { label: "Completed (7 days)", unit: "reviews", definition: "Reviews finished in the last 7 days." },
+  pendingQcSamples: {
+    label: "QC awaiting verdict",
+    unit: "samples",
+    definition: "QC samples sampled, assigned or in progress.",
+  },
+  awaitingFirstReview: {
+    label: "Awaiting first review",
+    unit: "reviews",
+    definition: "Open reviews whose current round has no decision yet.",
+  },
+} as const satisfies Record<string, { label: string; unit: ReviewCountUnit; definition: string }>;
+
+export type ReviewCountKey = keyof typeof REVIEW_COUNT_DEFINITIONS;
+
+/** T-054 (stage C) — the ONE "QC awaiting verdict" state set. */
+export const QC_SAMPLE_PENDING_STATES = ["SAMPLED", "ASSIGNED", "IN_PROGRESS"] as const;
+
+/**
+ * T-057 (stage C) — the DB status ESCALATED comes from an escalation, a first /
+ * second conflict or an unresolved adjudication: never "manual decision".
+ */
+export const REVIEW_ESCALATED_STATUS_LABEL = "Escalated status (conflict or escalation)";
 
 const ESCALATION_STATUS_TRANSITIONS: Readonly<
   Record<ReviewEscalationStatus, ReadonlyArray<ReviewEscalationStatus>>
@@ -389,14 +536,17 @@ export function computeReviewerOpsSlaSnapshot(
     },
   ];
   for (const p of pairs) {
+    const completedAtUtc = p.completedAt ? p.completedAt.toISOString() : null;
     if (!p.dueAt) {
       result.push({
         dimension: p.dimension,
         dueAtUtc: null,
         dueSoonAtUtc: null,
-        state: "HEALTHY",
+        state: p.completedAt ? "COMPLETED" : "HEALTHY",
         timeRemainingMs: null,
         breachDurationMs: null,
+        completedAtUtc,
+        metOnTime: null,
       });
       continue;
     }
@@ -405,16 +555,15 @@ export function computeReviewerOpsSlaSnapshot(
     let state: ReviewerOpsSlaState;
     let timeRemainingMs: number | null = dueAtMs - now;
     let breachDurationMs: number | null = null;
+    // T-045 (stage C) — an open escalation is NOT a deadline state. The
+    // escalation is shown on its own (severity + active count); a dimension
+    // reads overdue only once its deadline has passed. `hasOpenEscalation` is
+    // accepted for compatibility and no longer changes any state.
     if (p.completedAt) {
       state = "COMPLETED";
       timeRemainingMs = null;
     } else if (input.paused) {
       state = "PAUSED";
-    } else if (
-      input.hasOpenEscalation &&
-      (p.dimension === "FIRST_REVIEW" || p.dimension === "COMPLETION")
-    ) {
-      state = "ESCALATED";
     } else if (now < dueSoonAtMs) {
       state = "HEALTHY";
     } else if (now < dueAtMs) {
@@ -431,6 +580,8 @@ export function computeReviewerOpsSlaSnapshot(
       state,
       timeRemainingMs,
       breachDurationMs,
+      completedAtUtc,
+      metOnTime: p.completedAt ? p.completedAt.getTime() <= dueAtMs : null,
     });
   }
   return result;
@@ -451,14 +602,92 @@ const SLA_SEVERITY_ORDER: ReadonlyArray<ReviewerOpsSlaState> = [
   "COMPLETED",
 ];
 
+/**
+ * The PRESENTED rollup (the review's header). Only the review's own deadlines
+ * that exist take part (T-045, T-046): the escalation trigger and dimensions
+ * with no deadline never make a review read overdue or on track.
+ */
 export function rollupReviewerOpsSlaState(
   snapshots: ReadonlyArray<ReviewSlaDimensionSnapshot>,
 ): ReviewerOpsSlaState {
-  if (snapshots.length === 0) return "HEALTHY";
+  const presented = presentReviewSlaDimensions(snapshots);
+  if (presented.length === 0) return "HEALTHY";
   for (const s of SLA_SEVERITY_ORDER) {
-    if (snapshots.some((x) => x.state === s)) return s;
+    if (presented.some((x) => x.state === s)) return s;
   }
   return "HEALTHY";
+}
+
+/**
+ * T-046 (stage C) — the dimensions a reader is shown: the review's own
+ * deadlines (never the escalation trigger) that actually have a deadline.
+ */
+export function presentReviewSlaDimensions(
+  snapshots: ReadonlyArray<ReviewSlaDimensionSnapshot>,
+): ReadonlyArray<ReviewSlaDimensionSnapshot> {
+  return snapshots.filter((s) => isReviewDeadlineDimension(s.dimension) && s.dueAtUtc !== null);
+}
+
+export type GoverningReviewDeadline =
+  /** The earliest deadline still open. */
+  | { kind: "open"; dimension: ReviewSlaDimensionSnapshot }
+  /** Every presented deadline has its fact. */
+  | { kind: "all_met"; missed: number }
+  /** The review has no deadline at all. */
+  | { kind: "none" };
+
+/**
+ * T-043 / T-048 (stage C) — ONE function for "the deadline that governs this
+ * review now": the earliest not-yet-completed presented dimension. Used by the
+ * Review page header and focus mode alike.
+ */
+export function governingReviewDeadline(
+  snapshots: ReadonlyArray<ReviewSlaDimensionSnapshot>,
+): GoverningReviewDeadline {
+  const presented = presentReviewSlaDimensions(snapshots);
+  if (presented.length === 0) return { kind: "none" };
+  const open = presented
+    .filter((s) => s.state !== "COMPLETED")
+    .sort((a, b) => Date.parse(a.dueAtUtc as string) - Date.parse(b.dueAtUtc as string));
+  if (open.length > 0) return { kind: "open", dimension: open[0]! };
+  return { kind: "all_met", missed: presented.filter((s) => s.metOnTime === false).length };
+}
+
+export type ReviewSlaDimensionOutcome =
+  | { kind: "met"; completedAtUtc: string }
+  | { kind: "missed"; completedAtUtc: string; lateByMs: number }
+  /** Completed with no deadline to compare against. */
+  | { kind: "done"; completedAtUtc: string }
+  | { kind: "open"; dueAtUtc: string; timeRemainingMs: number }
+  | { kind: "due_soon"; dueAtUtc: string; timeRemainingMs: number }
+  | { kind: "overdue"; dueAtUtc: string; overdueByMs: number }
+  | { kind: "paused"; dueAtUtc: string | null };
+
+/**
+ * T-043 (stage C) — what a dimension says. "met" only when the fact happened on
+ * or before the deadline, with the fact's time; a late fact is "missed" with the
+ * lateness; an open dimension carries its deadline.
+ */
+export function reviewSlaDimensionOutcome(
+  s: ReviewSlaDimensionSnapshot,
+): ReviewSlaDimensionOutcome {
+  if (s.completedAtUtc) {
+    if (s.dueAtUtc === null || s.metOnTime === null) {
+      return { kind: "done", completedAtUtc: s.completedAtUtc };
+    }
+    if (s.metOnTime) return { kind: "met", completedAtUtc: s.completedAtUtc };
+    return {
+      kind: "missed",
+      completedAtUtc: s.completedAtUtc,
+      lateByMs: Date.parse(s.completedAtUtc) - Date.parse(s.dueAtUtc),
+    };
+  }
+  if (s.state === "PAUSED") return { kind: "paused", dueAtUtc: s.dueAtUtc };
+  const due = s.dueAtUtc as string;
+  const remaining = s.timeRemainingMs ?? 0;
+  if (s.state === "BREACHED") return { kind: "overdue", dueAtUtc: due, overdueByMs: -remaining };
+  if (s.state === "DUE_SOON") return { kind: "due_soon", dueAtUtc: due, timeRemainingMs: remaining };
+  return { kind: "open", dueAtUtc: due, timeRemainingMs: remaining };
 }
 
 // -----------------------------------------------------------------------------
@@ -486,7 +715,14 @@ export type ReviewSlaRowFacts = {
   assignmentDueAtUtc?: Date | null;
   assignedAtUtc?: Date | null;
   firstResponseDueAtUtc?: Date | null;
+  /**
+   * The last reviewer touch (Start writes it). NOT a first review: the
+   * presented first-review dimension completes on `firstDecidedAtUtc` (T-044).
+   * Read only by the stored-status mapping, whose semantics stay stable.
+   */
   lastReviewedAt?: Date | null;
+  /** When the review's first decision was recorded (any round). */
+  firstDecidedAtUtc?: Date | null;
   /** The review's deadline. An operator-typed date wins over the stamped one. */
   dueAt?: Date | null;
   completionDueAtUtc?: Date | null;
@@ -498,6 +734,16 @@ export type ReviewSlaRowFacts = {
   slaDueSoonHours?: number | null;
 };
 
+/**
+ * T-168 / T-043 / T-044 (stage C) — the PRESENTED reading of a row's SLA facts.
+ *
+ *  - First review completes on the first recorded decision (`firstDecidedAtUtc`),
+ *    or when the review finished without one. Start (`lastReviewedAt`) is not a
+ *    first review.
+ *  - The ESCALATION dimension is the engine's automatic-escalation trigger. Its
+ *    "completion" is the review being escalated or finished; it is computed for
+ *    compatibility but never presented and never rolled up (T-045).
+ */
 export function reviewSlaInputFromRow(
   row: ReviewSlaRowFacts,
   opts: { nowUtc?: Date; hasOpenEscalation?: boolean; dueSoonHours?: number } = {},
@@ -512,14 +758,39 @@ export function reviewSlaInputFromRow(
     assignmentDueAtUtc: row.assignmentDueAtUtc ?? null,
     assignedAtUtc: row.assignedAtUtc ?? finishedAt,
     firstReviewDueAtUtc: row.firstResponseDueAtUtc ?? null,
-    firstReviewedAtUtc: row.lastReviewedAt ?? finishedAt,
+    firstReviewedAtUtc: row.firstDecidedAtUtc ?? finishedAt,
     completionDueAtUtc: row.dueAt ?? row.completionDueAtUtc ?? null,
     completedAtUtc: finishedAt,
     escalationDueAtUtc: row.escalationDueAtUtc ?? null,
-    // The escalation deadline is met once the review is escalated or finished.
     escalationResolvedAtUtc: row.escalatedAtUtc ?? finishedAt,
     dueSoonMinutes: dueSoonHours * 60,
   };
+}
+
+/**
+ * The STORED reading (`slaStatus`, read by the queues, counts, reminders and the
+ * breach sweep). Its semantics are deliberately unchanged by stage C (CONSUMER-MAP
+ * M12): first review still counts the reviewer's first touch and the escalation
+ * trigger still participates. Never used for what a reader is shown.
+ */
+function storedReviewSlaInputFromRow(
+  row: ReviewSlaRowFacts,
+  opts: { nowUtc?: Date; dueSoonHours?: number },
+): ReviewSlaComputationInput {
+  const presented = reviewSlaInputFromRow(row, opts);
+  const finishedAt = row.completedAtUtc ?? row.closedAt ?? null;
+  return { ...presented, firstReviewedAtUtc: row.lastReviewedAt ?? finishedAt };
+}
+
+/** Stored-status rollup: every dimension, as before stage C. */
+function rollupAllDimensions(
+  snapshots: ReadonlyArray<ReviewSlaDimensionSnapshot>,
+): ReviewerOpsSlaState {
+  if (snapshots.length === 0) return "HEALTHY";
+  for (const s of SLA_SEVERITY_ORDER) {
+    if (snapshots.some((x) => x.state === s)) return s;
+  }
+  return "HEALTHY";
 }
 
 /** True when the row carries at least one deadline. */
@@ -545,10 +816,8 @@ export function storedReviewSlaStatus(
 ): StoredReviewSlaStatus | null {
   if (!reviewRowHasDeadline(row)) return null;
   // An open escalation changes the badge's wording, never the timing.
-  const snapshots = computeReviewerOpsSlaSnapshot(
-    reviewSlaInputFromRow(row, { ...opts, hasOpenEscalation: false }),
-  );
-  switch (rollupReviewerOpsSlaState(snapshots)) {
+  const snapshots = computeReviewerOpsSlaSnapshot(storedReviewSlaInputFromRow(row, opts));
+  switch (rollupAllDimensions(snapshots)) {
     case "BREACHED":
       return "BREACHED";
     case "DUE_SOON":

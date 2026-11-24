@@ -247,9 +247,10 @@ test("listAllowedEscalationStatusTransitions returns the matrix row", () => {
 // deriveLifecycleState
 // -----------------------------------------------------------------------------
 
-test("deriveLifecycleState: open escalation always wins", () => {
+test("deriveLifecycleState: open escalation wins over an OPEN stage only (stage C T-051)", () => {
   assert.equal(deriveLifecycleState("IN_REVIEW", true), "ESCALATED");
-  assert.equal(deriveLifecycleState("APPROVED_INTERNAL", true), "ESCALATED");
+  // A finished review is never "Escalated" because of a lingering escalation.
+  assert.equal(deriveLifecycleState("APPROVED_INTERNAL", true), "APPROVED");
 });
 
 test("deriveLifecycleState: maps Phase 13 stages to Phase 25 lifecycle states", () => {
@@ -319,7 +320,7 @@ test("SLA snapshot: PAUSED overrides everything except COMPLETED", () => {
   assert.equal(s?.state, "PAUSED");
 });
 
-test("SLA snapshot: open escalation promotes FIRST_REVIEW + COMPLETION to ESCALATED", () => {
+test("SLA snapshot: an open escalation is not a deadline state (stage C T-045)", () => {
   const snaps = computeReviewerOpsSlaSnapshot({
     nowUtc: NOW,
     hasOpenEscalation: true,
@@ -330,8 +331,8 @@ test("SLA snapshot: open escalation promotes FIRST_REVIEW + COMPLETION to ESCALA
   });
   const fr = snaps.find((x) => x.dimension === "FIRST_REVIEW");
   const co = snaps.find((x) => x.dimension === "COMPLETION");
-  assert.equal(fr?.state, "ESCALATED");
-  assert.equal(co?.state, "ESCALATED");
+  assert.equal(fr?.state, "DUE_SOON");
+  assert.equal(co?.state, "HEALTHY");
 });
 
 test("SLA snapshot: HEALTHY when dueAt not set (no SLA configured)", () => {
@@ -349,8 +350,8 @@ test("SLA snapshot: HEALTHY when dueAt not set (no SLA configured)", () => {
 test("rollupReviewerOpsSlaState: BREACHED wins over DUE_SOON + HEALTHY", () => {
   const r = rollupReviewerOpsSlaState([
     { dimension: "ASSIGNMENT", dueAtUtc: null, dueSoonAtUtc: null, state: "HEALTHY", timeRemainingMs: null, breachDurationMs: null },
-    { dimension: "FIRST_REVIEW", dueAtUtc: null, dueSoonAtUtc: null, state: "DUE_SOON", timeRemainingMs: null, breachDurationMs: null },
-    { dimension: "COMPLETION", dueAtUtc: null, dueSoonAtUtc: null, state: "BREACHED", timeRemainingMs: null, breachDurationMs: null },
+    { dimension: "FIRST_REVIEW", dueAtUtc: "2026-01-01T00:00:00.000Z", dueSoonAtUtc: null, state: "DUE_SOON", timeRemainingMs: null, breachDurationMs: null },
+    { dimension: "COMPLETION", dueAtUtc: "2026-01-01T00:00:00.000Z", dueSoonAtUtc: null, state: "BREACHED", timeRemainingMs: null, breachDurationMs: null },
   ]);
   assert.equal(r, "BREACHED");
 });
