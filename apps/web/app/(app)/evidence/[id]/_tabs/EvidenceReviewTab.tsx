@@ -297,6 +297,13 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           viewerUserId={workspace.reviewWorkflow.viewerUserId ?? null}
           availableActions={workspace.reviewWorkflow.availableActions}
           workflowUpdatedAt={workspace.reviewWorkflow.updatedAt ?? null}
+          // T-008 — where reviewer operations are included, the Review page is
+          // the one place to decide; this panel links there (Pro keeps the panel).
+          reviewPageHref={
+            canSeeReviewerOps && workspace.reviewWorkflow.id
+              ? `/reviewer-ops/${encodeURIComponent(workspace.reviewWorkflow.id)}`
+              : null
+          }
           // THE AUTHORITATIVE RE-READ: the record (status, owner, available
           // actions) AND the history — it used to reload only the history, so
           // the panel kept showing the state from before the click.

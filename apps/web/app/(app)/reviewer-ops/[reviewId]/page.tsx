@@ -76,30 +76,28 @@ import { ARTIFACT_WINDOW_BLOCKED_MESSAGE, openPendingArtifactWindow } from "../.
 import { recordReference } from "../../../../lib/short-id";
 import { CopyIdButton } from "./_components/CopyIdButton";
 import { DECISION_ANCHOR_ID, InspectorActions } from "./_components/InspectorActions";
-import { DecisionForm, type DecisionFocusRequest, type DecisionSubmitBody } from "./_components/DecisionPanel";
+import { type DecisionFocusRequest, type DecisionSubmitBody } from "./_components/DecisionPanel";
+import {
+  ReviewerDecisionLineagePanel,
+  refusalMessage,
+  type DecisionsSummary,
+} from "./_components/DecisionLineagePanel";
 import { ArchiveDialog, EscalateDialog, ReassignDialog, type EscalateInput } from "./_components/InspectorDialogs";
 import { HandoffBanner, handoffAwaitsManager, type ReviewHandoff } from "./_components/HandoffBanner";
 import {
-  DECISION_KIND_LABELS,
-  REASON_CODE_LABELS,
-  SECOND_REVIEW_TRIGGER_LABELS,
-  STAGE_LABELS,
   VERDICT_ACTION,
   VERDICT_CHOICES,
   deriveActions,
   describeOutcome,
-  describeRefusal,
   headerSlaLabel,
   lifecycleLabel,
   nextStepPrimary,
   slaDimensionLabel,
   slaStateLabel,
-  teamRoleLabel,
   type ActionMap,
   type DecisionOutcome,
   type LifecycleActionKind,
   type LifecycleState,
-  type Refusal,
   type SlaState,
   type Viewer,
   type ViewerActionName,
@@ -186,56 +184,12 @@ type WorkspaceResponse = {
  */
 type ReviewerOpsAction = "start" | "pause" | "resume" | "response-received";
 
-/** What the decision lineage panel last read, lifted for the page. */
-type DecisionsSummary = {
-  state: ReviewState;
-  secondRequired: boolean;
-  nextAction: NextAction;
-  teamRole: string | null;
-  decisions: DecisionRow[];
-};
-
-/**
- * Read a refusal from a thrown apiFetch error.
- *
- * ApiError carries the nested envelope (`err.body?.error?.code`,
- * `details.reason`); a lost answer is a plain Error with code NETWORK_ERROR.
- */
-function readRefusal(err: unknown): Refusal {
-  const e = (err ?? {}) as {
-    statusCode?: number;
-    code?: string;
-    details?: { reason?: unknown } | null;
-    flatReason?: string;
-    body?: { error?: { code?: string; reason?: string; details?: { reason?: unknown } | null } };
-  };
-  const code = e.body?.error?.code ?? e.code ?? null;
-  const rawReason =
-    e.details?.reason ?? e.body?.error?.details?.reason ?? e.body?.error?.reason ?? e.flatReason ?? null;
-  return {
-    status: typeof e.statusCode === "number" ? e.statusCode : 0,
-    code: typeof code === "string" ? code : null,
-    reason: typeof rawReason === "string" ? rawReason : null,
-  };
-}
-
-function refusalMessage(err: unknown, fallback: string): string {
-  if (isPlanRefusal(err)) return PLAN_REFUSAL_COPY;
-  const refusal = readRefusal(err);
-  const mapped = describeRefusal(refusal, "");
-  return mapped || toSafeUserError(err, { message: fallback }).message;
-}
-
 /** Stable (module-level) so the reassign dialog's load effect does not refire. */
 function reassignRefusalMessage(err: unknown): string {
   return refusalMessage(err, "The review could not be reassigned. Nothing was changed.");
 }
 
 const STEP_UP_CANCELLED = "Identity confirmation was cancelled. Nothing was recorded.";
-
-function reviewerName(r: { userId: string; email: string | null; displayName: string | null }): string {
-  return r.displayName || r.email || recordReference("Reviewer", r.userId);
-}
 
 const ACTION_ROUTE: Record<"start" | "pause" | "resume" | "record_response", ReviewerOpsAction> = {
   start: "start",
@@ -554,32 +508,22 @@ function ReviewWorkspacePageInner() {
   );
 
   /**
-   * Archive — the review-ops bulk door with this one review (CLOSE ends the
-   * workflow and keeps whatever the round decided; it is never a verdict).
-   * There is no single-review archive route; the bulk door answers a 207 with
-   * a per-row refusal, read here.
+   * Archive — the single-review archive route (T-161): CLOSE ends the workflow
+   * and keeps whatever the round decided; it is never a verdict and never a
+   * bulk triage. The Close guard refuses it while a second review or an
+   * adjudication is pending.
    */
   const postArchive = useCallback(
     async (note: string): Promise<string | null> => {
       if (!teamId) return "No active workspace.";
       try {
-        const resp = (await stepUp.runStepUpAction((headers) =>
-          apiFetch("/v1/reviewer-ops/reviews/bulk", {
+        await stepUp.runStepUpAction((headers) =>
+          apiFetch(`/v1/reviewer-ops/reviews/${encodeURIComponent(workflowId)}/archive`, {
             method: "POST",
             headers: { "Content-Type": "application/json", ...(headers ?? {}) },
-            body: JSON.stringify({
-              teamId,
-              workflowIds: [workflowId],
-              action: "CLOSE",
-              ...(note ? { note } : {}),
-            }),
+            body: JSON.stringify({ teamId, ...(note ? { note } : {}) }),
           }),
-        )) as { failed?: number; items?: Array<{ ok: boolean; errorCode?: string; message?: string }> } | null;
-        const row = resp?.items?.[0];
-        if ((resp?.failed ?? 0) > 0 || (row && row.ok === false)) {
-          reloadAll();
-          return row?.message || "The review could not be archived. Nothing was changed.";
-        }
+        );
         setError(null);
         setNotice("Review archived.");
         setDialog(null);
@@ -587,10 +531,48 @@ function ReviewWorkspacePageInner() {
         return null;
       } catch (err) {
         if (isStepUpCancelled(err)) return "Identity confirmation was cancelled. The review was not archived.";
+        reloadAll();
         return refusalMessage(err, "The review could not be archived. Nothing was changed.");
       }
     },
     [teamId, workflowId, reloadAll, stepUp],
+  );
+
+  /**
+   * Reopen (T-009) — the same lifecycle transition the Evidence page uses
+   * (a finished review moves to Reopened and the next decision opens a new
+   * round), through the same door and its gate. Resolves true on success.
+   */
+  const postReopen = useCallback(
+    async (note: string): Promise<boolean> => {
+      if (!data) return false;
+      setDialogError(null);
+      setBusy("reopen");
+      try {
+        await stepUp.runStepUpAction((headers) =>
+          apiFetch(`/v1/review-operations/evidence/${encodeURIComponent(data.projection.evidenceId)}/decision`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...(headers ?? {}) },
+            body: JSON.stringify({ decision: "REOPEN", note }),
+          }),
+        );
+        setError(null);
+        setNotice("Review reopened. The next decision starts a new round.");
+        reloadAll();
+        return true;
+      } catch (err) {
+        setDialogError(
+          isStepUpCancelled(err)
+            ? "Identity confirmation was cancelled. The review was not reopened."
+            : refusalMessage(err, "The review could not be reopened. Nothing was changed."),
+        );
+        reloadAll();
+        return false;
+      } finally {
+        setBusy(null);
+      }
+    },
+    [data, reloadAll, stepUp],
   );
 
   const openReason = useCallback((kind: ReviewerReasonKind) => {
@@ -646,8 +628,11 @@ function ReviewWorkspacePageInner() {
   const mayReassign = Boolean(data.viewer && actions.reassign.allowed);
   const handoffAssign = handoffAwaitsManager(data.handoff, mayReassign);
   const primary = nextStepPrimary({ actions, mayDecide, mayAdjudicate, handoffAssign });
+  // T-019 — the server's viewer.actions.escalate decides when present; an
+  // older API falls back to the envelope rule.
   const canEscalate =
     envelopeMayEscalate && !TERMINAL_LIFECYCLE.includes(p.lifecycleState) && !data.openEscalation;
+  const escalationForcesIndependence = data.viewer?.escalationForcesIndependentReview ?? true;
 
   return (
     <PageShell
@@ -803,6 +788,7 @@ function ReviewWorkspacePageInner() {
           assign_second_reviewer: () => setDialog("assign_second_reviewer"),
           escalate: () => setDialog("escalate"),
           archive: () => setDialog("archive"),
+          reopen: () => openReason("REOPEN"),
           go_to_decision: () => goToDecision(null),
         }}
       />
@@ -957,6 +943,8 @@ function ReviewWorkspacePageInner() {
           let ok = false;
           if (reasonModal === "PAUSE") {
             ok = await post("pause", { pausedReason: reason }, { inDialog: true });
+          } else if (reasonModal === "REOPEN") {
+            ok = await postReopen(reason);
           } else if (reasonModal === "RECORD_RESPONSE") {
             ok = await post(
               "record_response",
@@ -983,7 +971,12 @@ function ReviewWorkspacePageInner() {
         onSubmit={(userId) => postReassign(userId, dialog === "assign_second_reviewer")}
         describeError={reassignRefusalMessage}
       />
-      <EscalateDialog open={dialog === "escalate"} onCancel={() => setDialog(null)} onSubmit={postEscalate} />
+      <EscalateDialog
+        open={dialog === "escalate"}
+        onCancel={() => setDialog(null)}
+        onSubmit={postEscalate}
+        forcesIndependentReview={escalationForcesIndependence}
+      />
       <ArchiveDialog open={dialog === "archive"} onCancel={() => setDialog(null)} onSubmit={postArchive} />
 
       {/* Step-up — dormant until a verdict, escalation or archive meets the
@@ -1629,427 +1622,5 @@ function FilterChip({
     >
       {label} <span className="app-tab__count">{count}</span>
     </button>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Phase B.2 — Multi-stage review governance panel.
-//
-// Wired to:
-//   GET  /v1/reviewer-ops/workspace/:workflowId/decisions?teamId=<uuid>
-//   POST /v1/reviewer-ops/workspace/:workflowId/decisions
-//        body: { teamId, decision, reasonCode?, rationale }
-//
-// The API enforces every state-machine transition (first → second →
-// adjudication), the same-reviewer guard, and the adjudicator role
-// check. The UI mirrors the server's `callerContext.nextAction` to
-// disable / enable the submit controls. Disabled states always
-// explain WHY ("blocked: you submitted the FIRST decision",
-// "blocked: only team OWNER/ADMIN can adjudicate", "no action: the
-// review is already resolved").
-//
-// Decision lineage is rendered as a sequence card so reviewers see
-// every prior decision (stage + reviewer + decision + reason +
-// rationale + timestamp). Decisions cannot be edited or deleted —
-// the audit chain is the truth.
-// ---------------------------------------------------------------------------
-
-//
-// TEAM-UI-SPEC §2 — this panel is the ONE decision entry: "Record decision"
-// (FIRST / SECOND) and, in conflict, "Adjudication" — the same panel and the
-// same form (`DecisionForm`), never a second UI.
-
-type DecisionKind =
-  | "APPROVE"
-  | "REJECT"
-  | "REQUEST_INFO"
-  | "UPHOLD_FIRST"
-  | "UPHOLD_SECOND"
-  | "NEEDS_MORE_INFO"
-  | "UNRESOLVED";
-
-type ReasonCode =
-  | "EVIDENCE_INCOMPLETE"
-  | "REPORT_FAILED"
-  | "INTEGRITY_CONCERN"
-  | "CUSTODY_CONCERN"
-  | "MISSING_CONTEXT"
-  | "LEGAL_HOLD_ISSUE"
-  | "REDACTION_REQUIRED"
-  | "REVIEWER_DISAGREEMENT"
-  | "OTHER";
-
-type ReviewState =
-  | "first_required"
-  | "second_required"
-  | "conflict_detected"
-  | "adjudication_required"
-  | "resolved";
-
-type NextAction =
-  | "submit_first"
-  | "submit_second"
-  | "submit_adjudication"
-  | "blocked_same_reviewer"
-  | "blocked_not_adjudicator"
-  | "no_action_resolved";
-
-type DecisionRow = {
-  id: string;
-  stage: "FIRST" | "SECOND" | "ADJUDICATION";
-  decision: DecisionKind;
-  reasonCode: ReasonCode | null;
-  rationale: string;
-  decidedAt: string;
-  reviewer: {
-    userId: string;
-    email: string | null;
-    displayName: string | null;
-  };
-};
-
-type DecisionsEnvelope = {
-  workflowId: string;
-  evidenceId: string;
-  state: ReviewState;
-  secondReviewRequirement: {
-    required: boolean;
-    reason: string | null;
-  };
-  callerContext: {
-    userId: string;
-    teamRole: string | null;
-    isAdjudicator: boolean;
-    callerIsFirstReviewer: boolean;
-    nextAction: NextAction;
-  };
-  decisions: DecisionRow[];
-};
-
-const STATE_LABELS: Record<ReviewState, string> = {
-  first_required: "First review required",
-  second_required: "Second review required",
-  conflict_detected: "The reviews disagree — adjudication needed",
-  adjudication_required: "Adjudication needed",
-  resolved: "Review resolved",
-};
-
-/** The state chip's tone, from the canonical chip set. */
-const STATE_CHIP: Record<ReviewState, string> = {
-  first_required: "app-chip",
-  second_required: "app-chip app-chip--warn",
-  conflict_detected: "app-chip app-chip--warn",
-  adjudication_required: "app-chip app-chip--warn",
-  resolved: "app-chip app-chip--ok",
-};
-
-function decisionChipClass(kind: string): string {
-  if (kind === "APPROVE" || kind === "UPHOLD_FIRST" || kind === "UPHOLD_SECOND") return "app-chip app-chip--ok";
-  if (kind === "REJECT") return "app-chip app-chip--warn";
-  return "app-chip";
-}
-
-function ReviewerDecisionLineagePanel({
-  workflowId,
-  teamId,
-  refreshKey = 0,
-  onLoaded,
-  onSubmitDecision,
-  actions,
-  mayDecide,
-  mayAdjudicate,
-  adjudicationBlockedReason,
-  focusRequest,
-}: {
-  workflowId: string;
-  teamId: string;
-  /** Bumped by the page after any action, so the lineage rereads. */
-  refreshKey?: number;
-  /** Lifts what was read, for the Next step panel and adjudication. */
-  onLoaded?: (summary: DecisionsSummary | null) => void;
-  /**
-   * The page's decisions POST (step-up, refusal mapping, reload of the
-   * workspace and this panel). Resolves to an error message, or null.
-   */
-  onSubmitDecision: (body: DecisionSubmitBody) => Promise<string | null>;
-  /** The server's action map: which verdict kinds are open now. */
-  actions: ActionMap;
-  /** The lineage asks this viewer for a FIRST / SECOND decision and one kind is open. */
-  mayDecide: boolean;
-  /** In conflict, and this viewer is an independent owner or admin. */
-  mayAdjudicate: boolean;
-  adjudicationBlockedReason: string | null;
-  focusRequest: DecisionFocusRequest | null;
-}) {
-  const [state, setState] = useState<
-    | { kind: "loading" }
-    | { kind: "ready"; data: DecisionsEnvelope }
-    | { kind: "error"; status: number; message: string }
-  >({ kind: "loading" });
-
-  // The page's lift callback, read through a ref so a new arrow on every
-  // page render does not re-run the load.
-  const onLoadedRef = useRef(onLoaded);
-  useEffect(() => {
-    onLoadedRef.current = onLoaded;
-  });
-
-  const load = useCallback(async () => {
-    // A refresh keeps the current lineage on screen instead of flashing to a
-    // loading state.
-    setState((prev) => (prev.kind === "ready" ? prev : { kind: "loading" }));
-    try {
-      const data = (await apiFetch(
-        `/v1/reviewer-ops/workspace/${encodeURIComponent(workflowId)}/decisions?teamId=${encodeURIComponent(teamId)}`,
-        { method: "GET" },
-      )) as DecisionsEnvelope;
-      setState({ kind: "ready", data });
-      onLoadedRef.current?.({
-        state: data.state,
-        secondRequired: Boolean(data.secondReviewRequirement?.required),
-        nextAction: data.callerContext.nextAction,
-        teamRole: data.callerContext.teamRole,
-        decisions: data.decisions,
-      });
-    } catch (err: unknown) {
-      const status =
-        typeof (err as { statusCode?: number }).statusCode === "number"
-          ? ((err as { statusCode: number }).statusCode)
-          : 0;
-      const message =
-        toSafeUserError(err, { message: "Could not load decisions." }).message;
-      setState({ kind: "error", status, message });
-      onLoadedRef.current?.(null);
-    }
-  }, [workflowId, teamId]);
-
-  useEffect(() => {
-    void load();
-  }, [load, refreshKey]);
-
-  const shell = (title: string, body: React.ReactNode, attrs: Record<string, string>) => (
-    <section
-      id={DECISION_ANCHOR_ID}
-      className="app-panel"
-      aria-labelledby="review-decision-title"
-      tabIndex={-1}
-      style={{ minWidth: 0 }}
-      data-section="reviewer-decision-lineage"
-      {...attrs}
-    >
-      <div className="app-panel__head">
-        <h3 id="review-decision-title" className="app-panel__title">
-          {title}
-        </h3>
-      </div>
-      <div className="app-panel__body" style={{ minWidth: 0 }}>
-        {body}
-      </div>
-    </section>
-  );
-
-  if (state.kind === "loading") {
-    return shell(
-      "Record decision",
-      <p className="app-field-help" style={{ margin: 0 }}>Loading review state…</p>,
-      { "data-decision-state": "loading" },
-    );
-  }
-
-  if (state.kind === "error") {
-    return shell(
-      "Record decision",
-      <p role="alert" className="app-field-error" style={{ margin: 0 }}>
-        {/* raw-identifier-ok: state.status here is the HTTP status number of a failed read */}
-        {state.status === 404
-          ? "Workflow not found in this workspace."
-          : state.status === 403
-            ? "You don't have permission to view review decisions."
-            : "Could not load decisions."}
-      </p>,
-      { "data-decision-state": "error" },
-    );
-  }
-
-  const data = state.data;
-  const nextAction = data.callerContext.nextAction;
-  const conflict = data.state === "conflict_detected" || data.state === "adjudication_required";
-  const formStage: "FIRST" | "SECOND" = nextAction === "submit_second" ? "SECOND" : "FIRST";
-  const trigger = data.secondReviewRequirement.reason;
-  const showDecisionForm = !conflict && mayDecide;
-  const showAdjudicationForm = conflict && mayAdjudicate;
-  // The one reason the verdict is closed, when the lineage asks for one.
-  const verdictClosedReason =
-    (nextAction === "submit_first" || nextAction === "submit_second") && !mayDecide
-      ? actions.approve.reason ?? actions.reject.reason ?? actions.request_info.reason ?? null
-      : null;
-
-  return (
-    <section
-      id={DECISION_ANCHOR_ID}
-      className="app-panel"
-      aria-labelledby="review-decision-title"
-      tabIndex={-1}
-      style={{ minWidth: 0 }}
-      data-section="reviewer-decision-lineage"
-      data-decision-state={data.state}
-      data-decision-next-action={nextAction}
-      data-decision-requires-second={
-        data.secondReviewRequirement.required ? "true" : "false"
-      }
-      data-decision-caller-is-first-reviewer={
-        data.callerContext.callerIsFirstReviewer ? "true" : "false"
-      }
-      data-decision-is-adjudicator={
-        data.callerContext.isAdjudicator ? "true" : "false"
-      }
-      {...(conflict ? { "data-decision-panel-mode": "adjudication" } : { "data-decision-panel-mode": "decision" })}
-    >
-      <div className="app-panel__head" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-        <h3 id="review-decision-title" className="app-panel__title" style={{ margin: 0 }}>
-          {conflict ? "Adjudication" : "Record decision"}
-        </h3>
-        <span data-decision-state-chip={data.state} className={STATE_CHIP[data.state] ?? "app-chip"}>
-          {STATE_LABELS[data.state] ?? "Review in progress"}
-        </span>
-      </div>
-      <div className="app-panel__body" style={{ display: "grid", gap: 12, minWidth: 0 }}>
-        {conflict ? (
-          <p className="app-field-help" data-section="reviewer-adjudication" style={{ margin: 0 }}>
-            The first and second reviews disagree. An owner or admin who made neither decision settles it here;
-            an approval or rejection cannot settle a disagreement.
-          </p>
-        ) : data.secondReviewRequirement.required ? (
-          <p className="app-field-help" data-decision-second-review-reason={trigger ?? undefined} style={{ margin: 0 }}>
-            A second review is required because{" "}
-            {(trigger && SECOND_REVIEW_TRIGGER_LABELS[trigger]) || "workspace policy requires it"}.
-          </p>
-        ) : (
-          <p className="app-field-help" style={{ margin: 0 }}>
-            One review decides this review (no policy requires a second review).
-          </p>
-        )}
-
-        {showDecisionForm ? (
-          <DecisionForm
-            mode="decision"
-            stage={formStage}
-            actions={actions}
-            reviewState={data.state}
-            secondRequired={Boolean(data.secondReviewRequirement.required)}
-            onSubmit={onSubmitDecision}
-            focusRequest={focusRequest}
-          />
-        ) : showAdjudicationForm ? (
-          <DecisionForm
-            mode="adjudication"
-            stage="SECOND"
-            actions={actions}
-            reviewState={data.state}
-            secondRequired
-            onSubmit={onSubmitDecision}
-            focusRequest={focusRequest}
-          />
-        ) : (
-          <p
-            className="app-field-help"
-            data-decision-blocked-banner={nextAction}
-            {...(conflict ? { "data-adjudication-blocked": "" } : {})}
-            style={{ margin: 0, overflowWrap: "anywhere" }}
-          >
-            {conflict
-              ? adjudicationBlockedReason ??
-                `Only a workspace owner or admin who made neither decision can adjudicate (your role: ${teamRoleLabel(
-                  data.callerContext.teamRole,
-                )}).`
-              : nextAction === "blocked_same_reviewer"
-                ? "A different reviewer must decide. You made the first decision, so the second review needs another reviewer."
-                : nextAction === "no_action_resolved"
-                  ? "Review resolved. No further decisions are accepted for this round."
-                  : verdictClosedReason ?? "No decision is open to you on this review right now."}
-          </p>
-        )}
-
-        {/* ---- decision lineage ---- */}
-        {data.decisions.length > 0 ? (
-          <div style={{ minWidth: 0 }}>
-            <p className="app-field-label" style={{ margin: "0 0 6px" }}>
-              Decision lineage ({data.decisions.length})
-            </p>
-            <ol
-              data-decision-lineage
-              data-decision-lineage-count={data.decisions.length}
-              {...(conflict ? { "data-adjudication-contested": "" } : {})}
-              style={{
-                listStyle: "none",
-                padding: 0,
-                margin: 0,
-                display: "grid",
-                gap: 6,
-              }}
-            >
-              {data.decisions.map((d, idx) => (
-                <li
-                  key={d.id}
-                  data-decision-row
-                  data-decision-stage={d.stage}
-                  data-decision-kind={d.decision}
-                  data-decision-reason-code={d.reasonCode ?? ""}
-                  data-decision-reviewer-id={d.reviewer.userId}
-                  className="app-inner-surface"
-                  style={{ padding: "0.5rem 0.7rem", minWidth: 0 }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      gap: 6,
-                      flexWrap: "wrap",
-                      fontSize: 12,
-                    }}
-                  >
-                    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>
-                      <span data-decision-stage-chip={d.stage} className="app-chip">
-                        #{idx + 1} · {STAGE_LABELS[d.stage] ?? identifierLabel(d.stage)}
-                      </span>
-                      <span data-decision-kind-chip={d.decision} className={decisionChipClass(d.decision)}>
-                        {DECISION_KIND_LABELS[d.decision] ?? identifierLabel(d.decision)}
-                      </span>
-                      {d.reasonCode ? (
-                        <span data-decision-reason-chip={d.reasonCode} className="app-chip">
-                          {REASON_CODE_LABELS[d.reasonCode] ?? identifierLabel(d.reasonCode)}
-                        </span>
-                      ) : null}
-                      <span style={{ fontWeight: 600, overflowWrap: "anywhere" }}>
-                        {reviewerName(d.reviewer)}
-                      </span>
-                    </div>
-                    <time dateTime={d.decidedAt} className="app-field-help" style={{ margin: 0 }}>
-                      {formatUserDateTime(d.decidedAt)}
-                    </time>
-                  </div>
-                  <div
-                    data-decision-rationale
-                    style={{
-                      fontSize: 13,
-                      marginTop: 4,
-                      whiteSpace: "pre-wrap",
-                      overflowWrap: "anywhere",
-                    }}
-                  >
-                    {d.rationale}
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </div>
-        ) : (
-          <p data-decision-lineage-empty className="app-field-help" style={{ margin: 0 }}>
-            No decisions recorded yet for this workflow.
-          </p>
-        )}
-      </div>
-    </section>
   );
 }

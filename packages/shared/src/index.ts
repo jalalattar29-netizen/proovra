@@ -2881,6 +2881,8 @@ export * from "./review-workflow-presentation.js";
 export * from "./evidence-protection-presentation.js";
 // 2026-10-23 — review decision state, shared by the authority and the page.
 export * from "./review-decision-state.js";
+// Team remediation (2026-11-24) — the one outcome / refusal copy for review decisions.
+export * from "./review-decision-copy.js";
 export * from "./review-event-taxonomy.js";
 
 // Members audit SEC-08 — share-grant lifetimes (owner links, external review).

@@ -58,7 +58,7 @@ vi.mock("next/navigation", () => ({
 
 type Action = { action: string; allowed: boolean; reason?: string };
 
-const ALL = ["start", "pause", "resume", "request_info", "record_response", "approve", "reject", "reassign", "adjudicate", "archive"];
+const ALL = ["start", "pause", "resume", "request_info", "record_response", "approve", "reject", "reassign", "adjudicate", "archive", "reopen", "escalate"];
 
 function viewerWith(allowed: string[], reasons: Record<string, string> = {}, isAssignee = true) {
   const actions: Action[] = ALL.map((a) =>
@@ -135,7 +135,8 @@ const notesPath = `/v1/reviewer-ops/workspace/${workflowId}/notes?teamId=${teamI
 const actionPath = (a: string) => `/v1/reviewer-ops/reviews/${workflowId}/${a}`;
 const decisionsPostPath = `/v1/reviewer-ops/workspace/${workflowId}/decisions`;
 const escalationsPath = "/v1/reviewer-ops/escalations";
-const bulkPath = "/v1/reviewer-ops/reviews/bulk";
+// Team remediation T-161 — a single Archive has its own route (never the bulk door).
+const archivePath = `/v1/reviewer-ops/reviews/${workflowId}/archive`;
 const stepUpStartPath = "/v1/identity-security/step-up/start";
 
 const gets = (path: string) => calls.filter((c) => c.method === "GET" && c.path === path).length;
@@ -144,7 +145,8 @@ const posts = (path: string) => calls.filter((c) => c.method === "POST" && c.pat
 beforeEach(() => {
   mocks.canEscalate = true;
   mocks.canBulk = true;
-  workspace = workspaceBody({ viewer: viewerWith(["approve", "reject", "request_info", "pause"], { "*": "not_started" }) });
+  // T-019 — Escalate is offered where the server's viewer.actions says so.
+  workspace = workspaceBody({ viewer: viewerWith(["approve", "reject", "request_info", "pause", "escalate"], { "*": "not_started" }) });
   decisions = decisionsBody("first_required", "submit_first");
   postResponses = {};
   calls.length = 0;
@@ -512,7 +514,7 @@ describe("Next step panel", () => {
   });
 
   it("secondary actions appear only where allowed: Pause, Reassign, Escalate, Archive", async () => {
-    workspace = workspaceBody({ viewer: viewerWith(["pause", "reassign", "archive"], { "*": "not_assignee" }, false) });
+    workspace = workspaceBody({ viewer: viewerWith(["pause", "reassign", "archive", "escalate"], { "*": "not_assignee" }, false) });
     await renderPage();
     const secondary = document.querySelector("[data-reviewer-next-step-secondary]") as HTMLElement;
     const names = Array.from(secondary.querySelectorAll("[data-reviewer-action]")).map((b) => b.getAttribute("data-reviewer-action"));
@@ -555,7 +557,7 @@ describe("Next step panel", () => {
 
   it("Archive opens a confirm whose confirm button is app-danger-action", async () => {
     workspace = workspaceBody({ viewer: viewerWith(["archive"], { "*": "not_assignee" }, false) });
-    postResponses[bulkPath] = () => json(200, { succeeded: 1, failed: 0, items: [{ workflowId, ok: true }] });
+    postResponses[archivePath] = () => json(200, { projection: {} });
     await renderPage();
     fireEvent.click(action("archive")!);
     const dialog = await screen.findByRole("dialog", { name: "Archive this review?" });
@@ -564,18 +566,20 @@ describe("Next step panel", () => {
     expect(within(dialog).queryAllByRole("button").filter((b) => b.classList.contains("app-primary-action"))).toHaveLength(0);
     fireEvent.click(confirm);
     await screen.findByText("Review archived.");
-    expect(posts(bulkPath)[0]!.body).toEqual({ teamId, workflowIds: [workflowId], action: "CLOSE" });
+    expect(posts(archivePath)[0]!.body).toEqual({ teamId });
   });
 
   it("an archive refused row stays in the dialog", async () => {
     workspace = workspaceBody({ viewer: viewerWith(["archive"], { "*": "not_assignee" }, false) });
-    postResponses[bulkPath] = () =>
-      json(207, { succeeded: 0, failed: 1, items: [{ workflowId, ok: false, errorCode: "REVIEW_TRANSITION_INVALID", message: "This review cannot be closed now." }] });
+    postResponses[archivePath] = () =>
+      json(409, { error: { code: "REVIEW_INVALID_TRANSITION", details: { reason: "second_review_pending" } } });
     await renderPage();
     fireEvent.click(action("archive")!);
     const dialog = await screen.findByRole("dialog", { name: "Archive this review?" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Archive review" }));
-    expect((await within(dialog).findByRole("alert")).textContent).toBe("This review cannot be closed now.");
+    expect((await within(dialog).findByRole("alert")).textContent).toBe(
+      "A second review or adjudication is still pending, so this review cannot be closed yet.",
+    );
   });
 
   it("an older API without viewer falls back to the lifecycle rule", async () => {

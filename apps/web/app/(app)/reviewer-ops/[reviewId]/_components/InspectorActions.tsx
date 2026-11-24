@@ -40,6 +40,8 @@ export type NextStepHandlers = {
   assign_second_reviewer: () => void;
   escalate: () => void;
   archive: () => void;
+  /** T-009 — reopen a finished review (same transition as the Evidence page). */
+  reopen?: () => void;
   /** Focus the decision panel (Go to decision / Go to adjudication). */
   go_to_decision: () => void;
 };
@@ -90,7 +92,13 @@ export function InspectorActions({
       : null;
   const showReassign = actions.reassign.allowed && primary !== "assign_second_reviewer";
   const showArchive = actions.archive.allowed && canArchive;
-  const anything = primary !== null || pauseSlot !== null || showReassign || canEscalate || showArchive;
+  // T-019 — Escalate is offered where the SERVER says this viewer may raise
+  // one (an older API without the action falls back to the envelope).
+  const showEscalate = fromViewer ? actions.escalate.allowed : canEscalate;
+  // T-009 — Reopen on the Review page.
+  const showReopen = actions.reopen.allowed && !!handlers.reopen;
+  const anything =
+    primary !== null || pauseSlot !== null || showReassign || showEscalate || showArchive || showReopen;
   const disabled = busy !== null;
 
   return (
@@ -152,7 +160,7 @@ export function InspectorActions({
           </div>
         ) : null}
 
-        {pauseSlot !== null || showReassign || canEscalate || showArchive ? (
+        {pauseSlot !== null || showReassign || showEscalate || showArchive || showReopen ? (
           <div data-reviewer-next-step-secondary className="review-next-step__group">
             {pauseSlot ? (
               <button
@@ -180,7 +188,20 @@ export function InspectorActions({
                 Reassign
               </button>
             ) : null}
-            {canEscalate ? (
+            {showReopen ? (
+              <button
+                type="button"
+                className="app-secondary-action"
+                disabled={disabled}
+                aria-busy={busy === "reopen" || undefined}
+                onClick={handlers.reopen}
+                data-reviewer-action="reopen"
+                data-reviewer-action-allowed="true"
+              >
+                {busy === "reopen" ? "Working…" : ACTION_LABELS.reopen}
+              </button>
+            ) : null}
+            {showEscalate ? (
               <button
                 type="button"
                 className="app-secondary-action"

@@ -193,19 +193,20 @@ test("createEscalation body carries workflowId + reason + safeSummary", () => {
 // 3. workspace/page.tsx imports the helpers and wires them.
 // ---------------------------------------------------------------------------
 
-test("page.tsx imports all four lifecycle helpers from reviewer-api", () => {
-  for (const name of [
-    "approveReview",
-    "rejectReview",
-    "requestInfoReview",
-    "createEscalation",
-  ]) {
-    assert.match(
+// Team remediation T-001 (2026-11-24) — focus mode records verdicts through
+// the Review page's decision component and the canonical door. The legacy
+// approve / reject / request-info helpers (and the hard-coded escalation) must
+// never come back into the page.
+test("page.tsx imports NONE of the legacy verdict helpers and mounts the shared decision column", () => {
+  for (const name of ["approveReview", "rejectReview", "requestInfoReview", "createEscalation"]) {
+    assert.doesNotMatch(
       PAGE_SOURCE,
       new RegExp(`\\b${name}\\b`),
-      `workspace/page.tsx must reference the lifecycle helper ${name}.`,
+      `workspace/page.tsx must not use the legacy helper ${name} (T-001).`,
     );
   }
+  assert.doesNotMatch(PAGE_SOURCE, /WORKFLOW_STALLED/, "no hard-coded escalation reason (T-006)");
+  assert.match(PAGE_SOURCE, /<FocusDecisionColumn[\s\S]{0,200}?teamId=\{teamId\}/);
 });
 
 test("page.tsx resolves teamId via the canonical useActiveSpaceId hook", () => {
@@ -223,26 +224,6 @@ test("page.tsx resolves teamId via the canonical useActiveSpaceId hook", () => {
     /const\s+teamId\s*=\s*useActiveSpaceId\(\)/,
     "workspace/page.tsx must call useActiveSpaceId() inside the shell.",
   );
-});
-
-test("page.tsx invokes each lifecycle helper with the resolved teamId", () => {
-  for (const name of [
-    "approveReview",
-    "rejectReview",
-    "requestInfoReview",
-    "createEscalation",
-  ]) {
-    // Each call must thread `teamId` into the helper's input object.
-    const callRe = new RegExp(
-      `${name}\\(\\s*\\{[\\s\\S]{0,400}?teamId\\s*[,:}]`,
-    );
-    assert.match(
-      PAGE_SOURCE,
-      callRe,
-      `workspace/page.tsx must call ${name}({ ..., teamId, ... }) so ` +
-        `the canonical reviewer-ops endpoint can scope to the workspace.`,
-    );
-  }
 });
 
 // ---------------------------------------------------------------------------
@@ -263,53 +244,20 @@ test("page.tsx no longer uses window.prompt for reason-bearing decisions", () =>
   );
 });
 
-test("page.tsx defines and renders the inline ReasonForm", () => {
-  assert.match(
-    PAGE_SOURCE,
-    /function ReasonForm\s*\(/,
-    "workspace/page.tsx must define a ReasonForm component.",
-  );
-  assert.match(
-    PAGE_SOURCE,
-    /<ReasonForm[\s\S]{0,400}?onSubmit=\{submitReasonForm\}[\s\S]{0,200}?onCancel=\{cancelReasonForm\}/,
-    "workspace/page.tsx must render <ReasonForm> wired to " +
-      "submitReasonForm / cancelReasonForm.",
-  );
+// Team remediation T-002 — the inline ReasonForm (which dropped the typed
+// reason before the server answered) is gone; the shared decision form keeps
+// the text and shows a refusal beside its controls (render-tested in
+// __tests__/render/team-rem-a-decision-surfaces.render.test.tsx).
+test("page.tsx has no inline ReasonForm and no ribbon result for a decision", () => {
+  assert.doesNotMatch(PAGE_SOURCE, /function ReasonForm\s*\(/);
+  assert.doesNotMatch(PAGE_SOURCE, /setStatusBanner\(`Workflow/);
+  assert.match(PAGE_SOURCE, /data-focus-decision-notice/);
 });
 
-// ---------------------------------------------------------------------------
-// 5. Partial-failure banner & no advance on failure.
-// ---------------------------------------------------------------------------
-
-test("page.tsx surfaces a clear partial-failure banner when lifecycle fails", () => {
-  // The literal copy 'workflow not closed' lets operators recognise
-  // the partial state. If a future contributor swaps this for a
-  // generic 'success' message, the test fails.
-  assert.match(
-    PAGE_SOURCE,
-    /workflow not closed/i,
-    "workspace/page.tsx must surface a banner containing 'workflow " +
-      "not closed' when the lifecycle endpoint fails — never a fake " +
-      "success.",
-  );
-});
-
-test("page.tsx does NOT advance the workspace pointer on lifecycle failure", () => {
-  // After classifying the lifecycle result, the failure branch must
-  // return early before calling advanceToNext. We assert by locating
-  // `if (!res.ok)` and confirming `advanceToNext` is NOT called
-  // inside the same branch.
-  const failureBranch = PAGE_SOURCE.match(/if\s*\(!res\.ok\)\s*\{[\s\S]{0,600}?\n\s*\}/);
-  assert.ok(
-    failureBranch,
-    "Expected a `if (!res.ok)` branch in the lifecycle handler.",
-  );
-  assert.doesNotMatch(
-    failureBranch![0],
-    /advanceToNext/,
-    "The lifecycle failure branch must NOT call advanceToNext() — that " +
-      "would hide partial failure by skipping to the next item.",
-  );
+test("page.tsx advances only after a decision that moved the review (never on a refusal)", () => {
+  const handler = PAGE_SOURCE.match(/const onDecided = useCallback\([\s\S]{0,1400}?\n  \);/);
+  assert.ok(handler, "Expected the onDecided handler.");
+  assert.match(handler![0], /if \(moved\) await advanceToNext\(\)/);
 });
 
 // ---------------------------------------------------------------------------

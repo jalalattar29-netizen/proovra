@@ -35,7 +35,9 @@ export type ReviewerReasonKind =
   | "RECORD_RESPONSE"
   | "ESCALATION_REASSIGN"
   | "ESCALATION_RESOLVE"
-  | "ESCALATION_SUPPRESS";
+  | "ESCALATION_SUPPRESS"
+  // Team remediation T-009 — Reopen on the Review page.
+  | "REOPEN";
 
 type ReviewerReasonModalConfig = {
   kind: ReviewerReasonKind;
@@ -53,6 +55,15 @@ type ReviewerReasonModalConfig = {
 };
 
 const CONFIG: Record<ReviewerReasonKind, ReviewerReasonModalConfig> = {
+  REOPEN: {
+    kind: "REOPEN",
+    title: "Reopen this review",
+    description:
+      "Reopening starts a new review round. The earlier decisions stay in the history; the reason is recorded and visible to your workspace.",
+    fieldLabel: "Reason for reopening",
+    placeholder: "For example: new material arrived that the decision did not consider.",
+    submitLabel: "Reopen review",
+  },
   PAUSE: {
     kind: "PAUSE",
     title: "Pause this review",

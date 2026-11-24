@@ -7,6 +7,8 @@
 import React, { useState } from "react";
 import { View } from "react-native";
 
+import { describeReviewOutcome, type ReviewDecisionOutcomeCopyInput } from "@proovra/shared";
+
 import { apiFetch } from "../api";
 import { toSafeUserError } from "../errors/safe-error";
 import { theme } from "../theme/theme";
@@ -19,6 +21,7 @@ import {
   buildReviewDecisionPath,
   canClaimReview,
   reviewDecisionAllowed,
+  reviewDecisionBlockedReason,
   reviewNoteLabel,
   reviewStageOf,
   type ReviewDecision,
@@ -40,6 +43,7 @@ export function ReviewActionsPanel({
   const [error, setError] = useState<string | null>(null);
   const [noteFor, setNoteFor] = useState<ReviewDecision | null>(null);
   const [note, setNote] = useState("");
+  const [result, setResult] = useState<string | null>(null);
   const stage = reviewStageOf(workflow.status);
 
   const claim = async () => {
@@ -60,9 +64,16 @@ export function ReviewActionsPanel({
     setBusy(true);
     setError(null);
     try {
-      await apiFetch(buildReviewDecisionPath(evidenceId), { method: "POST", body: JSON.stringify(buildReviewDecisionBody(d, n)) });
+      const resp = (await apiFetch(buildReviewDecisionPath(evidenceId), {
+        method: "POST",
+        body: JSON.stringify(buildReviewDecisionBody(d, n)),
+      })) as { outcome?: ReviewDecisionOutcomeCopyInput | null } | null;
       setNoteFor(null);
       setNote("");
+      // T-165 — what the decision actually did, in the copy every surface shares
+      // (a first-of-two decision is never shown as an approval).
+      const kind = d === "APPROVE_INTERNAL" ? "approve" : d === "REJECT_INSUFFICIENT" ? "reject" : d === "REQUEST_MORE_INFO" ? "request_info" : null;
+      setResult(kind && resp?.outcome ? describeReviewOutcome(kind, resp.outcome) : null);
       onChanged();
     } catch (err) {
       setError(toSafeUserError(err, { message: COPY.decisionFailed }).message);
@@ -72,7 +83,7 @@ export function ReviewActionsPanel({
   };
 
   const decide = (d: ReviewDecision) => {
-    if (!workflow.teamId || !reviewDecisionAllowed(stage, d)) return;
+    if (!workflow.teamId || !reviewDecisionAllowed(stage, d, workflow)) return;
     if (reviewNoteLabel(d)) {
       setNoteFor(d);
       setNote("");
@@ -94,17 +105,25 @@ export function ReviewActionsPanel({
             </ProovraText>
           </View>
           {error ? <ProovraText variant="label" color={theme.color.status.risk.fg}>{error}</ProovraText> : null}
+          {result ? <ProovraText variant="label" color={theme.color.ink.secondary} testID="review-actions-result">{result}</ProovraText> : null}
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 }}>
             {canClaimReview(workflow.teamId, workflow.assignedToUserId, stage) ? (
               <ProovraButton label={COPY.claim} variant="secondary" fullWidth={false} disabled={busy} onPress={() => void claim()} />
             ) : null}
             {REVIEW_DECISIONS.filter((d) => !(workflow.notIncluded ?? []).includes(d)).map((d) => {
-              const enabled = reviewDecisionAllowed(stage, d);
+              const enabled = reviewDecisionAllowed(stage, d, workflow);
+              const blocked = reviewDecisionBlockedReason(d, workflow);
               return (
                 <ProovraButton
                   key={d}
                   label={REVIEW_DECISION_LABEL[d]}
-                  accessibilityLabel={enabled ? REVIEW_DECISION_LABEL[d] : `${REVIEW_DECISION_LABEL[d]}, not available from ${stage}`}
+                  accessibilityLabel={
+                    enabled
+                      ? REVIEW_DECISION_LABEL[d]
+                      : blocked
+                        ? `${REVIEW_DECISION_LABEL[d]}, ${blocked}`
+                        : `${REVIEW_DECISION_LABEL[d]}, not available from ${stage}`
+                  }
                   variant="ghost"
                   fullWidth={false}
                   disabled={busy || !enabled}

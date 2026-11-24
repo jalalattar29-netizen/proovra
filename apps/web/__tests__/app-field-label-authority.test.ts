@@ -140,6 +140,7 @@ const EXPECTED_CONSUMERS = [
   // in one form; AdjudicationPanel folded into it), the inspector's own
   // dialogs (reassign, escalate, archive) and the coding-schema card. The
   // review-layout gate opens the inspector dialogs and measures them.
+  "app/(app)/reviewer-ops/[reviewId]/_components/DecisionLineagePanel.tsx",
   "app/(app)/reviewer-ops/[reviewId]/_components/DecisionPanel.tsx",
   "app/(app)/reviewer-ops/[reviewId]/_components/InspectorDialogs.tsx",
   "app/(app)/reviewer-ops/[reviewId]/page.tsx",

@@ -1670,12 +1670,15 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     allToolsVisible: false,
     sidebarEligible: false,
   },
-  // Phase B — Phase 13 per-evidence review operations queue.
+  // RETIRED DESTINATION (Team remediation T-007). The Phase 13 per-evidence
+  // review-stage queue was a fourth queue and decision door; the route only
+  // redirects to the review Inbox now (preserving a stage filter as the
+  // matching queue). Kept out of every discovery surface below.
   {
     id: "review.operations",
     href: "/review/operations",
-    label: "Review operations",
-    description: "Per-evidence review stage queue (Phase 13).",
+    label: "Review operations (moved)",
+    description: "Retired — redirects to the review inbox.",
     domain: "REVIEW_OPERATIONS",
     // TEAM-SPEC §1 defaults — GET /v1/review/queue requires
     // `evidence_request.review` (OWNER / ADMIN / MEMBER, never VIEWER). The web
@@ -1688,8 +1691,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
 
     advancedByDefault: true,
-    commandPaletteVisible: true,
-    allToolsVisible: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
     sidebarEligible: false,
   },
   // Phase B — Phase C3 intake inspector.

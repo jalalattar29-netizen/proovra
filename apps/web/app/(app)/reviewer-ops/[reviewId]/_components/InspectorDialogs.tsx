@@ -22,6 +22,7 @@
  */
 
 import { useEffect, useId, useState } from "react";
+import { describeEscalationIndependence } from "@proovra/shared";
 import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { Modal } from "../../../../../components/cases-experience/matter-modals/Modal";
 import { apiFetch } from "../../../../../lib/api";
@@ -246,10 +247,16 @@ export function EscalateDialog({
   open,
   onCancel,
   onSubmit,
+  forcesIndependentReview = true,
 }: {
   open: boolean;
   onCancel: () => void;
   onSubmit: (input: EscalateInput) => Promise<string | null>;
+  /**
+   * T-019 — whether the escalation will require an independent second review
+   * (server: viewer.escalationForcesIndependentReview). Stated before raising.
+   */
+  forcesIndependentReview?: boolean;
 }) {
   const id = useId();
   const formId = `${id}-form`;
@@ -350,6 +357,11 @@ export function EscalateDialog({
         <p id={`${id}-summary-help`} className="app-field-help" style={{ margin: 0 }}>
           {summary.length}/{SUMMARY_MAX} characters. Operational facts only.
         </p>
+        {describeEscalationIndependence(forcesIndependentReview) ? (
+          <p className="app-field-help" data-reviewer-escalate-independence style={{ margin: 0, overflowWrap: "anywhere" }}>
+            {describeEscalationIndependence(forcesIndependentReview)}
+          </p>
+        ) : null}
         {error ? (
           <p role="alert" className="app-field-error" data-reviewer-escalate-error style={{ margin: 0, overflowWrap: "anywhere" }}>
             {error}
