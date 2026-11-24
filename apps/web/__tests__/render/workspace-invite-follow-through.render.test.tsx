@@ -102,7 +102,7 @@ describe("workspace invitation follow-through", () => {
       body: { message: "Not a member of this workspace", code: "workspace_membership_required", reason: "mandatory_sso_required" },
     };
     await accept();
-    fireEvent.click(await screen.findByTestId("invite-open-workspace"));
+    // T-122 — the switch follows the accept; no second press is needed.
     expect(await screen.findByText("Invitation accepted — the workspace didn't open")).toBeTruthy();
     expect(screen.getByText(/requires its single sign-on/)).toBeTruthy();
     // The reader is offered a fresh sign-in that returns to this invitation.
@@ -116,7 +116,7 @@ describe("workspace invitation follow-through", () => {
   it("an interrupted switch offers a real retry, which opens the workspace once the server allows it", async () => {
     replies.switch = { status: 503, body: { message: "unavailable" } };
     await accept();
-    fireEvent.click(await screen.findByTestId("invite-open-workspace"));
+    // T-122 — the switch follows the accept; no second press is needed.
     expect(await screen.findByText(/interrupted the connection while opening/)).toBeTruthy();
     expect(router.push).not.toHaveBeenCalled();
     replies.switch = { status: 200, body: {} };
@@ -126,8 +126,21 @@ describe("workspace invitation follow-through", () => {
 
   it("a switch the server allows navigates into the workspace", async () => {
     await accept();
-    fireEvent.click(await screen.findByTestId("invite-open-workspace"));
     await waitFor(() => expect(router.push).toHaveBeenCalledWith("/home"));
+  });
+
+  it("T-122 — accepting alone moves the active workspace to the joined one, then navigates", async () => {
+    await accept();
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith("/home"));
+    // No Open workspace press: the switch followed the accept.
+    const acceptAt = calls.findIndex((c) => c.url.includes("/accept"));
+    const switchAt = calls.findIndex((c) => c.url.includes("switch-workspace"));
+    expect(acceptAt).toBeGreaterThanOrEqual(0);
+    expect(switchAt).toBeGreaterThan(acceptAt);
+    expect(calls[switchAt]!.body).toEqual({ workspaceId: WORKSPACE_ID });
+    // Exactly one switch, and one navigation.
+    expect(calls.filter((c) => c.url.includes("switch-workspace"))).toHaveLength(1);
+    expect(router.push).toHaveBeenCalledTimes(1);
   });
 
   it("EMAIL_NOT_VERIFIED asks for verification and sends it with the invitation as the return path", async () => {

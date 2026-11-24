@@ -186,7 +186,9 @@ describe("workspace invitation accept against both APIs", () => {
     ]);
     expect(JSON.parse(calls[0]!.body ?? "{}")).toEqual({ token: WS_TOKEN });
     expect(JSON.parse(calls[1]!.body ?? "null")).toEqual({});
-    expect(await screen.findByTestId("invite-open-workspace")).toBeTruthy();
+    // T-122 — the accept is followed straight away by the switch into the
+    // joined workspace, so the accepted view no longer waits on a second press.
+    expect(await screen.findByText("Invitation accepted")).toBeTruthy();
   });
 
   it("current API: a settled refusal is shown as itself and the path form is never called", async () => {
