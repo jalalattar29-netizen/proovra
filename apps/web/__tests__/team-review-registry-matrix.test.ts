@@ -16,7 +16,7 @@ import { test } from "node:test";
 
 import { ROUTE_REGISTRY } from "../lib/navigation/routeRegistry";
 import { resolveRouteAccess } from "../lib/navigation/routeAccessResolver";
-import { canAccessSurface, type SurfaceUserContext } from "../lib/surface/access";
+import { canAccessSurface, ruleEntitlement, type SurfaceUserContext } from "../lib/surface/access";
 import { findSurfaceTierRule } from "../lib/surface/tiers";
 
 type Ctx = {
@@ -163,7 +163,8 @@ test("one sidebar entry for review: Review → /review; queues, escalations and 
 });
 
 test("Review settings has a surface-tier rule on reviewerOperationsIncluded; /governance/policy stays Enterprise", () => {
-  assert.equal(findSurfaceTierRule("/review/settings")?.entitlementOverride, "reviewerOperationsIncluded");
+  // T-125 — the tier rule follows the registry route (`review.settings`).
+  assert.equal(ruleEntitlement(findSurfaceTierRule("/review/settings"))?.key, "reviewerOperationsIncluded");
   const team = surfaceCtx(CONTEXTS[2]!);
   const pro = surfaceCtx(CONTEXTS[1]!);
   assert.equal(canAccessSurface(team, "/review/settings"), true);

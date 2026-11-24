@@ -57,7 +57,7 @@ import type {
  * truth; the client only reads the projected boolean.
  */
 export type PlanFeatureGateKey = {
-  [K in keyof PlatformContextPlanFeatures]-?: PlatformContextPlanFeatures[K] extends boolean
+  [K in keyof PlatformContextPlanFeatures]-?: NonNullable<PlatformContextPlanFeatures[K]> extends boolean
     ? K
     : never;
 }[keyof PlatformContextPlanFeatures];
@@ -138,12 +138,25 @@ export type RouteDefinition = {
    * Track 1A (surface-tier removal) — SERVER-projected commercial
    * entitlement gate. When set, the route additionally requires
    * `envelope.planFeatures[<key>] === true` (fail-closed while the
-   * envelope is loading/degraded). Platform admins bypass. This replaces
-   * the deleted `lib/surface/tiers.ts` `entitlementOverride` mechanism —
-   * the boolean is computed by the backend PLAN_CAPABILITIES projection;
-   * the client never derives it from a plan name.
+   * envelope is loading/degraded). Platform admins bypass. The boolean is
+   * computed by the backend PLAN_CAPABILITIES projection; the client never
+   * derives it from a plan name.
+   *
+   * T-125 — this is the ONE web entitlement key. `lib/surface/tiers.ts` is
+   * NOT deleted (it still presents direct-URL refusals for its path prefixes,
+   * mounted by `EnterpriseSurfaceLayout` / `SurfaceGate`), but its rules no
+   * longer carry an entitlement key of their own: a rule names the registry
+   * route whose `requiredPlanFeature` it follows (`entitlementRouteId`).
    */
   requiredPlanFeature?: PlanFeatureGateKey;
+  /**
+   * T-125 (PRO-R3-06 / DEC-10, folded from the tier table) — when
+   * `requiredPlanFeature` answers false but this server-projected key answers
+   * true, existing material stays readable: the page LOADS (read-only; the API
+   * refuses new work) and the route stays out of navigation. Only meaningful
+   * together with `requiredPlanFeature`.
+   */
+  readRetainedPlanFeature?: PlanFeatureGateKey;
   /**
    * WCR-12 (2026-09-07) — NAV-ONLY plan gate.
    *
@@ -173,10 +186,11 @@ export type RouteDefinition = {
  * backend derives it from ENTERPRISE_PLAN_KEYS = {"ENTERPRISE"} for the
  * ACTIVE workspace) or platform-admin elevation.
  *
- * This is the capability-era replacement for the deleted ENTERPRISE tier
- * in `lib/surface/tiers.ts`: the decision input is a server-projected
- * boolean, never a raw plan string, and the rule lives inside the ONE
- * canonical route registry instead of a parallel path table. The
+ * This is the capability-era Enterprise decision for registry routes: the
+ * input is a server-projected boolean, never a raw plan string. (T-125: the
+ * ENTERPRISE tier in `lib/surface/tiers.ts` still exists for direct-URL
+ * presentation of its path prefixes; `navigation-contract-resolves.test.ts`
+ * proves the two give one answer wherever both gate a page.) The
  * `resolveRouteAccess` resolver consults this set; membership yields
  * `NEEDS_UPGRADE` (hidden from nav, bounded denial panel on direct URL)
  * for non-enterprise, non-platform-admin actors.
@@ -276,7 +290,9 @@ export const ENTERPRISE_ONLY_ROUTE_IDS: ReadonlySet<string> = new Set([
   //     serves them by), and External Review is Pro and above
   //     (`externalReviewIncluded`). Enterprise-only workflow capabilities stay
   //     individually gated inside those pages and on the API.
-  "workspace.review_redaction",
+  //   * T-125 / ARCH-09 — `workspace.review_redaction` is not here either: its
+  //     ONE authority is `requiredPlanFeature: "redactionIncluded"`
+  //     (FEATURE_REDACTION, any workspace kind) on the entry itself.
   // Governance / compliance.
   "governance.hub",
   "governance.policy",
@@ -2921,6 +2937,12 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     // personal-workspace owner it "works inside an organization workspace",
     // and REVIEWER_OPS_VIEW (TEAM reviewer operations) is not the redaction
     // rule. Writes stay OWNER/ADMIN on the server (resolveRedactionRoles).
+    // T-125 — that authority now lives HERE (it was in the tier table while
+    // this id also sat in ENTERPRISE_ONLY_ROUTE_IDS, so a FEATURE_REDACTION
+    // grant passed SurfaceGate and was refused by PageRouteGate). A lapsed
+    // workspace that still holds projects keeps them readable (DEC-10).
+    requiredPlanFeature: "redactionIncluded",
+    readRetainedPlanFeature: "redactionReadRetained",
     requiredCapabilities: [],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "REQUEST_ACCESS",

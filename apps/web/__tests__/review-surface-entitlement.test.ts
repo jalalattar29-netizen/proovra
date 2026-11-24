@@ -28,10 +28,11 @@ function ctx(reviewerOperationsIncluded: boolean | null): SurfaceUserContext {
   };
 }
 
+// T-125 — "/review/queues" left this list: it follows reviewQueuesIncluded
+// (its registry route, REVIEW_TASKS_AND_QUEUES), asserted separately below.
 const OPERATIONS = [
   "/review",
   "/review/operations",
-  "/review/queues",
   "/reviewer-ops/queue",
   "/reviewer-ops/escalations",
   "/reviewer-ops/sla",
@@ -42,6 +43,24 @@ const ADVANCED = ["/review/schemas", "/review/qc", "/review/metrics", "/review/d
 test("TEAM (reviewer operations included, Personal Workspace) opens the reviewer operations surfaces", () => {
   for (const path of OPERATIONS) {
     assert.equal(getDirectAccessDecision(ctx(true), path).kind, "allow", path);
+  }
+});
+
+/** A TEAM envelope: the ladder projects BOTH review keys (Team and above). */
+function teamCtx(): SurfaceUserContext {
+  return { ...ctx(true), planFeatures: { ...ctx(true).planFeatures!, reviewQueuesIncluded: true } };
+}
+
+test("T-125 — /review/queues follows reviewQueuesIncluded (one key with the registry), not the operations flag", () => {
+  assert.equal(getDirectAccessDecision(teamCtx(), "/review/queues").kind, "allow");
+  // Was: the tier rule read reviewerOperationsIncluded, so a contract selling
+  // assignments without shared queues passed SurfaceGate and was refused by
+  // PageRouteGate. Now both refuse.
+  assert.equal(getDirectAccessDecision(ctx(true), "/review/queues").kind, "forbidden");
+  const narrowed: SurfaceUserContext = { ...teamCtx(), planFeatures: { ...teamCtx().planFeatures!, reviewQueuesIncluded: false } };
+  assert.equal(getDirectAccessDecision(narrowed, "/review/queues").kind, "forbidden");
+  for (const value of [false, null]) {
+    assert.equal(getDirectAccessDecision(ctx(value), "/review/queues").kind, "forbidden", String(value));
   }
 });
 
@@ -216,7 +235,9 @@ test("NEW-RG-14-1 — on PRO (reviewer operations not included) the review Opera
 });
 
 test("NEW-RG-14-1 — on TEAM (reviewer operations included) the rows keep their review destinations", () => {
-  const vm = homeWithReviewConditions(ctx(true));
+  // T-125 — a real TEAM envelope carries reviewQueuesIncluded as well; the
+  // stale-workflow row links to /review/queues, which follows that key.
+  const vm = homeWithReviewConditions(teamCtx());
   assert.equal(opsHref(vm, "review.stale_workflows"), "/review/queues");
   assert.equal(opsHref(vm, "review.escalation"), "/reviewer-ops/escalations");
 });
