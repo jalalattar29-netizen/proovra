@@ -34,11 +34,13 @@ export type PlatformContextPlanFeatures = {
    */
   basicRecordReviewIncluded: boolean;
   /**
-   * Free audit B5B-F-205 — redaction entitlement (FEATURE_REDACTION), once the
-   * API projects it. Optional: older envelopes omit it and the /redaction
-   * surface rule then falls back to its tier.
+   * Free audit B5B-F-205 — redaction entitlement (FEATURE_REDACTION). The API
+   * projects it on every envelope. T-125 — REQUIRED (not optional) so it is a
+   * PlanFeatureGateKey: the /redaction route's navigation gate reads it (see
+   * the note on externalReviewIncluded). An older envelope that omits it still
+   * reads as unknown at runtime (fail-closed).
    */
-  redactionIncluded?: boolean;
+  redactionIncluded: boolean;
   /**
    * PRO-R3-06 / DEC-10 — FEATURE_REDACTION is not held but existing redaction
    * projects remain readable (download and quarantine included). The console

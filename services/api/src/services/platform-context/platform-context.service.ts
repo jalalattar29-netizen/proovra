@@ -1063,9 +1063,20 @@ export async function buildPlatformContext(
   let navigationStatus: SectionStatus = "ok";
   let navigationGroups;
   let navigationProjection: ReturnType<typeof buildNavigationProjection>;
+  // T-125 — the same commercial and workspace-kind gates the web applies to
+  // the routes these items open, so nothing is advertised that 404s here.
+  const navSurface = {
+    isPlatformAdmin,
+    isEnterpriseWorkspace,
+    activeSpaceType:
+      workspace.scope === "TEAM" && typeof workspace.id === "string" && workspace.id.length > 0
+        ? ("ORGANIZATION" as const)
+        : ("PERSONAL" as const),
+    planFeatures: planFeatures as unknown as Readonly<Record<string, unknown>>,
+  };
   try {
-    navigationGroups = filterNavigationRegistry(capabilities);
-    navigationProjection = buildNavigationProjection(capabilities);
+    navigationGroups = filterNavigationRegistry(capabilities, navSurface);
+    navigationProjection = buildNavigationProjection(capabilities, navSurface);
   } catch {
     navigationStatus = "degraded";
     navigationGroups = [];

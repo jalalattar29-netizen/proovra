@@ -276,7 +276,11 @@ export const ENTERPRISE_ONLY_ROUTE_IDS: ReadonlySet<string> = new Set([
   //     serves them by), and External Review is Pro and above
   //     (`externalReviewIncluded`). Enterprise-only workflow capabilities stay
   //     individually gated inside those pages and on the API.
-  "workspace.review_redaction",
+  // T-125 (Team remediation stage F) — `workspace.review_redaction` is NOT
+  // here: redaction has ONE authority, `planFeatures.redactionIncluded`
+  // (navPlanFeature on its entry; the /redaction surface follows the same
+  // flag, read-only after a lapse). Listing it here as well hid it from an
+  // entitled non-Enterprise workspace the server serves.
   // Governance / compliance.
   "governance.hub",
   "governance.policy",
@@ -2922,6 +2926,9 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     // and REVIEWER_OPS_VIEW (TEAM reviewer operations) is not the redaction
     // rule. Writes stay OWNER/ADMIN on the server (resolveRedactionRoles).
     requiredCapabilities: [],
+    // T-125 — shown in navigation only while redaction is included; a direct
+    // visit loads and the surface (tiers.ts, redactionReadRetained) decides.
+    navPlanFeature: "redactionIncluded",
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "REQUEST_ACCESS",
 
