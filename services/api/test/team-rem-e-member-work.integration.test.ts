@@ -174,7 +174,7 @@ const ops = (teamId: string) => ({
     call(a.token, "POST", `/v1/reviewer-ops/reviews/${workflowId}/reassign`, { teamId, newAssigneeUserId: to }),
   start: (a: Actor, workflowId: string) => call(a.token, "POST", `/v1/reviewer-ops/reviews/${workflowId}/start`, { teamId }),
   approve: (a: Actor, workflowId: string) =>
-    call(a.token, "POST", `/v1/reviewer-ops/reviews/${workflowId}/approve`, { teamId, note: null }),
+    call(a.token, "POST", `/v1/reviewer-ops/reviews/${workflowId}/approve`, { teamId, note: "Approved after checking the record (T-010 requires a rationale)." }),
   reject: (a: Actor, workflowId: string) =>
     call(a.token, "POST", `/v1/reviewer-ops/reviews/${workflowId}/reject`, { teamId, note: "custody gap" }),
   decide: (a: Actor, workflowId: string, decision: string) =>
