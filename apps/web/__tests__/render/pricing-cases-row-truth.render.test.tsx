@@ -9,6 +9,13 @@
  * capability for both, derived here from the catalogue: if the catalogue ever
  * separates the two plans' case capability, this test fails and the copy must
  * follow it. FREE and evidence credits (no cases) are the positive control.
+ *
+ * T-106 (ARCH-07) — assignment TO Collaboration Team members is Collaboration-
+ * Team task work (REVIEW_TASKS_AND_QUEUES = `reviewQueuesIncluded`), which
+ * PRO does not hold; the Pro cell sells cases and names the plan that adds the
+ * assignment. T-108 (ARCH-06) — Team delivers the reviewer workflows and the
+ * queues, so the Enterprise cells name only what Enterprise adds. Both are
+ * driven by the plan catalogue values; copy only, no entitlement change.
  */
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -122,7 +129,7 @@ async function renderLoaded() {
 }
 
 describe("ENT-11 — Pricing sells the case capability the catalogue grants", () => {
-  it("PRO and TEAM state the same case capability; no 'Personal' / 'Team' cases distinction", async () => {
+  it("PRO and TEAM both sell cases; no 'Personal' / 'Team' cases distinction", async () => {
     // The catalogue truth the row reports.
     expect(PLAN_CAPABILITIES.PRO.casesIncluded).toBe(true);
     expect(PLAN_CAPABILITIES.TEAM.casesIncluded).toBe(true);
@@ -131,8 +138,8 @@ describe("ENT-11 — Pricing sells the case capability the catalogue grants", ()
 
     await renderLoaded();
     const [free, credits, pro, team, enterprise] = rowCells("Cases & matters");
-    expect(pro).toBe("Cases, assignable to Collaboration Team members");
-    expect(team).toBe(pro);
+    expect(pro).toMatch(/^Cases/);
+    expect(team).toMatch(/^Cases/);
     for (const cell of [pro, team]) {
       expect(cell).not.toMatch(/personal cases/i);
       expect(cell).not.toMatch(/team cases/i);
@@ -142,5 +149,51 @@ describe("ENT-11 — Pricing sells the case capability the catalogue grants", ()
     expect(free).toBe("Not included");
     expect(credits).toBe("Not included");
     expect(enterprise).toBe("Organization-wide matters");
+  });
+});
+
+/** A cell promises assignment TO Collaboration Team members on this plan itself. */
+function promisesCollaborationAssignment(cell: string): boolean {
+  if (!/assign/i.test(cell)) return false;
+  // "… with Team" names the plan that adds it — not a promise of this plan.
+  return !/ with Team$/.test(cell);
+}
+
+describe("T-106 — the Pro Cases cell matches today's enforcement", () => {
+  it("a plan without review queues does not promise assignment to Collaboration Team members", async () => {
+    await renderLoaded();
+    const [, , pro, team] = rowCells("Cases & matters");
+    const byPlan = { PRO: pro, TEAM: team } as const;
+    for (const plan of ["PRO", "TEAM"] as const) {
+      const queues = PLAN_CAPABILITIES[plan].reviewQueuesIncluded;
+      expect(
+        promisesCollaborationAssignment(byPlan[plan]),
+        `${plan} (reviewQueuesIncluded=${queues}) reads "${byPlan[plan]}"`,
+      ).toBe(queues);
+    }
+    expect(PLAN_CAPABILITIES.PRO.reviewQueuesIncluded).toBe(false);
+    expect(pro).toBe("Cases; assignment to Collaboration Team members with Team");
+  });
+});
+
+describe("T-108 — Enterprise cells name only Enterprise-only capabilities", () => {
+  it("no Enterprise cell sells reviewer workflows or queues the Team ladder already delivers", async () => {
+    await renderLoaded();
+    const rows: Array<[string, boolean]> = [
+      ["Reviewer operations", PLAN_CAPABILITIES.TEAM.reviewerOperationsIncluded],
+      ["Tasks & review queues", PLAN_CAPABILITIES.TEAM.reviewQueuesIncluded],
+    ];
+    for (const [label, teamDelivers] of rows) {
+      const cells = rowCells(label);
+      const team = cells[3];
+      const enterprise = cells[4];
+      expect(teamDelivers, `${label}: the catalogue gives Team this capability`).toBe(true);
+      expect(team).not.toBe("Not included");
+      // What Team delivers is not re-sold as an Enterprise upgrade.
+      expect(enterprise, `${label}: "${enterprise}"`).not.toMatch(/advanced/i);
+      expect(enterprise, `${label}: "${enterprise}"`).not.toMatch(/reviewer workflows|queues/i);
+      // It names what Enterprise adds.
+      expect(enterprise).toMatch(/organization|automation|integration|governance/i);
+    }
   });
 });
