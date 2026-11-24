@@ -86,9 +86,12 @@ import {
 } from "./review-decision.service.js";
 import {
   createEscalation,
+  findActiveEscalationSummaryForWorkflow,
   findOpenEscalationForWorkflow,
   type EscalationProjection,
 } from "./escalation-engine.service.js";
+import { escalatedReviewWhere, hasActiveEscalationWhere } from "./review-count-definitions.js";
+import { REVIEW_ESCALATION_ACTIVE_STATUSES } from "@proovra/shared";
 import {
   snapshotWorkspaceWorkload,
   suggestReviewers,
@@ -354,10 +357,10 @@ async function listReviewerOpsQueueInner(
       baseWhere.slaStatus = "DUE_SOON";
       break;
     case "ESCALATED":
-      baseWhere.OR = [
-        { status: "ESCALATED" },
-        { activeEscalationId: { not: null } },
-      ];
+      // T-050 / T-052 (stage C) — "escalated" is decided by query (EXISTS an
+      // active escalation), never by the denormalised pointer, which drifted
+      // when escalations were resolved out of order.
+      Object.assign(baseWhere, escalatedReviewWhere());
       break;
     case "HIGH_PRIORITY":
       baseWhere.priority = { in: ["HIGH", "URGENT"] };
@@ -370,21 +373,14 @@ async function listReviewerOpsQueueInner(
       // through the included filter shape.
       baseWhere.evidence = { legalHolds: { some: { status: "ACTIVE" } } };
       break;
-    case "INTEGRITY_RISK": {
+    case "INTEGRITY_RISK":
       // An ordinary SLA escalation is not an integrity risk (WORKFLOW-013).
-      const escalations = await client.reviewEscalation.findMany({
-        where: {
-          teamId: input.teamId,
-          status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
-          reason: { in: ["INTEGRITY_RISK", "VERIFICATION_MISMATCH"] },
-        },
-        select: { id: true },
-        orderBy: { createdAt: "desc" },
-        take: 1000,
-      });
-      baseWhere.activeEscalationId = { in: escalations.map((e) => e.id) };
+      // Any active integrity escalation counts, whichever the pointer names (T-050).
+      Object.assign(
+        baseWhere,
+        hasActiveEscalationWhere({ reason: { in: ["INTEGRITY_RISK", "VERIFICATION_MISMATCH"] } }),
+      );
       break;
-    }
     case "EXTERNAL_INTAKE":
       baseWhere.workspaceType = "EXTERNAL_INTAKE";
       break;
@@ -451,7 +447,7 @@ async function listReviewerOpsQueueInner(
           where: {
             teamId: input.teamId,
             workflowId: { in: workflowIds },
-            status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
+            status: { in: [...REVIEW_ESCALATION_ACTIVE_STATUSES] },
           },
           select: { workflowId: true },
         });
@@ -607,7 +603,7 @@ async function listHandoffQueue(
           where: {
             teamId: input.teamId,
             workflowId: { in: ids },
-            status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
+            status: { in: [...REVIEW_ESCALATION_ACTIVE_STATUSES] },
           },
           select: { workflowId: true },
         });
@@ -631,9 +627,14 @@ async function listHandoffQueue(
 // -----------------------------------------------------------------------------
 
 export type ReviewerOpsDashboard = {
+  /** unit: reviews (T-052). */
   counts: Awaited<ReturnType<typeof legacyGetReviewQueueCounts>>;
+  /** unit: escalations — active escalation rows, not reviews (COR-A). */
   openEscalations: number;
+  /** unit: escalations */
   criticalEscalationsOpen: number;
+  /** T-052 (stage C) — the unit of every figure, so no surface guesses. */
+  units: { counts: "reviews"; openEscalations: "escalations"; criticalEscalationsOpen: "escalations" };
   workloadTop: ReadonlyArray<WorkloadDashboardRow>;
   suggestions: ReadonlyArray<ReviewerSuggestion>;
 };
@@ -662,7 +663,7 @@ async function buildDashboardInner(
       client.reviewEscalation.count({
         where: {
           teamId: input.teamId,
-          status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
+          status: { in: [...REVIEW_ESCALATION_ACTIVE_STATUSES] },
           // PRO-R2-12 — WORKFLOW-003: an escalation on a closed record moves no count.
           workflow: { evidence: evidenceVisibleThroughCasesWhere(input.meUserId) },
         },
@@ -670,7 +671,7 @@ async function buildDashboardInner(
       client.reviewEscalation.count({
         where: {
           teamId: input.teamId,
-          status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
+          status: { in: [...REVIEW_ESCALATION_ACTIVE_STATUSES] },
           severity: "CRITICAL",
           workflow: { evidence: evidenceVisibleThroughCasesWhere(input.meUserId) },
         },
@@ -692,6 +693,7 @@ async function buildDashboardInner(
     counts,
     openEscalations: openEsc,
     criticalEscalationsOpen: critEsc,
+    units: { counts: "reviews", openEscalations: "escalations", criticalEscalationsOpen: "escalations" },
     workloadTop,
     suggestions,
   };
@@ -733,7 +735,13 @@ export type ReviewerViewerProjection = {
 
 export type ReviewerOpsWorkspaceProjection = {
   projection: ReviewerOpsWorkflowProjection;
+  /**
+   * The GOVERNING active escalation (T-049): highest severity, then newest.
+   * Acknowledged and reassigned escalations are active.
+   */
   openEscalation: EscalationProjection | null;
+  /** unit: escalations — how many are active on this review (T-049). */
+  activeEscalationCount: number;
   allowedLifecycleTransitions: ReadonlyArray<ReviewerOpsLifecycleState>;
   /** TEAM-SPEC §2.5 — present when the caller states who is viewing. */
   viewer?: ReviewerViewerProjection;
@@ -896,7 +904,7 @@ export async function getReviewerOpsWorkspace(
     },
   });
   if (!row) throw new ReviewerOpsError("REVIEW_WORKFLOW_NOT_FOUND");
-  const open = await findOpenEscalationForWorkflow(
+  const { top: open, activeCount } = await findActiveEscalationSummaryForWorkflow(
     { teamId: input.teamId, workflowId: row.id },
     client,
   );
@@ -938,6 +946,7 @@ export async function getReviewerOpsWorkspace(
   return {
     projection,
     openEscalation: open,
+    activeEscalationCount: activeCount,
     allowedLifecycleTransitions: allowed,
     ...(viewer ? { viewer } : {}),
     ...(handoff ? { handoff } : {}),

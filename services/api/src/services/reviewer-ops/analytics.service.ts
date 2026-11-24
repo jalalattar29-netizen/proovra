@@ -30,6 +30,7 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
+import { activeEscalationWhere } from "./review-count-definitions.js";
 import { bump } from "../ops/metrics.service.js";
 
 // -----------------------------------------------------------------------------
@@ -244,7 +245,8 @@ export async function getReviewerPerformance(
       status: true,
       slaStatus: true,
       escalationLevel: true,
-      activeEscalationId: true,
+      // T-050 (stage C) — escalated by query, not by the pointer.
+      escalations: { where: activeEscalationWhere(), select: { id: true }, take: 1 },
       completedAtUtc: true,
       assignedAtUtc: true,
       lastReviewedAt: true,
@@ -311,7 +313,8 @@ export async function getReviewerPerformance(
     if (r.slaStatus === "OVERDUE" || r.slaStatus === "BREACHED") {
       s.overdue += 1;
     }
-    if (r.status === "ESCALATED" || r.activeEscalationId) {
+    // The shared "escalated review": open, with status ESCALATED or an active escalation.
+    if (!isCompleted && (r.status === "ESCALATED" || r.escalations.length > 0)) {
       s.escalated += 1;
     }
     if (r.completedAtUtc && completedInRange(r)) {

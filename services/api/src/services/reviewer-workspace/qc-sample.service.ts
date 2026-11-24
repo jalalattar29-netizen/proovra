@@ -32,6 +32,7 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { hiddenWorkflowIdsInWorkspace } from "../access/record-reach.js";
+import { countQcSamplesAwaitingVerdict } from "../reviewer-ops/review-count-definitions.js";
 // Phase 4 — wire audit emission via the canonical tenant-audit facade.
 // `.catch(() => {})` keeps emission best-effort so audit failure cannot
 // roll back the primary QC mutation.
@@ -414,18 +415,13 @@ export async function countPendingQcSamples(input: {
   viewerUserId: string | null;
 }): Promise<{ pendingCount: number }> {
   const prisma = input.prisma ?? defaultPrisma;
-  const closed = input.viewerUserId
-    ? await hiddenWorkflowIdsInWorkspace(input.teamId, input.viewerUserId, prisma)
-    : [];
-  const pendingCount = await prisma.qcSample.count({
-    where: {
-      teamId: input.teamId,
-      ...(closed.length > 0 ? { workflowId: { notIn: closed } } : {}),
-      // Pending states only; VERDICT_RENDERED is terminal and is
-      // excluded from the count card.
-      state: { in: ["SAMPLED", "ASSIGNED"] },
-    },
-  });
+  // T-054 (stage C) — the ONE "awaiting verdict" definition, shared with the
+  // focus-mode rail (it used to count {SAMPLED, ASSIGNED} here and
+  // {SAMPLED, ASSIGNED, IN_PROGRESS} there).
+  const pendingCount = await countQcSamplesAwaitingVerdict(
+    { teamId: input.teamId, viewerUserId: input.viewerUserId },
+    prisma,
+  );
   return { pendingCount };
 }
 

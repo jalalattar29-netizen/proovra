@@ -24,6 +24,7 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
+import { escalatedReviewWhere } from "./review-count-definitions.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { evaluateMemberAccess } from "../identity/access-policy.service.js";
@@ -85,10 +86,9 @@ export async function computeReviewerWorkload(
         teamId: input.teamId,
         ...reach,
         assignedToUserId: input.reviewerUserId,
-        OR: [
-          { status: "ESCALATED" },
-          { activeEscalationId: { not: null } },
-        ],
+        // T-050 / T-052 (stage C) — the shared "escalated review" (EXISTS an
+        // active escalation), never the drift-prone pointer.
+        ...escalatedReviewWhere(),
       },
     }),
     client.evidenceReviewWorkflow.count({

@@ -32,11 +32,14 @@ import type {
   ReviewEscalation as DbEscalation,
 } from "@prisma/client";
 import {
+  REVIEW_ESCALATION_ACTIVE_STATUSES,
   REVIEW_ESCALATION_REASONS,
+  compareReviewEscalationsBySeverity,
   escalationForcesIndependentReview,
   isAllowedEscalationStatusTransition,
   isReviewOpenDbStatus,
   isTerminalReviewEscalationStatus,
+  selectGoverningEscalation,
   stringContainsForbiddenOverclaim,
   type ReviewEscalationReason,
   type ReviewEscalationStatus,
@@ -462,18 +465,20 @@ export async function createEscalation(
   bump("reviewer_escalation_created_total");
 
 
-  // Update the workflow's denormalised pointer + escalation counters.
-  await client.evidenceReviewWorkflow.update({
-    where: { id: input.workflowId },
-    data: input.workflowCountersAlreadySet
-      ? { activeEscalationId: created.id }
-      : {
-          activeEscalationId: created.id,
-          escalationLevel: workflow.escalationLevel + 1,
-          escalatedAtUtc: now,
-          escalationReason: input.reason,
-        },
-  });
+  // Update the workflow's escalation counters, then derive the denormalised
+  // pointer (T-050): it names the highest-severity ACTIVE escalation, so a
+  // newer lower-severity escalation never displaces a higher one.
+  if (!input.workflowCountersAlreadySet) {
+    await client.evidenceReviewWorkflow.update({
+      where: { id: input.workflowId },
+      data: {
+        escalationLevel: workflow.escalationLevel + 1,
+        escalatedAtUtc: now,
+        escalationReason: input.reason,
+      },
+    });
+  }
+  await repointActiveEscalation({ teamId: input.teamId, workflowId: input.workflowId }, client);
 
   // HIGH / CRITICAL escalations open a Phase 21 incident.
   let linkedIncidentId: string | null = null;
@@ -849,12 +854,9 @@ export async function resolveEscalation(
     resolvedByUserId: input.actorUserId,
     resolutionNote: sanitiseNote(input.resolutionNote),
   });
-  // Clear the workflow's active-escalation pointer if it still points
-  // at this escalation.
-  await client.evidenceReviewWorkflow.updateMany({
-    where: { id: row.workflowId, activeEscalationId: row.id },
-    data: { activeEscalationId: null },
-  });
+  // T-050 — re-derive the pointer: the highest-severity escalation still
+  // active on the review, or none. Resolving one never hides another.
+  await repointActiveEscalation({ teamId: input.teamId, workflowId: row.workflowId }, client);
   bump("reviewer_escalation_resolved_total");
   safeEmitSecurityEvent({
     teamId: input.teamId,
@@ -901,10 +903,7 @@ export async function suppressEscalation(
     suppressedAtUtc: now,
     suppressionReason: sanitiseNote(input.suppressionReason),
   });
-  await client.evidenceReviewWorkflow.updateMany({
-    where: { id: row.workflowId, activeEscalationId: row.id },
-    data: { activeEscalationId: null },
-  });
+  await repointActiveEscalation({ teamId: input.teamId, workflowId: row.workflowId }, client);
   bump("reviewer_escalation_suppressed_total");
   safeEmitSecurityEvent({
     teamId: input.teamId,
@@ -964,12 +963,22 @@ export async function listEscalations(
   client: PrismaClient = defaultPrisma,
 ): Promise<ReadonlyArray<EscalationProjection>> {
   const limit = Math.min(Math.max(input.limit ?? 50, 1), 200);
-  const rows = await client.reviewEscalation.findMany({
-    where: escalationListWhere(input),
-    orderBy: [{ severity: "desc" }, { createdAt: "desc" }],
-    take: limit,
-  });
-  return rows.map(projectEscalation);
+  // T-049 — severity is stored as text, so ORDER BY severity is alphabetical
+  // (WARNING above HIGH and CRITICAL). Read each severity band newest-first and
+  // merge by the shared rank, so the page is truly highest-severity first.
+  const where = escalationListWhere(input);
+  const bands = input.severity ? [input.severity] : ESCALATION_SEVERITIES_HIGH_FIRST;
+  const rows: DbEscalation[] = [];
+  for (const severity of bands) {
+    if (rows.length >= limit) break;
+    const band = await client.reviewEscalation.findMany({
+      where: { ...where, severity },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: limit - rows.length,
+    });
+    rows.push(...band);
+  }
+  return rows.sort(compareReviewEscalationsBySeverity).map(projectEscalation);
 }
 
 /** The escalations under the list filters, unbounded by the page limit. */
@@ -980,7 +989,10 @@ export async function countEscalations(
   return client.reviewEscalation.count({ where: escalationListWhere(input) });
 }
 
-const ACTIVE_ESCALATION_STATUSES = ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] as const;
+/** The ONE active set (shared; T-060). Re-exported for API callers. */
+export const ACTIVE_ESCALATION_STATUSES = REVIEW_ESCALATION_ACTIVE_STATUSES;
+
+const ESCALATION_SEVERITIES_HIGH_FIRST = ["CRITICAL", "HIGH", "WARNING", "INFO"] as const;
 
 /** ONE filter for the list and its total, so the two can never disagree. */
 function escalationListWhere(input: Omit<ListEscalationsInput, "limit">) {
@@ -1000,21 +1012,58 @@ function escalationListWhere(input: Omit<ListEscalationsInput, "limit">) {
   };
 }
 
-// Convenience: pull the current OPEN escalation for a workflow (used
-// by the engine + workspace UI). Returns null when none open.
+/**
+ * T-049 (stage C) — the review's governing escalation: the ACTIVE one with the
+ * highest severity (then the newest), plus how many are active. Used by the
+ * Review page projection, queue intelligence and the pointer derivation.
+ */
+export async function findActiveEscalationSummaryForWorkflow(
+  input: { teamId: string; workflowId: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<{ top: EscalationProjection | null; activeCount: number }> {
+  const rows = await client.reviewEscalation.findMany({
+    where: {
+      teamId: input.teamId,
+      workflowId: input.workflowId,
+      status: { in: [...ACTIVE_ESCALATION_STATUSES] },
+    },
+  });
+  const { top, activeCount } = selectGoverningEscalation(rows);
+  return { top: top ? projectEscalation(top) : null, activeCount };
+}
+
+// The governing active escalation for a workflow (highest severity, then
+// newest). Returns null when none is active.
 export async function findOpenEscalationForWorkflow(
   input: { teamId: string; workflowId: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<EscalationProjection | null> {
-  const row = await client.reviewEscalation.findFirst({
+  return (await findActiveEscalationSummaryForWorkflow(input, client)).top;
+}
+
+/**
+ * T-050 (stage C) — the ONE writer of `activeEscalationId`: it names the
+ * governing active escalation, or null when none is active. Idempotent. Called
+ * after every create, resolve and suppress, and by the drift repair job.
+ * Returns the pointer it wrote.
+ */
+export async function repointActiveEscalation(
+  input: { teamId: string; workflowId: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<string | null> {
+  const { top } = await findActiveEscalationSummaryForWorkflow(input, client);
+  const next = top?.id ?? null;
+  await client.evidenceReviewWorkflow.updateMany({
     where: {
-      teamId: input.teamId,
-      workflowId: input.workflowId,
-      status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
+      id: input.workflowId,
+      // Only a drifted pointer is written (SQL "<>" never matches NULL).
+      ...(next === null
+        ? { activeEscalationId: { not: null } }
+        : { OR: [{ activeEscalationId: null }, { activeEscalationId: { not: next } }] }),
     },
-    orderBy: { createdAt: "desc" },
+    data: { activeEscalationId: next },
   });
-  return row ? projectEscalation(row) : null;
+  return next;
 }
 
 /**

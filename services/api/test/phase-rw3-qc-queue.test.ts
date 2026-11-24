@@ -182,7 +182,8 @@ describe("Phase RW3-3 — service source contract", () => {
     const fnBody = nextExportIdx > 0 ? tail.slice(0, nextExportIdx) : tail;
     // Strip single-line `//` comments before searching for the literal.
     const codeOnly = fnBody.replace(/\/\/[^\n]*/g, "");
-    expect(codeOnly).toMatch(/state:\s*\{\s*in:\s*\[\s*"SAMPLED"\s*,\s*"ASSIGNED"\s*\]\s*\}/);
+    // Stage C (T-054) — the ONE "awaiting verdict" count, shared with the rail.
+    expect(codeOnly).toMatch(/countQcSamplesAwaitingVerdict\(/);
     expect(codeOnly).not.toMatch(/VERDICT_RENDERED/);
   });
 
@@ -306,7 +307,7 @@ describe("Phase RW3-3 — count returns correct N when pending", () => {
     expect(result).toEqual({ pendingCount: 7 });
   });
 
-  it("only SAMPLED and ASSIGNED states are counted (VERDICT_RENDERED excluded)", async () => {
+  it("only the awaiting-verdict states are counted (VERDICT_RENDERED excluded; stage C T-054 adds IN_PROGRESS)", async () => {
     qcSampleCountMock.mockResolvedValueOnce(0);
 
     await qcMod.countPendingQcSamples({ teamId: TEAM_ID, viewerUserId: null });
@@ -314,7 +315,7 @@ describe("Phase RW3-3 — count returns correct N when pending", () => {
     const call = qcSampleCountMock.mock.calls[0]![0] as {
       where: { teamId: string; state: { in: string[] } };
     };
-    expect(call.where.state.in.sort()).toEqual(["ASSIGNED", "SAMPLED"]);
+    expect(call.where.state.in.sort()).toEqual(["ASSIGNED", "IN_PROGRESS", "SAMPLED"]);
     expect(call.where.state.in).not.toContain("VERDICT_RENDERED");
   });
 });

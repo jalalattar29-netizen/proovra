@@ -33,8 +33,15 @@
 import type { PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import {
+  REVIEW_ESCALATION_ACTIVE_STATUSES,
+  computeReviewerOpsSlaSnapshot,
   computeReviewerPriority,
   detectStuckWorkflow,
+  isReviewOpenDbStatus,
+  presentReviewSlaDimensions,
+  reviewSlaInputFromRow,
+  rollupReviewerOpsSlaState,
+  selectGoverningEscalation,
   mapTeamRoleToCanonical,
   rankReviewerSuggestions,
   roleHasPermission,
@@ -99,25 +106,41 @@ export type QueueWorkflowIntelligence = {
    *  audit. */
   assignmentSuggestions: RankerResult;
   /** Workload pressure of the currently-assigned reviewer, or null when
-   *  the workflow is unassigned. */
+   *  the workflow is unassigned or no workload data exists for them (T-062). */
   reviewerPressure: "available" | "balanced" | "overloaded" | null;
   /** Governance blockers — operator-facing booleans. */
   governanceBlockers: GovernanceBlockerProjection;
   /** SLA snapshot. */
   slaState: {
+    /** Priority input: the stored status, OVERDUE read as BREACHED (T-061). */
     status: WorkflowSlaStatus;
+    /**
+     * T-061 (stage C) — what the Inbox shows: the SAME presented rollup the
+     * Review page header uses. Null when nothing needs saying (on track, no
+     * deadline, finished).
+     */
+    signal: "OVERDUE" | "DUE_SOON" | "PAUSED" | null;
     dueAtUtc: string | null;
+    /** The deadline that was crossed (not the row's last update). */
     breachedAtUtc: string | null;
   };
-  /** Escalation snapshot. */
+  /** Escalation snapshot — the governing active escalation (T-049). */
   escalationState: {
     activeEscalationId: string | null;
     severity: EscalationSeverity;
+    /** unit: escalations — how many are active on the review. */
+    activeCount: number;
   };
-  /** Aging — driver of "submitted N days ago" UI label. */
+  /** Aging — driver of the "open N days" UI label. */
   queueAging: {
     createdAtUtc: string;
-    daysOpen: number;
+    /**
+     * T-063 (stage C) — whole days since assignment (or since creation while
+     * unassigned). Null on a finished review: finished work has no age.
+     */
+    daysOpen: number | null;
+    /** What `daysOpen` counts from. */
+    agedFrom: "assigned" | "created" | null;
     lastReviewerTouchAtUtc: string | null;
   };
 };
@@ -177,6 +200,9 @@ function mapSlaStatus(status: string | null | undefined): WorkflowSlaStatus {
   if (status === "ON_TRACK" || status === "DUE_SOON" || status === "BREACHED") {
     return status;
   }
+  // T-061 (stage C) — the legacy stored OVERDUE is a breach, as the engine's
+  // stuck sweep already reads it. PAUSED carries no urgency.
+  if (status === "OVERDUE") return "BREACHED";
   return null;
 }
 
@@ -195,6 +221,8 @@ function isExternalIntakeFromActor(role: string | null | undefined): boolean {
 async function loadReviewerCandidates(
   client: PrismaClient,
   teamId: string,
+  /** Filled with the reviewers that have a workload snapshot (T-062). */
+  withWorkloadData: Set<string> = new Set(),
 ): Promise<ReadonlyArray<ReviewerCandidate>> {
   // Bounded: at most MAX_CANDIDATES_PER_WORKFLOW team members.
   let memberships: Array<{
@@ -275,6 +303,7 @@ async function loadReviewerCandidates(
     const canonical = mapTeamRoleToCanonical(m.role as never);
     const reviews = roleHasPermission(canonical, "evidence_request.review");
     const w = workloadByUser.get(m.userId);
+    if (w) withWorkloadData.add(m.userId);
     const activeReviews = w?.activeReviews ?? 0;
     const overdueReviews = w?.overdueReviews ?? 0;
     const escalatedReviews = w?.escalatedReviews ?? 0;
@@ -370,7 +399,7 @@ export async function projectQueueIntelligence(
   const workflowIds = workflows.map((w) => w.id);
   let escalationByWorkflow: Map<
     string,
-    { id: string; severity: string; status: string; createdAt: Date }
+    { id: string; severity: string; status: string; createdAt: Date; activeCount: number }
   > = new Map();
   try {
     if (workflowIds.length > 0) {
@@ -378,19 +407,28 @@ export async function projectQueueIntelligence(
         where: {
           teamId: input.teamId,
           workflowId: { in: workflowIds },
-          status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
+          status: { in: [...REVIEW_ESCALATION_ACTIVE_STATUSES] },
         },
-        orderBy: { createdAt: "desc" },
         select: { id: true, workflowId: true, severity: true, status: true, createdAt: true },
       });
-      // Latest open escalation per workflow.
+      // T-049 (stage C) — the governing escalation per workflow (highest
+      // severity, then newest) and the active count; a newer Warning never
+      // hides an active High.
+      const byWorkflow = new Map<string, typeof escalations>();
       for (const e of escalations) {
-        if (!escalationByWorkflow.has(e.workflowId)) {
-          escalationByWorkflow.set(e.workflowId, {
-            id: e.id,
-            severity: e.severity,
-            status: e.status,
-            createdAt: e.createdAt,
+        const list = byWorkflow.get(e.workflowId) ?? [];
+        list.push(e);
+        byWorkflow.set(e.workflowId, list);
+      }
+      for (const [workflowId, list] of byWorkflow) {
+        const { top, activeCount } = selectGoverningEscalation(list);
+        if (top) {
+          escalationByWorkflow.set(workflowId, {
+            id: top.id,
+            severity: top.severity,
+            status: top.status,
+            createdAt: top.createdAt,
+            activeCount,
           });
         }
       }
@@ -428,7 +466,8 @@ export async function projectQueueIntelligence(
 
   // Reviewer candidates — single fetch, reused across all workflows in
   // the batch to keep the cost bounded.
-  const candidates = await loadReviewerCandidates(client, input.teamId);
+  const withWorkloadData = new Set<string>();
+  const candidates = await loadReviewerCandidates(client, input.teamId, withWorkloadData);
 
   const now = new Date();
   const nowMs = epochMs(now);
@@ -485,7 +524,10 @@ export async function projectQueueIntelligence(
       const assigned = wf.assignedToUserId
         ? candidates.find((c) => c.reviewerId === wf.assignedToUserId)
         : null;
-      const reviewerPressure = assigned?.workload.pressure ?? null;
+      // T-062 (stage C) — no pressure statement without workload data: a
+      // reviewer with no snapshot is not "available", they are unknown.
+      const reviewerPressure =
+        assigned && withWorkloadData.has(assigned.reviewerId) ? assigned.workload.pressure : null;
 
       const priorityFacts: PriorityFacts = {
         nowEpochMs: nowMs,
@@ -536,6 +578,32 @@ export async function projectQueueIntelligence(
       );
       bump("reviewer_assignment_rank_computed_total");
 
+      // T-061 (stage C) — the Inbox signal is the Review page's presented rollup.
+      const isOpen = isReviewOpenDbStatus(String(wf.status));
+      const presented = presentReviewSlaDimensions(
+        computeReviewerOpsSlaSnapshot(reviewSlaInputFromRow(wf, { nowUtc: now })),
+      );
+      const rollup = rollupReviewerOpsSlaState(presented);
+      const signal: QueueWorkflowIntelligence["slaState"]["signal"] = !isOpen
+        ? null
+        : rollup === "BREACHED"
+          ? "OVERDUE"
+          : rollup === "DUE_SOON"
+            ? "DUE_SOON"
+            : rollup === "PAUSED"
+              ? "PAUSED"
+              : null;
+      const crossed = presented
+        .filter((d) => d.state === "BREACHED" && d.dueAtUtc)
+        .map((d) => d.dueAtUtc as string)
+        .sort();
+      const agedFrom: QueueWorkflowIntelligence["queueAging"]["agedFrom"] = !isOpen
+        ? null
+        : wf.assignedAtUtc && wf.assignedToUserId
+          ? "assigned"
+          : "created";
+      const ageAnchor = agedFrom === "assigned" ? wf.assignedAtUtc! : wf.createdAt;
+
       projections.push({
         workflowId: wf.id,
         evidenceId: wf.evidenceId ?? null,
@@ -553,19 +621,19 @@ export async function projectQueueIntelligence(
         },
         slaState: {
           status: slaStatus,
+          signal,
           dueAtUtc: wf.dueAt?.toISOString() ?? null,
-          breachedAtUtc:
-            slaStatus === "BREACHED"
-              ? (wf.updatedAt?.toISOString() ?? null)
-              : null,
+          breachedAtUtc: signal === "OVERDUE" ? (crossed[0] ?? null) : null,
         },
         escalationState: {
           activeEscalationId: escalation?.id ?? null,
           severity: mapSeverity(escalation?.severity),
+          activeCount: escalation?.activeCount ?? 0,
         },
         queueAging: {
           createdAtUtc: wf.createdAt.toISOString(),
-          daysOpen: safeDayDiff(wf.createdAt, now),
+          daysOpen: agedFrom ? safeDayDiff(ageAnchor, now) : null,
+          agedFrom,
           lastReviewerTouchAtUtc: wf.lastReviewedAt?.toISOString() ?? null,
         },
       });

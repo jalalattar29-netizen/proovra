@@ -424,12 +424,16 @@ export type ReviewerWorkspaceProjection = {
     rendered7d: number;
     failureRate7dPct: number;
   };
-  /** Bounded metric ribbon. */
+  /**
+   * Bounded metric ribbon. T-056 (stage C): rates are per review and null when
+   * there is no denominator ("No data"), never 0.
+   */
   metrics: {
+    /** unit: reviews decided in 7 days */
     throughput7d: number;
-    approvalRate7dPct: number;
-    escalationRate7dPct: number;
-    avgReviewDurationMs7d: number;
+    approvalRate7dPct: number | null;
+    escalationRate7dPct: number | null;
+    avgReviewDurationMs7d: number | null;
   };
   /** Active review pointer (null when none). */
   activeReview: {

@@ -340,6 +340,21 @@ export async function reviewerConsoleRoutes(
         slaSnapshot = null;
       }
 
+      // T-055 (stage C) — a tab's count is the slice's TOTAL from the shared
+      // count definitions (the dashboard computes them), never the length of
+      // its first page. A degraded section has no number (null), never 0.
+      const dashCounts = (dashboardSection.value as { counts?: { unassigned?: number; assignedToMe?: number } } | null)
+        ?.counts;
+      const totalOf = (
+        section: { status: SectionStatus; value: { rows: ReadonlyArray<unknown>; nextCursor: string | null } },
+        total: number | undefined,
+      ): number | null => {
+        if (section.status !== "ok") return null;
+        if (dashboardSection.status === "ok" && typeof total === "number") return total;
+        // The page itself is the whole slice only when nothing follows it.
+        return section.value.nextCursor === null ? section.value.rows.length : null;
+      };
+
       return reply.code(200).send({
         generatedAt,
         teamId,
@@ -351,19 +366,22 @@ export async function reviewerConsoleRoutes(
         queue: {
           rows: queueSection.value.rows,
           status: queueSection.status,
-          count: queueSection.value.rows.length,
+          count: totalOf(queueSection, dashCounts?.unassigned),
+          unit: "reviews",
         },
         // Tab 2 — MINE (assigned to me, top 25).
         mine: {
           rows: mineSection.value.rows,
           status: mineSection.status,
-          count: mineSection.value.rows.length,
+          count: totalOf(mineSection, dashCounts?.assignedToMe),
+          unit: "reviews",
         },
         // Tab 3 — Escalations (open, ack, reassigned).
         escalations: {
           rows: escalationSection.value.rows,
           status: escalationSection.status,
-          count: escalationSection.value.total,
+          count: escalationSection.status === "ok" ? escalationSection.value.total : null,
+          unit: "escalations",
         },
         // Tab 4 — SLA rollup.
         sla: {
