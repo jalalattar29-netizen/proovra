@@ -13,6 +13,7 @@ import { test } from "node:test";
 
 import { REQUIRED_WORKFLOWS } from "../../../scripts/release/image-publish-gate.mjs";
 import {
+  BACKEND_STATUS_CONTEXT,
   HOOK_SECRET_NAME,
   MAX_TRIGGERS_PER_API_REVISION,
   STATUS_CONTEXT,
@@ -43,13 +44,16 @@ const contractSource = (epoch) =>
 /**
  * commits: [{ sha, epoch, api: boolean (touches API-facing source) }], oldest first.
  */
-function makeWorld({ commits, main, web, api, ci = "success", hook = HOOK, start = Date.parse("2026-11-22T00:00:00Z") }) {
+function makeWorld({ commits, main, web, api, ci = "success", hook = HOOK, start = Date.parse("2026-11-22T00:00:00Z"), backend = "verified" }) {
   const w = {
     commits,
     main,
     web,
     api: { status: 200, contract: 1, ...api },
     ci,
+    // "verified": the live API revision carries release/backend success (the
+    // automatic backend release verified it), unless a test posts its own.
+    backend,
     clock: start,
     statuses: {},
     hookCalls: [],
@@ -110,7 +114,11 @@ function makeWorld({ commits, main, web, api, ci = "success", hook = HOOK, start
     m = /^\/repos\/o\/r\/commits\/([0-9a-f]+)\/statuses/.exec(p);
     if (m) {
       if (w.fail.statuses) return res(500, {});
-      return res(200, [...(w.statuses[m[1]] ?? [])].reverse());
+      const list = [...(w.statuses[m[1]] ?? [])].reverse();
+      if (w.backend === "verified" && m[1] === w.api.revision && !list.some((x) => x.context === BACKEND_STATUS_CONTEXT)) {
+        list.push({ context: BACKEND_STATUS_CONTEXT, state: "success", description: "backend live", created_at: new Date(start).toISOString() });
+      }
+      return res(200, list);
     }
     m = /^\/repos\/o\/r\/statuses\/([0-9a-f]+)$/.exec(p);
     if (m && method === "POST") {
@@ -614,4 +622,137 @@ test("L5 — a failed hook call voids its record, but only when the failure itse
   }
   assert.equal(w.hookCalls.length, 2 + MAX_TRIGGERS_PER_API_REVISION);
   assert.equal(effectiveTriggers([...w.ours(C1)].reverse()).length, 1, "only the unvoided record counts");
+});
+
+// ---------------------------------------------------------------------------
+// Automatic backend release (2026-11-24): the web follows a VERIFIED backend.
+
+test("G — a backend release in progress, unverified or never verified promotes no web; a verified one does", async () => {
+  const w = makeWorld({
+    commits: [{ sha: C0, epoch: 4, api: true }, { sha: C1, epoch: 5, api: true }],
+    main: C1,
+    web: C0,
+    api: { revision: C1, epoch: 5 },
+    backend: "none",
+  });
+  w.addStatus(C1, VERCEL_WEB_CONTEXT, "success", "Canceled by Ignored Build Step");
+  w.clock += 20 * MIN;
+
+  // The API already answers as C1, but no backend release verified it.
+  let r = await w.run();
+  assert.equal(r.outcome, "WAITING_BACKEND");
+  assert.match(w.lastOurs(C1).description, /^waiting for a verified backend release of live API 111111111 \(release\/backend\); web stays at 000000000/);
+  assert.equal(w.hookCalls.length, 0);
+
+  // The automatic release is still running (worker, API, verification).
+  w.addStatus(C1, BACKEND_STATUS_CONTEXT, "pending", "deploying 111111111 over 000000000: backup, worker, API, verification");
+  r = await w.run();
+  assert.equal(r.outcome, "WAITING_BACKEND");
+  assert.match(w.lastOurs(C1).description, /^waiting for backend verification of 111111111 \(release in progress\)/);
+  assert.equal(w.hookCalls.length, 0);
+
+  // Verification failed (the public API disagreed with the host): held.
+  w.clock += MIN;
+  w.addStatus(C1, BACKEND_STATUS_CONTEXT, "error", "verification failed: 111111111 deployed but the public API says revision 000000000");
+  r = await w.run();
+  assert.equal(r.outcome, "HELD_BACKEND_FAILED");
+  assert.equal(w.lastOurs(C1).state, "failure");
+  assert.equal(w.hookCalls.length, 0);
+
+  // A later verified release of the same commit (a dispatched retry) releases the web once.
+  w.clock += MIN;
+  w.addStatus(C1, BACKEND_STATUS_CONTEXT, "success", "backend live at 111111111: api+worker revision, readiness, epoch 5 verified");
+  r = await w.run();
+  assert.equal(r.outcome, "TRIGGER");
+  assert.equal(w.hookCalls.length, 1);
+  assert.equal(w.hookCalls[0].main, C1);
+  noGitWrites(w);
+});
+
+test("G — a live API whose backend release is unverified for another reason holds the web", () => {
+  const d = decideContinuation({
+    now: 0, headSha: C2, liveWeb: { revision: C0 }, relation: "ahead",
+    liveApi: { ok: true, status: 200, contract: 1, routeEpoch: 5, revision: C1 },
+    own: { contract: 1, routeEpoch: 5 }, apiFacingDiff: [], requiredApiRevision: C1,
+    ci: { state: "success" }, vercel: [{ state: "success", description: "Canceled by Ignored Build Step", created_at: "2026-01-01T00:00:00Z" }],
+    ours: [], hookConfigured: true, hookValid: true,
+    backendHead: [],
+    backendLive: [{ state: "error", description: "deploy failed and the rollback to 000000000 did NOT verify: operator needed now", created_at: "2026-01-01T00:00:00Z" }],
+  });
+  assert.equal(d.outcome, "HELD_BACKEND_UNVERIFIED");
+  assert.equal(d.action, "none");
+  const unreadable = decideContinuation({
+    now: 0, headSha: C2, liveWeb: { revision: C0 }, relation: "ahead",
+    liveApi: { ok: true, status: 200, contract: 1, routeEpoch: 5, revision: C1 },
+    own: { contract: 1, routeEpoch: 5 }, apiFacingDiff: [], requiredApiRevision: C1,
+    ci: { state: "success" }, vercel: [{ state: "success", description: "Canceled by Ignored Build Step", created_at: "2026-01-01T00:00:00Z" }],
+    ours: [], hookConfigured: true, hookValid: true, backendHead: [], backendLive: null,
+  });
+  assert.equal(unreadable.outcome, "UNREADABLE_BACKEND");
+  assert.equal(unreadable.action, "none");
+});
+
+test("G — the backend release of HEAD was rolled back: its web is held even when the gate would pass", async () => {
+  // C1 changes only web code, so the gate would build it against the restored C0 API.
+  const w = makeWorld({
+    commits: [{ sha: C0, epoch: 4, api: true }, { sha: C1, epoch: 4, api: false }],
+    main: C1,
+    web: C0,
+    api: { revision: C0, epoch: 4 },
+  });
+  w.addStatus(C1, VERCEL_WEB_CONTEXT, "success", "Canceled by Ignored Build Step");
+  w.addStatus(C1, BACKEND_STATUS_CONTEXT, "failure", "deploy failed; rolled back to 000000000 (verified)");
+  w.clock += 20 * MIN;
+  const r = await w.run();
+  assert.equal(r.outcome, "HELD_BACKEND_FAILED");
+  assert.match(w.lastOurs(C1).description, /^held: the backend release of 111111111 did not stay live \(deploy failed; rolled back to 000000000/);
+  assert.equal(w.hookCalls.length, 0);
+});
+
+test("G — after a web rollback Vercel stops auto-assigning: the next compatible release is promoted once, only with the Vercel API configured", async () => {
+  const w = makeWorld({
+    commits: [{ sha: C0, epoch: 4, api: true }, { sha: C1, epoch: 4, api: false }],
+    main: C1,
+    web: C0,
+    api: { revision: C0, epoch: 4 },
+  });
+  w.addStatus(C1, VERCEL_WEB_CONTEXT, "success", "Deployment has completed");
+  w.clock += 20 * MIN;
+  let r = await w.run();
+  assert.equal(r.outcome, "DEPLOYED_NOT_LIVE");
+  assert.equal(r.code, 1);
+  assert.match(w.lastOurs(C1).description, /promote it, or configure VERCEL_TOKEN \+ VERCEL_PROJECT_ID/);
+
+  const promotes = [];
+  const base = w.fetch;
+  w.fetch = async (url, opts = {}) => {
+    const u = String(url);
+    if (u.startsWith("https://api.vercel.com/v6/deployments")) {
+      assert.match(u, /projectId=prj_web&target=production&state=READY/);
+      return { status: 200, headers: { get: () => null }, json: async () => ({ deployments: [{ uid: "dpl_c1", url: "c1.vercel.app", meta: { githubCommitSha: C1 }, createdAt: 2 }, { uid: "dpl_c0", url: "c0.vercel.app", meta: { githubCommitSha: C0 }, createdAt: 1 }] }) };
+    }
+    if (u.startsWith("https://api.vercel.com/v10/projects/prj_web/promote/")) {
+      promotes.push(u);
+      return { status: 201, headers: { get: () => null }, json: async () => ({}) };
+    }
+    return base(url, opts);
+  };
+  w.env.VERCEL_TOKEN = "vt";
+  w.env.VERCEL_PROJECT_ID = "prj_web";
+  r = await w.run();
+  assert.equal(r.outcome, "PROMOTE");
+  assert.equal(r.code, 0);
+  assert.deepEqual(promotes.map((u) => u.split("?")[0]), ["https://api.vercel.com/v10/projects/prj_web/promote/dpl_c1"]);
+  assert.match(w.lastOurs(C1).description, /^promoted web 111111111 via the Vercel API \(api 000000000 epoch 4\)/);
+  assert.equal(w.hookCalls.length, 0, "a promotion is not a rebuild");
+
+  // The next run inside the in-flight window does not promote again.
+  w.clock += 2 * MIN;
+  r = await w.run();
+  assert.equal(r.outcome, "PROMOTE_IN_FLIGHT");
+  assert.equal(promotes.length, 1);
+  w.web = C1;
+  r = await w.run();
+  assert.equal(r.outcome, "WEB_CURRENT");
+  noGitWrites(w);
 });

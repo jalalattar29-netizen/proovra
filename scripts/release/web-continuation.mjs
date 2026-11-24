@@ -66,6 +66,17 @@ import { REQUIRED_WORKFLOWS } from "./image-publish-gate.mjs";
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 export const STATUS_CONTEXT = "release/web-continuation";
+/**
+ * Written by .github/workflows/backend-release.yml (scripts/release/backend-release.mjs)
+ * on each released commit. A web is promoted by this script only while the live
+ * API's revision carries a `success` here: its backend release was verified
+ * (revisions, readiness, epoch), not merely started.
+ */
+export const BACKEND_STATUS_CONTEXT = "release/backend";
+/** Descriptions of release/backend statuses that record a failed or reverted release. */
+export const BACKEND_FAILED_PREFIXES = ["deploy failed", "rolled back", "rollback failed", "verification failed"];
+export const VERCEL_API_SETUP = "VERCEL_TOKEN + VERCEL_PROJECT_ID";
+const PROMOTE_RE = /^promoted web ([0-9a-f]{7,40}) via the Vercel API/;
 export const VERCEL_WEB_CONTEXT = "Vercel – proovra-web";
 export const HOOK_SECRET_NAME = "VERCEL_WEB_DEPLOY_HOOK_URL";
 /** A triggered build that Vercel has not reported on within this window is treated as lost. */
@@ -222,6 +233,22 @@ export function decideContinuation(f) {
     });
   }
 
+  // The backend release of this very commit failed or was rolled back: its web
+  // is not released, whatever the gate would say (the rollback already made
+  // the live web compatible with the restored API).
+  const headBackend = Array.isArray(f.backendHead) ? f.backendHead[0] : null;
+  if (
+    headBackend &&
+    headBackend.state !== "success" &&
+    headBackend.state !== "pending" &&
+    BACKEND_FAILED_PREFIXES.some((p) => String(headBackend.description ?? "").startsWith(p))
+  ) {
+    return out("HELD_BACKEND_FAILED", {
+      state: "failure",
+      description: `held: the backend release of ${head} did not stay live (${String(headBackend.description).slice(0, 60)}); web stays at ${web}`,
+    });
+  }
+
   if (!Array.isArray(f.vercel)) {
     return out("UNREADABLE_VERCEL", {
       state: "pending",
@@ -239,15 +266,23 @@ export function decideContinuation(f) {
   if (vercel.kind === "building") {
     return out("BUILDING", { state: "pending", description: `Vercel is building ${head}; web still ${web}` });
   }
+  // Deployed but not live: after a web rollback (Vercel promote of an older
+  // deployment) Vercel stops assigning production domains to new deployments,
+  // so the next compatible release must be PROMOTED. That is done below, through
+  // the same compatibility, CI and backend checks, when the Vercel API is configured.
+  let promoteDue = false;
   if (vercel.kind === "deployed" && vercelSinceTrigger) {
     const age = vercelAt === null ? Infinity : f.now - vercelAt;
     if (age < PROPAGATION_GRACE_MS) {
       return out("PROPAGATING", { state: "pending", description: `Vercel deployed ${head}; waiting for www to serve it (still ${web})` });
     }
-    return out("DEPLOYED_NOT_LIVE", {
-      state: "error",
-      description: `Vercel reports ${head} deployed but www serves ${web}; check the Vercel production assignment`,
-    }, { exitCode: 1 });
+    if (!f.vercelApiConfigured) {
+      return out("DEPLOYED_NOT_LIVE", {
+        state: "error",
+        description: `Vercel reports ${head} deployed but www serves ${web}; promote it, or configure ${VERCEL_API_SETUP} so this is automatic`,
+      }, { exitCode: 1 });
+    }
+    promoteDue = true;
   }
   if (vercel.kind === "absent" && !lastTrigger) {
     const age = f.headCommittedAt === null || f.headCommittedAt === undefined ? Infinity : f.now - f.headCommittedAt;
@@ -306,6 +341,51 @@ export function decideContinuation(f) {
   }
   if (ci.state !== "success") {
     return out("UNREADABLE_CI", { state: "pending", description: `no promotion: required CI on ${head} unreadable (${ci.detail}); retrying` });
+  }
+
+  // Compatible and green. The live API's own backend release must be VERIFIED
+  // (release/backend success on its revision), not merely running: a release
+  // in progress, failed or never verified promotes no web.
+  const liveShort = SHORT(live.revision);
+  if (!Array.isArray(f.backendLive)) {
+    return out("UNREADABLE_BACKEND", {
+      state: "pending",
+      description: `no promotion: ${BACKEND_STATUS_CONTEXT} of live API ${liveShort} unreadable; web stays at ${web}; retrying`,
+    });
+  }
+  const backend = f.backendLive[0];
+  if (!backend) {
+    return out("WAITING_BACKEND", {
+      state: "pending",
+      description: `waiting for a verified backend release of live API ${liveShort} (${BACKEND_STATUS_CONTEXT}); web stays at ${web}`,
+    });
+  }
+  if (backend.state === "pending") {
+    return out("WAITING_BACKEND", {
+      state: "pending",
+      description: `waiting for backend verification of ${liveShort} (release in progress); web stays at ${web}`,
+    });
+  }
+  if (backend.state !== "success") {
+    return out("HELD_BACKEND_UNVERIFIED", {
+      state: "failure",
+      description: `held: backend ${liveShort} is not verified (${String(backend.description ?? "").slice(0, 60)}); web stays at ${web}`,
+    });
+  }
+
+  if (promoteDue) {
+    const lastPromote = ours.find((s) => PROMOTE_RE.test(String(s.description ?? "")));
+    const at = lastPromote ? ms(lastPromote.created_at) : null;
+    if (at !== null && f.now - at < TRIGGER_IN_FLIGHT_MS) {
+      return out("PROMOTE_IN_FLIGHT", null, { note: `promotion requested at ${lastPromote.created_at}; waiting for www` });
+    }
+    return {
+      outcome: "PROMOTE",
+      action: "promote",
+      status: { state: "pending", description: `promoted web ${SHORT(f.headSha)} via the Vercel API (api ${liveShort} epoch ${live.routeEpoch}); waiting for www` },
+      exitCode: 0,
+      note: gate.reason,
+    };
   }
 
   // Everything is green and compatible. Was a continuation already started?
@@ -486,8 +566,18 @@ export async function gatherFacts({ gh, git = defaultGit, fetchImpl = globalThis
   } catch (e) {
     f.ci = { state: "unknown", detail: e.message };
   }
+  f.backendLive = null;
+  if (f.liveApi && !f.liveApi.error && /^[0-9a-f]{40}$/.test(String(f.liveApi.revision ?? ""))) {
+    try {
+      f.backendLive = byContext(await gh.statuses(f.liveApi.revision), BACKEND_STATUS_CONTEXT);
+    } catch {
+      f.backendLive = null;
+    }
+  }
+  f.vercelApiConfigured = Boolean(String(env.VERCEL_TOKEN ?? "").trim() && String(env.VERCEL_PROJECT_ID ?? "").trim());
   try {
     const statuses = await gh.statuses(head.sha);
+    f.backendHead = byContext(statuses, BACKEND_STATUS_CONTEXT);
     f.vercel = byContext(statuses, env.VERCEL_WEB_CONTEXT || VERCEL_WEB_CONTEXT);
     f.ours = byContext(statuses, STATUS_CONTEXT);
     f.links.vercel = [...new Set(byContext(statuses, env.VERCEL_WEB_CONTEXT || VERCEL_WEB_CONTEXT).map((s) => s.target_url).filter(Boolean))];
@@ -498,6 +588,38 @@ export async function gatherFacts({ gh, git = defaultGit, fetchImpl = globalThis
   f.hookConfigured = hook !== "";
   f.hookValid = isDeployHookUrl(hook);
   return f;
+}
+
+/**
+ * The Vercel REST API, for the two things a deploy hook cannot do: list the
+ * project's READY production deployments and PROMOTE one (a web rollback, and
+ * the first release after one). Needs VERCEL_TOKEN + VERCEL_PROJECT_ID
+ * (+ VERCEL_TEAM_ID for a team project). Never logs the token.
+ */
+export function makeVercel({ token, projectId, teamId, fetchImpl = globalThis.fetch }) {
+  const q = teamId ? `teamId=${encodeURIComponent(teamId)}` : "";
+  const headers = { authorization: `Bearer ${token}`, "content-type": "application/json" };
+  const call = async (method, path) => {
+    const sep = path.includes("?") ? "&" : "?";
+    const res = await fetchImpl(`https://api.vercel.com${path}${q ? `${sep}${q}` : ""}`, { method, headers, signal: AbortSignal.timeout(30_000) });
+    if (res.status < 200 || res.status >= 300) throw new Error(`Vercel ${method} ${path.split("?")[0]} -> HTTP ${res.status}`);
+    if (res.status === 204) return {};
+    try {
+      return await res.json();
+    } catch {
+      return {};
+    }
+  };
+  return {
+    productionDeployments: async () =>
+      ((await call("GET", `/v6/deployments?projectId=${encodeURIComponent(projectId)}&target=production&state=READY&limit=50`)).deployments ?? []).map((d) => ({
+        id: d.uid ?? d.id,
+        url: d.url,
+        sha: d.meta?.githubCommitSha ?? null,
+        createdAt: d.createdAt ?? d.created ?? 0,
+      })),
+    promote: async (deploymentId) => call("POST", `/v10/projects/${encodeURIComponent(projectId)}/promote/${encodeURIComponent(deploymentId)}`),
+  };
 }
 
 /** Calls the hook. Never logs the URL. */
@@ -565,7 +687,7 @@ export async function runContinuation({
     if (dryRun) return true;
     const latest = sha === facts.headSha ? facts.ours?.[0] : null;
     // An unchanged status is not re-posted (statuses are capped per SHA); every trigger is, because triggers are counted.
-    const recordKeeping = parseTrigger(status.description) || status.description.startsWith(HOOK_FAILED_PREFIX);
+    const recordKeeping = parseTrigger(status.description) || status.description.startsWith(HOOK_FAILED_PREFIX) || PROMOTE_RE.test(status.description);
     if (latest && !recordKeeping && latest.state === status.state && latest.description === status.description.slice(0, 140)) return true;
     try {
       await gh.setStatus(sha, { state: status.state, description: status.description.slice(0, 140), context: STATUS_CONTEXT, target_url: runUrl });
@@ -622,6 +744,25 @@ export async function runContinuation({
         } else {
           say(`- no Vercel status within ${Math.round(observeMs / 1000)} s; the next run follows the build (in-flight window ${TRIGGER_IN_FLIGHT_MS / 60_000} min)`);
         }
+      }
+    }
+  } else if (d.action === "promote" && !dryRun) {
+    // Recorded first, like a trigger: an unrecorded promotion would repeat every run.
+    const recorded = await setStatus(facts.headSha, d.status);
+    if (!recorded) {
+      say("- the promotion record could not be written; nothing was promoted (retrying on the next run)");
+    } else {
+      try {
+        const vercel = makeVercel({ token: String(env.VERCEL_TOKEN).trim(), projectId: String(env.VERCEL_PROJECT_ID).trim(), teamId: env.VERCEL_TEAM_ID, fetchImpl });
+        const dep = (await vercel.productionDeployments()).find((x) => x.sha === facts.headSha);
+        if (!dep) throw new Error(`no READY production deployment of ${facts.headSha}`);
+        await vercel.promote(dep.id);
+        say(`- promoted Vercel deployment ${dep.url ?? dep.id} of ${facts.headSha}`);
+        log(`::notice title=Web release promoted::${facts.headSha} promoted through the Vercel API (live API ${la?.revision}).`);
+      } catch (e) {
+        say(`- promotion FAILED (${e.message}); retrying on the next run`);
+        await setStatus(facts.headSha, { state: "pending", description: `promotion failed (${String(e.message).slice(0, 80)}); retrying on the next run` });
+        exitCode = 1;
       }
     }
   } else if (d.status) {

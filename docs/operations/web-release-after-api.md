@@ -51,9 +51,11 @@ means the gate did not ask the API.
 ## Releasing a web that needs a newer API (automatic continuation)
 
 A push whose API-facing source the live API does not serve yet is skipped, by
-design. Release in the reviewed order: migration → worker → API, on the host,
-with `scripts/deploy-prod-pull.sh` at the release SHA. **The web then continues
-by itself**: no empty commit, no second push, no Vercel action.
+design. Since 2026-11-24 the backend is released automatically in the reviewed
+order (worker → API, after a verified backup) by `backend-release.yml`; see
+`automatic-backend-release.md`. **The web then continues by itself**, and only
+once the live API's release is verified (commit status `release/backend`
+success on its revision): no empty commit, no second push, no Vercel action.
 
 `.github/workflows/web-release-continuation.yml` runs
 `scripts/release/web-continuation.mjs` on every push to `main`, whenever a

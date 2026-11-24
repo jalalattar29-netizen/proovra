@@ -14,6 +14,11 @@ the revision and schema checks.
 
 ## 2. Deploy
 
+Since 2026-11-24 a main commit is released automatically by
+`.github/workflows/backend-release.yml` (backup, then this script, then verification;
+see `automatic-backend-release.md`). The commands below are the manual path for an
+operator; after one, dispatch backend-release with `mode=verify` so the web may follow.
+
 Apply migrations first, through the migration runbook. Then, on the server:
 
 ```bash

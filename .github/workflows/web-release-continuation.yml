@@ -19,7 +19,17 @@ name: web-release-continuation
 #     re-runs the same gate on the SHA it builds and refuses anything older
 #     than the live web;
 #   - anything unreadable: no promotion, the status says what, the next run retries.
-# It never commits, pushes or tags. The backend deploy stays an operator step.
+# It never commits, pushes or tags.
+#
+# 2026-11-24 — the backend is released automatically by backend-release.yml,
+# which dispatches this workflow once the backend is VERIFIED. A web is promoted
+# only while the live API's revision carries `release/backend` success (a
+# release in progress, failed, rolled back or never verified promotes nothing),
+# and the web of a commit whose backend release failed or was rolled back is
+# held. After a web rollback (a Vercel promote of an older deployment) Vercel
+# stops auto-assigning production; the next compatible web is then PROMOTED
+# through the Vercel API (repository secret VERCEL_TOKEN, variables
+# VERCEL_PROJECT_ID / VERCEL_TEAM_ID) instead of being rebuilt.
 #
 # Owner configuration: repository secret VERCEL_WEB_DEPLOY_HOOK_URL (a Deploy
 # Hook of the proovra-web project for branch main). Until it exists, a due
@@ -80,6 +90,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           VERCEL_WEB_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_WEB_DEPLOY_HOOK_URL }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
           ORIGIN_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
           WEB_CONTINUATION_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '0' }}
         run: node scripts/release/web-continuation.mjs

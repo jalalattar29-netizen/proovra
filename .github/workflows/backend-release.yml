@@ -1,0 +1,230 @@
+name: backend-release
+
+# AUTOMATIC PRODUCTION BACKEND RELEASE (2026-11-24).
+#
+# The release path for a main commit is now unattended end to end:
+#
+#   push to main → required CI green on that exact SHA (ci, playwright-e2e,
+#   schema-reproducibility, updated-report-journey)
+#   → deploy-images publishes ghcr.io/<owner>/proovra-{api,worker}:sha-<7>
+#     (smoked, revision-labelled; image-publish-gate.mjs)
+#   → THIS WORKFLOW:
+#       gate     the images exist and carry the exact revision, the SHA is still
+#                main HEAD, required CI is green on it, the live API runs an
+#                ANCESTOR of it (never out of order), and no earlier automatic
+#                attempt of it failed → commit status release/backend "deploying"
+#       release  (environment `production`) over SSH with a dedicated key that can
+#                only run /opt/proovra/bin/proovra-release
+#                (infra/host/proovra-release-entry.sh), which runs
+#                scripts/release/host-release.sh from the commit being released:
+#                rollback point recorded and its images proven → database backup
+#                taken and proven (checksum, pg_restore --list) →
+#                scripts/deploy-prod-pull.sh --plan, then worker → API with its own
+#                revision, schema and readiness gates → every container's image
+#                tag, revision label, health and readiness, and /health revision,
+#                contract and route epoch verified on the host → automatic
+#                rollback (API first) and its verification on any failure
+#       finish   the PUBLIC API verified from here (revision, contract, route
+#                epoch, /readyz); release/backend success; then
+#                web-release-continuation is dispatched. The continuation releases
+#                the matching web ONLY while the live API's revision carries a
+#                release/backend success, and the Vercel build re-runs the same
+#                fail-closed compatibility gate.
+#
+# Failure is never green: every refusal, failed or rolled-back release, failed
+# verification or missing owner configuration is a red run AND a red
+# release/backend status naming it. The only green no-ops are a deploy-images
+# completion that published nothing (several complete per commit; one publishes)
+# and a superseded commit (its status says "superseded", and the newer commit is
+# released instead).
+#
+# Serialized: one release at a time (concurrency below, and the host-wide lock in
+# the entry point). A queued run is replaced by a newer queued run, which is
+# harmless: the gate always re-reads main HEAD, and an older SHA is refused.
+#
+# Manual dispatch (Actions → backend-release → Run workflow):
+#   release  <sha>  retry a release of main HEAD after a failure was fixed
+#   verify   <sha>  verify a release that is already live and record it
+#   rollback <sha>  roll back the release <sha> that is running now to the
+#                   recorded rollback point; the live web is first made
+#                   compatible with the restored API (Vercel promote) or the
+#                   rollback is refused
+#
+# OWNER SETUP (once): docs/operations/automatic-backend-release.md §2 — the
+# `production` environment with secret PROD_RELEASE_SSH_KEY and variables
+# PROD_RELEASE_SSH_TARGET, PROD_RELEASE_SSH_KNOWN_HOSTS; the release key bound to
+# the entry point on the host; for web rollback, repository secret VERCEL_TOKEN
+# and variables VERCEL_PROJECT_ID (+ VERCEL_TEAM_ID).
+
+on:
+  workflow_run:
+    workflows: [deploy-images]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "release (retry main HEAD), verify (record a live release), rollback (restore the recorded point)"
+        type: choice
+        options: [release, verify, rollback]
+        default: release
+      sha:
+        description: "Full 40-character commit: the release (release/verify) or the release running now (rollback)"
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: production-backend-release
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: gate (published, green, newest, in order)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    permissions:
+      contents: read
+      actions: read
+      statuses: write
+    outputs:
+      action: ${{ steps.gate.outputs.action }}
+      sha: ${{ steps.gate.outputs.sha }}
+    steps:
+      - name: Check out main (history without blobs)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Decide
+        id: gate
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'auto' }}
+          RELEASE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || github.event.workflow_run.head_sha }}
+        run: node scripts/release/backend-release.mjs gate
+
+  release:
+    name: release (backup, worker, API, verify)
+    needs: gate
+    if: contains(fromJSON('["deploy","verify","rollback"]'), needs.gate.outputs.action)
+    runs-on: ubuntu-24.04
+    # Secrets and variables of the production deployment live on this environment.
+    environment: production
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      statuses: write
+      actions: write
+    env:
+      RELEASE_SHA: ${{ needs.gate.outputs.sha }}
+      RELEASE_ACTION: ${{ needs.gate.outputs.action }}
+    steps:
+      - name: Check out main (history without blobs)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Owner configuration
+        id: config
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SSH_KEY: ${{ secrets.PROD_RELEASE_SSH_KEY }}
+          SSH_TARGET: ${{ vars.PROD_RELEASE_SSH_TARGET }}
+          SSH_KNOWN_HOSTS: ${{ vars.PROD_RELEASE_SSH_KNOWN_HOSTS }}
+        run: |
+          missing=""
+          [ -n "${SSH_KEY}" ] || missing="${missing} secret PROD_RELEASE_SSH_KEY"
+          printf '%s' "${SSH_TARGET}" | grep -Eq '^[a-z_][a-z0-9_-]{0,31}@[A-Za-z0-9.-]+$' || missing="${missing} variable PROD_RELEASE_SSH_TARGET (user@host)"
+          printf '%s' "${SSH_KNOWN_HOSTS}" | grep -Eq '^[^#[:space:]]+ (ssh-ed25519|ecdsa-sha2-nistp256|ssh-rsa) [A-Za-z0-9+/=]+' || missing="${missing} variable PROD_RELEASE_SSH_KNOWN_HOSTS (ssh-keyscan line)"
+          if [ -n "${missing}" ]; then
+            MISSING="${missing# }" node scripts/release/backend-release.mjs config-missing
+            exit 1
+          fi
+          umask 077
+          mkdir -p "${RUNNER_TEMP}/ssh"
+          printf '%s\n' "${SSH_KEY}" > "${RUNNER_TEMP}/ssh/key"
+          printf '%s\n' "${SSH_KNOWN_HOSTS}" > "${RUNNER_TEMP}/ssh/known_hosts"
+          ssh-keygen -y -f "${RUNNER_TEMP}/ssh/key" > /dev/null || {
+            MISSING="a usable private key in PROD_RELEASE_SSH_KEY" node scripts/release/backend-release.mjs config-missing
+            exit 1
+          }
+          echo "target=${SSH_TARGET}" >> "$GITHUB_OUTPUT"
+
+      # Rollback only: the release being restored may predate what the live web
+      # needs. The web is made compatible FIRST (Vercel promote of the newest
+      # compatible production deployment) or nothing is rolled back.
+      - name: Make the web compatible with the release being restored
+        if: env.RELEASE_ACTION == 'rollback'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SSH_TARGET: ${{ steps.config.outputs.target }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+        run: |
+          ssh -i "${RUNNER_TEMP}/ssh/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="${RUNNER_TEMP}/ssh/known_hosts" -o ConnectTimeout=30 \
+            "${SSH_TARGET}" status | tee "${RUNNER_TEMP}/status.log"
+          running="$(sed -nE 's/^PROOVRA_RELEASE revision_api=([0-9a-f]{40})$/\1/p' "${RUNNER_TEMP}/status.log")"
+          if [ "${running}" != "${RELEASE_SHA}" ]; then
+            echo "::error title=Rollback refused::the host runs ${running:-an unreadable release}, not ${RELEASE_SHA}; nothing changed"
+            exit 1
+          fi
+          ROLLBACK_TARGET="$(sed -nE 's/^PROOVRA_RELEASE previous_release=([0-9a-f]{40})$/\1/p' "${RUNNER_TEMP}/status.log")" \
+            node scripts/release/backend-release.mjs rollback-web
+
+      - name: Release on the host
+        id: host
+        env:
+          SSH_TARGET: ${{ steps.config.outputs.target }}
+        run: |
+          case "${RELEASE_ACTION}" in
+            deploy) request="release ${RELEASE_SHA}" ;;
+            verify) request="status" ;;
+            rollback) request="rollback ${RELEASE_SHA}" ;;
+          esac
+          set +e
+          ssh -i "${RUNNER_TEMP}/ssh/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="${RUNNER_TEMP}/ssh/known_hosts" -o ConnectTimeout=30 \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
+            "${SSH_TARGET}" ${request} 2>&1 | tee "${RUNNER_TEMP}/host.log"
+          echo "exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      # Also after a cancelled or timed-out host step: the release/backend status
+      # must never be left at "deploying" (it then reads "outcome unknown").
+      - name: Verify from outside, record, continue the web
+        if: always() && steps.config.outcome == 'success' && steps.host.outcome != 'skipped'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          HOST_LOG: ${{ runner.temp }}/host.log
+          SSH_EXIT: ${{ steps.host.outputs.exit }}
+          ROLLBACK_FROM: ${{ env.RELEASE_SHA }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+        run: node scripts/release/backend-release.mjs finish
+
+      - name: Remove the key
+        if: always()
+        run: rm -rf "${RUNNER_TEMP}/ssh"
