@@ -36,6 +36,7 @@ import { apiFetch } from "../../lib/api";
 import { formatUserDate } from "../../lib/date";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useConfirmAction } from "../ui/ConfirmActionModal";
+import { RESTRICTED_CASE_OWNER_VISIBILITY } from "../../lib/members/membership-disclosures";
 import { ReasonedActionButton } from "../../app/(app)/evidence/[id]/components/ReasonedActionButton";
 import {
   WorkspaceMemberSelect,
@@ -104,6 +105,9 @@ export type MatterAccessViewer = {
  */
 const RESTRICT_CONSEQUENCES =
   " Records linked to this case also become visible only to them, and share links or external-review access that other members created for those records are revoked.";
+
+/** T-105 (MEM-04) — today's behaviour: the owner and admins are not exempt. */
+const RESTRICT_OWNER_VISIBILITY = ` ${RESTRICTED_CASE_OWNER_VISIBILITY}`;
 
 const FALLBACK_MANAGE_REASON =
   "Only a workspace Owner or Admin, or the case owner, can change who has access to this case.";
@@ -260,6 +264,7 @@ export function MatterAccessTab({
         description:
           `Right now every active member of this workspace can open this case. After ${selected.label} is given access, only the case owner and the people listed here can open it.` +
           RESTRICT_CONSEQUENCES +
+          RESTRICT_OWNER_VISIBILITY +
           selfNote,
         confirmLabel: "Give access and restrict",
         tone: "warning",
@@ -363,7 +368,8 @@ export function MatterAccessTab({
         title: "Restrict this case to a Collaboration Team?",
         description:
           `Right now every active member of this workspace can open this case. After ${team.name} is given access, only the case owner, the people listed here and that team's members can open it.` +
-          RESTRICT_CONSEQUENCES,
+          RESTRICT_CONSEQUENCES +
+          RESTRICT_OWNER_VISIBILITY,
         confirmLabel: "Give access and restrict",
         tone: "warning",
       });
