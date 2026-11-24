@@ -58,6 +58,12 @@ import {
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
 import { ReasonedActionButton } from "./ReasonedActionButton";
+import {
+  CLAIM_PLACEMENT_REFUSAL_MESSAGE,
+  COLLABORATION_TEAMS_HREF,
+  PLACEMENT_REFUSAL_TITLE,
+  isPlacementRefusal,
+} from "../../../../../lib/members/placement";
 
 /** The review routes' refusal codes, said in words a reviewer can act on. */
 const REFUSAL_COPY: Readonly<Record<string, string>> = {
@@ -195,7 +201,12 @@ export function EvidenceReviewActionsPanel({
   // only say so, and no reviewer could record a verdict in the browser.
   const stepUp = useStepUpAction({ teamId });
   const [pending, setPending] = useState<ReviewWorkflowAction | null>(null);
-  const [outcome, setOutcome] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [outcome, setOutcome] = useState<{
+    tone: "success" | "error";
+    text: string;
+    /** T-098 — the placement prerequisite refused the claim: title + way out. */
+    placement?: boolean;
+  } | null>(null);
   const [reasonFor, setReasonFor] = useState<ReviewWorkflowAction | null>(null);
   const [reason, setReason] = useState("");
   const reasonId = useId();
@@ -245,6 +256,13 @@ export function EvidenceReviewActionsPanel({
       // A refusal often means the record moved under us: re-read it so the
       // panel shows the state the message refers to.
       await onChanged?.();
+      // Team remediation T-098 — the placement refusal, in the canonical code
+      // (REVIEW_ASSIGNEE_NOT_PLACED, reason assignee_not_placed) or the legacy
+      // lowercase one, said in words with the way to fix it.
+      if (isPlacementRefusal(err)) {
+        setOutcome({ tone: "error", text: CLAIM_PLACEMENT_REFUSAL_MESSAGE, placement: true });
+        return;
+      }
       setOutcome({
         tone: "error",
         // T-027 (stage B) — a closed enrolment / re-sign-in state says what is
@@ -351,8 +369,18 @@ export function EvidenceReviewActionsPanel({
           className={outcome.tone === "error" ? "evd-error" : "evd-muted"}
           role={outcome.tone === "error" ? "alert" : "status"}
           data-evidence-review-outcome={outcome.tone}
+          data-evidence-review-placement={outcome.placement ? "" : undefined}
         >
-          {outcome.text}
+          {outcome.placement ? (
+            <>
+              <strong>{PLACEMENT_REFUSAL_TITLE}.</strong> {outcome.text}{" "}
+              <a href={COLLABORATION_TEAMS_HREF} data-evidence-review-place-action>
+                Open Collaboration Teams
+              </a>
+            </>
+          ) : (
+            outcome.text
+          )}
         </p>
       ) : null}
 

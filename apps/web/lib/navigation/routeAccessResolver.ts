@@ -300,6 +300,23 @@ export function resolveRouteAccess(
   if (!isPlatformAdmin && route.requiredPlanFeature) {
     const featureValue = input.planFeatures?.[route.requiredPlanFeature];
     if (featureValue !== true) {
+      // T-125 (PRO-R3-06 / DEC-10, folded from the tier table) — a lapsed
+      // entitlement keeps existing material readable: the page loads
+      // read-only and stays out of navigation while the server says so.
+      if (
+        route.readRetainedPlanFeature &&
+        input.planFeatures?.[route.readRetainedPlanFeature] === true
+      ) {
+        return {
+          canLoad: true,
+          canSeeNav: false,
+          accessState: "NEEDS_UPGRADE",
+          reason:
+            "This feature isn't included in the current plan. Existing material stays readable; new work needs the feature.",
+          primaryAction: { label: "View plans", href: "/billing" },
+          secondaryAction: { label: "Back to home", href: "/home" },
+        };
+      }
       return {
         canLoad: false,
         // Hidden while the entitlement is absent OR unknown (loading /

@@ -58,6 +58,7 @@ import {
 } from "../billing/workspace-seats.service.js";
 import { organizationLifecycleApplies } from "./workspace-kind.js";
 import { assertPersonalSpaceAllowed } from "./identity-mode.service.js";
+import { presentableWorkspaceName } from "../platform-context/workspace-bootstrap.service.js";
 import {
   BillingLimitError,
   assertSubscriptionActiveOrGraceAllowed,
@@ -679,6 +680,11 @@ export async function acceptWorkspaceInvitation(
   }
 
   const status = invitationStatus(invite);
+  // Team remediation T-122 (MEM-12) — by token this branch is reached only by
+  // an invitation revoked BEFORE revoke rotated `tokenHash`: revoke and decline
+  // now rotate it, so a revoked link reads as INVITE_NOT_FOUND above ("does not
+  // exist. Ask for a new one." — the honest instruction either way). Kept as a
+  // fail-closed guard for such legacy rows, not as a reachable product state.
   if (status === "REVOKED") {
     throw new WorkspaceInvitationError(
       "INVITE_REVOKED",
@@ -1077,6 +1083,7 @@ export async function lookupWorkspaceInvitation(
       closedAtUtc: true,
       workspaceKind: true,
       organization: { select: { name: true, status: true } },
+      owner: { select: { firstName: true, lastName: true, displayName: true } },
     },
   });
 
@@ -1110,7 +1117,8 @@ export async function lookupWorkspaceInvitation(
   return {
     state: "PENDING",
     context: {
-      workspaceName: workspace.name,
+      // T-117 — an invitee never sees the owner's e-mail as the workspace name.
+      workspaceName: presentableWorkspaceName(workspace.name, workspace.owner ?? null),
       organizationName:
         orgName && orgName !== workspace.name ? orgName : null,
       role: String(invite.role),

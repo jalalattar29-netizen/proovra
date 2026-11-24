@@ -130,6 +130,39 @@ export async function resolveEvidenceRecordAccess(
 }
 
 /**
+ * Team remediation T-119 / T-120 (JRN-06, MEM-07) — the public answer to a
+ * REFUSED record action. Anti-enumeration is for people who cannot see the
+ * record: a missing record, another tenant's, a restricted case's and a
+ * workspace the caller cannot enter stay one 404. A caller who CAN read the
+ * record (`evidence.read` passes) already knows it exists, so telling them
+ * "not found" for a record they just opened was wrong: they get 403 with a
+ * typed reason — the permission they lack (e.g. a MEMBER trashing even their
+ * own record: `evidence.delete` is OWNER / ADMIN, unchanged) — or
+ * `session_quarantined` when the role allows it but the session may not.
+ */
+export type EvidenceRecordRefusal =
+  | { statusCode: 404; code: "not_found" }
+  | { statusCode: 403; code: "permission_denied" | "session_quarantined"; reason: string };
+
+export async function evidenceRecordRefusal(
+  input: { userId: string; evidenceId: string; permission: EvidenceRecordPermission; denial: EvidenceRecordDenyReason },
+  client: PrismaClient = defaultPrisma,
+): Promise<EvidenceRecordRefusal> {
+  if (input.permission === "evidence.read") return { statusCode: 404, code: "not_found" };
+  // Pure (no permission-denied event for the probe): the same decision the
+  // read gate makes, as the record detail's capability projection asks it.
+  const granted = await projectEvidenceRecordPermissions(
+    { userId: input.userId, evidenceIds: [input.evidenceId], permissions: ["evidence.read"] },
+    client,
+  );
+  if (!granted.get(input.evidenceId)?.has("evidence.read")) return { statusCode: 404, code: "not_found" };
+  if (input.denial === "session_quarantined") {
+    return { statusCode: 403, code: "session_quarantined", reason: "session_quarantined" };
+  }
+  return { statusCode: 403, code: "permission_denied", reason: input.permission };
+}
+
+/**
  * B5A-F-03 (free audit 0ea0) — WHAT THE CALLER MAY DO TO THIS RECORD, as a
  * read-time projection for the record detail and review workspace (A2-14: a
  * Viewer is offered no write control the server would refuse).

@@ -6,6 +6,7 @@
  */
 import React, { useState } from "react";
 import { View } from "react-native";
+import { useRouter } from "expo-router";
 
 import {
   describeReviewOutcome,
@@ -26,6 +27,7 @@ import {
   buildReviewDecisionBody,
   buildReviewDecisionPath,
   canClaimReview,
+  isPlacementRefusal,
   reviewDecisionAllowed,
   reviewDecisionBlockedReason,
   reviewNoteLabel,
@@ -50,6 +52,10 @@ export function ReviewActionsPanel({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // T-098 — the claim was refused because the person is not yet in a
+  // Collaboration Team; said in words, with the way there.
+  const [notPlaced, setNotPlaced] = useState(false);
+  const router = useRouter();
   const [noteFor, setNoteFor] = useState<ReviewDecision | null>(null);
   const [note, setNote] = useState("");
   const [result, setResult] = useState<string | null>(null);
@@ -67,11 +73,13 @@ export function ReviewActionsPanel({
     if (!workflow.teamId) return;
     setBusy(true);
     setError(null);
+    setNotPlaced(false);
     try {
       await apiFetch(buildReviewClaimPath(evidenceId), { method: "POST", body: JSON.stringify({ teamId: workflow.teamId }) });
       onChanged();
     } catch (err) {
-      setError(toSafeUserError(err, { message: COPY.claimFailed }).message);
+      if (isPlacementRefusal(err)) setNotPlaced(true);
+      else setError(toSafeUserError(err, { message: COPY.claimFailed }).message);
     } finally {
       setBusy(false);
     }
@@ -80,6 +88,7 @@ export function ReviewActionsPanel({
   const send = async (d: ReviewDecision, n: string | null) => {
     setBusy(true);
     setError(null);
+    setNotPlaced(false);
     try {
       const resp = (await stepUp.run((headers) =>
         apiFetch(buildReviewDecisionPath(evidenceId), {
@@ -134,6 +143,13 @@ export function ReviewActionsPanel({
           </View>
           {error ? <ProovraText variant="label" color={theme.color.status.risk.fg}>{error}</ProovraText> : null}
           {result ? <ProovraText variant="label" color={theme.color.ink.secondary} testID="review-actions-result">{result}</ProovraText> : null}
+          {notPlaced ? (
+            <View style={{ gap: theme.space.s1 }} testID="review-claim-not-placed">
+              <ProovraText variant="label" weight="semibold">{COPY.claimNotPlacedTitle}</ProovraText>
+              <ProovraText variant="label" color={theme.color.ink.secondary}>{COPY.claimNotPlaced}</ProovraText>
+              <ProovraButton label={COPY.claimNotPlacedAction} variant="secondary" fullWidth={false} onPress={() => router.push("/teams" as never)} />
+            </View>
+          ) : null}
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 }}>
             {canClaimReview(workflow.teamId, workflow.assignedToUserId, stage) ? (
               <ProovraButton label={COPY.claim} variant="secondary" fullWidth={false} disabled={busy} onPress={() => void claim()} />

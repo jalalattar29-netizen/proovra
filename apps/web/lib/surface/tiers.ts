@@ -56,6 +56,35 @@
  * Future expansion: when product packaging adds an ENTERPRISE plan, the
  * tier model upgrades automatically because the SERVER-projected
  * `PlatformContextFlags.isEnterpriseWorkspace` are already wired in.
+ *
+ * T-125 / ARCH-09 — TWO WEB GATE ENGINES: WHO DECIDES WHAT (2026-11-24).
+ *
+ *   1. The route registry (`lib/navigation/routeRegistry.ts` +
+ *      `resolveRouteAccess`) is THE access authority for a registered
+ *      destination: role capabilities, active-space kind, Enterprise
+ *      workspace (`ENTERPRISE_ONLY_ROUTE_IDS`) and the commercial
+ *      entitlement (`requiredPlanFeature` / `navPlanFeature` /
+ *      `readRetainedPlanFeature`). Sidebar, command palette, All Tools and
+ *      `PageRouteGate` read it.
+ *   2. This table is the PATH-PREFIX layer: it covers sub-paths and routes
+ *      with no registry entry of their own, decides how a refused direct URL
+ *      is PRESENTED (`redirect` + target, `notFound`, `forbidden` + copy),
+ *      feeds the unauthenticated middleware backstop (INTERNAL only), and its
+ *      coarse tier (PROFESSIONAL / ENTERPRISE / INTERNAL) is the fail-closed
+ *      fallback while the envelope is unknown. It is mounted by
+ *      `EnterpriseSurfaceLayout` -> `SurfaceGate` and read by
+ *      `canAccessSurface` link checks.
+ *   PRECEDENCE: a page under an Enterprise route group passes SurfaceGate
+ *   (layout, outer) and then PageRouteGate (page, inner); it opens only when
+ *   both allow, and SurfaceGate's presentation wins when both refuse.
+ *   ENTITLEMENT: a rule no longer declares an entitlement key of its own. It
+ *   names the registry route it follows (`entitlementRouteId`) and
+ *   `lib/surface/access.ts` reads that route's `requiredPlanFeature` (and
+ *   `readRetainedPlanFeature`), so the two engines cannot disagree on a plan
+ *   question again (`/review/queues` used to read reviewerOperationsIncluded
+ *   here and reviewQueuesIncluded there). Equivalence for every page both
+ *   engines gate, per Free / Pro / Team / Enterprise context, is proven by
+ *   `__tests__/navigation-contract-resolves.test.ts`.
  */
 
 /** Tier the surface belongs to. Determines who sees it. */
@@ -86,27 +115,18 @@ export type SurfaceTierRule = {
   pathPrefix: string;
   tier: SurfaceTier;
   /**
-   * OpsCenter visibility remediation (2026-07-18) — optional COMMERCIAL
-   * ENTITLEMENT override. When set, the surface decision follows the
-   * backend-computed `envelope.planFeatures.<key>` boolean (the canonical
-   * PLAN_CAPABILITIES projection) wherever the envelope is available;
-   * `tier` remains only the fail-closed fallback while the value is
-   * unknown (loading / degraded envelope). This keeps the tier table free
-   * of plan-literal duplication of the pricing catalog.
+   * T-125 — the registry route whose COMMERCIAL ENTITLEMENT this rule follows
+   * (OpsCenter visibility remediation 2026-07-18 introduced the override; it
+   * used to name a `planFeatures` key here, a second copy that drifted). The
+   * decision reads that route's `requiredPlanFeature` (and
+   * `readRetainedPlanFeature`: PRO-R3-06 / DEC-10, existing material stays
+   * readable after a lapse) from the backend-computed `envelope.planFeatures`
+   * wherever the envelope is available; `tier` remains only the fail-closed
+   * fallback while the value is unknown (loading / degraded envelope). Must
+   * name a registry route that declares `requiredPlanFeature` (pinned by
+   * test). A plain string so the middleware bundle never imports the registry.
    */
-  entitlementOverride?:
-    | "intakeIncluded"
-    | "reviewerOperationsIncluded"
-    | "redactionIncluded"
-    | "reviewQueuesIncluded"
-    | "externalReviewIncluded";
-  /**
-   * PRO-R3-06 / DEC-10 — when the entitlement override answers false, the
-   * surface still opens (read-only) while this server-projected flag says the
-   * workspace keeps existing material readable. New work stays refused by the
-   * API and is not offered by the page.
-   */
-  readRetainedOverride?: "redactionReadRetained";
+  entitlementRouteId?: string;
   /**
    * Match the path EXACTLY rather than as a prefix. Used where one console
    * (`/review`) shares its prefix with surfaces that keep a different rule.
@@ -346,37 +366,44 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // ladder every `/v1/reviewer-ops/*` route enforces — not "is this an
   // Enterprise workspace". TEAM sells them on the Personal Workspace it lives
   // on; PRO does not. The advanced review surfaces below stay ENTERPRISE.
-  { pathPrefix: "/review", exact: true, tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "The reviewer console is part of the Team plan and above. Record-level review stays on each record's Review tab.", reason: "reviewer console (per reviewerOperationsIncluded)" },
-  { pathPrefix: "/review/operations", tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "Reviewer operations are part of the Team plan and above.", reason: "reviewer operations (per reviewerOperationsIncluded)" },
-  { pathPrefix: "/review/queues", tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "Review queues are part of the Team plan and above. Submissions can be reviewed from each evidence request.", reason: "review queues (per reviewerOperationsIncluded)" },
-  { pathPrefix: "/review-operations", tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "Reviewer operations are part of the Team plan and above.", reason: "reviewer operations (per reviewerOperationsIncluded)" },
-  { pathPrefix: "/reviewer-ops", tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "Reviewer operations are part of the Team plan and above.", reason: "reviewer ops console (per reviewerOperationsIncluded)" },
+  { pathPrefix: "/review", exact: true, tier: "ENTERPRISE", entitlementRouteId: "workspace.review", directAccessPolicy: "forbidden", forbiddenMessage: "The reviewer console is part of the Team plan and above. Record-level review stays on each record's Review tab.", reason: "reviewer console (per reviewerOperationsIncluded)" },
+  { pathPrefix: "/review/operations", tier: "ENTERPRISE", entitlementRouteId: "review.operations", directAccessPolicy: "forbidden", forbiddenMessage: "Reviewer operations are part of the Team plan and above.", reason: "reviewer operations (per reviewerOperationsIncluded)" },
+  { pathPrefix: "/review/queues", tier: "ENTERPRISE", entitlementRouteId: "workspace.review_queues", directAccessPolicy: "forbidden", forbiddenMessage: "Review queues are part of the Team plan and above. Submissions can be reviewed from each evidence request.", reason: "review queues (per reviewerOperationsIncluded)" },
+  { pathPrefix: "/review-operations", tier: "ENTERPRISE", entitlementRouteId: "review.queue", directAccessPolicy: "forbidden", forbiddenMessage: "Reviewer operations are part of the Team plan and above.", reason: "reviewer operations (per reviewerOperationsIncluded)" },
+  { pathPrefix: "/reviewer-ops", tier: "ENTERPRISE", entitlementRouteId: "review.queue", directAccessPolicy: "forbidden", forbiddenMessage: "Reviewer operations are part of the Team plan and above.", reason: "reviewer ops console (per reviewerOperationsIncluded)" },
   // PRO-R2-06 (WS-ENT) — one review ladder for API and web. The reviewer
   // workspace, coding schemas, QC, disagreements and reviewer metrics are
   // served by the API to TEAM (REVIEW_TASKS_AND_QUEUES → reviewQueuesIncluded);
   // External Review is PRO and above (externalReviewIncluded). A plan that
   // does not include a Review surface is told so with a plan refusal
   // (forbidden), not a 404 that reads as a broken link.
-  { pathPrefix: "/review/workspace", tier: "ENTERPRISE", entitlementOverride: "reviewQueuesIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "The reviewer workspace is part of the Team plan and above.", reason: "reviewer workspace (per reviewQueuesIncluded)" },
-  { pathPrefix: "/review/schemas", tier: "ENTERPRISE", entitlementOverride: "reviewQueuesIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "Coding schemas are part of the Team plan and above.", reason: "coding schemas (per reviewQueuesIncluded)" },
-  { pathPrefix: "/review/qc", tier: "ENTERPRISE", entitlementOverride: "reviewQueuesIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "Quality control sampling is part of the Team plan and above.", reason: "QC (per reviewQueuesIncluded)" },
-  { pathPrefix: "/review/disagreements", tier: "ENTERPRISE", entitlementOverride: "reviewQueuesIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "Reviewer disagreements are part of the Team plan and above.", reason: "disagreements (per reviewQueuesIncluded)" },
-  { pathPrefix: "/review/metrics", tier: "ENTERPRISE", entitlementOverride: "reviewQueuesIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "Reviewer metrics are part of the Team plan and above.", reason: "reviewer metrics (per reviewQueuesIncluded)" },
-  { pathPrefix: "/review/external", tier: "ENTERPRISE", entitlementOverride: "externalReviewIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "External Review is part of the Pro plan and above.", reason: "external review (per externalReviewIncluded)" },
+  { pathPrefix: "/review/workspace", tier: "ENTERPRISE", entitlementRouteId: "workspace.review_workspace", directAccessPolicy: "forbidden", forbiddenMessage: "The reviewer workspace is part of the Team plan and above.", reason: "reviewer workspace (per reviewQueuesIncluded)" },
+  { pathPrefix: "/review/schemas", tier: "ENTERPRISE", entitlementRouteId: "workspace.coding_schemas", directAccessPolicy: "forbidden", forbiddenMessage: "Coding schemas are part of the Team plan and above.", reason: "coding schemas (per reviewQueuesIncluded)" },
+  { pathPrefix: "/review/qc", tier: "ENTERPRISE", entitlementRouteId: "workspace.review_qc", directAccessPolicy: "forbidden", forbiddenMessage: "Quality control sampling is part of the Team plan and above.", reason: "QC (per reviewQueuesIncluded)" },
+  { pathPrefix: "/review/disagreements", tier: "ENTERPRISE", entitlementRouteId: "workspace.review_disagreements", directAccessPolicy: "forbidden", forbiddenMessage: "Reviewer disagreements are part of the Team plan and above.", reason: "disagreements (per reviewQueuesIncluded)" },
+  { pathPrefix: "/review/metrics", tier: "ENTERPRISE", entitlementRouteId: "workspace.review_metrics", directAccessPolicy: "forbidden", forbiddenMessage: "Reviewer metrics are part of the Team plan and above.", reason: "reviewer metrics (per reviewQueuesIncluded)" },
+  { pathPrefix: "/review/external", tier: "ENTERPRISE", entitlementRouteId: "workspace.review_external", directAccessPolicy: "forbidden", forbiddenMessage: "External Review is part of the Pro plan and above.", reason: "external review (per externalReviewIncluded)" },
+  // T-125 — `/review/queues` follows `workspace.review_queues`
+  // (reviewQueuesIncluded, REVIEW_TASKS_AND_QUEUES); it used to read
+  // reviewerOperationsIncluded here while the registry read reviewQueuesIncluded.
+  // `/reviewer-ops` (inspector, queue, SLA, escalations) and the legacy
+  // `/review-operations` prefix follow `review.queue` (reviewerOperationsIncluded).
   // TEAM-SPEC §3 (2026-11-23) — Review settings: the reviewer SLA policy, moved
   // out of the Enterprise /governance/policy page (which keeps its own rule
   // below), plus reviewer criteria and coding schema links. It follows the
   // same reviewer-operations entitlement as the rest of the Review hub, on any
   // workspace kind; the edit form inside is offered only to roles holding
   // governance.policy.manage, and the API enforces that independently.
-  { pathPrefix: "/review/settings", tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "Review settings are part of the Team plan and above.", reason: "review settings (per reviewerOperationsIncluded)" },
+  { pathPrefix: "/review/settings", tier: "ENTERPRISE", entitlementRouteId: "review.settings", directAccessPolicy: "forbidden", forbiddenMessage: "Review settings are part of the Team plan and above.", reason: "review settings (per reviewerOperationsIncluded)" },
   { pathPrefix: "/reviewer-workspace", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "reviewer workspace" },
   { pathPrefix: "/review", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "review surfaces" },
   // Free audit B5B-F-205 — one authority for redaction: the server's
   // `planFeatures.redactionIncluded` (resolveEntitlement(FEATURE_REDACTION))
   // decides wherever the envelope carries it; an older API that does not
   // project it leaves the ENTERPRISE tier as the fail-closed fallback.
-  { pathPrefix: "/redaction", tier: "ENTERPRISE", entitlementOverride: "redactionIncluded", readRetainedOverride: "redactionReadRetained", directAccessPolicy: "notFound", reason: "redaction platform (per redactionIncluded; read-only per redactionReadRetained after a lapse)" },
+  // T-125 — that authority is the registry entry's requiredPlanFeature /
+  // readRetainedPlanFeature, which this rule now follows.
+  { pathPrefix: "/redaction", tier: "ENTERPRISE", entitlementRouteId: "workspace.review_redaction", directAccessPolicy: "notFound", reason: "redaction platform (per redactionIncluded; read-only per redactionReadRetained after a lapse)" },
 
   // Governance / Compliance
   { pathPrefix: "/governance-platform", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "governance platform (org admin)" },

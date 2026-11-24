@@ -28,8 +28,15 @@ import { Modal } from "../../../../../components/cases-experience/matter-modals/
 import { apiFetch } from "../../../../../lib/api";
 import { recordReference } from "../../../../../lib/short-id";
 import { escalationReasonLabel } from "../../../../../lib/labels/governanceReviewLabels";
+import {
+  COLLABORATION_TEAMS_HREF,
+  PLACEMENT_ACTION_LABEL,
+  isPlacedReviewer,
+  placementPrerequisiteSentence,
+} from "../../../../../lib/members/placement";
 
-type AssignableReviewer = { userId: string; displayName: string | null };
+/** `placed: false` (T-097): not in a Collaboration Team; absent (older API) = placed. */
+type AssignableReviewer = { userId: string; displayName: string | null; placed?: boolean };
 
 function ConfirmFooter({
   formId,
@@ -192,10 +199,18 @@ export function ReassignDialog({
             value={choice}
             options={[
               { value: "", label: handoff ? "Choose a second reviewer…" : "Choose a reviewer…" },
-              ...reviewers.map((r) => ({
-                value: r.userId,
-                label: r.displayName?.trim() || recordReference("Reviewer", r.userId),
-              })),
+              ...reviewers.map((r) => {
+                const name = r.displayName?.trim() || recordReference("Reviewer", r.userId);
+                // T-097 — an unplaced person is listed, unavailable, with why.
+                return isPlacedReviewer(r)
+                  ? { value: r.userId, label: name }
+                  : {
+                      value: r.userId,
+                      label: name,
+                      description: placementPrerequisiteSentence(name),
+                      disabled: true,
+                    };
+              }),
             ]}
             onChange={(next) => setChoice(next)}
             disabled={busy}
@@ -203,6 +218,14 @@ export function ReassignDialog({
             triggerProps={{ "data-review-handoff-picker": "", "data-reviewer-reassign-picker": "" }}
           />
         )}
+        {reviewers !== null && reviewers.some((r) => !isPlacedReviewer(r)) ? (
+          <p className="app-field-help" data-reviewer-reassign-unplaced style={{ margin: 0 }}>
+            People who are not in a Collaboration Team yet cannot be given work.{" "}
+            <a href={COLLABORATION_TEAMS_HREF} data-reviewer-reassign-place-action>
+              {PLACEMENT_ACTION_LABEL}
+            </a>
+          </p>
+        ) : null}
         {reviewers !== null && reviewers.length === 0 && !loadError ? (
           <p className="app-field-help" style={{ margin: 0 }}>
             No other eligible reviewer is available in this workspace.

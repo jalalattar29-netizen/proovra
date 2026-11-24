@@ -57,13 +57,16 @@ test("acceptInvite posts the token in the body of the canonical accept route", a
   assert.deepEqual(result, { teamId: "team-1", memberId: "member-1" });
 });
 
-test("the accept page reaches the API only through acceptInvite", () => {
+// Team remediation T-121 — the legacy accept PAGE is retired: it accepts
+// nothing and reaches no API (its behaviour is proven in
+// render/coverage-page-denials.render.test.tsx). `acceptInvite` above stays the
+// body-token client for the untouched API route.
+test("the retired accept page reaches no API", () => {
   const page = readFileSync(
     resolve(dirname(fileURLToPath(import.meta.url)), "../app/(app)/collaboration-teams/invites/[token]/accept/page.tsx"),
     "utf8",
   );
-  assert.match(page, /import \{ acceptInvite \} from "[./]+\/lib\/api\/collaboration-teams"/);
-  assert.match(page, /acceptInvite\(/);
-  assert.doesNotMatch(page, /\/v1\/collaboration-team-invites/);
+  assert.doesNotMatch(page, /acceptInvite\(/);
+  assert.doesNotMatch(page, /apiFetch|\/v1\//);
   assert.doesNotMatch(page, /\bfetch\(/);
 });

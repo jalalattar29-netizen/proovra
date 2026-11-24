@@ -73,6 +73,12 @@ import {
 
 import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 import { decodeKeysetCursor, keysetAfter, keysetPage } from "../services/pagination/keyset-cursor.js";
+import {
+  namedMutationWorkspace,
+  sendWorkspaceContextMismatch,
+  sendWorkspaceNotFound,
+  sendWorkspaceRequired,
+} from "../http/workspace-context.js";
 
 /** F-21 — the largest page of GET /v1/cases, and the default (the old fixed cap). */
 const CASE_LIST_PAGE_MAX = 200;
@@ -459,14 +465,37 @@ class TeamArchivedDuringGrant extends Error {}
 
 export async function casesRoutes(app: FastifyInstance) {
   app.post("/v1/cases", { preHandler: requireAuthAndLegal }, async (req, reply) => {
-    const body = CreateCaseBody.parse(req.body);
+    const parsedBody = CreateCaseBody.parse(req.body);
     const ownerUserId = getAuthUserId(req);
+
+    // Team remediation T-118 / T-123 (MEM-09, MEM-S2) — ONE rule for the
+    // workspace a case is created in: the body `teamId`, else the workspace
+    // the request names in its header; both present and different is refused
+    // (409); neither is refused (400) instead of silently creating in the
+    // caller's PERSONAL space while the client showed another workspace.
+    const named = namedMutationWorkspace(req, parsedBody.teamId ?? null);
+    if (named.kind === "mismatch") return sendWorkspaceContextMismatch(reply, req);
+    if (named.kind === "unnamed") return sendWorkspaceRequired(reply, req);
+    const body = { ...parsedBody, teamId: named.teamId };
 
     if (body.teamId) {
       const member = await prisma.teamMember.findUnique({
         where: { teamId_userId: { teamId: body.teamId, userId: ownerUserId } },
         select: { status: true, role: true },
       });
+
+      // T-123 — a workspace the caller is not an ACTIVE member of is answered
+      // exactly as a missing one (404), as reads and the header path answer it.
+      if (member?.status !== "ACTIVE") {
+        await auditCaseAction(req, {
+          userId: ownerUserId,
+          action: "cases.create",
+          outcome: "blocked",
+          severity: "warning",
+          metadata: { reason: "workspace_not_found", teamId: body.teamId },
+        });
+        return sendWorkspaceNotFound(reply, req);
+      }
 
       // P0 remediation (2026-07-21) — only ACTIVE membership may create
       // records into a workspace; suspended/revoked members are denied.

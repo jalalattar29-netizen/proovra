@@ -665,24 +665,38 @@ export default function MarketingPricingPage() {
        * does not have — the difference between the two plans is the size of
        * their Collaboration Teams, stated in its own row. "Team" is never the
        * workspace here.
+       *
+       * T-106 (ARCH-07) — but assignment TO Collaboration Team members is
+       * Collaboration-Team task work, which needs REVIEW_TASKS_AND_QUEUES
+       * (`reviewQueuesIncluded`: Team and above); the web offers no assignment
+       * control on Pro. So the Pro cell sells cases and names the plan that
+       * adds the assignment. Copy only: no entitlement changes here (T-107).
        */
       label: "Cases & matters",
       values: [
         "Not included",
         "Not included",
-        "Cases, assignable to Collaboration Team members",
+        "Cases; assignment to Collaboration Team members with Team",
         "Cases, assignable to Collaboration Team members",
         "Organization-wide matters",
       ],
     },
     {
+      /*
+       * T-108 (ARCH-06) — Team delivers the reviewer workflows themselves
+       * (assignments, second review, QC, coding schemas, disagreements,
+       * metrics), so the Enterprise cell names only what Enterprise adds:
+       * organizations, automation and integrations. "Advanced reviewer
+       * workflows" described Team features as Enterprise ones, and no code
+       * gates anything on it.
+       */
       label: "Reviewer operations",
       values: [
         "Not included",
         "Not included",
         "Not included",
         "Review assignments",
-        "Advanced reviewer workflows",
+        "Everything in Team, plus organization-wide automation & integrations",
       ],
     },
     {
@@ -710,13 +724,15 @@ export default function MarketingPricingPage() {
       ],
     },
     {
+      // T-108 — the queues are the same product on Team and Enterprise;
+      // Enterprise adds the organization around them, not "advanced" queues.
       label: "Tasks & review queues",
       values: [
         "Not included",
         "Not included",
         "Not included",
         "Included",
-        "Advanced queues",
+        "Everything in Team, across your organization's workspaces",
       ],
     },
     {

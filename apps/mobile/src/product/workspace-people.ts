@@ -673,6 +673,14 @@ export interface RemovalImpact {
   ownedCases: number;
   openAssignments: number;
   requiresTransfer: boolean;
+  /**
+   * T-101 — the work the removal releases, counted by the server with the
+   * removal's own predicates. Null when the server predates the field (it
+   * is then NOT known to be zero).
+   */
+  held: HeldWorkImpact | null;
+  /** Restricted cases this person was granted access to; null on older servers. */
+  restrictedCaseGrants: number | null;
   targets: Array<{ userId: string; label: string; role: string }>;
 }
 
@@ -685,6 +693,8 @@ export function parseRemovalImpact(payload: unknown): RemovalImpact {
     ownedCases: n(i.ownedCases),
     openAssignments: n(i.openAssignments),
     requiresTransfer: i.requiresTransfer === true,
+    held: parseHeldWork(i, "caseAssignments"),
+    restrictedCaseGrants: countOrNull(i.restrictedCaseGrants),
     targets: rows(d.eligibleTransferTargets)
       .map(obj)
       .filter((t) => str(t.userId))
@@ -694,6 +704,128 @@ export function parseRemovalImpact(payload: unknown): RemovalImpact {
         role: str(t.role) ?? "",
       })),
   };
+}
+
+// ---------------------------------------------------------------------------
+// T-099 / T-101 — held work a removal or a role change releases.
+//   GET /v1/teams/:id/members/:memberId/removal-impact
+//       impact.{caseAssignments, heldReviews, heldReviewsInProgress,
+//               heldEscalations, restrictedCaseGrants, heldWork}
+//   GET /v1/teams/:id/members/:memberId/role-change-impact?role=
+//       { member, newRole, impact: { releasesHeldWork, heldReviews,
+//         heldReviewsInProgress, heldEscalations, heldWork, caseAssignmentsEnded } }
+// Parsed defensively: an older server sends none of these fields, and a
+// missing count is unknown, never zero.
+// ---------------------------------------------------------------------------
+
+function countOrNull(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null;
+}
+
+export interface HeldWorkImpact {
+  /** Reviews assigned to the person (all stages). */
+  reviews: number;
+  /** Of those, reviews IN_REVIEW — they go back to the queue. */
+  reviewsInProgress: number;
+  escalations: number;
+  /** Case assignments that end (removal: all; role change: those the new role cannot exercise). */
+  caseAssignments: number;
+  /** Every other kind of held work (tasks, QC samples, requests, …). */
+  otherWork: number;
+}
+
+const HELD_WORK_NAMED = new Set(["reviewWorkflows", "reviewsInProgress", "escalations"]);
+
+function parseHeldWork(i: Record<string, unknown>, caseKey: "caseAssignments" | "caseAssignmentsEnded"): HeldWorkImpact | null {
+  const reviews = countOrNull(i.heldReviews);
+  const escalations = countOrNull(i.heldEscalations);
+  if (reviews === null && escalations === null) return null; // an older server
+  const heldWork = obj(i.heldWork);
+  const otherWork = Object.entries(heldWork)
+    .filter(([k]) => !HELD_WORK_NAMED.has(k))
+    .reduce((sum, [, v]) => sum + (countOrNull(v) ?? 0), 0);
+  return {
+    reviews: reviews ?? 0,
+    reviewsInProgress: countOrNull(i.heldReviewsInProgress) ?? 0,
+    escalations: escalations ?? 0,
+    caseAssignments: countOrNull(i[caseKey]) ?? countOrNull(i.openAssignments) ?? 0,
+    otherWork,
+  };
+}
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/** The removal's held work, in words; null when the server did not say. */
+export function describeRemovalHeldWork(impact: RemovalImpact): string | null {
+  const h = impact.held;
+  if (!h) return null;
+  const parts = [
+    `${plural(h.reviews, "held review", "held reviews")} (${h.reviewsInProgress} in progress)`,
+    plural(h.escalations, "held escalation", "held escalations"),
+    plural(h.caseAssignments, "case assignment", "case assignments"),
+  ];
+  if (impact.restrictedCaseGrants !== null) {
+    parts.push(plural(impact.restrictedCaseGrants, "restricted-case grant", "restricted-case grants"));
+  }
+  if (h.otherWork > 0) parts.push(plural(h.otherWork, "other held item", "other held items"));
+  const tail =
+    h.reviews + h.escalations + h.otherWork > 0
+      ? " Held reviews and escalations return to the queue unassigned."
+      : "";
+  return `Removing them releases: ${parts.join(" · ")}.${tail}`;
+}
+
+export function buildRoleChangeImpactPath(teamId: string, memberId: string, role: string): string {
+  return `/v1/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(memberId)}/role-change-impact?role=${encodeURIComponent(role.toUpperCase())}`;
+}
+
+export interface RoleChangeImpact {
+  /** False when the new role keeps everything (e.g. a reviewer-to-reviewer change). */
+  releasesHeldWork: boolean;
+  held: HeldWorkImpact;
+}
+
+/** Null when the answer carries no impact (an older server, or a malformed body). */
+export function parseRoleChangeImpact(payload: unknown): RoleChangeImpact | null {
+  const i = obj(obj(payload).impact);
+  const held = parseHeldWork(i, "caseAssignmentsEnded");
+  if (!held) return null;
+  return { releasesHeldWork: i.releasesHeldWork === true, held };
+}
+
+/**
+ * The role-change confirmation sentence (T-099). `impact` null means the
+ * server could not say what the change does to held work, which is stated
+ * rather than implied to be nothing.
+ */
+export function describeRoleChangeImpact(name: string, nextRole: string, impact: RoleChangeImpact | null): string {
+  const to = `${name} becomes ${roleLabel(nextRole.toUpperCase())}.`;
+  if (!impact) return `${to} What this does to the work they hold could not be checked.`;
+  const h = impact.held;
+  if (!impact.releasesHeldWork && h.caseAssignments === 0) return `${to} The work they hold stays with them.`;
+  const parts = [
+    `${plural(h.reviews, "held review", "held reviews")} (${h.reviewsInProgress} in progress)`,
+    plural(h.escalations, "held escalation", "held escalations"),
+  ];
+  if (h.otherWork > 0) parts.push(plural(h.otherWork, "other held item", "other held items"));
+  parts.push(plural(h.caseAssignments, "case assignment ends", "case assignments end"));
+  return `${to} The new role cannot review, so this releases ${parts.join(" · ")}. Released reviews and escalations return to the queue unassigned.`;
+}
+
+// ---------------------------------------------------------------------------
+// T-097 — the placement prerequisite. Outside Enterprise a person must be in a
+// Collaboration Team before they can be assigned or claim work (owner decision
+// 2026-10-25; the API refuses with REVIEW_ASSIGNEE_NOT_PLACED).
+// ---------------------------------------------------------------------------
+
+export const PLACEMENT_PREREQUISITE_NOTE =
+  "Before a new member can be assigned work or claim reviews, add them to a Collaboration Team. Joining the workspace alone does not place them in a team.";
+export const PLACEMENT_PREREQUISITE_ACTION = "Open Collaboration Teams";
+
+/** The rule applies where the plan sells collaboration and the workspace is not Enterprise. */
+export function placementPrerequisiteApplies(envelope: unknown): boolean {
+  const env = obj(envelope);
+  return obj(env.flags).isEnterpriseWorkspace !== true && obj(env.planFeatures).teamCollaborationIncluded === true;
 }
 
 /** The web's rule: a manager may remove anyone but themself and the owner. */

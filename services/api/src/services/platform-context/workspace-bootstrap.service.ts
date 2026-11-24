@@ -100,14 +100,38 @@ function buildPersonalName(input: {
   displayName: string | null;
   email: string | null;
 }): string {
+  // Team remediation T-117 (O-07) — never the e-mail address: the name is
+  // shown to every person invited into the workspace (Members & Access, the
+  // switcher, the invitation page and e-mail). A person's name, else their
+  // display name, else a plain label. `email` is accepted for the callers'
+  // shape but deliberately unused.
   const full = [input.firstName, input.lastName].filter(Boolean).join(" ").trim();
-  const base =
-    full ||
-    input.displayName?.trim() ||
-    input.email?.trim() ||
-    "";
+  const display = input.displayName?.trim() ?? "";
+  const base = full || (EMAIL_LIKE.test(display) ? "" : display);
   const label = base ? `${base}'s personal workspace` : "Personal workspace";
   return label.length > NAME_MAX ? label.slice(0, NAME_MAX) : label;
+}
+
+const EMAIL_LIKE = /[^s@]+@[^s@]+/;
+
+/**
+ * Team remediation T-117 — the name a workspace is PRESENTED under to people
+ * other than its owner (the invitation page and e-mail). A name created before
+ * T-117 embeds the owner's e-mail (`a@b.c's personal workspace`); it is not
+ * rewritten (only the owner renames), but it is never shown as such: the
+ * e-mail is replaced by the owner's name, or the plain label.
+ */
+export function presentableWorkspaceName(
+  name: string,
+  owner: { firstName: string | null; lastName: string | null; displayName: string | null } | null,
+): string {
+  if (!EMAIL_LIKE.test(name)) return name;
+  return buildPersonalName({
+    firstName: owner?.firstName ?? null,
+    lastName: owner?.lastName ?? null,
+    displayName: owner?.displayName ?? null,
+    email: null,
+  });
 }
 
 /**

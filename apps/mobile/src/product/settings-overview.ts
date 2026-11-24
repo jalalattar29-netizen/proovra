@@ -15,19 +15,22 @@
  * Pure: no React, no fetch.
  */
 import { describeUserAgent } from "./account-security";
+import { asWorkspaceRole, planWordOf, resolveWorkspaceScope, WORKSPACE_ROLE_WORDS, type WorkspaceRole } from "./workspace-scope";
 
 const obj = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" ? (v as Record<string, unknown>) : {};
 const str = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
 const rows = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 
-export type WorkspaceRole = "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
+export type { WorkspaceRole };
 
 export interface SettingsOverview {
   isPersonal: boolean;
-  /** "Personal Space", or the organization's name. */
+  /** "Personal Workspace", the organization's name, a shared workspace's name, or "Your Team workspace". */
   workspaceName: string;
-  /** The viewer's role in the ACTIVE organization; null in a personal space. */
+  /** "Organization", "Shared with you", "Team workspace" or "Personal space". */
+  typeLabel: string;
+  /** The viewer's role in the ACTIVE workspace; null in a solo personal space. */
   role: WorkspaceRole | null;
   roleLabel: string | null;
   billing: {
@@ -38,7 +41,7 @@ export interface SettingsOverview {
     canOpenBilling: boolean;
     managedByOrgName: string | null;
   };
-  /** Settings › Roles & permissions — ORGANIZATION + SETTINGS_VIEW (settingsNavigation.ts). */
+  /** Settings › Roles & permissions — (ORGANIZATION or a plan that sells collaboration) + SETTINGS_VIEW (T-110). */
   canViewRoles: boolean;
   /** Membership administration — ORGANIZATION + SETTINGS_MANAGE (settingsUiContext.showOrgAdminLinks). */
   canManageMembers: boolean;
@@ -46,24 +49,13 @@ export interface SettingsOverview {
   showAiSettings: boolean;
   /** Reviewer criteria — only where reviewer operations are commercially included. */
   showReviewerCriteria: boolean;
-  /** The role the Roles pane marks as "Your role" (activeSpace.roleLabel; OWNER in a personal space). */
+  /** The role the Roles pane marks as "Your role" (the viewer's own role; OWNER only in their own space). */
   matrixRole: string | null;
 }
-
-const ROLE_WORDS: Record<WorkspaceRole, string> = {
-  OWNER: "Owner",
-  ADMIN: "Admin",
-  MEMBER: "Member",
-  VIEWER: "Viewer",
-};
 
 /** An unknown plan is unknown — never shown as FREE (members ledger M15). */
 function planLabel(plan: string | null): string {
   return plan ? plan.toUpperCase() : "—";
-}
-
-function asRole(v: unknown): WorkspaceRole | null {
-  return v === "OWNER" || v === "ADMIN" || v === "MEMBER" || v === "VIEWER" ? v : null;
 }
 
 export function projectSettingsOverview(envelope: unknown): SettingsOverview {
@@ -72,7 +64,12 @@ export function projectSettingsOverview(envelope: unknown): SettingsOverview {
   const caps = obj(env.capabilities);
   const flags = obj(env.flags);
   const planFeatures = obj(env.planFeatures);
-  const isOrg = active.type === "ORGANIZATION";
+  // T-109/T-110/T-111/T-116 — the one native workspace rule (workspace-scope.ts).
+  // Team is a personal-workspace tier: nothing below keys a Team feature on
+  // the ORGANIZATION kind.
+  const scope = resolveWorkspaceScope(envelope);
+  const isOrg = scope.kind === "ORGANIZATION";
+  const isShared = scope.kind === "SHARED_PERSONAL";
   const activeId = str(active.id);
 
   const org = isOrg
@@ -82,41 +79,78 @@ export function projectSettingsOverview(envelope: unknown): SettingsOverview {
     : null;
   const orgName =
     str(org?.displayName) ?? str(org?.name) ?? str(active.displayName) ?? "your organization";
-  const role = asRole(org?.role);
+  // The viewer's OWN role: the org row's in an organization; the server's
+  // `activeSpace.roleLabel` in a workspace shared with them (never Owner);
+  // Owner in their own workspace once the plan sells collaboration (a solo
+  // personal space on a plan without members has no roles to speak of).
+  const role: WorkspaceRole | null = isOrg
+    ? asWorkspaceRole(org?.role)
+    : isShared
+      ? scope.role
+      : scope.collaborationIncluded
+        ? "OWNER"
+        : null;
 
   const canManageBilling = caps.BILLING_MANAGE === true;
   const isEnterprise = flags.isEnterpriseWorkspace === true;
 
-  const billing: SettingsOverview["billing"] = isOrg
-    ? {
-        contextType: isEnterprise ? "enterprise-contract" : "organization",
-        // The ACTIVE space's plan. (The web passes `personalSpace.plan` as its
-        // "workspacePlan" here — page.tsx — which names the member's personal
-        // plan inside an organization; that is a web defect, not copied.)
-        displayPlan: planLabel(str(active.plan) ?? str(org?.plan)),
-        scopeLabel: isEnterprise ? "Organization agreement" : "Organization plan",
-        // An enterprise contract is sales-managed: no self-service billing action.
-        canOpenBilling: canManageBilling && !isEnterprise,
-        managedByOrgName: orgName,
-      }
-    : {
-        contextType: "personal",
-        displayPlan: planLabel(str(obj(env.account).accountPlan) ?? str(obj(env.personalSpace).plan)),
-        scopeLabel: "Personal plan",
-        canOpenBilling: canManageBilling,
-        managedByOrgName: null,
-      };
+  let billing: SettingsOverview["billing"];
+  if (isOrg) {
+    billing = {
+      contextType: isEnterprise ? "enterprise-contract" : "organization",
+      // The ACTIVE space's plan. (The web passes `personalSpace.plan` as its
+      // "workspacePlan" here — page.tsx — which names the member's personal
+      // plan inside an organization; that is a web defect, not copied.)
+      displayPlan: planLabel(str(active.plan) ?? str(org?.plan)),
+      scopeLabel: isEnterprise ? "Organization agreement" : "Organization plan",
+      // An enterprise contract is sales-managed: no self-service billing action.
+      canOpenBilling: canManageBilling && !isEnterprise,
+      managedByOrgName: orgName,
+    };
+  } else if (isShared) {
+    // T-111 — a member of someone else's workspace works under THAT
+    // workspace's plan, which its owner pays; their own account plan is not it.
+    billing = {
+      contextType: "personal",
+      displayPlan: planLabel(str(active.plan)),
+      scopeLabel: "Workspace plan",
+      canOpenBilling: canManageBilling,
+      managedByOrgName: scope.name,
+    };
+  } else {
+    const plan = str(obj(env.account).accountPlan) ?? str(obj(env.personalSpace).plan);
+    const word = planWordOf(plan);
+    billing = {
+      contextType: "personal",
+      displayPlan: planLabel(plan),
+      // T-116 — a plan that sells collaboration is the plan of the owner's
+      // workspace (members work under it), not a "Personal plan".
+      scopeLabel: scope.collaborationIncluded && word ? `${word} plan on your workspace` : "Personal plan",
+      canOpenBilling: canManageBilling,
+      managedByOrgName: null,
+    };
+  }
 
   const allowance = planFeatures.aiAssistanceMonthlyOperations;
   const isPlatformAdmin = obj(env.platform).isPlatformAdmin === true;
 
+  const collaborating = scope.kind === "OWN_COLLABORATIVE";
   return {
     isPersonal: !isOrg,
-    workspaceName: isOrg ? orgName : "Personal Workspace",
+    workspaceName: isOrg ? orgName : (isShared || collaborating) && scope.name ? scope.name : "Personal Workspace",
+    typeLabel: isOrg
+      ? "Organization"
+      : isShared
+        ? "Shared with you"
+        : collaborating
+          ? `${scope.planWord ?? "Shared"} workspace`
+          : "Personal space",
     role,
-    roleLabel: role ? ROLE_WORDS[role] : null,
+    roleLabel: role ? WORKSPACE_ROLE_WORDS[role] : null,
     billing,
-    canViewRoles: isOrg && caps.SETTINGS_VIEW === true,
+    // T-110 — the Roles pane follows the plan feature, not the ORGANIZATION
+    // kind: a Team workspace has members and therefore roles.
+    canViewRoles: (isOrg || scope.collaborationIncluded) && caps.SETTINGS_VIEW === true,
     // M15 — a Personal Workspace on a plan with Collaboration Teams has
     // members too; its owner manages them exactly as the web shows.
     canManageMembers:
@@ -125,7 +159,9 @@ export function projectSettingsOverview(envelope: unknown): SettingsOverview {
     // B2B-F-12 (Free-user audit 0ea0) — the web's gate: REVIEWER_OPS_VIEW (the API
     // gates every reviewer-criteria endpoint on review.queue.read), not a plan flag.
     showReviewerCriteria: isPlatformAdmin || caps.REVIEWER_OPS_VIEW === true,
-    matrixRole: isOrg ? str(active.roleLabel) : "OWNER",
+    // T-111 — the column the Roles pane marks "Your role" is the viewer's
+    // real role: OWNER only in their own workspace.
+    matrixRole: isOrg ? str(active.roleLabel) : isShared ? scope.role : "OWNER",
   };
 }
 

@@ -44,6 +44,7 @@ import {
   type EndsReviewerOperations,
 } from "./billingMessages";
 import { formatDate, formatMoney, presentLifecycle } from "./format";
+import { MEMBER_ACCESS_AFTER_PLAN_CHANGE } from "../../../../lib/members/membership-disclosures";
 
 export function ManagePlanDrawer({
   open,
@@ -342,6 +343,16 @@ export function ManagePlanDrawer({
                       {reviewNote}
                     </p>
                   ) : null}
+                  {/* T-105 (MEM-01) — today's behaviour, said before a lowering. */}
+                  {offer.action === "DOWNGRADE" ? (
+                    <p
+                      className="bill-move__meta"
+                      role="note"
+                      data-billing-manage-member-access-note={offer.planKey}
+                    >
+                      {MEMBER_ACCESS_AFTER_PLAN_CHANGE}
+                    </p>
+                  ) : null}
                 </li>
                 );
               })}
@@ -473,6 +484,10 @@ export function ManagePlanDrawer({
                     </p>
                   ) : null;
                 })()}
+                {/* T-105 (MEM-01) — today's behaviour, said before cancelling. */}
+                <p className="bill-choice__meta" role="note" data-billing-manage-member-access-note="FREE">
+                  {MEMBER_ACCESS_AFTER_PLAN_CHANGE}
+                </p>
                 <div className="bill-stacked-actions" style={{ marginBlockStart: 12 }}>
                   <Button
                     /*

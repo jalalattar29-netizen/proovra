@@ -34,6 +34,7 @@ import {
   resolveInboxSummaryUnread,
 } from "../product/inbox";
 import { usePlatformContext } from "../product/platform-context";
+import { headerWorkspaceName } from "../product/workspace-scope";
 import { theme } from "../theme/theme";
 import { ServiceStatusIndicator } from "./runtime-status-banner";
 import { headerMetrics } from "./header-layout";
@@ -61,7 +62,7 @@ const SEARCH = {
 export function ProovraHeader() {
   const router = useRouter();
   const { fontFamily, isRTL } = useLocale();
-  const { context } = usePlatformContext();
+  const { context, envelope } = usePlatformContext();
 
   /*
    * The ACTIVE space's server-projected display name. Never derived locally:
@@ -70,8 +71,12 @@ export function ProovraHeader() {
    * envelope is still loading the control shows a neutral placeholder rather
    * than guessing "Personal Space" — a wrong workspace name in the chrome is
    * worse than no name.
+   *
+   * T-115 — the one exception: the viewer's OWN workspace on a plan that
+   * sells collaboration, once other people work in it. The server still names
+   * it "Personal Space" there, which a Team owner with members is not in.
    */
-  const workspaceName = context?.displayName ?? "Workspace";
+  const workspaceName = headerWorkspaceName(envelope, context?.displayName ?? null);
 
   /*
    * T-09d — the bell count. One read of the canonical cached aggregation.

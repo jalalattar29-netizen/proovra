@@ -201,16 +201,22 @@ describe("external review console — end sessions", () => {
     expect(screen.queryByText(/Ended \d+ portal/)).toBeNull();
   });
 
-  it("is disabled, with the reason on screen, for a caller without the capability", async () => {
+  // T-114 (ARCH-15) — a caller who can manage nothing gets a read-only
+  // console: the invitation opens, but no End sessions (or any other manage)
+  // control is offered, and the page says why. It used to render the control
+  // disabled with a reason, one of a row of inert controls.
+  it("is not offered to a caller without the capability; the console says it is read-only", async () => {
     mocks.canAct.value = false;
-    const button = await openDrawer();
-    expect(button.disabled).toBe(true);
-    expect(button.getAttribute("data-capability-allowed")).toBe("false");
-    const reasonId = button.getAttribute("aria-describedby") ?? "";
-    expect(document.getElementById(reasonId)?.textContent).toMatch(
-      /Only workspace administrators and supervisors can end a\s+reviewer.s portal sessions\./,
-    );
-    fireEvent.click(button);
+    render(<ExternalInvitationsPage />);
+    const row = await waitFor(() => {
+      const el = document.querySelector(`[data-invitation-row="${GRANT}"]`);
+      expect(el).not.toBeNull();
+      return el as HTMLElement;
+    });
+    fireEvent.click(row);
+    await waitFor(() => expect(mocks.fetch.mock.calls.some(([path]) => path === ACTIVITY)).toBe(true));
+    expect(screen.queryByRole("button", { name: "End sessions" })).toBeNull();
+    expect(document.querySelector("[data-external-review-read-only]")?.textContent).toMatch(/Read-only/);
     expect(mocks.confirm).not.toHaveBeenCalled();
     expect(writes()).toHaveLength(0);
   });

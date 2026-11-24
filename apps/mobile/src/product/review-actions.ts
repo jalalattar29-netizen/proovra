@@ -163,5 +163,24 @@ export const REVIEW_ACTIONS_COPY = {
   unassigned: "unassigned",
   claim: "Claim review",
   claimFailed: "Could not claim.",
+  /** T-098 — the placement prerequisite, said to the person claiming. */
+  claimNotPlacedTitle: "Place them in a team first",
+  claimNotPlaced:
+    "You are not in a Collaboration Team in this workspace yet, so you cannot claim reviews. An owner or admin places you in a team on the Collaboration Teams screen; then claim again.",
+  claimNotPlacedAction: "Open Collaboration Teams",
   decisionFailed: "Decision failed.",
 } as const;
+
+/**
+ * T-098 — the placement prerequisite refusal (422): a non-Enterprise person
+ * must be in a Collaboration Team before they can be given or claim work.
+ * Current servers answer REVIEW_ASSIGNEE_NOT_PLACED (reason
+ * `assignee_not_placed`); older ones sent the lowercase engine code itself.
+ */
+export function isPlacementRefusal(err: unknown): boolean {
+  const e = err && typeof err === "object" ? (err as Record<string, unknown>) : {};
+  const code = typeof e.code === "string" ? e.code.trim().toUpperCase() : "";
+  if (code === "REVIEW_ASSIGNEE_NOT_PLACED" || code === "ASSIGNEE_NOT_PLACED") return true;
+  const details = e.details && typeof e.details === "object" ? (e.details as Record<string, unknown>) : {};
+  return details.reason === "assignee_not_placed";
+}

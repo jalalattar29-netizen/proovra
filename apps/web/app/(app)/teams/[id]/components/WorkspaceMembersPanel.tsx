@@ -141,6 +141,61 @@ export function memberLabel(member: {
   );
 }
 
+/**
+ * Team remediation T-099 — what a role change does to the work a person holds,
+ * as `GET /v1/teams/:id/members/:memberId/role-change-impact?role=` answers it
+ * (the same predicates the change applies).
+ */
+export type RoleChangeImpact = {
+  releasesHeldWork?: boolean;
+  heldReviews?: number;
+  heldReviewsInProgress?: number;
+  heldEscalations?: number;
+  heldWork?: Record<string, number>;
+  caseAssignmentsEnded?: number;
+};
+
+function plural(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/**
+ * The confirmation sentence for a role change, from the server's impact.
+ * `null` impact (an older API without the preview, or a failed read) says
+ * only what is certain.
+ */
+export function describeRoleChangeImpact(impact: RoleChangeImpact | null): string {
+  if (!impact || typeof impact !== "object" || typeof impact.releasesHeldWork !== "boolean") {
+    return "The new role applies immediately. Work this person can no longer do under it may be released.";
+  }
+  const reviews = impact.heldReviews ?? 0;
+  const inProgress = impact.heldReviewsInProgress ?? 0;
+  const escalations = impact.heldEscalations ?? 0;
+  const cases = impact.caseAssignmentsEnded ?? 0;
+  const counted = new Set(["reviewWorkflows", "reviewsInProgress", "escalations"]);
+  const other = impact.releasesHeldWork
+    ? Object.entries(impact.heldWork ?? {})
+        .filter(([k, v]) => !counted.has(k) && typeof v === "number")
+        .reduce((sum, [, v]) => sum + (v as number), 0)
+    : 0;
+  if ((!impact.releasesHeldWork || reviews + escalations + other === 0) && cases === 0) {
+    return "Nothing they hold is released: their reviews, escalations and case assignments stay with them.";
+  }
+  const parts: string[] = [];
+  if (impact.releasesHeldWork && reviews > 0) {
+    parts.push(
+      `${plural(reviews, "review", "reviews")} will go back to the queue (${inProgress} ${inProgress === 1 ? "was" : "were"} in progress)`,
+    );
+  }
+  if (impact.releasesHeldWork && escalations > 0) {
+    parts.push(`${plural(escalations, "escalation", "escalations")} will be unassigned`);
+  }
+  if (other > 0) parts.push(`${plural(other, "other work item", "other work items")} will be released`);
+  if (cases > 0) parts.push(`${plural(cases, "case assignment", "case assignments")} will end`);
+  const sentence = parts.join(", ");
+  return `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}.`;
+}
+
 const STATUS_FILTERS = [
   { value: "ALL", label: "All statuses" },
   { value: "ACTIVE", label: "Active" },
@@ -372,6 +427,30 @@ export const WorkspaceMembersPanel = forwardRef<
     if (!canManageTeam || !member.id || roleSavingId) return;
     if (nextRole === member.role) return;
     setRoleSavingId(member.id);
+    // Team remediation T-099 — say what the change releases BEFORE it is made.
+    // The preview is read-only; an API without it (404) or a failed read
+    // still asks, with only what is certain.
+    let impact: RoleChangeImpact | null = null;
+    try {
+      const preview = (await apiFetch(
+        `/v1/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(member.id)}/role-change-impact?role=${encodeURIComponent(nextRole)}`,
+      )) as { impact?: RoleChangeImpact } | null;
+      impact = preview?.impact ?? null;
+    } catch {
+      impact = null;
+    }
+    const ok = await confirm({
+      title: `Change ${memberLabel(member)} to ${workspaceRoleLabel(nextRole)}?`,
+      description: (
+        <span data-role-change-impact>{describeRoleChangeImpact(impact)}</span>
+      ),
+      confirmLabel: "Change role",
+      tone: impact?.releasesHeldWork || (impact?.caseAssignmentsEnded ?? 0) > 0 ? "warning" : "neutral",
+    });
+    if (!ok) {
+      setRoleSavingId(null);
+      return;
+    }
     try {
       // A role change needs a fresh step-up (members audit ROLE-01), exactly
       // as in Security Center: the server answers STEP_UP_REQUIRED, the shared

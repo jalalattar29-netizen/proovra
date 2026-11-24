@@ -12,6 +12,7 @@ import { toSafeUserError } from "../errors/safe-error";
 import {
   buildMemberRemovalImpactPath,
   buildMemberRemovePath,
+  describeRemovalHeldWork,
   parseRemovalImpact,
   removalFailure,
   removalImpactFailure,
@@ -105,6 +106,13 @@ export function MemberRemovalSheet({
               <ProovraText variant="label" color={theme.color.ink.secondary}>
                 {`Evidence owned ${impact.ownedEvidence} · Cases owned ${impact.ownedCases} · Open assignments ${impact.openAssignments}`}
               </ProovraText>
+              {/* T-101 — what the removal releases, from the extended impact
+                  (absent on an older server, and then not claimed to be zero). */}
+              {describeRemovalHeldWork(impact) ? (
+                <ProovraText variant="label" color={theme.color.ink.secondary} testID="member-removal-held-work">
+                  {describeRemovalHeldWork(impact)}
+                </ProovraText>
+              ) : null}
               {requiresTransfer ? (
                 impact.targets.length > 0 ? (
                   <View style={{ gap: theme.space.s1 }}>

@@ -36,6 +36,7 @@ import {
 } from "../../lib/platform-context/runtimeReadAccess";
 // P3 domain remediation (2026-07-21) — tenant-boundary switch safety.
 import { getDirtyWorkLabels } from "../../lib/platform-context/dirtyWorkRegistry";
+import { describeActiveWorkspace } from "../../lib/platform-context/workspaceLabel";
 import { isRecordScopedPath } from "../../lib/navigation/record-scoped-routes";
 import {
   resolveAccountMenu,
@@ -144,6 +145,16 @@ function getWorkspaceLabels(
           scopeLine: active.roleLabel
             ? fillCopy(t("shellSharedWithYouRole"), { role: active.roleLabel })
             : t("shellSharedWithYou"),
+        };
+      }
+      // T-115 — the caller's own workspace on a collaboration plan with other
+      // members is a Team workspace, not "Personal Space": its own name, and
+      // the kind and role once (lib/platform-context/workspaceLabel.ts).
+      const described = describeActiveWorkspace(envelope);
+      if (described.kind === "TEAM_OWNER") {
+        return {
+          name: described.name ?? described.kindLabel,
+          scopeLine: `${described.kindLabel} • ${described.roleLabel ?? "Owner"}`,
         };
       }
       return { name: t("shellPersonalSpace"), scopeLine: t("shellPersonalOwner") };

@@ -649,7 +649,7 @@ describe("PHASE 12 POINT 4 STEP 1 — the surface context carries no role at all
     for (const rule of enterpriseRules) {
       // An entitlement override may legitimately open a rule to a paid
       // self-serve plan; the tier itself must never open on its own.
-      if (rule.entitlementOverride) continue;
+      if (rule.entitlementRouteId) continue; // T-125: follows a registry entitlement
       // VISIBILITY is the invariant with NO exceptions: an ENTERPRISE rule
       // never puts its surface in nav, the command palette or All Tools for a
       // self-serve context, however generous that context's entitlements are.
@@ -695,7 +695,7 @@ describe("PHASE 12 POINT 4 STEP 1 — the surface context carries no role at all
       },
     };
     for (const rule of SURFACE_TIER_RULES.filter(
-      (r) => r.tier === "ENTERPRISE" && !r.entitlementOverride,
+      (r) => r.tier === "ENTERPRISE" && !r.entitlementRouteId,
     )) {
       expect(
         canAccessSurface(enterprise, rule.pathPrefix),
@@ -739,7 +739,7 @@ describe("PHASE 12 POINT 4 STEP 1 — the surface context carries no role at all
     // NOTHING about the entitlement booleans can open an ENTERPRISE rule, and
     // with it on, the entitlement booleans are irrelevant.
     const enterpriseRule = SURFACE_TIER_RULES.find(
-      (r) => r.tier === "ENTERPRISE" && !r.entitlementOverride,
+      (r) => r.tier === "ENTERPRISE" && !r.entitlementRouteId,
     );
     expect(enterpriseRule).toBeTruthy();
     const path = enterpriseRule!.pathPrefix;

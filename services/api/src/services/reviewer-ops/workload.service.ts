@@ -27,6 +27,7 @@ import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { evaluateMemberAccess } from "../identity/access-policy.service.js";
+import { assignmentRequiresPlacement, placedUserIdsForWorkspace } from "../assignment/placement-policy.js";
 
 // -----------------------------------------------------------------------------
 // Workload computation
@@ -337,6 +338,18 @@ export type AssignableReviewer = {
   status: "ACTIVE";
   /** Most recent ReviewerWorkloadSnapshot active count. Omitted when no snapshot. */
   currentWorkloadCount?: number;
+  /**
+   * Team remediation T-097 (JRN-01) — does this person meet the placement
+   * prerequisite (owner decision 2026-10-25: on PRO / TEAM a person must be in
+   * a Collaboration Team before they can be given work; on ENTERPRISE when the
+   * contract says so)? Read with THE rule the assignment writers enforce
+   * (`assignmentRequiresPlacement` + the placed set), so the picker can list
+   * an unplaced member as unavailable, with the reason, instead of letting the
+   * assignment fail with 422 REVIEW_ASSIGNEE_NOT_PLACED.
+   */
+  placed: boolean;
+  /** Why this person cannot be assigned now (`placed: false` → REVIEW_ASSIGNEE_NOT_PLACED), else null. */
+  notAssignableReason: "REVIEW_ASSIGNEE_NOT_PLACED" | null;
 };
 
 export async function listAssignableReviewers(
@@ -412,12 +425,20 @@ export async function listAssignableReviewers(
     }
   }
 
+  const requiresPlacement = await assignmentRequiresPlacement(input.teamId, client);
+  const placed = requiresPlacement
+    ? await placedUserIdsForWorkspace(input.teamId, reviewerUserIds, client)
+    : new Set(reviewerUserIds);
+
   return reviewerCapable.map((m) => {
+    const isPlaced = placed.has(m.userId);
     const projected: AssignableReviewer = {
       userId: m.userId,
       displayName: m.user?.displayName ?? null,
       role: m.role as AssignableReviewer["role"],
       status: "ACTIVE",
+      placed: isPlaced,
+      notAssignableReason: isPlaced ? null : "REVIEW_ASSIGNEE_NOT_PLACED",
     };
     const workload = latestByReviewer.get(m.userId);
     if (typeof workload === "number") {

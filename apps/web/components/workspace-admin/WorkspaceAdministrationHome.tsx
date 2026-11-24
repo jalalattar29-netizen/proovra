@@ -37,6 +37,7 @@ import {
   usePersonalSpace,
   usePlatformContext,
 } from "../../lib/platform-context";
+import { describeActiveWorkspace } from "../../lib/platform-context/workspaceLabel";
 import { WorkspaceAdminPanel } from "./WorkspaceAdminPanel";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
 
@@ -67,6 +68,13 @@ export function WorkspaceAdministrationHome() {
     envelope?.contextOptions?.activeContext?.workspaceId ?? activeSpace?.id ?? null;
   const personalIsActive =
     activeSpace?.type === "PERSONAL" && activeSpace.shared !== true;
+  // T-115 — the own workspace on a collaboration plan with members is named
+  // as a Team workspace (one label rule), not "Personal Space".
+  const activeDescription = describeActiveWorkspace(envelope);
+  const personalTitle =
+    personalIsActive && activeDescription.kind === "TEAM_OWNER"
+      ? (activeDescription.name ?? activeDescription.kindLabel)
+      : "Personal Space";
 
   // SWITCH, THEN OPEN. A plain link would open whatever workspace is active
   // (an invitee who last worked in a shared workspace landed there from
@@ -163,7 +171,9 @@ export function WorkspaceAdministrationHome() {
           data-personal-space-status={personalSpace?.status ?? "loading"}
         >
           <div className="cases-row-main">
-            <span className="cases-row-title">Personal Space</span>
+            <span className="cases-row-title" data-personal-space-title>
+              {personalTitle}
+            </span>
             <span className="cases-row-scope">
               {account?.displayName ?? account?.email ?? "Your account"}
             </span>

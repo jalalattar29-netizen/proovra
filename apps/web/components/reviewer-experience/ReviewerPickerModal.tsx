@@ -18,6 +18,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { identifierLabel } from "@proovra/shared";
 
 import { apiFetch } from "../../lib/api";
+import {
+  COLLABORATION_TEAMS_HREF,
+  PLACEMENT_ACTION_LABEL,
+  isPlacedReviewer,
+  placementPrerequisiteSentence,
+} from "../../lib/members/placement";
 import { Modal } from "../cases-experience/matter-modals/Modal";
 
 export type AssignableReviewer = {
@@ -26,6 +32,13 @@ export type AssignableReviewer = {
   role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
   status: "ACTIVE";
   currentWorkloadCount?: number;
+  /**
+   * Team remediation T-097 — the placement prerequisite. `false`: this person
+   * is not in a Collaboration Team, so the server would refuse the assignment
+   * (422 REVIEW_ASSIGNEE_NOT_PLACED). Absent (older API): treated as placed.
+   */
+  placed?: boolean;
+  notAssignableReason?: "REVIEW_ASSIGNEE_NOT_PLACED" | null;
 };
 
 export type PickerState =
@@ -199,14 +212,18 @@ export function ReviewerPickerModal({
                 </p>
               ) : (
                 <ul className="review-tools review-picker__list">
-                  {visibleReviewers.map((r) => (
+                  {visibleReviewers.map((r) => {
+                    const placed = isPlacedReviewer(r);
+                    const name = r.displayName ?? "Unnamed reviewer";
+                    return (
                     <li
                       key={r.userId}
                       data-reviewer-picker-row={r.userId}
+                      data-reviewer-picker-placed={placed ? "true" : "false"}
                       className="review-tools__row review-picker__row"
                     >
                       <span className="app-table__identity">
-                        <span className="app-table__primary">{r.displayName ?? "Unnamed reviewer"}</span>
+                        <span className="app-table__primary">{name}</span>
                         <span className="app-table__muted">
                           <code>{r.userId.slice(0, 8)}…</code> {identifierLabel(r.role)}
                           {typeof r.currentWorkloadCount === "number" ? (
@@ -216,18 +233,34 @@ export function ReviewerPickerModal({
                             </span>
                           ) : null}
                         </span>
+                        {placed ? null : (
+                          <span
+                            className="app-field-help"
+                            id={`reviewer-picker-unplaced-${r.userId}`}
+                            data-reviewer-picker-unplaced={r.userId}
+                          >
+                            {placementPrerequisiteSentence(name)}.{" "}
+                            <a href={COLLABORATION_TEAMS_HREF} data-reviewer-picker-place-action={r.userId}>
+                              {PLACEMENT_ACTION_LABEL}
+                            </a>
+                          </span>
+                        )}
                       </span>
                       <button
                         type="button"
                         className="app-secondary-action"
                         data-reviewer-picker-select={r.userId}
-                        disabled={busy}
-                        onClick={() => onSelect(r.userId)}
+                        disabled={busy || !placed}
+                        aria-describedby={placed ? undefined : `reviewer-picker-unplaced-${r.userId}`}
+                        onClick={() => {
+                          if (placed) onSelect(r.userId);
+                        }}
                       >
                         Select
                       </button>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               )}
             </div>

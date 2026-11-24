@@ -70,6 +70,8 @@ export interface NativeNavRoute {
   readonly fallbackBehavior: FallbackBehavior;
   readonly requiredPlanFeature?: string;
   readonly navPlanFeature?: string;
+  /** T-125 — the web registry's `readRetainedPlanFeature` (lapsed: loads read-only, hidden). */
+  readonly readRetainedPlanFeature?: string;
   /** Member of the web's ENTERPRISE_ONLY_ROUTE_IDS. */
   readonly enterpriseOnly?: boolean;
   readonly group: NavGroupId;
@@ -249,7 +251,8 @@ const ALLOWED: NavAccess = { canLoad: true, canSeeNav: true, accessState: "ALLOW
  * The web's `resolveRouteAccess`, same decision order:
  *   1. platform-admin routes · 2. active-space requirement ·
  *   3. Enterprise-only · 4. navPlanFeature (hide, still loads) ·
- *   5. requiredPlanFeature (hide, refuse) · 6. capabilities.
+ *   5. requiredPlanFeature (hide, refuse; T-125: unless readRetainedPlanFeature
+ *      says existing material stays readable — hide, still loads) · 6. capabilities.
  */
 export function resolveNativeRouteAccess(route: NativeNavRoute, input: NavigationInput): NavAccess {
   const admin = input.isPlatformAdmin;
@@ -277,6 +280,9 @@ export function resolveNativeRouteAccess(route: NativeNavRoute, input: Navigatio
     return { canLoad: true, canSeeNav: false, accessState: "NEEDS_UPGRADE" };
   }
   if (!admin && route.requiredPlanFeature && input.planFeatures?.[route.requiredPlanFeature] !== true) {
+    if (route.readRetainedPlanFeature && input.planFeatures?.[route.readRetainedPlanFeature] === true) {
+      return { canLoad: true, canSeeNav: false, accessState: "NEEDS_UPGRADE" };
+    }
     return { canLoad: false, canSeeNav: false, accessState: "NEEDS_UPGRADE" };
   }
 
