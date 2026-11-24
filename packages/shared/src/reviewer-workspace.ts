@@ -439,3 +439,18 @@ export type ReviewerWorkspaceProjection = {
     codingSchemaVersion: number | null;
   } | null;
 };
+
+/**
+ * T-134 — the slugs of the six built-in coding schemas that "Seed default
+ * schemas" installs (the API catalog `DEFAULT_SCHEMAS` is pinned to this list
+ * by a unit test). Seeding is a no-op for a slug the workspace already holds,
+ * archived or not, so the page offers it only while one is missing.
+ */
+export const CODING_SCHEMA_DEFAULT_SLUGS = [
+  "general-evidence",
+  "insurance-review",
+  "legal-matter",
+  "incident-investigation",
+  "compliance-audit",
+  "journalism-review",
+] as const;
