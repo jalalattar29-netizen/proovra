@@ -25,6 +25,7 @@ import type { PrismaClient } from "@prisma/client";
 import { selectGoverningEscalation, REVIEW_ESCALATION_ACTIVE_STATUSES } from "@proovra/shared";
 
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { deadlineStampedAfterFact } from "./review-sla-read-facts.js";
 
 export type ReviewSlaTruthRepairChange = {
   workflowId: string;
@@ -90,12 +91,9 @@ export async function repairReviewSlaTruth(
     for (const row of rows) {
       seen.add(row.id);
       const stampedAt = firstSweepAt.get(row.id)!;
-      if (
-        row.assignmentDueAtUtc &&
-        row.assignedAtUtc &&
-        row.assignedAtUtc < stampedAt &&
-        row.assignmentDueAtUtc >= stampedAt
-      ) {
+      // The read-time rule (review-sla-read-facts.ts): repaired and
+      // un-repaired rows read the same.
+      if (deadlineStampedAfterFact(row.assignmentDueAtUtc, row.assignedAtUtc, stampedAt)) {
         changes.push({
           workflowId: row.id,
           teamId: row.teamId,
@@ -104,12 +102,7 @@ export async function repairReviewSlaTruth(
           after: null,
         });
       }
-      if (
-        row.firstResponseDueAtUtc &&
-        row.firstDecidedAtUtc &&
-        row.firstDecidedAtUtc < stampedAt &&
-        row.firstResponseDueAtUtc >= stampedAt
-      ) {
+      if (deadlineStampedAfterFact(row.firstResponseDueAtUtc, row.firstDecidedAtUtc, stampedAt)) {
         changes.push({
           workflowId: row.id,
           teamId: row.teamId,

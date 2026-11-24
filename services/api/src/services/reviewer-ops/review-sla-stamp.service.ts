@@ -281,6 +281,18 @@ export async function stampReviewDeadlines(
   if (!resolved) return row;
   if (input.requireStatedPolicy && !resolved.stated) return row;
 
+  // Stage C follow-up — a review decided before first_decided_at_utc existed
+  // (and not yet repaired) has its first decision in the log: read it, so the
+  // guard below never stamps a first-review deadline after the decision.
+  // A decision always writes lastReviewedAt, so an untouched row needs no read.
+  if (!row.firstDecidedAtUtc && !row.firstResponseDueAtUtc && row.lastReviewedAt) {
+    const first = await client.workflowReviewDecision.findFirst({
+      where: { workflowId: row.id },
+      orderBy: { decidedAt: "asc" },
+      select: { decidedAt: true },
+    });
+    if (first) row = { ...row, firstDecidedAtUtc: first.decidedAt };
+  }
   const now = input.now ?? new Date();
   // At creation the clock starts with the row. For a row stamped later it starts
   // now, so an old row is given the whole window.

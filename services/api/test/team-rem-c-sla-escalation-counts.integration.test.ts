@@ -36,6 +36,8 @@ let requiredLegalVersions: Record<string, unknown>;
 let escalations: typeof import("../src/services/reviewer-ops/escalation-engine.service.js");
 let ops: typeof import("../src/services/review-operations/review-operations.service.js");
 let repair: typeof import("../src/services/reviewer-ops/review-sla-truth-repair.service.js");
+let engine: typeof import("../src/services/reviewer-ops/reviewer-operations-engine.service.js");
+let governance: typeof import("../src/services/governance-lifecycle/governance-snapshot.service.js");
 let ensurePersonalWorkspace: typeof import("../src/services/platform-context/workspace-bootstrap.service.js").ensurePersonalWorkspace;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- route bodies are asserted field by field
@@ -156,6 +158,8 @@ beforeAll(async () => {
   escalations = await import("../src/services/reviewer-ops/escalation-engine.service.js");
   ops = await import("../src/services/review-operations/review-operations.service.js");
   repair = await import("../src/services/reviewer-ops/review-sla-truth-repair.service.js");
+  engine = await import("../src/services/reviewer-ops/reviewer-operations-engine.service.js");
+  governance = await import("../src/services/governance-lifecycle/governance-snapshot.service.js");
   ({ ensurePersonalWorkspace } = await import("../src/services/platform-context/workspace-bootstrap.service.js"));
 }, 900_000);
 
@@ -478,5 +482,181 @@ describe("T-061 / T-062 / T-063 — queue signals", () => {
     const c = byId.get(closed.workflowId) as any;
     expect(c.queueAging.daysOpen).toBeNull();
     expect(c.slaState.signal).toBeNull();
+  });
+});
+
+/*
+ * Coordinator follow-up — production is read-only, so the repair job is NOT run
+ * at release. Every reader must be right for UN-REPAIRED legacy rows. None of
+ * the cases below runs the repair.
+ */
+describe("un-repaired legacy rows read correctly with NO repair run", () => {
+  type Dim = { dimension: string; state: string; dueAtUtc: string | null; completedAtUtc: string | null; metOnTime: boolean | null };
+  const dims = async (s: Space, workflowId: string): Promise<Dim[]> => {
+    const ws = await call(s.owner.token, "GET", `/v1/reviewer-ops/workspace/${workflowId}?teamId=${s.teamId}`);
+    expect(ws.status, ws.raw).toBe(200);
+    return ws.body.projection.slaDimensions;
+  };
+
+  it("a review decided before first_decided_at_utc existed never shows its first review as open", async () => {
+    const s = await teamSpace("legacy-first");
+    const decidedAt = new Date(Date.now() - 3 * 86400_000);
+    const w = await workflow(s, {
+      status: "IN_REVIEW",
+      assignedToUserId: s.owner.userId,
+      assignedAtUtc: new Date(Date.now() - 5 * 86400_000),
+      extra: {
+        firstResponseDueAtUtc: new Date(Date.now() - 2 * 86400_000), // past: open would read overdue
+        completionDueAtUtc: new Date(Date.now() + 2 * 86400_000),
+        lastReviewedAt: decidedAt,
+      },
+    });
+    await prisma.workflowReviewDecision.create({
+      data: {
+        workflowId: w.workflowId,
+        teamId: s.teamId,
+        stage: "FIRST",
+        round: 0,
+        reviewerUserId: s.owner.userId,
+        decision: "REQUEST_INFO",
+        rationale: "legacy decision",
+        decidedAt,
+      },
+    });
+    // The legacy shape: a decision exists, the column is still null.
+    expect((await prisma.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: w.workflowId } })).firstDecidedAtUtc).toBeNull();
+
+    const fr = (await dims(s, w.workflowId)).find((d) => d.dimension === "FIRST_REVIEW")!;
+    expect(fr.state).toBe("COMPLETED");
+    expect(fr.completedAtUtc).toBe(decidedAt.toISOString());
+    expect(fr.metOnTime).toBe(true);
+
+    // The list reader (batched) agrees.
+    const q = await call(s.owner.token, "GET", `/v1/reviewer-ops/queue?teamId=${s.teamId}&queue=MY_REVIEWS`);
+    const row = q.body.rows.find((r: { workflowId: string }) => r.workflowId === w.workflowId);
+    expect(row.slaDimensions.find((d: Dim) => d.dimension === "FIRST_REVIEW").state).toBe("COMPLETED");
+    expect(row.slaRollupState).not.toBe("BREACHED");
+
+    // Queue signal: not overdue (the only passed deadline was met).
+    const qi = await call(s.owner.token, "POST", "/v1/reviewer-ops/queue-intelligence", { teamId: s.teamId, workflowIds: [w.workflowId] });
+    expect(qi.body.projections[0].slaState.signal).toBeNull();
+
+    // The sweep does not stamp a first-review deadline after that decision either.
+    const unstamped = await workflow(s, {
+      status: "IN_REVIEW",
+      assignedToUserId: s.owner.userId,
+      extra: { lastReviewedAt: decidedAt },
+    });
+    await prisma.workflowReviewDecision.create({
+      data: { workflowId: unstamped.workflowId, teamId: s.teamId, stage: "FIRST", round: 0, reviewerUserId: s.owner.userId, decision: "REQUEST_INFO", rationale: "legacy", decidedAt },
+    });
+    await ops.stampOpenReviewDeadlines({ teamId: s.teamId }, prisma as never);
+    const stamped = await prisma.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: unstamped.workflowId } });
+    expect(stamped.slaDueSoonHours).not.toBeNull();
+    expect(stamped.firstResponseDueAtUtc).toBeNull();
+  });
+
+  it("deadlines the old sweep stamped after the fact are not presented (no false Met), and nothing is written", async () => {
+    const s = await teamSpace("legacy-stamp");
+    const assignedAt = new Date("2026-10-29T10:00:00Z");
+    const decidedAt = new Date("2026-10-30T10:00:00Z");
+    const stampAt = new Date("2026-11-08T09:00:00Z");
+    const h = (n: number) => new Date(stampAt.getTime() + n * 3600_000);
+    const w = await workflow(s, {
+      status: "IN_REVIEW",
+      assignedToUserId: s.owner.userId,
+      assignedAtUtc: assignedAt,
+      extra: {
+        assignmentDueAtUtc: h(4),
+        firstResponseDueAtUtc: h(24),
+        escalationDueAtUtc: h(48),
+        completionDueAtUtc: h(72),
+        dueAt: h(72),
+        slaDueSoonHours: 6,
+        lastReviewedAt: decidedAt,
+      },
+    });
+    await prisma.workflowReviewDecision.create({
+      data: { workflowId: w.workflowId, teamId: s.teamId, stage: "FIRST", round: 0, reviewerUserId: s.owner.userId, decision: "REQUEST_INFO", rationale: "before the sweep", decidedAt },
+    });
+    await prisma.evidenceReviewWorkflowEvent.create({
+      data: { workflowId: w.workflowId, evidenceId: w.evidenceId, eventType: "SLA_UPDATED", nextValue: { source: "open_review_sweep" }, createdAt: stampAt } as never,
+    });
+    // A control row stamped HONESTLY (deadline set before the fact) keeps its Met.
+    const honest = await workflow(s, {
+      status: "IN_REVIEW",
+      assignedToUserId: s.owner.userId,
+      assignedAtUtc: assignedAt,
+      extra: { assignmentDueAtUtc: new Date("2026-10-30T10:00:00Z"), completionDueAtUtc: h(72) },
+    });
+
+    const d = await dims(s, w.workflowId);
+    const a = d.find((x) => x.dimension === "ASSIGNMENT")!;
+    const fr = d.find((x) => x.dimension === "FIRST_REVIEW")!;
+    // Presented as no deadline: the page omits the row — never "Met".
+    expect(a.dueAtUtc).toBeNull();
+    expect(a.metOnTime).toBeNull();
+    expect(fr.dueAtUtc).toBeNull();
+    expect(fr.metOnTime).toBeNull();
+    // The completion deadline is real and past: overdue.
+    expect(d.find((x) => x.dimension === "COMPLETION")!.state).toBe("BREACHED");
+
+    const c = (await dims(s, honest.workflowId)).find((x) => x.dimension === "ASSIGNMENT")!;
+    expect(c.dueAtUtc).toBe("2026-10-30T10:00:00.000Z");
+    expect(c.metOnTime).toBe(true);
+    expect(c.completedAtUtc).toBe(assignedAt.toISOString());
+
+    // Read-only: the stored row is untouched.
+    const stored = await prisma.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: w.workflowId } });
+    expect(stored.assignmentDueAtUtc?.toISOString()).toBe(h(4).toISOString());
+    expect(stored.firstResponseDueAtUtc?.toISOString()).toBe(h(24).toISOString());
+    expect(stored.firstDecidedAtUtc).toBeNull();
+  });
+
+  it("a drifted pointer is never trusted: projection, slice, governance snapshot and the reconcile sweep read active escalations", async () => {
+    const s = await teamSpace("legacy-drift");
+    // (a) pointer cleared while a HIGH escalation is still active (the old resolve drift).
+    const a = await workflow(s, { status: "IN_REVIEW", assignedToUserId: s.owner.userId });
+    const high = await escalate(s, a, "HIGH");
+    // Its escalation deadline has passed and escalatedAtUtc is unset, so only the
+    // active escalation (not the pointer) keeps the sweep from escalating again.
+    await prisma.evidenceReviewWorkflow.update({
+      where: { id: a.workflowId },
+      data: { activeEscalationId: null, escalatedAtUtc: null, escalationDueAtUtc: new Date(Date.now() - 3600_000) },
+    });
+    // (b) pointer left on a RESOLVED escalation, nothing active, escalation deadline passed.
+    const b = await workflow(s, {
+      status: "IN_REVIEW",
+      assignedToUserId: s.owner.userId,
+      extra: { escalationDueAtUtc: new Date(Date.now() - 3600_000), completionDueAtUtc: new Date(Date.now() + 5 * 86400_000) },
+    });
+    const stale = await escalate(s, b, "WARNING");
+    await prisma.reviewEscalation.update({ where: { id: stale }, data: { status: "RESOLVED", resolvedAtUtc: new Date() } });
+    await prisma.evidenceReviewWorkflow.update({ where: { id: b.workflowId }, data: { activeEscalationId: stale, escalatedAtUtc: null } });
+
+    const wsA = await call(s.owner.token, "GET", `/v1/reviewer-ops/workspace/${a.workflowId}?teamId=${s.teamId}`);
+    expect(wsA.body.openEscalation.id).toBe(high);
+    expect(wsA.body.projection.lifecycleState).toBe("ESCALATED");
+    const wsB = await call(s.owner.token, "GET", `/v1/reviewer-ops/workspace/${b.workflowId}?teamId=${s.teamId}`);
+    expect(wsB.body.openEscalation).toBeNull();
+    const slice = await call(s.owner.token, "GET", `/v1/reviewer-ops/queue?teamId=${s.teamId}&queue=ESCALATED`);
+    expect(slice.body.rows.map((r: { workflowId: string }) => r.workflowId)).toEqual([a.workflowId]);
+
+    const snapA = await governance.buildGovernanceSnapshot({ teamId: s.teamId, evidenceId: a.evidenceId }, prisma as never);
+    expect(snapA.review.activeEscalationId).toBe(high);
+    expect(snapA.review.activeEscalationSeverity).toBe("HIGH");
+    const snapB = await governance.buildGovernanceSnapshot({ teamId: s.teamId, evidenceId: b.evidenceId }, prisma as never);
+    expect(snapB.review.activeEscalationId).toBeNull();
+
+    // The reconcile sweep: (a) is already escalated — no duplicate; (b) is not —
+    // its passed escalation deadline is honoured despite the stale pointer.
+    const before = await prisma.reviewEscalation.count({ where: { workflowId: { in: [a.workflowId, b.workflowId] } } });
+    await engine.runReconcile({ teamId: s.teamId }, prisma as never);
+    expect(await prisma.reviewEscalation.count({ where: { workflowId: a.workflowId } })).toBe(1);
+    const bActive = await prisma.reviewEscalation.count({
+      where: { workflowId: b.workflowId, status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] } },
+    });
+    expect(bActive).toBe(1);
+    expect(await prisma.reviewEscalation.count({ where: { workflowId: { in: [a.workflowId, b.workflowId] } } })).toBe(before + 1);
   });
 });

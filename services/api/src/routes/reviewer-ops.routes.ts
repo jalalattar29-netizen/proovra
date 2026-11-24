@@ -74,7 +74,7 @@ import { requestWorkspaceCandidate, workspaceMismatchRefusal } from "../services
 import {
   ReviewerOpsError,
   approveReview,
-  buildWorkflowProjection,
+  projectWorkflow,
   assignReviewerToWorkflow,
   buildDashboard,
   recordResponseReceived,
@@ -2073,7 +2073,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             noteGiven: note.length > 0,
           },
         }).catch(() => null);
-        return reply.code(200).send({ projection: buildWorkflowProjection(updated) });
+        return reply.code(200).send({ projection: await projectWorkflow(updated, prisma as never) });
       } catch (err) {
         if (sendEngineError(reply, err) || sendArchiveRefusal(reply, err)) return;
         throw err;

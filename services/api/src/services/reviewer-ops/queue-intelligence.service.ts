@@ -59,6 +59,7 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import { bump } from "../ops/metrics.service.js";
+import { withReadTimeSlaFacts } from "./review-sla-read-facts.js";
 
 // =============================================================================
 // Inputs / projection shape
@@ -377,6 +378,8 @@ export async function projectQueueIntelligence(
         evidence: true,
       },
     })) as never;
+    // Stage C follow-up — read-time SLA facts (presentation only).
+    workflows = await withReadTimeSlaFacts(workflows, client);
   } catch {
     bump("reviewer_priority_computed_total");
     return {
