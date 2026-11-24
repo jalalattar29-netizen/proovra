@@ -23,7 +23,7 @@ had none. The fixtures agreed, because they were written from the same guess.
 
 ## Coverage
 
-**182 bindings — OK 182, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
+**183 bindings — OK 183, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
 
 A binding is one place the app hands a fetched response to a parser. The
 route column is the handler in `services/api/src/routes` that answers that
@@ -165,6 +165,7 @@ top level of it.
 | OK | `parseWorkspaceMembers` | `GET /v1/teams/:id/members` | members, nextCursor, total | members, nextCursor, total |
 | OK | `parseTransferCandidates` | `GET /v1/teams/:id/members` | members, nextCursor, total | members, nextCursor, total |
 | OK | `parseRemovalImpact` | `GET /v1/teams/:id/members/:memberId/removal-impact` | eligibleTransferTargets, impact, member | eligibleTransferTargets, impact |
+| OK | `parseRoleChangeImpact` | `GET /v1/teams/:id/members/:memberId/role-change-impact` | impact, member, newRole | impact, releasesHeldWork |
 | OK | `parsePendingOwnershipOffer` | `GET /v1/teams/:id/ownership-offer` | offer | offer |
 | OK | `parseAlerts` | `GET /v1/teams/:workspaceId/operations/alerts` | complete, counts, evaluatedAtUtc, items, scope, workspaceId | complete, counts, evaluatedAtUtc, items |
 | OK | `parseHealth` | `GET /v1/teams/:workspaceId/operations/health` | evaluatedAtUtc, lastIncidentActivityUtc, openIncidents, readiness, scope, state, unknown… | evaluatedAtUtc, lastIncidentActivityUtc, openIncidents, readiness, state, unknownReason,… |
