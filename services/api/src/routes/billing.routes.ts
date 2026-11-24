@@ -349,12 +349,14 @@ function assertCheckoutTarget(params: {
 
 /**
  * PHASE 10 §13.2 STEP 6 (2026-07-23) — NO-PERSONAL enforcement on CHECKOUT.
- * A checkout with NO `teamId` is a PERSONAL-scope subscription (PRO/personal
- * base plan). A managed enterprise identity has no personal space and the
- * organization controls its billing/lifecycle, so deny a personal checkout
- * BEFORE any provider session is created. TEAM checkout (`teamId` present) is
- * gated by `assertOwnedTeamForCheckout` instead. Fails closed for MANAGED +
- * MANAGED_UNRESOLVED.
+ * Every self-serve checkout (PRO and TEAM alike) is bought FOR the buyer's
+ * Personal Workspace — Team is a personal-workspace tier, and
+ * `assertCheckoutTarget` above refuses any `teamId`. A managed enterprise
+ * identity has no personal space and its organization controls billing and
+ * lifecycle, so a checkout is denied BEFORE any provider session is created.
+ * Fails closed for MANAGED + MANAGED_UNRESOLVED. (Team remediation T-124: the
+ * former "TEAM checkout with teamId / assertOwnedTeamForCheckout" path no
+ * longer exists.)
  */
 async function assertPersonalCheckoutAllowed(userId: string, teamId?: string) {
   if (!teamId) {

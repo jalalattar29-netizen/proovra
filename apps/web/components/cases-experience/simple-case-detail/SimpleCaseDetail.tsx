@@ -224,12 +224,10 @@ export function SimpleCaseDetail({
   const { confirm } = useConfirmAction();
   // AUD-0062 — the breadcrumb names the workspace that owns the case.
   const platformEnvelope = usePlatformContext().envelope;
-  // T-113 — server-projected, read from the same envelope as the breadcrumb
-  // (the usePlanFeatureGate rule: known true, or a platform admin). Unknown or
-  // absent reads as not included.
-  const assignmentsIncluded =
-    platformEnvelope?.platform?.isPlatformAdmin === true ||
-    platformEnvelope?.planFeatures?.reviewerOperationsIncluded === true;
+  // T-113 — the server-projected plan feature, read from the same envelope as
+  // the breadcrumb. No client-side capability decision: unknown or absent
+  // reads as not included.
+  const assignmentsIncluded = platformEnvelope?.planFeatures?.reviewerOperationsIncluded === true;
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   // PRO-K1-09 — the row menu's Rename asks for the name field (?focus=name).
