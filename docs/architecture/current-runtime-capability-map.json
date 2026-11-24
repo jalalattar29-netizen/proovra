@@ -4,20 +4,20 @@
   "generator": "services/api/scripts/generate-runtime-capability-map.mjs",
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
-  "routeInventoryHash": "82cc966200a6882a84f98a9182c5b3b228bd8f817647fce2c30662979af215e5",
+  "routeInventoryHash": "f4e6064be26def6f7447da1e4c04c48a62452e6f98676b4639c6e3ea909607e2",
   "consumerInventoryHash": "f8adc30f477d4330421a9455cf31056683d215b4db693a2f4f8c72548e9cc752",
   "dispositionsHash": "d668baf61872a6fe10399b44be1c11b71e0b71b0f4d3eb6e84a69afbbc28ceaf",
   "totals": {
-    "RegisteredRoutes": 1274,
-    "ProductionRegisteredRoutes": 1273,
+    "RegisteredRoutes": 1275,
+    "ProductionRegisteredRoutes": 1274,
     "DevelopmentOnlyRoutes": 1,
     "ProductConsumedRoutes": 1062,
     "NonProductDispositionedRoutes": 189,
-    "UndisposedRoutes": 22,
+    "UndisposedRoutes": 23,
     "ConservationIdentityHolds": true,
     "ProductConsumerRoutes": 1062,
     "MachineOnlyConsumerRoutes": 7,
-    "NoConsumerRoutes": 205,
+    "NoConsumerRoutes": 206,
     "AuthorizationUnresolved": 0,
     "PublicUnguardedRoutes": 43,
     "DynamicUnresolvedRouteRegistrations": 0,
@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 15
     },
-    "TerminalWriters": 1721,
-    "ReachableSensitiveMutations": 1689,
-    "ClassifiedSensitiveMutations": 1689,
+    "TerminalWriters": 1722,
+    "ReachableSensitiveMutations": 1690,
+    "ClassifiedSensitiveMutations": 1690,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 32,
@@ -76,7 +76,7 @@
       "ORGANIZATION_MEMBERSHIP": 35,
       "WORKSPACE": 85,
       "WORKSPACE_MEMBERSHIP_INVITATION": 69,
-      "CASE": 95,
+      "CASE": 96,
       "EVIDENCE_CUSTODY_FINALIZATION": 400,
       "LEGAL_HOLD_RETENTION_DELETION": 63,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 107,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1496,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1497,
       "JOB_ATTRIBUTED_REACHABLE": 181,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 10,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 12872,
-      "UNRESOLVED_IDENTIFIER": 1863
+      "METHOD_ON_VALUE": 12897,
+      "UNRESOLVED_IDENTIFIER": 1864
     },
     "MutationFixpointRounds": 11,
     "MutationClosurePass": false,
@@ -133,7 +133,7 @@
     "PreservationEntriesUnmatched": 0,
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
-      "UNDISPOSED": 22,
+      "UNDISPOSED": 23,
       "PRODUCT_CONNECTED": 1067,
       "EXTERNAL_API": 19,
       "MACHINE_OR_CRON": 22,
@@ -146,13 +146,13 @@
       "MISSING_PRODUCT_UI_POST_RELEASE": 15
     },
     "MandateDispositionConservationHolds": true,
-    "TenantBindingResolved": 1272,
+    "TenantBindingResolved": 1273,
     "TenantBindingUnresolved": 0,
     "byDataScope": {
       "PUBLIC_DATA": 37,
       "GLOBAL_USER_SELF": 58,
       "PLATFORM_GLOBAL": 52,
-      "WORKSPACE_SCOPED": 712,
+      "WORKSPACE_SCOPED": 713,
       "ORGANIZATION_SCOPED": 141,
       "MULTI_TENANT_PLATFORM_ADMIN": 144,
       "TOKEN_SCOPED": 39,
@@ -161,11 +161,11 @@
       "NO_DATA_ACCESS": 61
     },
     "TenantUnboundInsertRoutes": 0,
-    "OrganizationRoutesMeasured": 1034,
+    "OrganizationRoutesMeasured": 1035,
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
-    "ClassifiedSecurityRoutes": 1272,
+    "ClassifiedSecurityRoutes": 1273,
     "UnclassifiedSecurityRoutes": 0,
     "DevelopmentGatedRoutes": 1,
     "SecurityFamilyConservationHolds": true,
@@ -179,8 +179,8 @@
         "tagged": 27
       },
       "SESSION_AUTHENTICATED": {
-        "primary": 426,
-        "tagged": 426
+        "primary": 427,
+        "tagged": 427
       },
       "WORKSPACE_AUTHORIZED": {
         "primary": 398,
@@ -240,9 +240,9 @@
       }
     }
   },
-  "totalRoutes": 1274,
+  "totalRoutes": 1275,
   "classificationCounts": {
-    "BACKEND_ONLY_UNWIRED": 22,
+    "BACKEND_ONLY_UNWIRED": 23,
     "COMPATIBILITY_TEMPORARY": 11,
     "INTERNAL_REQUIRED": 179,
     "TARGET_COMPLETE": 1062
@@ -251,14 +251,14 @@
     "BEHAVIORALLY_PROVEN": 405,
     "BEHAVIORAL_SERVICE_ONLY": 18,
     "STRUCTURALLY_CONNECTED_ONLY": 516,
-    "UNPROVEN": 335
+    "UNPROVEN": 336
   },
   "verticalCounts": {
     "ENTERPRISE_IDENTITY_SECURITY": 181,
     "EVIDENCE_OPERATIONS": 279,
     "OPERATIONS_AUTOMATION": 1,
     "OPERATIONS_INTELLIGENCE": 126,
-    "PLATFORM_CORE": 547,
+    "PLATFORM_CORE": 548,
     "TRUST_ADMINISTRATION": 140
   },
   "capabilities": [
@@ -6908,6 +6908,18 @@
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "GET:/v1/teams/:id/members/:memberId/role-change-impact",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/teams/:id/members/:memberId/role-change-impact",
+      "registeringFile": "services/api/src/routes/teams.routes.ts",
+      "productConsumer": null,
+      "machineConsumer": null,
+      "authorization": "AUTHENTICATED",
+      "classification": "BACKEND_ONLY_UNWIRED",
       "evidenceLevel": "UNPROVEN"
     },
     {
@@ -16100,6 +16112,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -21144,6 +21157,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -22274,6 +22288,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -23429,6 +23444,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -24584,6 +24600,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -25714,6 +25731,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -26869,6 +26887,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -27999,6 +28018,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -34484,8 +34504,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#case.update@3426",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:3426",
+      "writerId": "services/api/src/routes/teams.routes.ts#case.update@3495",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:3495",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -34517,8 +34537,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#case.update@3550",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:3550",
+      "writerId": "services/api/src/routes/teams.routes.ts#case.update@3619",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:3619",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -34550,8 +34570,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#case.updateMany@2707",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:2707",
+      "writerId": "services/api/src/routes/teams.routes.ts#case.updateMany@2776",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:2776",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -34583,8 +34603,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#caseAccess.delete@4006",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:4006",
+      "writerId": "services/api/src/routes/teams.routes.ts#caseAccess.delete@4075",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:4075",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -34616,8 +34636,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#evidence.updateMany@2680",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:2680",
+      "writerId": "services/api/src/routes/teams.routes.ts#evidence.updateMany@2749",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:2749",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -34649,8 +34669,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#evidence.updateMany@2687",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:2687",
+      "writerId": "services/api/src/routes/teams.routes.ts#evidence.updateMany@2756",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:2756",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -34682,8 +34702,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#team.update@1517",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:1517",
+      "writerId": "services/api/src/routes/teams.routes.ts#team.update@1520",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:1520",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -34715,8 +34735,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@365",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:365",
+      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@368",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:368",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "createActivity",
       "kind": "DATABASE",
@@ -34757,8 +34777,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@369",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:369",
+      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@372",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:372",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "createActivity",
       "kind": "DATABASE",
@@ -34799,8 +34819,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@4033",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:4033",
+      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@4102",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:4102",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -34832,8 +34852,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#teamInvite.updateMany@1823",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:1823",
+      "writerId": "services/api/src/routes/teams.routes.ts#teamInvite.updateMany@1826",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:1826",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -34865,8 +34885,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@4283",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:4283",
+      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@4352",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:4352",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -34898,8 +34918,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@4319",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:4319",
+      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@4388",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:4388",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -34931,8 +34951,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.updateMany@4365",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:4365",
+      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.updateMany@4434",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:4434",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -38744,6 +38764,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -39922,6 +39943,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -41100,6 +41122,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -41835,8 +41858,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/assignment/release-held-work.ts#caseSiuProfile.updateMany@388",
-      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:388",
+      "writerId": "services/api/src/services/assignment/release-held-work.ts#caseSiuProfile.updateMany@520",
+      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:520",
       "file": "services/api/src/services/assignment/release-held-work.ts",
       "enclosingDeclaration": "releaseWorkHeldByTx",
       "kind": "DATABASE",
@@ -41845,20 +41868,29 @@
       "primaryFamily": "CASE",
       "insideTransaction": false,
       "entryRoutes": [
+        "DELETE /v1/admin/identity/scim/groups/projections/:id",
         "DELETE /v1/orgs/:id/members/:memberId",
         "DELETE /v1/teams/:id/members/:memberId",
+        "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
+        "PATCH /v1/teams/:id/members/:memberId",
+        "PATCH /v2/scim/Groups/:id",
         "PATCH /v2/scim/Users/:id",
+        "POST /v1/admin/identity/scim/groups/:id/projections",
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/members/:id/revoke",
+        "POST /v1/identity/members/:id/role",
         "POST /v1/identity/members/:id/suspend",
         "POST /v1/internal/lifecycle/run",
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
-        "POST /v1/teams/:id/leave"
+        "POST /v1/teams/:id/leave",
+        "POST /v1/teams/:id/ownership-offer/:offerId/accept",
+        "POST /v2/scim/Groups"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -41867,6 +41899,7 @@
         "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
         "MODULE services/api/src/routes/notifications.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
+        "MODULE services/api/src/routes/scim-admin.routes.ts",
         "MODULE services/api/src/routes/scim.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts"
       ],
@@ -41887,8 +41920,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/assignment/release-held-work.ts#caseSiuProfile.updateMany@399",
-      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:399",
+      "writerId": "services/api/src/services/assignment/release-held-work.ts#caseSiuProfile.updateMany@531",
+      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:531",
       "file": "services/api/src/services/assignment/release-held-work.ts",
       "enclosingDeclaration": "releaseWorkHeldByTx",
       "kind": "DATABASE",
@@ -41897,20 +41930,29 @@
       "primaryFamily": "CASE",
       "insideTransaction": false,
       "entryRoutes": [
+        "DELETE /v1/admin/identity/scim/groups/projections/:id",
         "DELETE /v1/orgs/:id/members/:memberId",
         "DELETE /v1/teams/:id/members/:memberId",
+        "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
+        "PATCH /v1/teams/:id/members/:memberId",
+        "PATCH /v2/scim/Groups/:id",
         "PATCH /v2/scim/Users/:id",
+        "POST /v1/admin/identity/scim/groups/:id/projections",
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/members/:id/revoke",
+        "POST /v1/identity/members/:id/role",
         "POST /v1/identity/members/:id/suspend",
         "POST /v1/internal/lifecycle/run",
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
-        "POST /v1/teams/:id/leave"
+        "POST /v1/teams/:id/leave",
+        "POST /v1/teams/:id/ownership-offer/:offerId/accept",
+        "POST /v2/scim/Groups"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -41919,6 +41961,7 @@
         "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
         "MODULE services/api/src/routes/notifications.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
+        "MODULE services/api/src/routes/scim-admin.routes.ts",
         "MODULE services/api/src/routes/scim.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts"
       ],
@@ -41939,8 +41982,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/assignment/release-held-work.ts#collaborationTeam.updateMany@148",
-      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:148",
+      "writerId": "services/api/src/services/assignment/release-held-work.ts#collaborationTeam.updateMany@310",
+      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:310",
       "file": "services/api/src/services/assignment/release-held-work.ts",
       "enclosingDeclaration": "releaseTeamTasksTx",
       "kind": "DATABASE",
@@ -41949,22 +41992,31 @@
       "primaryFamily": "WORKSPACE",
       "insideTransaction": false,
       "entryRoutes": [
+        "DELETE /v1/admin/identity/scim/groups/projections/:id",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/orgs/:id/members/:memberId",
         "DELETE /v1/teams/:id/members/:memberId",
+        "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
+        "PATCH /v1/teams/:id/members/:memberId",
+        "PATCH /v2/scim/Groups/:id",
         "PATCH /v2/scim/Users/:id",
+        "POST /v1/admin/identity/scim/groups/:id/projections",
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/members/:id/revoke",
+        "POST /v1/identity/members/:id/role",
         "POST /v1/identity/members/:id/suspend",
         "POST /v1/internal/lifecycle/run",
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
-        "POST /v1/teams/:id/leave"
+        "POST /v1/teams/:id/leave",
+        "POST /v1/teams/:id/ownership-offer/:offerId/accept",
+        "POST /v2/scim/Groups"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -41974,6 +42026,7 @@
         "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
         "MODULE services/api/src/routes/notifications.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
+        "MODULE services/api/src/routes/scim-admin.routes.ts",
         "MODULE services/api/src/routes/scim.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts"
       ],
@@ -41994,8 +42047,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/assignment/release-held-work.ts#collaborationTeamActivity.create@125",
-      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:125",
+      "writerId": "services/api/src/services/assignment/release-held-work.ts#collaborationTeamActivity.create@287",
+      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:287",
       "file": "services/api/src/services/assignment/release-held-work.ts",
       "enclosingDeclaration": "releaseTeamTasksTx",
       "kind": "DATABASE",
@@ -42004,22 +42057,31 @@
       "primaryFamily": "WORKSPACE_MEMBERSHIP_INVITATION",
       "insideTransaction": false,
       "entryRoutes": [
+        "DELETE /v1/admin/identity/scim/groups/projections/:id",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/orgs/:id/members/:memberId",
         "DELETE /v1/teams/:id/members/:memberId",
+        "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
+        "PATCH /v1/teams/:id/members/:memberId",
+        "PATCH /v2/scim/Groups/:id",
         "PATCH /v2/scim/Users/:id",
+        "POST /v1/admin/identity/scim/groups/:id/projections",
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/members/:id/revoke",
+        "POST /v1/identity/members/:id/role",
         "POST /v1/identity/members/:id/suspend",
         "POST /v1/internal/lifecycle/run",
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
-        "POST /v1/teams/:id/leave"
+        "POST /v1/teams/:id/leave",
+        "POST /v1/teams/:id/ownership-offer/:offerId/accept",
+        "POST /v2/scim/Groups"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -42029,6 +42091,7 @@
         "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
         "MODULE services/api/src/routes/notifications.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
+        "MODULE services/api/src/routes/scim-admin.routes.ts",
         "MODULE services/api/src/routes/scim.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts"
       ],
@@ -42049,8 +42112,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/assignment/release-held-work.ts#collaborationTeamAssignment.updateMany@118",
-      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:118",
+      "writerId": "services/api/src/services/assignment/release-held-work.ts#collaborationTeamAssignment.updateMany@280",
+      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:280",
       "file": "services/api/src/services/assignment/release-held-work.ts",
       "enclosingDeclaration": "releaseTeamTasksTx",
       "kind": "DATABASE",
@@ -42059,22 +42122,31 @@
       "primaryFamily": "WORKSPACE_MEMBERSHIP_INVITATION",
       "insideTransaction": false,
       "entryRoutes": [
+        "DELETE /v1/admin/identity/scim/groups/projections/:id",
         "DELETE /v1/collaboration-teams/:teamId/members/:memberId",
         "DELETE /v1/orgs/:id/members/:memberId",
         "DELETE /v1/teams/:id/members/:memberId",
+        "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
         "PATCH /v1/collaboration-teams/:teamId/members/:memberId",
+        "PATCH /v1/teams/:id/members/:memberId",
+        "PATCH /v2/scim/Groups/:id",
         "PATCH /v2/scim/Users/:id",
+        "POST /v1/admin/identity/scim/groups/:id/projections",
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/members/:id/revoke",
+        "POST /v1/identity/members/:id/role",
         "POST /v1/identity/members/:id/suspend",
         "POST /v1/internal/lifecycle/run",
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
-        "POST /v1/teams/:id/leave"
+        "POST /v1/teams/:id/leave",
+        "POST /v1/teams/:id/ownership-offer/:offerId/accept",
+        "POST /v2/scim/Groups"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -42084,6 +42156,7 @@
         "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
         "MODULE services/api/src/routes/notifications.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
+        "MODULE services/api/src/routes/scim-admin.routes.ts",
         "MODULE services/api/src/routes/scim.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts"
       ],
@@ -42104,8 +42177,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/assignment/release-held-work.ts#discussionThread.updateMany@418",
-      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:418",
+      "writerId": "services/api/src/services/assignment/release-held-work.ts#discussionThread.updateMany@546",
+      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:546",
       "file": "services/api/src/services/assignment/release-held-work.ts",
       "enclosingDeclaration": "releaseWorkHeldByTx",
       "kind": "DATABASE",
@@ -42114,20 +42187,29 @@
       "primaryFamily": "CASE",
       "insideTransaction": false,
       "entryRoutes": [
+        "DELETE /v1/admin/identity/scim/groups/projections/:id",
         "DELETE /v1/orgs/:id/members/:memberId",
         "DELETE /v1/teams/:id/members/:memberId",
+        "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
+        "PATCH /v1/teams/:id/members/:memberId",
+        "PATCH /v2/scim/Groups/:id",
         "PATCH /v2/scim/Users/:id",
+        "POST /v1/admin/identity/scim/groups/:id/projections",
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/members/:id/revoke",
+        "POST /v1/identity/members/:id/role",
         "POST /v1/identity/members/:id/suspend",
         "POST /v1/internal/lifecycle/run",
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
-        "POST /v1/teams/:id/leave"
+        "POST /v1/teams/:id/leave",
+        "POST /v1/teams/:id/ownership-offer/:offerId/accept",
+        "POST /v2/scim/Groups"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -42136,6 +42218,7 @@
         "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
         "MODULE services/api/src/routes/notifications.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
+        "MODULE services/api/src/routes/scim-admin.routes.ts",
         "MODULE services/api/src/routes/scim.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts"
       ],
@@ -42156,8 +42239,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/assignment/release-held-work.ts#evidenceRequest.updateMany@337",
-      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:337",
+      "writerId": "services/api/src/services/assignment/release-held-work.ts#evidenceRequest.updateMany@475",
+      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:475",
       "file": "services/api/src/services/assignment/release-held-work.ts",
       "enclosingDeclaration": "releaseWorkHeldByTx",
       "kind": "DATABASE",
@@ -42166,20 +42249,29 @@
       "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
       "insideTransaction": false,
       "entryRoutes": [
+        "DELETE /v1/admin/identity/scim/groups/projections/:id",
         "DELETE /v1/orgs/:id/members/:memberId",
         "DELETE /v1/teams/:id/members/:memberId",
+        "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
+        "PATCH /v1/teams/:id/members/:memberId",
+        "PATCH /v2/scim/Groups/:id",
         "PATCH /v2/scim/Users/:id",
+        "POST /v1/admin/identity/scim/groups/:id/projections",
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/members/:id/revoke",
+        "POST /v1/identity/members/:id/role",
         "POST /v1/identity/members/:id/suspend",
         "POST /v1/internal/lifecycle/run",
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
-        "POST /v1/teams/:id/leave"
+        "POST /v1/teams/:id/leave",
+        "POST /v1/teams/:id/ownership-offer/:offerId/accept",
+        "POST /v2/scim/Groups"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -42188,6 +42280,7 @@
         "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
         "MODULE services/api/src/routes/notifications.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
+        "MODULE services/api/src/routes/scim-admin.routes.ts",
         "MODULE services/api/src/routes/scim.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts"
       ],
@@ -42208,8 +42301,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/assignment/release-held-work.ts#evidenceRequestEvent.create@343",
-      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:343",
+      "writerId": "services/api/src/services/assignment/release-held-work.ts#evidenceRequestEvent.create@481",
+      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:481",
       "file": "services/api/src/services/assignment/release-held-work.ts",
       "enclosingDeclaration": "releaseWorkHeldByTx",
       "kind": "DATABASE",
@@ -42218,20 +42311,29 @@
       "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
       "insideTransaction": false,
       "entryRoutes": [
+        "DELETE /v1/admin/identity/scim/groups/projections/:id",
         "DELETE /v1/orgs/:id/members/:memberId",
         "DELETE /v1/teams/:id/members/:memberId",
+        "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
+        "PATCH /v1/teams/:id/members/:memberId",
+        "PATCH /v2/scim/Groups/:id",
         "PATCH /v2/scim/Users/:id",
+        "POST /v1/admin/identity/scim/groups/:id/projections",
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/members/:id/revoke",
+        "POST /v1/identity/members/:id/role",
         "POST /v1/identity/members/:id/suspend",
         "POST /v1/internal/lifecycle/run",
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
-        "POST /v1/teams/:id/leave"
+        "POST /v1/teams/:id/leave",
+        "POST /v1/teams/:id/ownership-offer/:offerId/accept",
+        "POST /v2/scim/Groups"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -42240,6 +42342,7 @@
         "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
         "MODULE services/api/src/routes/notifications.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
+        "MODULE services/api/src/routes/scim-admin.routes.ts",
         "MODULE services/api/src/routes/scim.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts"
       ],
@@ -42260,8 +42363,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/assignment/release-held-work.ts#evidenceReviewWorkflow.updateMany@201",
-      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:201",
+      "writerId": "services/api/src/services/assignment/release-held-work.ts#evidenceReviewWorkflow.updateMany@359",
+      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:359",
       "file": "services/api/src/services/assignment/release-held-work.ts",
       "enclosingDeclaration": "releaseWorkHeldByTx",
       "kind": "DATABASE",
@@ -42270,20 +42373,29 @@
       "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
       "insideTransaction": false,
       "entryRoutes": [
+        "DELETE /v1/admin/identity/scim/groups/projections/:id",
         "DELETE /v1/orgs/:id/members/:memberId",
         "DELETE /v1/teams/:id/members/:memberId",
+        "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
+        "PATCH /v1/teams/:id/members/:memberId",
+        "PATCH /v2/scim/Groups/:id",
         "PATCH /v2/scim/Users/:id",
+        "POST /v1/admin/identity/scim/groups/:id/projections",
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/members/:id/revoke",
+        "POST /v1/identity/members/:id/role",
         "POST /v1/identity/members/:id/suspend",
         "POST /v1/internal/lifecycle/run",
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
-        "POST /v1/teams/:id/leave"
+        "POST /v1/teams/:id/leave",
+        "POST /v1/teams/:id/ownership-offer/:offerId/accept",
+        "POST /v2/scim/Groups"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -42292,6 +42404,7 @@
         "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
         "MODULE services/api/src/routes/notifications.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
+        "MODULE services/api/src/routes/scim-admin.routes.ts",
         "MODULE services/api/src/routes/scim.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts"
       ],
@@ -42312,8 +42425,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/assignment/release-held-work.ts#evidenceReviewWorkflowEvent.create@207",
-      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:207",
+      "writerId": "services/api/src/services/assignment/release-held-work.ts#evidenceReviewWorkflowEvent.create@365",
+      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:365",
       "file": "services/api/src/services/assignment/release-held-work.ts",
       "enclosingDeclaration": "releaseWorkHeldByTx",
       "kind": "DATABASE",
@@ -42322,20 +42435,29 @@
       "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
       "insideTransaction": false,
       "entryRoutes": [
+        "DELETE /v1/admin/identity/scim/groups/projections/:id",
         "DELETE /v1/orgs/:id/members/:memberId",
         "DELETE /v1/teams/:id/members/:memberId",
+        "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
+        "PATCH /v1/teams/:id/members/:memberId",
+        "PATCH /v2/scim/Groups/:id",
         "PATCH /v2/scim/Users/:id",
+        "POST /v1/admin/identity/scim/groups/:id/projections",
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/members/:id/revoke",
+        "POST /v1/identity/members/:id/role",
         "POST /v1/identity/members/:id/suspend",
         "POST /v1/internal/lifecycle/run",
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
-        "POST /v1/teams/:id/leave"
+        "POST /v1/teams/:id/leave",
+        "POST /v1/teams/:id/ownership-offer/:offerId/accept",
+        "POST /v2/scim/Groups"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -42344,6 +42466,7 @@
         "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
         "MODULE services/api/src/routes/notifications.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
+        "MODULE services/api/src/routes/scim-admin.routes.ts",
         "MODULE services/api/src/routes/scim.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts"
       ],
@@ -42364,8 +42487,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/assignment/release-held-work.ts#operationalIncident.updateMany@290",
-      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:290",
+      "writerId": "services/api/src/services/assignment/release-held-work.ts#operationalIncident.updateMany@436",
+      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:436",
       "file": "services/api/src/services/assignment/release-held-work.ts",
       "enclosingDeclaration": "releaseWorkHeldByTx",
       "kind": "DATABASE",
@@ -42374,20 +42497,29 @@
       "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
       "insideTransaction": false,
       "entryRoutes": [
+        "DELETE /v1/admin/identity/scim/groups/projections/:id",
         "DELETE /v1/orgs/:id/members/:memberId",
         "DELETE /v1/teams/:id/members/:memberId",
+        "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
+        "PATCH /v1/teams/:id/members/:memberId",
+        "PATCH /v2/scim/Groups/:id",
         "PATCH /v2/scim/Users/:id",
+        "POST /v1/admin/identity/scim/groups/:id/projections",
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/members/:id/revoke",
+        "POST /v1/identity/members/:id/role",
         "POST /v1/identity/members/:id/suspend",
         "POST /v1/internal/lifecycle/run",
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
-        "POST /v1/teams/:id/leave"
+        "POST /v1/teams/:id/leave",
+        "POST /v1/teams/:id/ownership-offer/:offerId/accept",
+        "POST /v2/scim/Groups"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -42396,6 +42528,7 @@
         "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
         "MODULE services/api/src/routes/notifications.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
+        "MODULE services/api/src/routes/scim-admin.routes.ts",
         "MODULE services/api/src/routes/scim.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts"
       ],
@@ -42416,8 +42549,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/assignment/release-held-work.ts#operationalIncidentEvent.create@296",
-      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:296",
+      "writerId": "services/api/src/services/assignment/release-held-work.ts#operationalIncidentEvent.create@442",
+      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:442",
       "file": "services/api/src/services/assignment/release-held-work.ts",
       "enclosingDeclaration": "releaseWorkHeldByTx",
       "kind": "DATABASE",
@@ -42426,20 +42559,29 @@
       "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
       "insideTransaction": false,
       "entryRoutes": [
+        "DELETE /v1/admin/identity/scim/groups/projections/:id",
         "DELETE /v1/orgs/:id/members/:memberId",
         "DELETE /v1/teams/:id/members/:memberId",
+        "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
+        "PATCH /v1/teams/:id/members/:memberId",
+        "PATCH /v2/scim/Groups/:id",
         "PATCH /v2/scim/Users/:id",
+        "POST /v1/admin/identity/scim/groups/:id/projections",
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/members/:id/revoke",
+        "POST /v1/identity/members/:id/role",
         "POST /v1/identity/members/:id/suspend",
         "POST /v1/internal/lifecycle/run",
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
-        "POST /v1/teams/:id/leave"
+        "POST /v1/teams/:id/leave",
+        "POST /v1/teams/:id/ownership-offer/:offerId/accept",
+        "POST /v2/scim/Groups"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -42448,6 +42590,7 @@
         "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
         "MODULE services/api/src/routes/notifications.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
+        "MODULE services/api/src/routes/scim-admin.routes.ts",
         "MODULE services/api/src/routes/scim.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts"
       ],
@@ -42468,8 +42611,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/assignment/release-held-work.ts#operationalWorkflow.updateMany@259",
-      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:259",
+      "writerId": "services/api/src/services/assignment/release-held-work.ts#operationalWorkflow.updateMany@409",
+      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:409",
       "file": "services/api/src/services/assignment/release-held-work.ts",
       "enclosingDeclaration": "releaseWorkHeldByTx",
       "kind": "DATABASE",
@@ -42478,20 +42621,29 @@
       "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
       "insideTransaction": false,
       "entryRoutes": [
+        "DELETE /v1/admin/identity/scim/groups/projections/:id",
         "DELETE /v1/orgs/:id/members/:memberId",
         "DELETE /v1/teams/:id/members/:memberId",
+        "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
+        "PATCH /v1/teams/:id/members/:memberId",
+        "PATCH /v2/scim/Groups/:id",
         "PATCH /v2/scim/Users/:id",
+        "POST /v1/admin/identity/scim/groups/:id/projections",
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/members/:id/revoke",
+        "POST /v1/identity/members/:id/role",
         "POST /v1/identity/members/:id/suspend",
         "POST /v1/internal/lifecycle/run",
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
-        "POST /v1/teams/:id/leave"
+        "POST /v1/teams/:id/leave",
+        "POST /v1/teams/:id/ownership-offer/:offerId/accept",
+        "POST /v2/scim/Groups"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -42500,6 +42652,7 @@
         "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
         "MODULE services/api/src/routes/notifications.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
+        "MODULE services/api/src/routes/scim-admin.routes.ts",
         "MODULE services/api/src/routes/scim.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts"
       ],
@@ -42520,8 +42673,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/assignment/release-held-work.ts#operationalWorkflowEvent.create@265",
-      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:265",
+      "writerId": "services/api/src/services/assignment/release-held-work.ts#operationalWorkflowEvent.create@415",
+      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:415",
       "file": "services/api/src/services/assignment/release-held-work.ts",
       "enclosingDeclaration": "releaseWorkHeldByTx",
       "kind": "DATABASE",
@@ -42530,20 +42683,29 @@
       "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
       "insideTransaction": false,
       "entryRoutes": [
+        "DELETE /v1/admin/identity/scim/groups/projections/:id",
         "DELETE /v1/orgs/:id/members/:memberId",
         "DELETE /v1/teams/:id/members/:memberId",
+        "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
+        "PATCH /v1/teams/:id/members/:memberId",
+        "PATCH /v2/scim/Groups/:id",
         "PATCH /v2/scim/Users/:id",
+        "POST /v1/admin/identity/scim/groups/:id/projections",
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/members/:id/revoke",
+        "POST /v1/identity/members/:id/role",
         "POST /v1/identity/members/:id/suspend",
         "POST /v1/internal/lifecycle/run",
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
-        "POST /v1/teams/:id/leave"
+        "POST /v1/teams/:id/leave",
+        "POST /v1/teams/:id/ownership-offer/:offerId/accept",
+        "POST /v2/scim/Groups"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -42552,6 +42714,7 @@
         "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
         "MODULE services/api/src/routes/notifications.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
+        "MODULE services/api/src/routes/scim-admin.routes.ts",
         "MODULE services/api/src/routes/scim.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts"
       ],
@@ -42572,8 +42735,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/assignment/release-held-work.ts#qcSample.updateMany@317",
-      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:317",
+      "writerId": "services/api/src/services/assignment/release-held-work.ts#qcSample.updateMany@459",
+      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:459",
       "file": "services/api/src/services/assignment/release-held-work.ts",
       "enclosingDeclaration": "releaseWorkHeldByTx",
       "kind": "DATABASE",
@@ -42582,20 +42745,29 @@
       "primaryFamily": "CASE",
       "insideTransaction": false,
       "entryRoutes": [
+        "DELETE /v1/admin/identity/scim/groups/projections/:id",
         "DELETE /v1/orgs/:id/members/:memberId",
         "DELETE /v1/teams/:id/members/:memberId",
+        "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
+        "PATCH /v1/teams/:id/members/:memberId",
+        "PATCH /v2/scim/Groups/:id",
         "PATCH /v2/scim/Users/:id",
+        "POST /v1/admin/identity/scim/groups/:id/projections",
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/members/:id/revoke",
+        "POST /v1/identity/members/:id/role",
         "POST /v1/identity/members/:id/suspend",
         "POST /v1/internal/lifecycle/run",
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
-        "POST /v1/teams/:id/leave"
+        "POST /v1/teams/:id/leave",
+        "POST /v1/teams/:id/ownership-offer/:offerId/accept",
+        "POST /v2/scim/Groups"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -42604,6 +42776,7 @@
         "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
         "MODULE services/api/src/routes/notifications.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
+        "MODULE services/api/src/routes/scim-admin.routes.ts",
         "MODULE services/api/src/routes/scim.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts"
       ],
@@ -42624,8 +42797,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/assignment/release-held-work.ts#reviewerDisagreement.updateMany@373",
-      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:373",
+      "writerId": "services/api/src/services/assignment/release-held-work.ts#reviewerDisagreement.updateMany@505",
+      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:505",
       "file": "services/api/src/services/assignment/release-held-work.ts",
       "enclosingDeclaration": "releaseWorkHeldByTx",
       "kind": "DATABASE",
@@ -42634,20 +42807,29 @@
       "primaryFamily": "CASE",
       "insideTransaction": false,
       "entryRoutes": [
+        "DELETE /v1/admin/identity/scim/groups/projections/:id",
         "DELETE /v1/orgs/:id/members/:memberId",
         "DELETE /v1/teams/:id/members/:memberId",
+        "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
+        "PATCH /v1/teams/:id/members/:memberId",
+        "PATCH /v2/scim/Groups/:id",
         "PATCH /v2/scim/Users/:id",
+        "POST /v1/admin/identity/scim/groups/:id/projections",
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/members/:id/revoke",
+        "POST /v1/identity/members/:id/role",
         "POST /v1/identity/members/:id/suspend",
         "POST /v1/internal/lifecycle/run",
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
-        "POST /v1/teams/:id/leave"
+        "POST /v1/teams/:id/leave",
+        "POST /v1/teams/:id/ownership-offer/:offerId/accept",
+        "POST /v2/scim/Groups"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -42656,6 +42838,7 @@
         "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
         "MODULE services/api/src/routes/notifications.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
+        "MODULE services/api/src/routes/scim-admin.routes.ts",
         "MODULE services/api/src/routes/scim.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts"
       ],
@@ -42676,8 +42859,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/assignment/release-held-work.ts#reviewEscalation.updateMany@230",
-      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:230",
+      "writerId": "services/api/src/services/assignment/release-held-work.ts#reviewEscalation.updateMany@384",
+      "terminalLocation": "services/api/src/services/assignment/release-held-work.ts:384",
       "file": "services/api/src/services/assignment/release-held-work.ts",
       "enclosingDeclaration": "releaseWorkHeldByTx",
       "kind": "DATABASE",
@@ -42686,20 +42869,29 @@
       "primaryFamily": "EXTERNAL_REVIEW_INTAKE_SHARE",
       "insideTransaction": false,
       "entryRoutes": [
+        "DELETE /v1/admin/identity/scim/groups/projections/:id",
         "DELETE /v1/orgs/:id/members/:memberId",
         "DELETE /v1/teams/:id/members/:memberId",
+        "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
+        "PATCH /v1/teams/:id/members/:memberId",
+        "PATCH /v2/scim/Groups/:id",
         "PATCH /v2/scim/Users/:id",
+        "POST /v1/admin/identity/scim/groups/:id/projections",
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/members/:id/revoke",
+        "POST /v1/identity/members/:id/role",
         "POST /v1/identity/members/:id/suspend",
         "POST /v1/internal/lifecycle/run",
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:id/leave",
         "POST /v1/orgs/:id/members/:memberId/restore",
         "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
         "POST /v1/scim/reconciliation/execute",
-        "POST /v1/teams/:id/leave"
+        "POST /v1/teams/:id/leave",
+        "POST /v1/teams/:id/ownership-offer/:offerId/accept",
+        "POST /v2/scim/Groups"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -42708,6 +42900,7 @@
         "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
         "MODULE services/api/src/routes/notifications.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
+        "MODULE services/api/src/routes/scim-admin.routes.ts",
         "MODULE services/api/src/routes/scim.routes.ts",
         "MODULE services/api/src/routes/teams.routes.ts"
       ],
@@ -44897,6 +45090,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -61081,6 +61275,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -66331,8 +66526,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#memberCapabilityGrant.create@1252",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1252",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#memberCapabilityGrant.create@1260",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1260",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "grantCapability",
       "kind": "DATABASE",
@@ -66364,8 +66559,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#memberCapabilityGrant.update@1248",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1248",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#memberCapabilityGrant.update@1256",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1256",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "grantCapability",
       "kind": "DATABASE",
@@ -66397,8 +66592,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#memberCapabilityGrant.update@1380",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1380",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#memberCapabilityGrant.update@1388",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1388",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "revokeCapability",
       "kind": "DATABASE",
@@ -66430,8 +66625,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#memberCapabilityGrant.updateMany@1328",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1328",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#memberCapabilityGrant.updateMany@1336",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1336",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "updateCapability",
       "kind": "DATABASE",
@@ -66463,8 +66658,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#memberDelegatedAdminScope.create@1497",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1497",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#memberDelegatedAdminScope.create@1505",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1505",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "grantDelegatedAdminScope",
       "kind": "DATABASE",
@@ -66496,8 +66691,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#memberDelegatedAdminScope.update@1652",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1652",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#memberDelegatedAdminScope.update@1660",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1660",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "revokeDelegatedAdminScope",
       "kind": "DATABASE",
@@ -66531,8 +66726,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#memberDelegatedAdminScope.updateMany@1489",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1489",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#memberDelegatedAdminScope.updateMany@1497",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1497",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "grantDelegatedAdminScope",
       "kind": "DATABASE",
@@ -66564,8 +66759,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#memberDelegatedAdminScope.updateMany@1600",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1600",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#memberDelegatedAdminScope.updateMany@1608",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1608",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "updateDelegatedAdminScope",
       "kind": "DATABASE",
@@ -66898,8 +67093,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#teamMember.updateMany@1809",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1809",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#teamMember.updateMany@1817",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1817",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "touchMemberLastSeen",
       "kind": "DATABASE",
@@ -66982,8 +67177,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/standing-reach.ts#caseAccess.deleteMany@89",
-      "terminalLocation": "services/api/src/services/identity/standing-reach.ts:89",
+      "writerId": "services/api/src/services/identity/standing-reach.ts#caseAccess.deleteMany@99",
+      "terminalLocation": "services/api/src/services/identity/standing-reach.ts:99",
       "file": "services/api/src/services/identity/standing-reach.ts",
       "enclosingDeclaration": "endStandingReachForMembers",
       "kind": "DATABASE",
@@ -67026,8 +67221,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/standing-reach.ts#caseAssignment.updateMany@92",
-      "terminalLocation": "services/api/src/services/identity/standing-reach.ts:92",
+      "writerId": "services/api/src/services/identity/standing-reach.ts#caseAssignment.updateMany@102",
+      "terminalLocation": "services/api/src/services/identity/standing-reach.ts:102",
       "file": "services/api/src/services/identity/standing-reach.ts",
       "enclosingDeclaration": "endStandingReachForMembers",
       "kind": "DATABASE",
@@ -67070,8 +67265,56 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/standing-reach.ts#collaborationTeamActivity.create@117",
-      "terminalLocation": "services/api/src/services/identity/standing-reach.ts:117",
+      "writerId": "services/api/src/services/identity/standing-reach.ts#caseAssignment.updateMany@325",
+      "terminalLocation": "services/api/src/services/identity/standing-reach.ts:325",
+      "file": "services/api/src/services/identity/standing-reach.ts",
+      "enclosingDeclaration": "releaseWorkBeyondRoleTx",
+      "kind": "DATABASE",
+      "target": "caseAssignment",
+      "mutationKind": "updateMany",
+      "primaryFamily": "CASE",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "DELETE /v1/admin/identity/scim/groups/projections/:id",
+        "DELETE /v2/scim/Groups/:id",
+        "PATCH /v1/teams/:id/members/:memberId",
+        "PATCH /v2/scim/Groups/:id",
+        "PATCH /v2/scim/Users/:id",
+        "POST /v1/admin/identity/scim/groups/:id/projections",
+        "POST /v1/identity/members/:id/role",
+        "POST /v1/orgs/:id/ownership-offer/:offerId/accept",
+        "POST /v1/scim/reconciliation/execute",
+        "POST /v1/teams/:id/ownership-offer/:offerId/accept",
+        "POST /v2/scim/Groups"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/identity-operations-completion.routes.ts",
+        "MODULE services/api/src/routes/identity.routes.ts",
+        "MODULE services/api/src/routes/organizations.routes.ts",
+        "MODULE services/api/src/routes/scim-admin.routes.ts",
+        "MODULE services/api/src/routes/scim.routes.ts",
+        "MODULE services/api/src/routes/teams.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/identity/standing-reach.ts#collaborationTeamActivity.create@127",
+      "terminalLocation": "services/api/src/services/identity/standing-reach.ts:127",
       "file": "services/api/src/services/identity/standing-reach.ts",
       "enclosingDeclaration": "endStandingReachForMembers",
       "kind": "DATABASE",
@@ -67114,8 +67357,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/standing-reach.ts#collaborationTeamMember.update@113",
-      "terminalLocation": "services/api/src/services/identity/standing-reach.ts:113",
+      "writerId": "services/api/src/services/identity/standing-reach.ts#collaborationTeamMember.update@123",
+      "terminalLocation": "services/api/src/services/identity/standing-reach.ts:123",
       "file": "services/api/src/services/identity/standing-reach.ts",
       "enclosingDeclaration": "endStandingReachForMembers",
       "kind": "DATABASE",
@@ -67158,8 +67401,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/standing-reach.ts#collaborationTeamMember.updateMany@133",
-      "terminalLocation": "services/api/src/services/identity/standing-reach.ts:133",
+      "writerId": "services/api/src/services/identity/standing-reach.ts#collaborationTeamMember.updateMany@143",
+      "terminalLocation": "services/api/src/services/identity/standing-reach.ts:143",
       "file": "services/api/src/services/identity/standing-reach.ts",
       "enclosingDeclaration": "endStandingReachForMembers",
       "kind": "DATABASE",
@@ -73592,6 +73835,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -74721,6 +74965,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -75841,6 +76086,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -76962,6 +77208,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -78091,6 +78338,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -79220,6 +79468,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -80340,6 +80589,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -81469,6 +81719,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -82589,6 +82840,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -83710,6 +83962,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -85239,6 +85492,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -86360,6 +86614,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -87481,6 +87736,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -88602,6 +88858,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -89723,6 +89980,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -90844,6 +91102,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -91965,6 +92224,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -93086,6 +93346,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -103663,6 +103924,7 @@
         "GET /v1/teams/:id/members",
         "GET /v1/teams/:id/members/:memberId/access",
         "GET /v1/teams/:id/members/:memberId/removal-impact",
+        "GET /v1/teams/:id/members/:memberId/role-change-impact",
         "GET /v1/teams/:workspaceId/operations/alerts",
         "GET /v1/teams/:workspaceId/operations/health",
         "GET /v1/teams/ai-assistance-status",
@@ -105167,8 +105429,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/sharing/standing-credential-authority.ts#apiCredential.updateMany@93",
-      "terminalLocation": "services/api/src/services/sharing/standing-credential-authority.ts:93",
+      "writerId": "services/api/src/services/sharing/standing-credential-authority.ts#apiCredential.updateMany@95",
+      "terminalLocation": "services/api/src/services/sharing/standing-credential-authority.ts:95",
       "file": "services/api/src/services/sharing/standing-credential-authority.ts",
       "enclosingDeclaration": "revokeApiKeyForLostAuthority",
       "kind": "DATABASE",
@@ -105204,8 +105466,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/sharing/standing-credential-authority.ts#workflowIntakeLink.updateMany@105",
-      "terminalLocation": "services/api/src/services/sharing/standing-credential-authority.ts:105",
+      "writerId": "services/api/src/services/sharing/standing-credential-authority.ts#workflowIntakeLink.updateMany@107",
+      "terminalLocation": "services/api/src/services/sharing/standing-credential-authority.ts:107",
       "file": "services/api/src/services/sharing/standing-credential-authority.ts",
       "enclosingDeclaration": "revokeIntakeLinkForLostAuthority",
       "kind": "DATABASE",
@@ -105243,8 +105505,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/sharing/standing-credential-authority.ts#workflowIntakeLink.updateMany@210",
-      "terminalLocation": "services/api/src/services/sharing/standing-credential-authority.ts:210",
+      "writerId": "services/api/src/services/sharing/standing-credential-authority.ts#workflowIntakeLink.updateMany@227",
+      "terminalLocation": "services/api/src/services/sharing/standing-credential-authority.ts:227",
       "file": "services/api/src/services/sharing/standing-credential-authority.ts",
       "enclosingDeclaration": "endStandingCredentialsOnLostAuthorityTx",
       "kind": "DATABASE",
@@ -105295,8 +105557,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/sharing/standing-credential-authority.ts#workflowIntakeLink.updateMany@217",
-      "terminalLocation": "services/api/src/services/sharing/standing-credential-authority.ts:217",
+      "writerId": "services/api/src/services/sharing/standing-credential-authority.ts#workflowIntakeLink.updateMany@234",
+      "terminalLocation": "services/api/src/services/sharing/standing-credential-authority.ts:234",
       "file": "services/api/src/services/sharing/standing-credential-authority.ts",
       "enclosingDeclaration": "endStandingCredentialsOnLostAuthorityTx",
       "kind": "DATABASE",
@@ -114473,16 +114735,27 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "caseAssignment",
+        "caseSiuProfile",
+        "collaborationTeamAssignment",
+        "discussionThread",
         "enterpriseContract",
         "entitlement",
+        "evidenceRequest",
+        "evidenceReviewWorkflow",
         "externalIdentityMapping",
         "identityLinkConsent",
         "membershipGrant",
         "mfaFactor",
+        "operationalIncident",
+        "operationalWorkflow",
         "organization",
         "organizationMembership",
         "organizationSecurityPolicy",
         "planGrant",
+        "qcSample",
+        "reviewEscalation",
+        "reviewerDisagreement",
         "revokedSession",
         "riskSignal",
         "scimGroup",
@@ -114498,10 +114771,27 @@
       "modelsWritten": [
         "apiCredential",
         "automationWebhookDestination",
+        "caseAssignment",
+        "caseSiuProfile",
+        "collaborationTeam",
+        "collaborationTeamActivity",
+        "collaborationTeamAssignment",
+        "discussionThread",
         "entitlement",
+        "evidenceRequest",
+        "evidenceRequestEvent",
+        "evidenceReviewWorkflow",
+        "evidenceReviewWorkflowEvent",
         "externalReviewGrant",
         "lifecycleWebhookEndpoint",
         "membershipGrant",
+        "operationalIncident",
+        "operationalIncidentEvent",
+        "operationalWorkflow",
+        "operationalWorkflowEvent",
+        "qcSample",
+        "reviewEscalation",
+        "reviewerDisagreement",
         "securityEvent",
         "stepUpChallenge",
         "teamInvite",
@@ -114526,12 +114816,15 @@
         "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
         "services/api/src/services/identity/membership-provisioning.service.ts: teamMember.findFirst — no tenant or self predicate",
         "services/api/src/services/identity/membership-provisioning.service.ts: teamMember.update — no tenant or self predicate",
-        "services/api/src/services/access-control/scim-groups.service.ts: scimGroup.findMany — no tenant or self predicate"
+        "services/api/src/services/assignment/release-held-work.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
-      "tenantStampingInsertSites": [],
+      "tenantStampingInsertSites": [
+        "services/api/src/services/assignment/release-held-work.ts: collaborationTeamActivity.create",
+        "services/api/src/services/assignment/release-held-work.ts: operationalWorkflowEvent.create"
+      ],
       "tenantUnboundInsertSites": []
     },
     {
@@ -117612,7 +117905,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1583",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1586",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -117666,7 +117959,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id/cases/:caseId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3457",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3526",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -117737,7 +118030,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id/external-grants/:grantId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3935",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4004",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -117831,7 +118124,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id/invites/:inviteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2093",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2096",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -117905,7 +118198,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2470",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2539",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -118123,11 +118416,21 @@
       "tenantBindingAuthority": "inline-membership-status-check",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "caseAssignment",
+        "caseSiuProfile",
+        "discussionThread",
         "enterpriseContract",
         "entitlement",
+        "evidenceRequest",
+        "evidenceReviewWorkflow",
         "membershipGrant",
+        "operationalIncident",
+        "operationalWorkflow",
         "organization",
         "planGrant",
+        "qcSample",
+        "reviewEscalation",
+        "reviewerDisagreement",
         "scimGroup",
         "scimGroupWorkspaceProjection",
         "scimProvisioningToken",
@@ -118139,10 +118442,24 @@
       "modelsWritten": [
         "apiCredential",
         "automationWebhookDestination",
+        "caseAssignment",
+        "caseSiuProfile",
+        "discussionThread",
         "entitlement",
+        "evidenceRequest",
+        "evidenceRequestEvent",
+        "evidenceReviewWorkflow",
+        "evidenceReviewWorkflowEvent",
         "externalReviewGrant",
         "lifecycleWebhookEndpoint",
         "membershipGrant",
+        "operationalIncident",
+        "operationalIncidentEvent",
+        "operationalWorkflow",
+        "operationalWorkflowEvent",
+        "qcSample",
+        "reviewEscalation",
+        "reviewerDisagreement",
         "scimProvisioningToken",
         "securityEvent",
         "teamInvite",
@@ -118161,13 +118478,16 @@
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
         "services/api/src/services/identity/membership-provisioning.service.ts: teamMember.findFirst — no tenant or self predicate",
         "services/api/src/services/identity/membership-provisioning.service.ts: teamMember.update — no tenant or self predicate",
-        "services/api/src/services/access-control/scim-groups.service.ts: scimGroup.findMany — no tenant or self predicate",
-        "services/api/src/services/access-control/scim-groups.service.ts: scimGroupWorkspaceProjection.findMany — no tenant or self predicate"
+        "services/api/src/services/assignment/release-held-work.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: reviewEscalation.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: operationalWorkflow.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "MEMBERSHIP_LOOKUP",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 403/404",
-      "tenantStampingInsertSites": [],
+      "tenantStampingInsertSites": [
+        "services/api/src/services/assignment/release-held-work.ts: operationalWorkflowEvent.create"
+      ],
       "tenantUnboundInsertSites": []
     },
     {
@@ -147094,7 +147414,7 @@
       "method": "GET",
       "path": "/v1/platform/rbac/matrix",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4076",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4145",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -153657,7 +153977,7 @@
       "method": "GET",
       "path": "/v1/teams",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:677",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:680",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -153758,7 +154078,7 @@
       "method": "GET",
       "path": "/v1/teams/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:783",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:786",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -153955,7 +154275,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/access-review",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3754",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3823",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -154027,7 +154347,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/activity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3201",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3270",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -154125,7 +154445,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/cases",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1333",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1336",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -154180,7 +154500,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/closure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4133",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4202",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -154257,7 +154577,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/external-collaborators",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3615",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3684",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -154311,7 +154631,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/invites",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1377",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1380",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -154391,7 +154711,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/members",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1153",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1156",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -154565,7 +154885,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/members/:memberId/access",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2327",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2330",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -154623,7 +154943,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/members/:memberId/removal-impact",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2389",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2392",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -154667,9 +154987,81 @@
       "modelsRead": [
         "authenticatedSession",
         "case",
+        "caseAccess",
         "caseAssignment",
+        "caseSiuProfile",
+        "collaborationTeamAssignment",
+        "discussionThread",
         "evidence",
+        "evidenceRequest",
+        "evidenceReviewWorkflow",
+        "operationalIncident",
+        "operationalWorkflow",
         "organizationSecurityPolicy",
+        "qcSample",
+        "reviewEscalation",
+        "reviewerDisagreement",
+        "revokedSession",
+        "ssoConnection",
+        "supportAccessGrant",
+        "team",
+        "teamMember"
+      ],
+      "modelsWritten": [],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "GET /v1/teams/:id/members/:memberId/role-change-impact",
+      "method": "GET",
+      "path": "/v1/teams/:id/members/:memberId/role-change-impact",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2497",
+      "authorizationClass": "AUTHENTICATED",
+      "authorizationEvidence": [
+        "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
+      ],
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [],
+      "nonProductConsumers": [],
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
+      "replacement": null,
+      "result": "UNDISPOSED",
+      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "AUTHENTICATED",
+      "authorizationAuthority": "AUTHENTICATED",
+      "dataScope": "WORKSPACE_SCOPED",
+      "tenantType": "WORKSPACE",
+      "tenantBindingAuthority": "teamMemberStatusGrantsAccess",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "authenticatedSession",
+        "caseAssignment",
+        "caseSiuProfile",
+        "collaborationTeamAssignment",
+        "discussionThread",
+        "evidenceRequest",
+        "evidenceReviewWorkflow",
+        "operationalIncident",
+        "operationalWorkflow",
+        "organizationSecurityPolicy",
+        "qcSample",
+        "reviewEscalation",
+        "reviewerDisagreement",
         "revokedSession",
         "ssoConnection",
         "supportAccessGrant",
@@ -154693,7 +155085,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/ownership-offer",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4493",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4562",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -160530,7 +160922,7 @@
       "method": "PATCH",
       "path": "/v1/teams/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1453",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1456",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -160621,7 +161013,7 @@
       "method": "PATCH",
       "path": "/v1/teams/:id/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2167",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2170",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -160665,14 +161057,24 @@
       "modelsRead": [
         "adminAuditLog",
         "authenticatedSession",
+        "caseAssignment",
+        "caseSiuProfile",
+        "collaborationTeamAssignment",
+        "discussionThread",
         "evidenceRequest",
+        "evidenceReviewWorkflow",
         "externalIdentityMapping",
         "identityLinkConsent",
         "mfaFactor",
         "notificationDelivery",
+        "operationalIncident",
+        "operationalWorkflow",
         "organizationMembership",
         "organizationNotificationPolicy",
         "organizationSecurityPolicy",
+        "qcSample",
+        "reviewEscalation",
+        "reviewerDisagreement",
         "revokedSession",
         "riskSignal",
         "ssoConnection",
@@ -160690,11 +161092,28 @@
         "analyticsEvent",
         "apiCredential",
         "automationWebhookDestination",
+        "caseAssignment",
+        "caseSiuProfile",
+        "collaborationTeam",
+        "collaborationTeamActivity",
+        "collaborationTeamAssignment",
+        "discussionThread",
+        "evidenceRequest",
+        "evidenceRequestEvent",
+        "evidenceReviewWorkflow",
+        "evidenceReviewWorkflowEvent",
         "externalReviewGrant",
         "integrationWebhookDelivery",
         "lifecycleWebhookEndpoint",
         "membershipGrant",
         "notificationDelivery",
+        "operationalIncident",
+        "operationalIncidentEvent",
+        "operationalWorkflow",
+        "operationalWorkflowEvent",
+        "qcSample",
+        "reviewEscalation",
+        "reviewerDisagreement",
         "stepUpChallenge",
         "teamActivity",
         "teamInvite",
@@ -160711,17 +161130,19 @@
         "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
         "services/api/src/services/identity/rbac.service.ts: teamMember.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.updateMany — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.findUnique — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: evidenceRequest.findUnique — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: workflowIntakeLink.findUnique — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.updateMany — no tenant or self predicate"
+        "services/api/src/services/assignment/release-held-work.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: reviewEscalation.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: collaborationTeamAssignment.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: collaborationTeam.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: operationalWorkflow.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: operationalIncident.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
+        "services/api/src/services/assignment/release-held-work.ts: collaborationTeamActivity.create",
+        "services/api/src/services/assignment/release-held-work.ts: operationalWorkflowEvent.create",
         "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.create",
         "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.create"
       ],
@@ -160882,16 +161303,27 @@
       "tenantBindingAuthority": "teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "caseAssignment",
+        "caseSiuProfile",
+        "collaborationTeamAssignment",
+        "discussionThread",
         "enterpriseContract",
         "entitlement",
+        "evidenceRequest",
+        "evidenceReviewWorkflow",
         "externalIdentityMapping",
         "identityLinkConsent",
         "membershipGrant",
+        "operationalIncident",
+        "operationalWorkflow",
         "organization",
         "organizationDomain",
         "organizationMembership",
         "organizationSecurityPolicy",
         "planGrant",
+        "qcSample",
+        "reviewEscalation",
+        "reviewerDisagreement",
         "scimGroup",
         "scimGroupWorkspaceProjection",
         "scimProvisioningToken",
@@ -160905,11 +161337,28 @@
       "modelsWritten": [
         "apiCredential",
         "automationWebhookDestination",
+        "caseAssignment",
+        "caseSiuProfile",
+        "collaborationTeam",
+        "collaborationTeamActivity",
+        "collaborationTeamAssignment",
+        "discussionThread",
         "entitlement",
+        "evidenceRequest",
+        "evidenceRequestEvent",
+        "evidenceReviewWorkflow",
+        "evidenceReviewWorkflowEvent",
         "externalReviewGrant",
         "lifecycleWebhookEndpoint",
         "membershipGrant",
+        "operationalIncident",
+        "operationalIncidentEvent",
+        "operationalWorkflow",
+        "operationalWorkflowEvent",
         "organizationMembership",
+        "qcSample",
+        "reviewEscalation",
+        "reviewerDisagreement",
         "scimProvisioningToken",
         "securityEvent",
         "teamInvite",
@@ -160927,14 +161376,17 @@
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
         "services/api/src/services/access-control/scim-groups.service.ts: scimGroup.findMany — no tenant or self predicate",
-        "services/api/src/services/access-control/scim-groups.service.ts: scimGroupWorkspaceProjection.findMany — no tenant or self predicate",
-        "services/api/src/services/billing/workspace-seats.service.ts: teamMember.count — no tenant or self predicate",
-        "services/api/src/services/access-control/scim-groups.service.ts: teamMember.findMany — no tenant or self predicate"
+        "services/api/src/services/assignment/release-held-work.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: reviewEscalation.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: collaborationTeamAssignment.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: collaborationTeam.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
+        "services/api/src/services/assignment/release-held-work.ts: collaborationTeamActivity.create",
+        "services/api/src/services/assignment/release-held-work.ts: operationalWorkflowEvent.create",
         "services/api/src/services/identity/membership-provisioning.service.ts: organizationMembership.create"
       ],
       "tenantUnboundInsertSites": []
@@ -160970,6 +161422,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "caseAssignment",
         "caseSiuProfile",
         "collaborationTeamAssignment",
         "discussionThread",
@@ -161001,6 +161454,7 @@
         "apiCredential",
         "authenticatedSession",
         "automationWebhookDestination",
+        "caseAssignment",
         "caseSiuProfile",
         "collaborationTeam",
         "collaborationTeamActivity",
@@ -162425,17 +162879,28 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "caseAssignment",
+        "caseSiuProfile",
+        "collaborationTeamAssignment",
+        "discussionThread",
         "enterpriseContract",
         "entitlement",
+        "evidenceRequest",
+        "evidenceReviewWorkflow",
         "externalIdentityMapping",
         "identityLinkConsent",
         "membershipGrant",
         "mfaFactor",
+        "operationalIncident",
+        "operationalWorkflow",
         "organization",
         "organizationDomain",
         "organizationMembership",
         "organizationSecurityPolicy",
         "planGrant",
+        "qcSample",
+        "reviewEscalation",
+        "reviewerDisagreement",
         "revokedSession",
         "riskSignal",
         "scimGroup",
@@ -162453,11 +162918,28 @@
       "modelsWritten": [
         "apiCredential",
         "automationWebhookDestination",
+        "caseAssignment",
+        "caseSiuProfile",
+        "collaborationTeam",
+        "collaborationTeamActivity",
+        "collaborationTeamAssignment",
+        "discussionThread",
         "entitlement",
+        "evidenceRequest",
+        "evidenceRequestEvent",
+        "evidenceReviewWorkflow",
+        "evidenceReviewWorkflowEvent",
         "externalReviewGrant",
         "lifecycleWebhookEndpoint",
         "membershipGrant",
+        "operationalIncident",
+        "operationalIncidentEvent",
+        "operationalWorkflow",
+        "operationalWorkflowEvent",
         "organizationMembership",
+        "qcSample",
+        "reviewEscalation",
+        "reviewerDisagreement",
         "securityEvent",
         "stepUpChallenge",
         "teamInvite",
@@ -162480,13 +162962,17 @@
         "services/api/src/services/organization/org-access.ts: organization.findUnique — no tenant or self predicate",
         "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
-        "services/api/src/services/billing/workspace-seats.service.ts: teamMember.count — no tenant or self predicate"
+        "services/api/src/services/billing/workspace-seats.service.ts: teamMember.count — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: reviewEscalation.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
-        "services/api/src/services/identity/membership-provisioning.service.ts: organizationMembership.create"
+        "services/api/src/services/identity/membership-provisioning.service.ts: organizationMembership.create",
+        "services/api/src/services/assignment/release-held-work.ts: collaborationTeamActivity.create",
+        "services/api/src/services/assignment/release-held-work.ts: operationalWorkflowEvent.create"
       ],
       "tenantUnboundInsertSites": []
     },
@@ -187348,14 +187834,24 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "caseAssignment",
+        "caseSiuProfile",
+        "collaborationTeamAssignment",
+        "discussionThread",
         "evidenceRequest",
+        "evidenceReviewWorkflow",
         "externalIdentityMapping",
         "identityLinkConsent",
         "mfaFactor",
         "notificationDelivery",
+        "operationalIncident",
+        "operationalWorkflow",
         "organizationMembership",
         "organizationNotificationPolicy",
         "organizationSecurityPolicy",
+        "qcSample",
+        "reviewEscalation",
+        "reviewerDisagreement",
         "revokedSession",
         "riskSignal",
         "ssoConnection",
@@ -187371,11 +187867,28 @@
       "modelsWritten": [
         "apiCredential",
         "automationWebhookDestination",
+        "caseAssignment",
+        "caseSiuProfile",
+        "collaborationTeam",
+        "collaborationTeamActivity",
+        "collaborationTeamAssignment",
+        "discussionThread",
+        "evidenceRequest",
+        "evidenceRequestEvent",
+        "evidenceReviewWorkflow",
+        "evidenceReviewWorkflowEvent",
         "externalReviewGrant",
         "integrationWebhookDelivery",
         "lifecycleWebhookEndpoint",
         "membershipGrant",
         "notificationDelivery",
+        "operationalIncident",
+        "operationalIncidentEvent",
+        "operationalWorkflow",
+        "operationalWorkflowEvent",
+        "qcSample",
+        "reviewEscalation",
+        "reviewerDisagreement",
         "securityEvent",
         "stepUpChallenge",
         "teamInvite",
@@ -187394,17 +187907,19 @@
         "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
         "services/api/src/services/identity/rbac.service.ts: teamMember.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.updateMany — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.findUnique — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: evidenceRequest.findUnique — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: workflowIntakeLink.findUnique — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.updateMany — no tenant or self predicate"
+        "services/api/src/services/assignment/release-held-work.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: reviewEscalation.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: collaborationTeamAssignment.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: collaborationTeam.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: operationalWorkflow.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: operationalIncident.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
+        "services/api/src/services/assignment/release-held-work.ts: collaborationTeamActivity.create",
+        "services/api/src/services/assignment/release-held-work.ts: operationalWorkflowEvent.create",
         "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.create",
         "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.create"
       ],
@@ -198364,12 +198879,23 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "caseAssignment",
+        "caseSiuProfile",
+        "collaborationTeamAssignment",
+        "discussionThread",
         "enterpriseContract",
+        "evidenceRequest",
+        "evidenceReviewWorkflow",
         "mfaFactor",
+        "operationalIncident",
+        "operationalWorkflow",
         "organization",
         "organizationClosureRequest",
         "organizationMembership",
         "organizationOwnershipOffer",
+        "qcSample",
+        "reviewEscalation",
+        "reviewerDisagreement",
         "team",
         "teamMember",
         "user"
@@ -198378,13 +198904,30 @@
         "analyticsEvent",
         "apiCredential",
         "automationWebhookDestination",
+        "caseAssignment",
+        "caseSiuProfile",
+        "collaborationTeam",
+        "collaborationTeamActivity",
+        "collaborationTeamAssignment",
+        "discussionThread",
+        "evidenceRequest",
+        "evidenceRequestEvent",
+        "evidenceReviewWorkflow",
+        "evidenceReviewWorkflowEvent",
         "externalReviewGrant",
         "lifecycleWebhookEndpoint",
         "membershipGrant",
         "mfaFactor",
+        "operationalIncident",
+        "operationalIncidentEvent",
+        "operationalWorkflow",
+        "operationalWorkflowEvent",
         "organizationAuditEvent",
         "organizationMembership",
         "organizationOwnershipOffer",
+        "qcSample",
+        "reviewEscalation",
+        "reviewerDisagreement",
         "securityEvent",
         "team",
         "teamMember",
@@ -198398,13 +198941,23 @@
         "services/api/src/services/identity/org-membership-lifecycle.service.ts: the canonical organization membership-status predicate (packages/shared)",
         "packages/shared-runtime/src/standing-creator-authority.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/organization/org-access.ts: organization.findUnique — no tenant or self predicate",
-        "services/api/src/services/billing/workspace-seats.service.ts: teamMember.count — no tenant or self predicate"
+        "services/api/src/services/billing/workspace-seats.service.ts: teamMember.count — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: reviewEscalation.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: collaborationTeamAssignment.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: collaborationTeam.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: operationalWorkflow.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: operationalIncident.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: qcSample.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: evidenceRequest.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
         "services/api/src/services/identity/membership-provisioning.service.ts: organizationMembership.create",
+        "services/api/src/services/assignment/release-held-work.ts: collaborationTeamActivity.create",
+        "services/api/src/services/assignment/release-held-work.ts: operationalWorkflowEvent.create",
         "services/api/src/services/organization/org-audit.service.ts: organizationAuditEvent.create"
       ],
       "tenantUnboundInsertSites": []
@@ -205942,6 +206495,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "caseAssignment",
         "caseSiuProfile",
         "collaborationTeamAssignment",
         "discussionThread",
@@ -205982,6 +206536,7 @@
       "modelsWritten": [
         "apiCredential",
         "automationWebhookDestination",
+        "caseAssignment",
         "caseSiuProfile",
         "collaborationTeam",
         "collaborationTeamActivity",
@@ -206921,7 +207476,7 @@
       "method": "POST",
       "path": "/v1/teams",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:615",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:618",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -206979,7 +207534,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/cases/link",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3354",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3423",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -207037,7 +207592,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/closure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4181",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4250",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -207121,7 +207676,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/closure/:requestId/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4352",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4421",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -207191,7 +207746,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/invites",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1657",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1660",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -207282,7 +207837,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/invites/:inviteId/resend",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3144",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3213",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -207361,7 +207916,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/leave",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2825",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2894",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -207496,7 +208051,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/ownership-offer/:offerId/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4504",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4573",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -207538,12 +208093,21 @@
       "tenantBindingAuthority": "readPendingOwnershipOffer + teamMemberStatusGrantsAccess + resolveAccessibleWorkspace",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "adminAuditLog",
         "authenticatedSession",
+        "caseAssignment",
+        "caseSiuProfile",
+        "collaborationTeamAssignment",
+        "discussionThread",
         "evidenceRequest",
+        "evidenceReviewWorkflow",
         "mfaFactor",
         "notificationDelivery",
+        "operationalIncident",
+        "operationalWorkflow",
         "organizationNotificationPolicy",
+        "qcSample",
+        "reviewEscalation",
+        "reviewerDisagreement",
         "subscription",
         "team",
         "teamMember",
@@ -207555,16 +208119,32 @@
         "workspaceOwnershipOffer"
       ],
       "modelsWritten": [
-        "adminAuditLog",
         "analyticsEvent",
         "apiCredential",
         "automationWebhookDestination",
+        "caseAssignment",
+        "caseSiuProfile",
+        "collaborationTeam",
+        "collaborationTeamActivity",
+        "collaborationTeamAssignment",
+        "discussionThread",
+        "evidenceRequest",
+        "evidenceRequestEvent",
+        "evidenceReviewWorkflow",
+        "evidenceReviewWorkflowEvent",
         "externalReviewGrant",
         "integrationWebhookDelivery",
         "lifecycleWebhookEndpoint",
         "membershipGrant",
         "mfaFactor",
         "notificationDelivery",
+        "operationalIncident",
+        "operationalIncidentEvent",
+        "operationalWorkflow",
+        "operationalWorkflowEvent",
+        "qcSample",
+        "reviewEscalation",
+        "reviewerDisagreement",
         "securityEvent",
         "team",
         "teamActivity",
@@ -207579,21 +208159,23 @@
         "services/api/src/services/workspace/workspace-lifecycle.service.ts: party identity — the pending ownership offer is returned only to its sender (fromUserId) or its recipient (toUserId); anyone else is answered as if there were none (PRO-T1-06, DEC-18)",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/access/accessible-workspaces.ts: the canonical accessible-workspace resolver",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.updateMany — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.findUnique — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: evidenceRequest.findUnique — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: workflowIntakeLink.findUnique — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.updateMany — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/integrations/webhook-dispatcher.ts: webhookEndpoint.updateMany — no tenant or self predicate"
+        "services/api/src/services/assignment/release-held-work.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: reviewEscalation.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: collaborationTeamAssignment.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: collaborationTeam.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: operationalWorkflow.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: operationalIncident.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: qcSample.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: evidenceRequest.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: reviewerDisagreement.updateMany — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: caseSiuProfile.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 404",
       "tenantStampingInsertSites": [
+        "services/api/src/services/assignment/release-held-work.ts: collaborationTeamActivity.create",
+        "services/api/src/services/assignment/release-held-work.ts: operationalWorkflowEvent.create",
         "services/api/src/services/workspace/workspace-lifecycle.service.ts: teamActivity.create",
         "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.create",
         "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.create"
@@ -207605,7 +208187,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/ownership-offer/:offerId/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4555",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4624",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -207670,7 +208252,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/ownership-offer/:offerId/decline",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4555",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4624",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -207735,7 +208317,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/reopen",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4576",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4645",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -207812,7 +208394,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/transfer-ownership",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4419",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4488",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -207889,7 +208471,7 @@
       "method": "POST",
       "path": "/v1/teams/invites/:token/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3125",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3194",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -207967,7 +208549,7 @@
       "method": "POST",
       "path": "/v1/teams/invites/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3066",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3135",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -208053,7 +208635,7 @@
       "method": "POST",
       "path": "/v1/teams/invites/decline",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3091",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3160",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -208115,7 +208697,7 @@
       "method": "POST",
       "path": "/v1/teams/invites/lookup",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2913",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2982",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -210764,16 +211346,27 @@
       "tenantBindingAuthority": "teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "caseAssignment",
+        "caseSiuProfile",
+        "collaborationTeamAssignment",
+        "discussionThread",
         "enterpriseContract",
         "entitlement",
+        "evidenceRequest",
+        "evidenceReviewWorkflow",
         "externalIdentityMapping",
         "identityLinkConsent",
         "membershipGrant",
+        "operationalIncident",
+        "operationalWorkflow",
         "organization",
         "organizationDomain",
         "organizationMembership",
         "organizationSecurityPolicy",
         "planGrant",
+        "qcSample",
+        "reviewEscalation",
+        "reviewerDisagreement",
         "scimGroup",
         "scimGroupWorkspaceProjection",
         "scimProvisioningToken",
@@ -210787,11 +211380,28 @@
       "modelsWritten": [
         "apiCredential",
         "automationWebhookDestination",
+        "caseAssignment",
+        "caseSiuProfile",
+        "collaborationTeam",
+        "collaborationTeamActivity",
+        "collaborationTeamAssignment",
+        "discussionThread",
         "entitlement",
+        "evidenceRequest",
+        "evidenceRequestEvent",
+        "evidenceReviewWorkflow",
+        "evidenceReviewWorkflowEvent",
         "externalReviewGrant",
         "lifecycleWebhookEndpoint",
         "membershipGrant",
+        "operationalIncident",
+        "operationalIncidentEvent",
+        "operationalWorkflow",
+        "operationalWorkflowEvent",
         "organizationMembership",
+        "qcSample",
+        "reviewEscalation",
+        "reviewerDisagreement",
         "scimProvisioningToken",
         "securityEvent",
         "teamInvite",
@@ -210811,13 +211421,16 @@
         "services/api/src/services/access-control/scim-groups.service.ts: scimGroupWorkspaceProjection.findMany — no tenant or self predicate",
         "services/api/src/services/access-control/scim-groups.service.ts: scimGroup.findMany — no tenant or self predicate",
         "services/api/src/services/access-control/scim-groups.service.ts: teamMember.findMany — no tenant or self predicate",
-        "services/api/src/services/billing/workspace-seats.service.ts: teamMember.count — no tenant or self predicate"
+        "services/api/src/services/billing/workspace-seats.service.ts: teamMember.count — no tenant or self predicate",
+        "services/api/src/services/assignment/release-held-work.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
-        "services/api/src/services/identity/membership-provisioning.service.ts: organizationMembership.create"
+        "services/api/src/services/identity/membership-provisioning.service.ts: organizationMembership.create",
+        "services/api/src/services/assignment/release-held-work.ts: collaborationTeamActivity.create",
+        "services/api/src/services/assignment/release-held-work.ts: operationalWorkflowEvent.create"
       ],
       "tenantUnboundInsertSites": []
     },

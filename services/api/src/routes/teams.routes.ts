@@ -124,6 +124,8 @@ import { caseVisibleToWhere, OPEN_CASE_STATUSES } from "../services/cases/case-v
 import { resolveCollaborationEntitlement } from "../services/collaboration-team/collaboration-entitlement.service.js";
 import { accessibleWorkspaceIdsFor, caseClosedTo } from "../services/access/record-reach.js";
 import { explainMemberAccess } from "../services/access/access-explanation.service.js";
+import { countWorkHeldBy } from "../services/assignment/release-held-work.js";
+import { previewWorkBeyondRole } from "../services/identity/standing-reach.js";
 import { resolveCaseRecordAccess } from "../services/cases/case-permission.service.js";
 import { resolveEvidenceRecordAccess } from "../services/evidence/evidence-record-access.service.js";
 import { sendBusinessRefusal } from "../http/business-refusal.js";
@@ -242,6 +244,7 @@ async function deliverWorkspaceInvite(input: {
  *   DELETE /v1/teams/:id/invites/:inviteId           GET    /v1/teams/:id/activity
  *   PATCH  /v1/teams/:id/members/:memberId           DELETE /v1/teams/:id/members/:memberId
  *   GET    /v1/teams/:id/members/:memberId/removal-impact
+ *   GET    /v1/teams/:id/members/:memberId/role-change-impact
  *   POST   /v1/teams/:id/cases/link                  DELETE /v1/teams/:id/cases/:caseId
  *
  * Revoking a member did not remove their ability to administer the workspace —
@@ -2410,7 +2413,13 @@ export async function teamsRoutes(app: FastifyInstance) {
       // evidence included). The preview used `deletedAt: null`, so a member
       // owning only trashed records read "no transfer needed" and the removal
       // then answered TRANSFER_TARGET_REQUIRED with no selector to satisfy it.
-      const [{ ownedEvidence, ownedCases }, openAssignments] = await Promise.all([
+      // Team remediation T-101 (MEM-06) — the dialog states everything the
+      // removal releases, counted with the release's OWN predicates
+      // (`countWorkHeldBy` = `releaseWorkHeldByTx`'s selectors; the case
+      // access rows and case assignments `endStandingReach` ends). It used to
+      // count case assignments only, as "Open assignments", while the removal
+      // also unassigned the member's reviews and escalations.
+      const [{ ownedEvidence, ownedCases }, openAssignments, heldWork, restrictedCaseGrants] = await Promise.all([
         countRecordsMemberStillOwns(teamId, targetUserId, prisma),
         prisma.caseAssignment.count({
           where: {
@@ -2419,6 +2428,8 @@ export async function teamsRoutes(app: FastifyInstance) {
             case: { teamId },
           },
         }).catch(() => 0),
+        countWorkHeldBy(prisma, { teamId, userIds: [targetUserId] }),
+        prisma.caseAccess.count({ where: { userId: targetUserId, case: { teamId } } }),
       ]);
 
       const requiresTransfer = ownedEvidence > 0 || ownedCases > 0;
@@ -2459,10 +2470,68 @@ export async function teamsRoutes(app: FastifyInstance) {
         impact: {
           ownedEvidence,
           ownedCases,
+          /** Kept for older clients: ACTIVE case assignments (also `caseAssignments`). */
           openAssignments,
+          caseAssignments: openAssignments,
+          heldReviews: heldWork.reviewWorkflows,
+          heldReviewsInProgress: heldWork.reviewsInProgress,
+          heldEscalations: heldWork.escalations,
+          restrictedCaseGrants,
+          heldWork,
           requiresTransfer,
         },
         eligibleTransferTargets: eligibleTargets,
+      });
+    },
+  );
+
+  /**
+   * GET /v1/teams/:id/members/:memberId/role-change-impact?role=VIEWER — Team
+   * remediation T-099. What changing this member's role to `role` would do to
+   * the work they hold, with the predicates the change itself applies
+   * (`previewWorkBeyondRole` = `releaseWorkBeyondRoleTx`): below the reviewer
+   * floor their held reviews, escalations and other work are released, and
+   * case assignments the new role cannot exercise are ended. Read-only.
+   * ADMIN+ only, as the role change.
+   */
+  app.get(
+    "/v1/teams/:id/members/:memberId/role-change-impact",
+    { preHandler: requireAuthAndLegal },
+    async (req: FastifyRequest, reply) => {
+      const params = req.params as { id: string; memberId: string };
+      const teamId = z.string().uuid().parse(params.id);
+      const memberId = z.string().uuid().parse(params.memberId);
+      const query = z
+        .object({ role: z.enum(["ADMIN", "MEMBER", "VIEWER"]) })
+        .safeParse(req.query ?? {});
+      if (!query.success) {
+        return reply.code(400).send({ code: "VALIDATION_ERROR", message: "A target role (ADMIN, MEMBER or VIEWER) is required." });
+      }
+      const userId = getAuthUserId(req);
+      const actor = await getActorMembership(req, teamId, userId);
+      if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
+        return reply.code(403).send({ code: "FORBIDDEN", message: "Forbidden" });
+      }
+      const target = await getTeamMemberByMemberId(teamId, memberId);
+      if (!target) {
+        return reply.code(404).send({ code: "NOT_FOUND", message: "Member not found" });
+      }
+      const impact = await previewWorkBeyondRole(prisma, {
+        teamId,
+        userId: target.userId,
+        newRole: query.data.role,
+      });
+      return reply.code(200).send({
+        member: { memberId: target.id, userId: target.userId, role: target.role },
+        newRole: query.data.role,
+        impact: {
+          releasesHeldWork: impact.releasesHeldWork,
+          heldReviews: impact.heldWork.reviewWorkflows,
+          heldReviewsInProgress: impact.heldWork.reviewsInProgress,
+          heldEscalations: impact.heldWork.escalations,
+          heldWork: impact.heldWork,
+          caseAssignmentsEnded: impact.caseAssignmentsEnded,
+        },
       });
     },
   );

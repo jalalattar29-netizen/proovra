@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "82cc966200a6882a84f98a9182c5b3b228bd8f817647fce2c30662979af215e5",
+  "capabilityRouteInventoryHash": "f4e6064be26def6f7447da1e4c04c48a62452e6f98676b4639c6e3ea909607e2",
   "totals": {
-    "routes": 1274,
+    "routes": 1275,
     "routesWithAnyTestCaller": 59,
     "testOnlyRoutes": 8,
     "testCallSites": 156,
@@ -3409,6 +3409,12 @@
     },
     {
       "routeId": "GET /v1/teams/:id/members/:memberId/removal-impact",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/teams/:id/members/:memberId/role-change-impact",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -7791,5 +7797,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "5ea8f8a3c2f228d879c5ec9fb804b017e3701ed53f51c61229471fce5f8d4445"
+  "contentHash": "30b3b93e4a61e9e700987668d50116daec932310b5d92edc693891bb7ac8b7b6"
 }
