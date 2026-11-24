@@ -41,13 +41,19 @@ import {
 import { Badge } from "../../../../components/ui/Badge";
 import { CanonicalActionButton } from "../../../../components/external-review/CanonicalActionButton";
 
+/**
+ * T-056 (stage C) — rates are per review and null when there is nothing to
+ * divide by; null renders "No data", never 0 % or "0s".
+ */
+import { formatMetricDuration, formatMetricPct } from "../../../../lib/reviewer-workspace/metric-format";
+
 type Metrics = {
   throughput7d: number;
-  approvalRate7dPct: number;
-  escalationRate7dPct: number;
-  disagreementRate7dPct: number;
-  qcFailureRate7dPct: number;
-  avgReviewDurationMs7d: number;
+  approvalRate7dPct: number | null;
+  escalationRate7dPct: number | null;
+  disagreementRate7dPct: number | null;
+  qcFailureRate7dPct: number | null;
+  avgReviewDurationMs7d: number | null;
 };
 
 type FetchState =
@@ -61,13 +67,14 @@ type FetchState =
 // last 7 days for this workspace" rather than a 403 (which is
 // modelled as FORBIDDEN, never a fake empty grid).
 function isMetricsEmpty(m: Metrics): boolean {
+  const none = (v: number | null) => v === null || v === 0;
   return (
     m.throughput7d === 0 &&
-    m.approvalRate7dPct === 0 &&
-    m.escalationRate7dPct === 0 &&
-    m.disagreementRate7dPct === 0 &&
-    m.qcFailureRate7dPct === 0 &&
-    m.avgReviewDurationMs7d === 0
+    none(m.approvalRate7dPct) &&
+    none(m.escalationRate7dPct) &&
+    none(m.disagreementRate7dPct) &&
+    none(m.qcFailureRate7dPct) &&
+    none(m.avgReviewDurationMs7d)
   );
 }
 
@@ -225,26 +232,26 @@ function MetricsShell() {
               gap: 12,
             }}
           >
-            <MetricCard label="Throughput" value={state.metrics.throughput7d} />
+            <MetricCard label="Reviews decided" value={state.metrics.throughput7d} />
             <MetricCard
-              label="Approval rate"
-              value={`${state.metrics.approvalRate7dPct}%`}
+              label="Approval rate (of reviews)"
+              value={formatMetricPct(state.metrics.approvalRate7dPct)}
             />
             <MetricCard
-              label="Escalation rate"
-              value={`${state.metrics.escalationRate7dPct}%`}
+              label="Escalation rate (of reviews)"
+              value={formatMetricPct(state.metrics.escalationRate7dPct)}
             />
             <MetricCard
-              label="Disagreement rate"
-              value={`${state.metrics.disagreementRate7dPct}%`}
+              label="Disagreement rate (of reviews)"
+              value={formatMetricPct(state.metrics.disagreementRate7dPct)}
             />
             <MetricCard
-              label="QC failure rate"
-              value={`${state.metrics.qcFailureRate7dPct}%`}
+              label="QC failure rate (of QC samples)"
+              value={formatMetricPct(state.metrics.qcFailureRate7dPct)}
             />
             <MetricCard
               label="Avg review duration"
-              value={`${Math.round(state.metrics.avgReviewDurationMs7d / 1000)}s`}
+              value={formatMetricDuration(state.metrics.avgReviewDurationMs7d)}
             />
           </div>
         </>

@@ -64,7 +64,17 @@ const projection = {
   legacy: { id: WORKFLOW, stage: "SECOND_REVIEW", dueAt: "2026-12-01T10:00:00.000Z" },
 };
 
+/** Stage C (T-055) — per-test overrides of the console envelope sections. */
+let envelopeOverride: Record<string, unknown> = {};
+
 function consoleEnvelope() {
+  return {
+    ...baseConsoleEnvelope(),
+    ...envelopeOverride,
+  };
+}
+
+function baseConsoleEnvelope() {
   return {
     generatedAt: "2026-11-23T00:00:00.000Z",
     teamId: WS,
@@ -83,6 +93,7 @@ const REVIEWER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 let routingRecs: unknown[] = [];
 let assignBodies: Array<Record<string, unknown>> = [];
 beforeEach(() => {
+  envelopeOverride = {};
   routingRecs = [];
   assignBodies = [];
   setActiveWorkspaceId(WS);
@@ -355,5 +366,22 @@ describe("/review console — the reviewer command palette is removed", () => {
     await mount("OWNER");
     const tabs = Array.from(document.querySelectorAll("[data-tab-id]")).map((t) => t.getAttribute("data-tab-id"));
     expect(tabs).toEqual(["queue", "mine"]);
+  });
+});
+
+describe("T-055 (stage C) — console tab counts", () => {
+  it("a tab shows the slice's total (not the first page) and a degraded section shows no number", async () => {
+    envelopeOverride = {
+      queue: { rows: [projection], status: "ok", count: 40, unit: "reviews" },
+      mine: { rows: [], status: "degraded", count: null, unit: "reviews" },
+      diagnostics: { sectionStatus: { queue: "ok", mine: "degraded" }, sectionLimit: 25 },
+    };
+    await mount("OWNER");
+    const tab = (id: string) => document.querySelector(`[data-tab-id="${id}"]`) as HTMLElement;
+    expect(tab("queue").querySelector("[data-tab-count]")?.textContent).toBe("40");
+    const mine = tab("mine");
+    expect(mine.querySelector("[data-tab-count]")).toBeNull();
+    expect(mine.querySelector("[data-tab-count-unknown]")?.textContent).toBe("—");
+    expect(mine.textContent).not.toMatch(/0/);
   });
 });

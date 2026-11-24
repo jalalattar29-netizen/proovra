@@ -51,6 +51,7 @@ import {
   OPEN_ESCALATION_DEFINITION,
   complianceLabel,
   hoursOrNoData,
+  splitStageCounts,
   stageRowLabel,
 } from "../../../../components/reviewer-experience/monitoringDisplay";
 
@@ -94,6 +95,11 @@ type ReviewerPerformance = {
 type DashboardResponse = {
   counts: {
     byStage: Record<string, number>;
+    /** T-057 — open reviews by stage, finished reviews by outcome. */
+    openByStage?: Record<string, number>;
+    closedByStage?: Record<string, number>;
+    /** T-052 — open reviews that are escalated (unit: reviews). */
+    escalatedReviews?: number;
     overdue: number;
     dueSoon: number;
     unassigned: number;
@@ -390,14 +396,24 @@ function SlaDashboardPageInner() {
             tone={data.counts.overdue > 0 ? "alert" : ""}
           />
           <Stat label="My reviews" value={data.counts.assignedToMe} tone="" />
+          {typeof data.counts.escalatedReviews === "number" ? (
+            <Stat
+              label="Escalated reviews"
+              value={data.counts.escalatedReviews}
+              tone={data.counts.escalatedReviews > 0 ? "warn" : ""}
+              title="Open reviews with escalated status or at least one active escalation (unit: reviews)."
+            />
+          ) : null}
+          {/* T-052 (stage C) — an escalation count, labelled as escalations:
+              one review can carry several. */}
           <Stat
-            label="Open escalations"
+            label="Active escalations"
             value={data.openEscalations}
             tone={data.openEscalations > 0 ? "warn" : ""}
             title={OPEN_ESCALATION_DEFINITION}
           />
           <Stat
-            label="Critical escalations"
+            label="Critical active escalations"
             value={data.criticalEscalationsOpen}
             tone={data.criticalEscalationsOpen > 0 ? "alert" : ""}
           />
@@ -407,21 +423,24 @@ function SlaDashboardPageInner() {
       <section className="app-panel app-panel__body review-panel-stack">
         <h3 className="app-panel__title">By stage</h3>
         <p className="app-field-help" data-sla-by-stage-definition>
-          Counts reviews by their recorded stage. &ldquo;Escalated (manual
-          decision)&rdquo; counts reviews a reviewer moved to the escalated
-          stage. It is not the same as open escalations: {OPEN_ESCALATION_DEFINITION}
+          Counts reviews by their recorded stage; open work and finished
+          reviews are listed apart. &ldquo;{stageRowLabel("ESCALATED")}&rdquo;
+          is a recorded status, set by an escalation, a first/second conflict or
+          an unresolved adjudication. It is not the same as active escalations:{" "}
+          {OPEN_ESCALATION_DEFINITION}
         </p>
         <div className="app-table-surface app-table-surface--scroll">
         <table className="app-table">
           <thead>
             <tr>
               <th>Stage</th>
-              <th>Count</th>
+              <th>Reviews</th>
             </tr>
           </thead>
-          <tbody>
-            {Object.entries(data.counts.byStage).map(([stage, count]) => (
-              <tr key={stage}>
+          {(() => {
+            const { open, closed } = splitStageCounts(data.counts);
+            const row = (group: "open" | "closed") => ([stage, count]: [string, number]) => (
+              <tr key={`${group}-${stage}`} data-sla-stage-group={group}>
                 <td
                   data-sla-stage={stage}
                   title={stage.toUpperCase() === "ESCALATED" ? OPEN_ESCALATION_DEFINITION : undefined}
@@ -430,8 +449,24 @@ function SlaDashboardPageInner() {
                 </td>
                 <td>{count}</td>
               </tr>
-            ))}
-          </tbody>
+            );
+            return (
+              <>
+                <tbody data-sla-stage-section="open">
+                  <tr>
+                    <th scope="rowgroup" colSpan={2}>Open reviews</th>
+                  </tr>
+                  {open.map(row("open"))}
+                </tbody>
+                <tbody data-sla-stage-section="closed">
+                  <tr>
+                    <th scope="rowgroup" colSpan={2}>Finished reviews</th>
+                  </tr>
+                  {closed.map(row("closed"))}
+                </tbody>
+              </>
+            );
+          })()}
         </table>
         </div>
       </section>

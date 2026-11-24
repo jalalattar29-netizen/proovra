@@ -121,8 +121,12 @@ type ConsoleEnvelope = {
   generatedAt: string;
   teamId: string;
   reviewer: { userId: string; isReviewerCapable: boolean };
-  queue: { rows: ReadonlyArray<unknown>; status: ConsoleSectionStatus; count: number };
-  mine: { rows: ReadonlyArray<unknown>; status: ConsoleSectionStatus; count: number };
+  /**
+   * T-055 (stage C) — `count` is the slice's total (not its first page), or
+   * null when it is unknown (a degraded section): then no number is shown.
+   */
+  queue: { rows: ReadonlyArray<unknown>; status: ConsoleSectionStatus; count: number | null };
+  mine: { rows: ReadonlyArray<unknown>; status: ConsoleSectionStatus; count: number | null };
   savedViews: {
     rows: ReadonlyArray<SavedViewRow>;
     status: ConsoleSectionStatus;
@@ -605,8 +609,14 @@ export function ReviewerConsole({
               title={t.description}
             >
               {t.label}
-              {envelope ? (
-                <span className="app-tab__count">{envelope[t.id].count}</span>
+              {envelope && status !== "degraded" && typeof envelope[t.id].count === "number" ? (
+                <span className="app-tab__count" data-tab-count>
+                  {envelope[t.id].count}
+                </span>
+              ) : envelope ? (
+                <span className="app-tab__count" data-tab-count-unknown aria-label="count not available">
+                  —
+                </span>
               ) : null}
               {status === "degraded" ? (
                 <Badge

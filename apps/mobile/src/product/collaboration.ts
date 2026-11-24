@@ -11,6 +11,7 @@
  * is a thin shell. Fields mirror collaboration-team.service.ts CollaborationTeamSummaryRow.
  */
 import { humanizeEnum } from "./domain-display";
+import { COLLABORATION_TEAM_WORKLOAD_COPY } from "@proovra/shared";
 
 export interface CollaborationTeamRow {
   id: string;
@@ -94,9 +95,10 @@ export function parseCollaborationRollup(data: unknown): CollaborationRollupCard
     { key: "attention", label: "Needs attention", value: num(work["attention"]), meta: `${overdue} overdue · ${num(work["highPriority"])} high priority`, tone: overdue > 0 ? "risk" : "pending" },
     {
       key: "people",
-      label: "People carrying work",
+      // T-059 (stage C) — the unit is team tasks; reviews are counted in Review.
+      label: COLLABORATION_TEAM_WORKLOAD_COPY.peopleLabel,
       value: num(load["people"]),
-      meta: busiest ? `heaviest load ${num(busiest["open"])} open` : "nothing assigned to an individual",
+      meta: busiest ? COLLABORATION_TEAM_WORKLOAD_COPY.busiestMeta(num(busiest["open"])) : COLLABORATION_TEAM_WORKLOAD_COPY.noneMeta,
       tone: "info",
     },
   ];

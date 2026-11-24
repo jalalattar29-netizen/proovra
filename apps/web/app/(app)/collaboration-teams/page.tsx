@@ -31,6 +31,7 @@
 "use client";
 
 import Link from "next/link";
+import { COLLABORATION_TEAM_WORKLOAD_COPY } from "@proovra/shared";
 // The canonical Members & Access path. Imported rather than written inline so
 // the route has exactly one definition — the locator is what makes renaming it
 // a one-file change if that ever becomes worth doing.
@@ -611,13 +612,14 @@ function TeamsOverview() {
                   <div className="app-metric-card__value">
                     {rollup.workload.people}
                   </div>
+                  {/* T-059 (stage C) — these are team tasks, not reviews. */}
                   <div className="app-metric-card__label">
-                    People carrying work
+                    {COLLABORATION_TEAM_WORKLOAD_COPY.peopleLabel}
                   </div>
-                  <div className="app-metric-card__meta">
+                  <div className="app-metric-card__meta" data-collaboration-workload-meta>
                     {rollup.workload.busiest
-                      ? `heaviest load ${rollup.workload.busiest.open} open`
-                      : "nothing assigned to an individual"}
+                      ? COLLABORATION_TEAM_WORKLOAD_COPY.busiestMeta(rollup.workload.busiest.open)
+                      : COLLABORATION_TEAM_WORKLOAD_COPY.noneMeta}
                   </div>
                 </div>
               </li>

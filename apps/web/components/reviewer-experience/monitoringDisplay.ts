@@ -5,19 +5,43 @@
  * unit-testable.
  */
 
-import { identifierLabel } from "@proovra/shared";
+import { REVIEW_ESCALATED_STATUS_LABEL, identifierLabel } from "@proovra/shared";
 
 /** Definition shown wherever an "open escalation" count appears. */
 export const OPEN_ESCALATION_DEFINITION =
   "An open escalation is one that is open, acknowledged or reassigned — not yet resolved or suppressed. The Escalations page lists them under Active.";
 
 /**
- * Human label for a by-stage row. The stored ESCALATED stage is a manual
- * escalation decision, which is NOT the same as an open escalation record.
+ * Human label for a by-stage row. T-057 (stage C, COR-B): the stored ESCALATED
+ * status comes from an escalation, a first/second conflict or an unresolved
+ * adjudication — never "manual decision" — and is not the same as an active
+ * escalation record.
  */
 export function stageRowLabel(stage: string): string {
-  if (stage.toUpperCase() === "ESCALATED") return "Escalated (manual decision)";
+  if (stage.toUpperCase() === "ESCALATED") return REVIEW_ESCALATED_STATUS_LABEL;
   return identifierLabel(stage);
+}
+
+/** Finished outcome stages (reported apart from open work, T-057). */
+const FINISHED_STAGES = new Set(["APPROVED_INTERNAL", "REJECTED_INSUFFICIENT", "CLOSED"]);
+
+/**
+ * T-057 (stage C) — the by-stage rows split into open work and finished
+ * outcomes. Uses the server's split when present, else derives it.
+ */
+export function splitStageCounts(counts: {
+  byStage: Record<string, number>;
+  openByStage?: Record<string, number>;
+  closedByStage?: Record<string, number>;
+}): { open: Array<[string, number]>; closed: Array<[string, number]> } {
+  if (counts.openByStage && counts.closedByStage) {
+    return { open: Object.entries(counts.openByStage), closed: Object.entries(counts.closedByStage) };
+  }
+  const entries = Object.entries(counts.byStage).filter(([, n]) => n > 0);
+  return {
+    open: entries.filter(([stage]) => !FINISHED_STAGES.has(stage.toUpperCase())),
+    closed: entries.filter(([stage]) => FINISHED_STAGES.has(stage.toUpperCase())),
+  };
 }
 
 /** Hours from milliseconds; null (nothing qualified) reads "No data", never 0 h. */

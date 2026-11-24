@@ -41,6 +41,11 @@ import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalEmptyState } from "../../../../components/operational";
 import { formatUserDateTime } from "../../../../lib/date";
 import {
+  escalationSummaryText,
+  governingDeadlineText,
+} from "../../../../lib/reviewer-workspace/sla-presentation";
+import { formatMetricPct as pctOrNoData } from "../../../../lib/reviewer-workspace/metric-format";
+import {
   reviewerHotkeyLabel,
   reviewerRoleLabel,
 } from "../../../../lib/labels/governanceReviewLabels";
@@ -1059,15 +1064,17 @@ function WorkspaceRibbon({
         style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}
       >
       <Pill label={`Role: ${reviewerRoleLabel(workspace.role)}`} />
-      <Pill label={`Assigned ${workspace.queues.assigned}`} />
-      <Pill label={`Unassigned ${workspace.queues.unassigned}`} />
+      {/* T-052 / T-053 (stage C) — review counts from the shared definitions,
+          labelled with their unit; they equal the Inbox slices they name. */}
+      <Pill label={`My reviews ${workspace.queues.assigned}`} />
+      <Pill label={`Unassigned reviews ${workspace.queues.unassigned}`} />
       <Pill label={`In progress ${workspace.queues.in_progress}`} />
-      <Pill label={`Escalated ${workspace.queues.escalated}`} tone="warn" />
-      <Pill label={`QC ${workspace.queues.qc}`} />
+      <Pill label={`Escalated reviews ${workspace.queues.escalated}`} tone="warn" />
+      <Pill label={`QC awaiting verdict ${workspace.queues.qc}`} />
       <Pill label={`Disagreements ${workspace.disagreements.awaitingAdjudication}`} />
       <Pill label={`7d throughput ${workspace.metrics.throughput7d}`} />
-      <Pill label={`Approval ${workspace.metrics.approvalRate7dPct}%`} />
-      <Pill label={`Escalation ${workspace.metrics.escalationRate7dPct}%`} />
+      <Pill label={`Approval ${pctOrNoData(workspace.metrics.approvalRate7dPct)}`} />
+      <Pill label={`Escalation ${pctOrNoData(workspace.metrics.escalationRate7dPct)}`} />
       {statusBanner ? (
         <p data-reviewer-status-banner role="status" className="app-field-help" style={{ margin: 0, flexBasis: "100%" }}>
           {statusBanner}
@@ -1110,12 +1117,12 @@ function QueueRail({ workspace }: { workspace: ReviewerWorkspaceProjection }) {
     >
       <h2 className="app-panel__title">Queues</h2>
       <QueueLine
-        label="Assigned (mine)"
+        label="My reviews"
         count={workspace.queues.assigned}
         href="/review/queues?queue=MY_REVIEWS"
       />
       <QueueLine
-        label="Unassigned"
+        label="Unassigned reviews"
         count={workspace.queues.unassigned}
         href="/review/queues?queue=UNASSIGNED"
       />
@@ -1126,17 +1133,17 @@ function QueueRail({ workspace }: { workspace: ReviewerWorkspaceProjection }) {
         hint="Continue work from this page"
       />
       <QueueLine
-        label="Escalated"
+        label="Escalated reviews"
         count={workspace.queues.escalated}
         href="/review/queues?queue=ESCALATED"
       />
       <QueueLine
-        label="QC"
+        label="QC awaiting verdict"
         count={workspace.queues.qc}
         href="/review/qc"
       />
       <QueueLine
-        label="Completed"
+        label="Completed (7 days)"
         count={workspace.queues.completed}
         href="/review/queues?queue=COMPLETED_RECENTLY"
       />
@@ -1199,7 +1206,12 @@ function WorkflowSummaryCard({
   codingSchemaId: string | null;
 }) {
   const projection = summary.projection;
-  const nextDue = projection.slaDimensions.find((d) => d.dueAtUtc !== null) ?? null;
+  // T-048 (stage C) — the governing deadline is the earliest one still open
+  // (the same helper as the Review page header), never a completed one.
+  const governing = governingDeadlineText(projection.slaDimensions);
+  const escalationText = summary.openEscalation
+    ? escalationSummaryText(summary.openEscalation.severity, summary.activeEscalationCount)
+    : null;
   return (
     <section
       data-reviewer-workspace-summary
@@ -1230,11 +1242,8 @@ function WorkflowSummaryCard({
           value={projection.lifecycleState.replace(/_/g, " ")}
         />
         <SummaryCell label="Priority" value={projection.priority} />
-        <SummaryCell label="SLA" value={projection.slaRollupState.replace(/_/g, " ")} />
-        <SummaryCell
-          label="Escalation"
-          value={summary.openEscalation ? summary.openEscalation.status : "None open"}
-        />
+        <SummaryCell label="Deadline" value={governing.text} />
+        <SummaryCell label="Escalation" value={escalationText ?? "None active"} />
         <SummaryCell
           label="Coding schema"
           value={codingSchemaId ? "Bound and ready" : "No schema bound"}
@@ -1250,12 +1259,16 @@ function WorkflowSummaryCard({
             Assigned {formatRelativeTime(projection.assignedAtUtc)}.{" "}
           </>
         ) : null}
-        {nextDue?.dueAtUtc
-          ? `Next SLA checkpoint: ${nextDue.dimension.toLowerCase().replace(/_/g, " ")} due ${formatRelativeTime(nextDue.dueAtUtc)}.`
-          : "No due checkpoint is currently projected on this workflow."}{" "}
+        <span data-reviewer-next-checkpoint>
+          {governing.kind === "none"
+            ? "No deadline is set on this review."
+            : governing.kind === "all_met"
+              ? `${governing.text}.`
+              : `Next deadline: ${governing.text}.`}
+        </span>{" "}
         {summary.openEscalation
-          ? `Open escalation: ${identifierLabel(summary.openEscalation.reason)} (${identifierLabel(summary.openEscalation.severity).toLowerCase()} severity).`
-          : "No escalation is currently open."}
+          ? `${escalationText ?? "Active escalation"}: ${identifierLabel(summary.openEscalation.reason)}.`
+          : "No escalation is active."}
       </p>
       </div>
     </section>

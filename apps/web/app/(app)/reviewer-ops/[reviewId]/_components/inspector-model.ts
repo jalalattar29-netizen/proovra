@@ -499,10 +499,13 @@ const SLA_STATE_LABELS: Record<SlaState, string> = {
   HEALTHY: "On track",
   DUE_SOON: "Due soon",
   BREACHED: "Overdue",
-  ESCALATED: "Overdue (escalated)",
+  // T-045 (stage C) — an escalation is not a deadline state; the server no
+  // longer sends ESCALATED here, and it never meant "overdue".
+  ESCALATED: "Escalation open",
   BLOCKED: "Blocked",
   PAUSED: "Paused",
-  COMPLETED: "Met",
+  // T-043 — completed is not "met": met means on time (see sla-presentation).
+  COMPLETED: "Completed",
 };
 
 export function slaStateLabel(state: string): string {
@@ -514,8 +517,8 @@ export function slaStateLabel(state: string): string {
  * the SLA badge does not repeat the word (the old header read
  * "escalated • escalated").
  */
-export function headerSlaLabel(sla: string, lifecycle: string): string {
-  if (sla === "ESCALATED" && lifecycle === "ESCALATED") return "SLA overdue";
+export function headerSlaLabel(sla: string, _lifecycle: string): string {
+  // T-045 (stage C) — never "SLA overdue" because an escalation is open.
   return `SLA ${slaStateLabel(sla).toLowerCase()}`;
 }
 

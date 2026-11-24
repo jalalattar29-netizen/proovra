@@ -404,6 +404,29 @@ export const QC_SAMPLE_PENDING_STATES = ["SAMPLED", "ASSIGNED", "IN_PROGRESS"] a
  */
 export const REVIEW_ESCALATED_STATUS_LABEL = "Escalated status (conflict or escalation)";
 
+/**
+ * T-064 (stage C) — the Evidence Library's record figures are about RECORDS,
+ * not review workflows: "Unassigned" there meant "no case linked" and
+ * "Review-ready" a per-record marker, so they disagreed with the review
+ * counts (O-07: 6 records vs 5 reviews). They now say what they count.
+ */
+/**
+ * T-059 (stage C) — the Collaboration Teams workload card counts TEAM TASKS
+ * (collaboration-team assignments), not review workflows: with zero tasks and
+ * two assigned reviews it said "nothing assigned to an individual". It now
+ * names its unit and never claims nobody carries work.
+ */
+export const COLLABORATION_TEAM_WORKLOAD_COPY = {
+  peopleLabel: "People carrying team tasks",
+  busiestMeta: (open: number) => `heaviest load ${open} open team ${open === 1 ? "task" : "tasks"}`,
+  noneMeta: "no team task is assigned to a person (reviews are counted in Review)",
+} as const;
+
+export const EVIDENCE_LIBRARY_RECORD_FIGURE_COPY = {
+  notInCase: { label: "Records not in a case", caption: "No case linked yet" },
+  reviewReadyMarker: { label: "Review-ready markers", caption: "Records on this page" },
+} as const;
+
 const ESCALATION_STATUS_TRANSITIONS: Readonly<
   Record<ReviewEscalationStatus, ReadonlyArray<ReviewEscalationStatus>>
 > = {

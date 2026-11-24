@@ -600,7 +600,10 @@ describe("header, links and canonical controls", () => {
     expect(lifecycle).toHaveLength(1);
     expect(sla).toHaveLength(1);
     expect(lifecycle[0]!.textContent).toContain("Escalated");
-    expect(sla[0]!.textContent).toContain("SLA overdue");
+    // Stage C (T-045): an open escalation never makes the deadline read
+    // "SLA overdue"; the badge names the governing deadline (none here).
+    expect(sla[0]!.textContent).not.toContain("overdue");
+    expect(sla[0]!.textContent).toBe("No deadline");
     expect(sla[0]!.textContent).not.toMatch(/escalated/i);
     // TEAM-UI-SPEC (structure) — the evidence display reference IS the page
     // title; "Back to queue" became the "← My reviews" back link above it.
