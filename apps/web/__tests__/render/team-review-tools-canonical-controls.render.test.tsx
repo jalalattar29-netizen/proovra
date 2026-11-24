@@ -256,7 +256,9 @@ describe("External Review console", () => {
     expect(nav.getAttribute("role")).toBe("tablist");
     expect(nav.style.overflowX).toBe("auto");
     const tabs = screen.getAllByRole("tab");
-    expect(tabs).toHaveLength(6);
+    // T-136 — five lifecycle statuses; "Bulk Invite" is no longer a tab.
+    expect(tabs).toHaveLength(5);
+    expect(tabs.map((t) => t.textContent ?? "").some((label) => /invite/i.test(label))).toBe(false);
     for (const t of tabs) expect(t.classList.contains("app-tab")).toBe(true);
     const active = document.querySelector('[data-tab="active"]') as HTMLElement;
     expect(active.className).toBe("app-tab is-active");
@@ -299,10 +301,10 @@ describe("External Review console", () => {
     expect(document.querySelectorAll(".app-danger-action")).toHaveLength(1);
   });
 
-  it("makes Issue the one primary on the Bulk Invite tab", async () => {
+  it("makes Issue the one primary while the invite form is open (T-136: inviting is an action, not a tab)", async () => {
     render(<ExternalInvitationsPage />);
     await waitFor(() => expect(document.querySelector(`[data-invitation-row="${GRANT}"]`)).not.toBeNull());
-    fireEvent.click(document.querySelector('[data-tab="bulk"]') as HTMLElement);
+    fireEvent.click(document.querySelector("[data-invite-reviewer-action]") as HTMLElement);
     const submit = await waitFor(() => document.querySelector("[data-bulk-issue-submit]") as HTMLElement);
     expect(cls(submit)).toBe("app-primary-action");
     expect(document.querySelectorAll(".app-primary-action")).toHaveLength(1);
