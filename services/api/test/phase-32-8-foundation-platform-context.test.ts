@@ -924,7 +924,7 @@ describe("Phase 32.8 Foundation — ReviewerOps + Governance repair (F-5)", () =
     // The route gate decides before the console renders, so there is no
     // second, later no-workspace branch that could win the race.
     const console_ = readWeb(
-      "components/reviewer-experience/ReviewerConsole.tsx",
+      "components/reviewer-experience/ReviewInbox.tsx",
     );
     expect(console_).not.toMatch(/ShellNoWorkspace/);
     expect(REVIEWER_PAGE).not.toMatch(/ShellNoWorkspace/);

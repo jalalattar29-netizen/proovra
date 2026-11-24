@@ -87,13 +87,13 @@
       }
     },
     {
-      "site": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:140",
+      "site": "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx:207",
       "helper": "act(label, id, path, body) -> `/v1/reviewer-ops/escalations/${id}/${path}`",
       "callSitesRead": [
-        "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:304",
-        "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:375",
-        "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:379",
-        "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:383"
+        "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx:384",
+        "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx:445",
+        "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx:449",
+        "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx:453"
       ],
       "routes": [
         "POST /v1/reviewer-ops/escalations/:id/acknowledge",
@@ -102,7 +102,8 @@
         "POST /v1/reviewer-ops/escalations/:id/suppress"
       ],
       "evidence": "The four call sites pass \"acknowledge\", \"reassign\", \"resolve\", \"suppress\".",
-      "reviewedAtUtc": "2026-08-15"
+      "reviewedAtUtc": "2026-11-24",
+      "reanchoredBy": "team remediation stage D (T-078): the escalations console became the Monitoring Escalations section (EscalationsSection in escalations/_section.tsx); the act() helper and its four literal actions are unchanged."
     },
     {
       "site": "apps/web/app/(app)/workflows/[id]/page.tsx:237",
@@ -203,18 +204,18 @@
       "reviewedAtUtc": "2026-08-16"
     },
     {
-      "site": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:138",
+      "site": "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx:207",
       "match": {
         "method": "POST",
-        "caller": "EscalationsConsolePageInner",
+        "caller": "EscalationsSection",
         "path": "/v1/reviewer-ops/escalations/<interp>/<interp>"
       },
       "helper": "the escalations console posts through one act(label, id, path, body) helper whose ACTION segment every call site supplies",
       "callSitesRead": [
-        "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:302",
-        "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:373",
-        "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:377",
-        "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:381"
+        "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx:384",
+        "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx:445",
+        "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx:449",
+        "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx:453"
       ],
       "routes": [
         "POST /v1/reviewer-ops/escalations/:id/acknowledge",
@@ -222,8 +223,9 @@
         "POST /v1/reviewer-ops/escalations/:id/resolve",
         "POST /v1/reviewer-ops/escalations/:id/suppress"
       ],
-      "evidence": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:125 const act = useCallback(async (label, id, path, body) => …); :136 await apiFetch(`/v1/reviewer-ops/escalations/${encodeURIComponent(id)}/${path}`, { method: \"POST\" }). Both segments interpolate, so the matcher refuses the site — correctly. The four call sites supply the ACTION literally: :302 act(\"ack\", e.id, \"acknowledge\", {}), :373 \"reassign\", :377 \"resolve\", :381 \"suppress\". Each is registered POST in services/api/src/routes/reviewer-ops.routes.ts — :1428 acknowledge, :1451 reassign, :1480 resolve, :1526 suppress — and the file registers no other escalation action, so the four are the complete set.",
-      "reviewedAtUtc": "2026-09-07"
+      "evidence": "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx:195 const act = useCallback(async (label, id, path, body) => …); :207 await apiFetch(`/v1/reviewer-ops/escalations/${encodeURIComponent(id)}/${path}`, { method: \"POST\" }). Both segments interpolate, so the matcher refuses the site — correctly. The four call sites supply the ACTION literally: :384 act(\"acknowledge\", e.id, \"acknowledge\", {}), :445 \"reassign\", :449 \"resolve\", :453 \"suppress\". Each is registered POST in services/api/src/routes/reviewer-ops.routes.ts — :1428 acknowledge, :1451 reassign, :1480 resolve, :1526 suppress — and the file registers no other escalation action, so the four are the complete set.",
+      "reviewedAtUtc": "2026-11-24",
+      "reanchoredBy": "team remediation stage D (T-078): the escalations console became the Monitoring Escalations section (EscalationsSection in escalations/_section.tsx); the act() helper and its four literal actions are unchanged."
     },
     {
       "site": "apps/mobile/src/ui/criteria-draft-editor.tsx:272",

@@ -220,3 +220,34 @@ export function describeEscalationIndependence(forces: boolean): string | null {
     ? "This escalation requires an independent second review: the review's decision must then be confirmed by a different reviewer, and only an owner or admin who is not the reviewer can resolve it."
     : null;
 }
+
+// -----------------------------------------------------------------------------
+// T-083 (stage D) — what an AUTOMATIC escalation says.
+// -----------------------------------------------------------------------------
+
+/**
+ * The summary the review automation writes on an escalation it raises itself.
+ * Catalog copy (the operations catalog `ops.review.escalation.overdue_auto` /
+ * `stuck_auto` meaning), never engine wording ("reviewer ops reconcile").
+ */
+export const REVIEW_AUTO_ESCALATION_SUMMARY = {
+  overdue: "Review is past its deadline; raised automatically.",
+  stuck: (label: string): string => `Review is stuck (${label.trim().toLowerCase()}); raised automatically.`,
+} as const;
+
+const LEGACY_OVERDUE_SUMMARY = /^Review past due\s*[—-]\s*automatic escalation by reviewer ops reconcile\.?$/i;
+const LEGACY_STUCK_SUMMARY = /^Workflow stuck\s*[—-]\s*(.+?)\.\s*Automatic escalation by reviewer ops reconcile\.?$/i;
+
+/**
+ * T-083 — an escalation summary as a person reads it. Rows written before the
+ * engine used catalog copy carry the engine's English ("… by reviewer ops
+ * reconcile."); they are presented in the catalog's words at read time (the
+ * stored row is never rewritten). A person's own summary is shown as written.
+ */
+export function presentReviewEscalationSummary(summary: string | null | undefined): string {
+  const text = (summary ?? "").trim();
+  if (LEGACY_OVERDUE_SUMMARY.test(text)) return REVIEW_AUTO_ESCALATION_SUMMARY.overdue;
+  const stuck = LEGACY_STUCK_SUMMARY.exec(text);
+  if (stuck) return REVIEW_AUTO_ESCALATION_SUMMARY.stuck(stuck[1]!);
+  return text;
+}

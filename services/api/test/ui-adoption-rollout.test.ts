@@ -63,7 +63,7 @@ describe("Reviewer console landing page (full adoption)", () => {
   // OperationalEmptyState preset; the runtime banner is still sourced
   // from the operational barrel and scoped to reviewer_ops.
   const src = readSource(
-    "../../../apps/web/components/reviewer-experience/ReviewerConsole.tsx",
+    "../../../apps/web/components/reviewer-experience/ReviewInbox.tsx",
   );
 
   it("imports the runtime banner from the operational barrel", () => {
@@ -83,10 +83,10 @@ describe("Reviewer console landing page (full adoption)", () => {
     expect(src.replace(/\/\*[\s\S]*?\*\//g, "")).not.toContain("forDomains");
   });
 
+  // Stage D (T-067) — a confirmed-empty view says so in the view's own words.
   it("renders an empty-state note when no review workflows exist", () => {
-    expect(src).toMatch(
-      /rows\.length === 0[\s\S]{0,400}No reviews in this slice/,
-    );
+    expect(src).toContain("INBOX_EMPTY_COPY[view]");
+    expect(src).toContain("data-inbox-empty");
   });
 
   it("provides actionable links from the console to related operator surfaces", () => {
@@ -124,8 +124,9 @@ describe("Reviewer console landing page (full adoption)", () => {
 // =============================================================================
 
 describe("Reviewer Ops SLA page (full adoption)", () => {
+  // Stage D (T-078) — the dashboard content is Monitoring's sections.
   const src = readSource(
-    "../../../apps/web/app/(app)/reviewer-ops/sla/page.tsx",
+    "../../../apps/web/app/(app)/reviewer-ops/sla/_sections.tsx",
   );
 
   it("imports NoWorkloadSnapshotsEmptyState + RuntimeStatusBanner from the operational barrel", () => {
@@ -560,12 +561,13 @@ describe("Phase 28-H [cross-page wiring invariants]", () => {
     // Phase 32.8E — /review and /governance are thin wrappers around
     // their experience components; the banner + operational barrel
     // adoption lives inside the component files.
-    "../../../apps/web/components/reviewer-experience/ReviewerConsole.tsx",
+    "../../../apps/web/components/reviewer-experience/ReviewInbox.tsx",
     "../../../apps/web/components/governance-experience/GovernanceControlPlane.tsx",
-    "../../../apps/web/app/(app)/reviewer-ops/sla/page.tsx",
+    // Stage D (T-078) — Monitoring content lives in its sections.
+    "../../../apps/web/app/(app)/reviewer-ops/sla/_sections.tsx",
     // Phase 32.8B — policy admin moved to /governance/policy.
     "../../../apps/web/app/(app)/governance/policy/page.tsx",
-    "../../../apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
+    "../../../apps/web/app/(app)/reviewer-ops/escalations/_section.tsx",
     "../../../apps/web/app/(app)/admin/platform/observability/page.tsx",
     "../../../apps/web/app/(app)/evidence/[id]/page.tsx",
   ];

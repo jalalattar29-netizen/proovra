@@ -298,7 +298,7 @@ describe("operational/index barrel", () => {
 
 describe("Escalations page (proof-point wiring)", () => {
   const src = readSource(
-    "../../../apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
+    "../../../apps/web/app/(app)/reviewer-ops/escalations/_section.tsx",
   );
 
   it("imports the new empty-state preset + runtime banner from the operational barrel", () => {

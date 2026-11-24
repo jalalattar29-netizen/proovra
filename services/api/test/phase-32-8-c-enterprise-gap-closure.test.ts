@@ -54,7 +54,7 @@ const COMMAND_CENTER = readApi(
 // reviewer surface is `/review` → `ReviewerConsole`.
 const REVIEWER_BACKEND = readApi("src/routes/reviewer-console.routes.ts");
 const REVIEWER_TSX = readWeb(
-  "components/reviewer-experience/ReviewerConsole.tsx",
+  "components/reviewer-experience/ReviewInbox.tsx",
 );
 const REVIEWER_BULK_TSX = readWeb(
   "components/reviewer-experience/ReviewerBulkOpsBar.tsx",
@@ -94,7 +94,9 @@ describe("Phase 32.8C FINAL-3 — Reviewer Ops + Governance gating fix", () => {
   it("Reviewer Ops renders every console section for both scopes", () => {
     // The console renders its sections unconditionally; scope only
     // changes what is actionable, never what is visible.
-    expect(REVIEWER_TSX).toMatch(/<QueueTable/);
+    // Stage D (T-065) — the Inbox table; the review-stage summary moved to
+    // Monitoring → Workload.
+    expect(REVIEWER_TSX).toContain("data-inbox-table");
     // TEAM-SPEC §3 (2026-11-23) — the console's Escalations / Workload / SLA
     // tabs duplicated the Monitoring pages and were removed; the Review hub
     // tabs lead to /reviewer-ops/sla and /reviewer-ops/escalations instead.
@@ -102,7 +104,6 @@ describe("Phase 32.8C FINAL-3 — Reviewer Ops + Governance gating fix", () => {
     expect(REVIEWER_TSX).not.toMatch(/<WorkloadTable/);
     expect(REVIEWER_TSX).not.toMatch(/<SlaPanel/);
     expect(REVIEWER_TSX).toMatch(/<SavedViewsPanel/);
-    expect(REVIEWER_TSX).toMatch(/<MultiStageReviewSummaryCard/);
     // No scope-conditional early return that swaps the whole surface.
     expect(REVIEWER_TSX).not.toMatch(/!isTeam \? \(/);
   });

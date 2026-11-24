@@ -23,7 +23,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
-import { RuntimeStatusBanner } from "../../../../components/operational";
 import { PageShell } from "../../../../components/ui/PageShell";
 import { ReviewPageHeader } from "../../../../components/reviewer-experience/ReviewPageHeader";
 import { ReviewHubNav } from "../../../../components/reviewer-experience/ReviewHubNav";
@@ -90,9 +89,8 @@ function MonitoringShell() {
       }
     >
       <ReviewHubNav active="monitoring" />
-      {/* Review automation only: deadline and escalation figures come from the
-          review automation pass, so a stale pass is said here, in one line. */}
-      <RuntimeStatusBanner requires={["reviewAutomation"]} />
+      {/* The review-automation notice sits in the sections whose figures
+          depend on it (Deadlines, Escalations, Workload), never twice. */}
 
       {offered.length > 1 ? (
         <div className="review-segmented" role="group" aria-label="Monitoring sections" data-monitoring-sections>

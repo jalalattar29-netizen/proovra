@@ -75,16 +75,16 @@ const WORKSPACE_PAGE = readSource(
   "../../../apps/web/app/(app)/review/workspace/page.tsx",
 );
 const SCHEMAS_PAGE = readSource(
-  "../../../apps/web/app/(app)/review/schemas/page.tsx",
+  "../../../apps/web/app/(app)/review/schemas/_section.tsx",
 );
 const QC_PAGE = readSource(
-  "../../../apps/web/app/(app)/review/qc/page.tsx",
+  "../../../apps/web/app/(app)/review/qc/_section.tsx",
 );
 const DISAGREE_PAGE = readSource(
   "../../../apps/web/app/(app)/review/disagreements/page.tsx",
 );
 const METRICS_PAGE = readSource(
-  "../../../apps/web/app/(app)/review/metrics/page.tsx",
+  "../../../apps/web/app/(app)/review/metrics/_section.tsx",
 );
 const CODING_PANEL = readSource(
   "../../../apps/web/components/reviewer-workspace/CodingPanel.tsx",
@@ -356,10 +356,11 @@ describe("Phase 2A — routes", () => {
 // ===========================================================================
 
 describe("Phase 2A — frontend pages", () => {
-  it("workspace page wraps in PageRouteGate + uses hotkeys", () => {
-    expect(WORKSPACE_PAGE).toMatch(/PageRouteGate routeId="workspace\.review_workspace"/);
-    expect(WORKSPACE_PAGE).toMatch(/useReviewerHotkeys/);
-    expect(WORKSPACE_PAGE).toMatch(/CodingPanel/);
+  // Stage D (T-077) — the workspace route opens the Review page's focus mode;
+  // coding lives in the shared coding section of that page.
+  it("workspace route wraps in PageRouteGate and opens focus mode", () => {
+    expect(WORKSPACE_PAGE).toContain('PageRouteGate routeId="workspace.review_workspace"');
+    expect(WORKSPACE_PAGE).toContain("focus: true");
   });
   it("schemas page wires seed-defaults action", () => {
     expect(SCHEMAS_PAGE).toMatch(/seedDefaultSchemas/);

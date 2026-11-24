@@ -452,16 +452,6 @@
       "reviewedAtUtc": "2026-09-17"
     },
     {
-      "routeId": "GET /v1/reviewer-ops/saved-views",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "no product contract to build, but the repository's own behavioural suite pins the registration",
-      "evidence": "PINNED CONTRACT — services/api/test/phase-c0-reviewer-console.test.ts:190 and services/api/test/phase-g3-2-final-live-operations-closure.test.ts:166 both assert the reviewer-console source CONTAINS this path, and services/api/test/phase25_5-reviewer-ops-hardening.test.ts:277-278 pins it alongside its :id sibling. The console references the path without issuing a request call today. NO visible control exists for it (zero product consumers in the canonical consumer analysis), so nothing disconnected is on screen. No release-completion credit; stays in the canonical backlog. Original absence proof retained: DEAD_CONFIRMED · surfaces searched: apps/web (rg suffix '/saved-views') -> the reviewer-ops saved-view calls are only the WRITE legs: apps/web/components/reviewer-experience/ReviewerConsole.tsx:1862 POST \"/v1/reviewer-ops/saved-views\" and :1890 DELETE `/v1/reviewer-ops/saved-views/${id}?teamId=`. No GET. Other /saved-views hits are different families: /v1/siu/saved-views* (apps/web/app/(app)/cases",
-      "reviewedAtUtc": "2026-08-17",
-      "revalidatedVerdict": "DEAD_CONFIRMED",
-      "revalidationConfidence": "HIGH",
-      "postReleaseDecision": "PRESERVED_POST_RELEASE_CONTRACT"
-    },
-    {
       "routeId": "GET /v1/runtime/otel-health",
       "disposition": "ADMIN_OPERATOR",
       "reason": "low-RAM deploy runbook drives this probe by curl",

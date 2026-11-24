@@ -408,10 +408,12 @@ describe("the notice sits beside actions, never over a record or a governance pa
     });
   }
 
+  // Stage D (T-078) — Monitoring's sections carry the notice where their
+  // figures depend on review automation.
   for (const file of [
-    "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
-    "apps/web/components/reviewer-experience/ReviewerConsole.tsx",
-    "apps/web/app/(app)/reviewer-ops/sla/page.tsx",
+    "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx",
+    "apps/web/components/reviewer-experience/ReviewInbox.tsx",
+    "apps/web/app/(app)/reviewer-ops/sla/_sections.tsx",
   ] as const) {
     it(`${file} says review automation, and only that`, () => {
       const code = strip(read(file));

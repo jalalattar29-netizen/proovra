@@ -17,6 +17,7 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
+import { maskEmail } from "@proovra/shared";
 import {
   computeReviewerCapacityScore,
   type ReviewerWorkloadCountsInput,
@@ -334,6 +335,12 @@ export async function listLatestWorkloadSnapshots(
 export type AssignableReviewer = {
   userId: string;
   displayName: string | null;
+  /**
+   * Team remediation T-086 (stage D) — the e-mail, MASKED ("j***@example.com"),
+   * so a member without a display name is named the way the queue and the
+   * lineage name them, never "Reviewer ref …". Never the full address.
+   */
+  maskedEmail: string | null;
   role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
   status: "ACTIVE";
   /** Most recent ReviewerWorkloadSnapshot active count. Omitted when no snapshot. */
@@ -374,6 +381,7 @@ export async function listAssignableReviewers(
         select: {
           id: true,
           displayName: true,
+          email: true,
         },
       },
     },
@@ -435,6 +443,7 @@ export async function listAssignableReviewers(
     const projected: AssignableReviewer = {
       userId: m.userId,
       displayName: m.user?.displayName ?? null,
+      maskedEmail: maskEmail(m.user?.email ?? null),
       role: m.role as AssignableReviewer["role"],
       status: "ACTIVE",
       placed: isPlaced,

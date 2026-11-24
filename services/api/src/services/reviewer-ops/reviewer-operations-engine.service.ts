@@ -19,6 +19,8 @@
 
 import { recordReviewActivityTx } from "../evidence-review/reviewer-audit.service.js";
 import type { PrismaClient, EvidenceReviewWorkflow as DbWorkflow } from "@prisma/client";
+import { REVIEW_AUTO_ESCALATION_SUMMARY } from "@proovra/shared";
+import { loadReviewerIdentities, withReviewerIdentity, type ReviewerIdentityProjection } from "./reviewer-identity.service.js";
 import {
   REVIEWER_OPS_DEFAULT_SLA_POLICY,
   REVIEW_FINISHED_DB_STATUSES,
@@ -307,7 +309,23 @@ function assertNoteIfRequired(note: string | null | undefined): void {
 // we build the filter here.
 // -----------------------------------------------------------------------------
 
-export type ReviewerOpsQueueRow = ReviewerOpsWorkflowProjection;
+/** T-086 (stage D) — a queue row names its assignee (display name / masked e-mail). */
+/**
+ * T-096 (stage D) — THE Inbox order: the deadline first (an overdue review
+ * comes before one that is on track, whatever their priorities), then
+ * priority, then the most recently touched; `id` keeps the order total for the
+ * cursor. A review with no deadline comes after every dated one. (Before: the
+ * priority came first, so an on-track HIGH review sorted above an overdue
+ * NORMAL one.)
+ */
+export const REVIEW_QUEUE_ORDER = [
+  { dueAt: { sort: "asc" as const, nulls: "last" as const } },
+  { priority: "desc" as const },
+  { updatedAt: "desc" as const },
+  { id: "desc" as const },
+];
+
+export type ReviewerOpsQueueRow = ReviewerOpsWorkflowProjection & { assignee?: ReviewerIdentityProjection | null };
 
 /**
  * The shared queue catalog plus the TEAM-SPEC R3 handoff slices
@@ -448,12 +466,7 @@ async function listReviewerOpsQueueInner(
   };
   const rows = await client.evidenceReviewWorkflow.findMany({
     where: scopedWhere as never,
-    orderBy: [
-      { priority: "desc" },
-      { dueAt: "asc" },
-      { updatedAt: "desc" },
-      { id: "desc" },
-    ],
+    orderBy: REVIEW_QUEUE_ORDER,
     take: limit + 1,
     ...(cursorId
       ? { cursor: { id: cursorId }, skip: 1 }
@@ -480,11 +493,16 @@ async function listReviewerOpsQueueInner(
   const now = new Date();
   // Stage C follow-up — read-time SLA facts for rows the repair has not touched.
   const factRows = await withReadTimeSlaFacts(rows, client);
+  // T-086 (stage D) — the assignee as the server names them, in the row.
+  const assigneeIdentities = await loadReviewerIdentities(factRows.map((r) => r.assignedToUserId), client);
   const projected = factRows.map((r) =>
-    buildWorkflowProjection(r, {
-      hasOpenEscalation: escSet.has(r.id),
-      nowUtc: now,
-    }),
+    withAssigneeIdentity(
+      buildWorkflowProjection(r, {
+        hasOpenEscalation: escSet.has(r.id),
+        nowUtc: now,
+      }),
+      assigneeIdentities,
+    ),
   );
 
   bump("reviewer_queue_viewed_total");
@@ -502,6 +520,22 @@ async function listReviewerOpsQueueInner(
   return {
     rows: projected,
     nextCursor: hasMore && rows.length > 0 ? rows[rows.length - 1].id : null,
+  };
+}
+
+/**
+ * T-086 (stage D) — `assignee` beside `assignedToUserId`: the display name or
+ * the masked e-mail, so the Inbox names the assignee the same way the picker
+ * and the lineage do. Null when unassigned.
+ */
+export function withAssigneeIdentity<T extends { assignedToUserId: string | null }>(
+  projection: T,
+  identities: ReadonlyMap<string, ReviewerIdentityProjection>,
+): T & { assignee: ReviewerIdentityProjection | null } {
+  const id = projection.assignedToUserId;
+  return {
+    ...projection,
+    assignee: id ? identities.get(id) ?? { displayName: null, maskedEmail: null } : null,
   };
 }
 
@@ -584,7 +618,7 @@ async function listHandoffQueue(
     const take = Math.min(HANDOFF_SCAN_BATCH, scanMax - scanned);
     const batch: DbWorkflow[] = await client.evidenceReviewWorkflow.findMany({
       where: where as never,
-      orderBy: [{ priority: "desc" }, { dueAt: "asc" }, { updatedAt: "desc" }, { id: "desc" }],
+      orderBy: REVIEW_QUEUE_ORDER,
       take,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
@@ -642,9 +676,11 @@ async function listHandoffQueue(
     severity: "INFO",
     details: { queue: input.queue, returned: kept.length, actorUserId: input.meUserId },
   });
+  const keptWithFacts = await withReadTimeSlaFacts(kept, client);
+  const assigneeIdentities = await loadReviewerIdentities(keptWithFacts.map((r) => r.assignedToUserId), client);
   return {
-    rows: (await withReadTimeSlaFacts(kept, client)).map((r) =>
-      buildWorkflowProjection(r, { hasOpenEscalation: escSet.has(r.id), nowUtc: now }),
+    rows: keptWithFacts.map((r) =>
+      withAssigneeIdentity(buildWorkflowProjection(r, { hasOpenEscalation: escSet.has(r.id), nowUtc: now }), assigneeIdentities),
     ),
     nextCursor,
   };
@@ -663,9 +699,12 @@ export type ReviewerOpsDashboard = {
   criticalEscalationsOpen: number;
   /** T-052 (stage C) — the unit of every figure, so no surface guesses. */
   units: { counts: "reviews"; openEscalations: "escalations"; criticalEscalationsOpen: "escalations" };
-  workloadTop: ReadonlyArray<WorkloadDashboardRow>;
-  suggestions: ReadonlyArray<ReviewerSuggestion>;
+  /** T-085 (stage D) — each row carries the reviewer's display name / masked e-mail. */
+  workloadTop: ReadonlyArray<WorkloadDashboardRow & ReviewerIdentityColumns>;
+  suggestions: ReadonlyArray<ReviewerSuggestion & ReviewerIdentityColumns>;
 };
+
+type ReviewerIdentityColumns = { reviewerDisplayName: string | null; reviewerMaskedEmail: string | null };
 
 export async function buildDashboard(
   input: { teamId: string; meUserId: string },
@@ -717,13 +756,18 @@ async function buildDashboardInner(
   setGauge("reviewer_queue_due_soon", counts.dueSoon);
   setGauge("reviewer_escalations_open", openEsc);
   setGauge("reviewer_escalations_critical_open", critEsc);
+  // T-085 (stage D) — names, never id fragments, in Monitoring → Workload.
+  const identities = await loadReviewerIdentities(
+    [...workloadTop.map((w) => w.reviewerUserId), ...suggestions.map((x) => x.reviewerUserId)],
+    client,
+  );
   return {
     counts,
     openEscalations: openEsc,
     criticalEscalationsOpen: critEsc,
     units: { counts: "reviews", openEscalations: "escalations", criticalEscalationsOpen: "escalations" },
-    workloadTop,
-    suggestions,
+    workloadTop: workloadTop.map((w) => withReviewerIdentity(w, identities)),
+    suggestions: suggestions.map((x) => withReviewerIdentity(x, identities)),
   };
 }
 
@@ -1895,7 +1939,8 @@ async function runReconcileInner(
           teamId: input.teamId,
           workflowId: wf.id,
           reason: "REVIEW_OVERDUE",
-          safeSummary: "Review past due — automatic escalation by reviewer ops reconcile.",
+          // T-083 (stage D) — catalog copy, never engine wording.
+          safeSummary: REVIEW_AUTO_ESCALATION_SUMMARY.overdue,
           conditionMessage: { code: "ops.review.escalation.overdue_auto" },
           severity: "HIGH",
           evidenceId: wf.evidenceId,
@@ -2158,7 +2203,7 @@ async function runReconcileInner(
               // route it through WORKFLOW_STALLED so the existing
               // fingerprint dedup keeps escalation storms bounded.
               reason: "WORKFLOW_STALLED",
-              safeSummary: `Workflow stuck — ${top.label}. Automatic escalation by reviewer ops reconcile.`,
+              safeSummary: REVIEW_AUTO_ESCALATION_SUMMARY.stuck(top.label),
               conditionMessage: { code: "ops.review.escalation.stuck_auto", stuck: top.code },
               severity: "HIGH",
               evidenceId: wf.evidenceId ?? null,

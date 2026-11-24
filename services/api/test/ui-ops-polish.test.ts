@@ -235,7 +235,7 @@ describe("Empty-state runbook links", () => {
     // deleted; the canonical reviewer console is now `/review/page.tsx`.
     "../../../apps/web/app/(app)/review/page.tsx",
     "../../../apps/web/app/(app)/reviewer-ops/sla/page.tsx",
-    "../../../apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
+    "../../../apps/web/app/(app)/reviewer-ops/escalations/_section.tsx",
     "../../../apps/web/app/(app)/governance/page.tsx",
     "../../../apps/web/app/(app)/admin/platform/observability/page.tsx",
     "../../../apps/web/components/operational/RuntimeStatusBanner.tsx",
@@ -462,7 +462,7 @@ describe("Phase 28-I cross-page invariants", () => {
     // /governance/policy is now in next.config.js). The canonical
     // surface `governance/policy/page.tsx` is exercised by Phase 32.8
     // tests.
-    "../../../apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
+    "../../../apps/web/app/(app)/reviewer-ops/escalations/_section.tsx",
     "../../../apps/web/app/(app)/governance/page.tsx",
     "../../../apps/web/app/(app)/admin/platform/observability/page.tsx",
     "../../../apps/web/app/(app)/admin/platform/runbooks/page.tsx",

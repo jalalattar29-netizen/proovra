@@ -129,6 +129,7 @@ import {
   type OtsFailureCode, TSA_NOT_OBTAINED_SUPPORT_STATEMENT, tsaFailureNote } from "@proovra/shared";
 import { evidenceScopeForMany } from "@proovra/shared-runtime";
 import { conditionMessageFor, conditionTextFor } from "../services/operations/condition-presentation.service.js";
+import { presentReviewEscalationSummary } from "@proovra/shared";
 import type { Prisma } from "@prisma/client";
 import {
   NOTIFICATION_HISTORY_SOURCE,
@@ -3491,9 +3492,14 @@ export async function buildInboxAggregation(
               : `Escalation for your workspace's admins: ${humanizeEscalationReason(esc.reason)}`,
           message: {
             key: "escalation.assigned",
-            params: { reason: esc.reason, summary: esc.safeSummary, ...(esc.assignedToUserId ? {} : { toWorkspace: 1 }) },
+            params: {
+              reason: esc.reason,
+              // T-083 (stage D) — catalog words, never the engine's.
+              summary: presentReviewEscalationSummary(esc.safeSummary),
+              ...(esc.assignedToUserId ? {} : { toWorkspace: 1 }),
+            },
           },
-          body: esc.safeSummary,
+          body: presentReviewEscalationSummary(esc.safeSummary),
           // A reviewer escalation opens the record's Review tab, where it is
           // decided or closed; other escalations keep the console.
           href:

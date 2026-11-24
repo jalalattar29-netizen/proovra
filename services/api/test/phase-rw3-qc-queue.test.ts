@@ -62,7 +62,7 @@ const SERVICE_SRC = readSource(
   "../src/services/reviewer-workspace/qc-sample.service.ts",
 );
 const PAGE_SRC = readSource(
-  "../../../apps/web/app/(app)/review/queues/page.tsx",
+  "../../../apps/web/components/reviewer-experience/ReviewInbox.tsx",
 );
 
 // ---------------------------------------------------------------------------
@@ -204,88 +204,15 @@ describe("Phase RW3-3 — service source contract", () => {
   });
 });
 
-describe("Phase RW3-3 — frontend source contract", () => {
-  it("queues page does NOT add a QC option to REVIEWER_OPS_QUEUE_TYPES", () => {
-    // The canonical enum stays free of a QC branch; the queues filter
-    // therefore must NOT render a fake `value="QC"` option.
-    const qcLike = (REVIEWER_OPS_QUEUE_TYPES as ReadonlyArray<string>).filter(
-      (q) => q.toUpperCase().includes("QC"),
-    );
-    expect(qcLike.length).toBe(0);
-    expect(PAGE_SRC).not.toMatch(/value="QC"/);
-    expect(PAGE_SRC).not.toMatch(/value="QC_SAMPLED"/);
-  });
-
-  it("queues page fetches /v1/reviewer-ops/qc/pending-count", () => {
-    expect(PAGE_SRC).toMatch(/\/v1\/reviewer-ops\/qc\/pending-count/);
-  });
-
-  it("queues page declares a tagged QcDiscoveryState", () => {
-    // Tagged FetchState mirrors the queue + picker patterns.
-    expect(PAGE_SRC).toMatch(/type QcDiscoveryState\s*=/);
-    expect(PAGE_SRC).toMatch(/kind:\s*"LOADING"/);
-    expect(PAGE_SRC).toMatch(/kind:\s*"FORBIDDEN"/);
-    expect(PAGE_SRC).toMatch(/kind:\s*"ERROR"/);
-    expect(PAGE_SRC).toMatch(/kind:\s*"READY";\s*pendingCount:\s*number/);
-  });
-
-  it("QC fetch is wrapped in try/catch with a structured warn log", () => {
-    expect(PAGE_SRC).toMatch(
-      /refreshQc[\s\S]{0,2000}?console\.warn\(\s*"\[reviewer-workspace\] qc pending-count fetch failed"/,
-    );
-  });
-
-  it("QC card renders a link to /review/qc (discovery hint, not duplicate)", () => {
-    // The card is a discovery hint — the real QC samples table lives
-    // under /review/qc. Mixing the rows here would muddy bulk-assign.
-    // TEAM-SPEC §3 (2026-11-23) — resolved through reviewDestination (only
-    // rendered when /review/qc opens, or as a workspace switch), not a
-    // constant href that dead-ended for Team.
-    expect(PAGE_SRC).toMatch(/useReviewDestination\("workspace\.review_qc"/);
-    expect(PAGE_SRC).toMatch(/data-reviewer-queue-qc-link/);
-  });
-
-  it("QC card surfaces the tagged state for behavioural tests", () => {
-    expect(PAGE_SRC).toMatch(/data-reviewer-queue-qc-card/);
-    expect(PAGE_SRC).toMatch(/data-reviewer-queue-qc-state=\{state\.kind\}/);
-  });
-
-  it("QC FORBIDDEN branch surfaces bounded denial copy, no fake count", () => {
-    expect(PAGE_SRC).toMatch(/data-reviewer-queue-qc-denied/);
-    expect(PAGE_SRC).toMatch(
-      /QC samples are restricted in this workspace\./,
-    );
-  });
-
-  it("QC ERROR branch surfaces bounded error + retry, no fake zero", () => {
-    expect(PAGE_SRC).toMatch(/data-reviewer-queue-qc-error/);
-    expect(PAGE_SRC).toMatch(/data-reviewer-queue-qc-retry/);
-    expect(PAGE_SRC).toMatch(
-      /QC pending count could not be loaded\. Try again shortly\./,
-    );
-  });
-
-  it("QC READY-zero renders an honest empty-state line (no fake banner)", () => {
-    // pendingCount === 0 is a real outcome (no samples awaiting
-    // verdict); we surface it honestly rather than hiding the card.
-    expect(PAGE_SRC).toMatch(/data-reviewer-queue-qc-empty/);
-    expect(PAGE_SRC).toMatch(/No QC samples are awaiting verdict\./);
-  });
-
-  it("queues page does NOT mix QC rows into the workflow queue table", () => {
-    // The QC rows live on the QcSample model; the queue table renders
-    // EvidenceReviewWorkflow projections. Mixing them would require
-    // either a union row type (we don't) or a denormalised projection
-    // (we don't). The page therefore must not iterate any QC-shaped
-    // collection into the table.
-    expect(PAGE_SRC).not.toMatch(/qcSamples\.map/);
-    expect(PAGE_SRC).not.toMatch(/qcRows\.map/);
+// Stage D (T-068) — the Queues page and its QC card are retired. The Inbox
+// shows ONE line only while samples are pending, and no link into a refusal;
+// proven behaviourally in apps/web/__tests__/render/review-inbox-views.render.test.tsx.
+describe("Stage D — the Inbox QC line (source contract)", () => {
+  it("reads /v1/reviewer-ops/qc/pending-count and shows nothing at zero", () => {
+    expect(PAGE_SRC).toContain("/v1/reviewer-ops/qc/pending-count");
+    expect(PAGE_SRC).toContain("n > 0 ? { kind: \"pending\", count: n } : { kind: \"none\" }");
   });
 });
-
-// ===========================================================================
-// PART 2 — Behavioural: count semantics + team scoping
-// ===========================================================================
 
 describe("Phase RW3-3 — count returns zero when no samples", () => {
   it("empty workspace → pendingCount === 0 (honest zero)", async () => {

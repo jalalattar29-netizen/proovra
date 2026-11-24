@@ -212,6 +212,9 @@ export function DeadlinesSection({ teamId }: { teamId: string }) {
 
   return (
     <div className="review-monitoring-section" data-monitoring-section-body="deadlines">
+      {/* Review automation only: these figures come from the review
+          automation pass, so a stale pass is said here, in one line. */}
+      <RuntimeStatusBanner requires={["reviewAutomation"]} />
       <p className="app-field-help" data-sla-dashboard-intro style={{ margin: 0 }}>
         A read-only operations dashboard of current SLA pressure: open reviews, overdue reviews and active
         escalations. Review deadlines are set in{" "}
@@ -392,6 +395,7 @@ export function WorkloadSection({ teamId }: { teamId: string }) {
 
   return (
     <div className="review-monitoring-section" data-monitoring-section-body="workload">
+      <RuntimeStatusBanner requires={["reviewAutomation"]} />
       {!data ? (
         <DashboardPending error={error} onRetry={retry} />
       ) : (

@@ -5,15 +5,15 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "0a2e3e98c1494063e4995a43225d318a0795de3cfaf144ba2b586f1fdd57ed99",
-  "consumerInventoryHash": "93166aa08be3eb43123f82cca50f86b03ab8b9d896843448b52634c65dbe4daf",
-  "dispositionsHash": "d668baf61872a6fe10399b44be1c11b71e0b71b0f4d3eb6e84a69afbbc28ceaf",
+  "consumerInventoryHash": "540a6c812cbcaa1a7f8df1a377ea0f776c2678321969ed1f3e9fc4c17d09d389",
+  "dispositionsHash": "5472155ec04ac336267e75a6cb759f22ce11dced779d3370d0c8d1f974d1651f",
   "totals": {
     "RegisteredRoutes": 1277,
     "ProductionRegisteredRoutes": 1276,
     "DevelopmentOnlyRoutes": 1,
     "ProductConsumedRoutes": 1061,
-    "NonProductDispositionedRoutes": 190,
-    "UndisposedRoutes": 25,
+    "NonProductDispositionedRoutes": 189,
+    "UndisposedRoutes": 26,
     "ConservationIdentityHolds": true,
     "ProductConsumerRoutes": 1061,
     "MachineOnlyConsumerRoutes": 7,
@@ -54,7 +54,7 @@
       "INTENTIONALLY_BACKEND_ONLY": 22,
       "DEAD_REMOVE": 0,
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
-      "MISSING_PRODUCT_UI_POST_RELEASE": 15
+      "MISSING_PRODUCT_UI_POST_RELEASE": 14
     },
     "TerminalWriters": 1730,
     "ReachableSensitiveMutations": 1694,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 13001,
+      "METHOD_ON_VALUE": 13012,
       "UNRESOLVED_IDENTIFIER": 1872
     },
     "MutationFixpointRounds": 11,
@@ -133,7 +133,7 @@
     "PreservationEntriesUnmatched": 0,
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
-      "UNDISPOSED": 25,
+      "UNDISPOSED": 26,
       "PRODUCT_CONNECTED": 1066,
       "EXTERNAL_API": 19,
       "MACHINE_OR_CRON": 23,
@@ -143,7 +143,7 @@
       "INTENTIONALLY_BACKEND_ONLY": 25,
       "DEAD_REMOVE": 0,
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
-      "MISSING_PRODUCT_UI_POST_RELEASE": 15
+      "MISSING_PRODUCT_UI_POST_RELEASE": 14
     },
     "MandateDispositionConservationHolds": true,
     "TenantBindingResolved": 1275,
@@ -242,9 +242,9 @@
   },
   "totalRoutes": 1277,
   "classificationCounts": {
-    "BACKEND_ONLY_UNWIRED": 25,
+    "BACKEND_ONLY_UNWIRED": 26,
     "COMPATIBILITY_TEMPORARY": 11,
-    "INTERNAL_REQUIRED": 180,
+    "INTERNAL_REQUIRED": 179,
     "TARGET_COMPLETE": 1061
   },
   "evidenceLevelCounts": {
@@ -724,7 +724,7 @@
       "method": "DELETE",
       "route": "/v1/reviewer-ops/saved-views/:id",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/components/reviewer-experience/ReviewerConsole.tsx:1226",
+      "productConsumer": "apps/web/components/reviewer-experience/ReviewInbox.tsx:946",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2308,7 +2308,7 @@
       "method": "GET",
       "route": "/v1/coding/schemas",
       "registeringFile": "services/api/src/routes/reviewer-workspace.routes.ts",
-      "productConsumer": "apps/web/app/(app)/review/schemas/page.tsx:108",
+      "productConsumer": "apps/web/app/(app)/review/schemas/_section.tsx:95",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6136,7 +6136,7 @@
       "method": "GET",
       "route": "/v1/review/queue",
       "registeringFile": "services/api/src/routes/evidence-requests.routes.ts",
-      "productConsumer": "apps/web/app/(app)/review/queues/_evidence-request-queue.tsx:139",
+      "productConsumer": "apps/web/app/(app)/evidence-requests/_components/EvidenceRequestReviewQueue.tsx:133",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6184,7 +6184,7 @@
       "method": "GET",
       "route": "/v1/reviewer-ops/analytics/escalations",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/sla/page.tsx:222",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/sla/_sections.tsx:546",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6196,7 +6196,7 @@
       "method": "GET",
       "route": "/v1/reviewer-ops/analytics/reviewers",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/sla/page.tsx:228",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/sla/_sections.tsx:374",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6208,7 +6208,7 @@
       "method": "GET",
       "route": "/v1/reviewer-ops/assignable-reviewers",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/review/qc/page.tsx:234",
+      "productConsumer": "apps/web/app/(app)/review/qc/_section.tsx:221",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6220,10 +6220,10 @@
       "method": "GET",
       "route": "/v1/reviewer-ops/console",
       "registeringFile": "services/api/src/routes/reviewer-console.routes.ts",
-      "productConsumer": "apps/web/components/reviewer-experience/ReviewerConsole.tsx:297",
+      "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "TARGET_COMPLETE",
+      "classification": "BACKEND_ONLY_UNWIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -6232,7 +6232,7 @@
       "method": "GET",
       "route": "/v1/reviewer-ops/dashboard",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/sla/page.tsx:184",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/sla/_sections.tsx:162",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6256,7 +6256,7 @@
       "method": "GET",
       "route": "/v1/reviewer-ops/escalations",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:167",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx:160",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6268,7 +6268,7 @@
       "method": "GET",
       "route": "/v1/reviewer-ops/qc/pending-count",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/review/queues/page.tsx:497",
+      "productConsumer": "apps/web/components/reviewer-experience/ReviewInbox.tsx:284",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6280,7 +6280,7 @@
       "method": "GET",
       "route": "/v1/reviewer-ops/queue",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/review/queues/page.tsx:384",
+      "productConsumer": "apps/web/app/(app)/review/workspace/page.tsx:55",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6292,7 +6292,7 @@
       "method": "GET",
       "route": "/v1/reviewer-ops/reminders",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/sla/page.tsx:205",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/sla/_sections.tsx:201",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6316,10 +6316,10 @@
       "method": "GET",
       "route": "/v1/reviewer-ops/saved-views",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": null,
+      "productConsumer": "apps/web/components/reviewer-experience/ReviewInbox.tsx:305",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "INTERNAL_REQUIRED",
+      "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -6352,7 +6352,7 @@
       "method": "GET",
       "route": "/v1/reviewer-ops/workspace/:workflowId",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/review/workspace/_components/FocusDecisionColumn.tsx:91",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:304",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6376,7 +6376,7 @@
       "method": "GET",
       "route": "/v1/reviewer-ops/workspace/:workflowId/notes",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1283",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1195",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6388,7 +6388,7 @@
       "method": "GET",
       "route": "/v1/reviewer/disagreements",
       "registeringFile": "services/api/src/routes/reviewer-workspace.routes.ts",
-      "productConsumer": "apps/web/app/(app)/review/disagreements/page.tsx:150",
+      "productConsumer": "apps/web/app/(app)/review/disagreements/page.tsx:161",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6424,7 +6424,7 @@
       "method": "GET",
       "route": "/v1/reviewer/qc/samples",
       "registeringFile": "services/api/src/routes/reviewer-workspace.routes.ts",
-      "productConsumer": "apps/web/app/(app)/review/qc/page.tsx:186",
+      "productConsumer": "apps/web/app/(app)/review/qc/_section.tsx:173",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6436,7 +6436,7 @@
       "method": "GET",
       "route": "/v1/reviewer/routing-recommendations",
       "registeringFile": "services/api/src/routes/dashboard.routes.ts",
-      "productConsumer": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:966",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/sla/_sections.tsx:344",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -9616,7 +9616,7 @@
       "method": "POST",
       "route": "/v1/coding/schemas/:id/archive",
       "registeringFile": "services/api/src/routes/reviewer-workspace.routes.ts",
-      "productConsumer": "apps/web/app/(app)/review/schemas/page.tsx:194",
+      "productConsumer": "apps/web/app/(app)/review/schemas/_section.tsx:181",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -14188,7 +14188,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/escalations",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/review/workspace/_components/FocusDecisionColumn.tsx:202",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:554",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14200,7 +14200,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/escalations/:id/acknowledge",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:138",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx:207",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14212,7 +14212,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/escalations/:id/reassign",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:138",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx:207",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14224,7 +14224,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/escalations/:id/resolve",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:138",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx:207",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14236,7 +14236,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/escalations/:id/suppress",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:138",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx:207",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14260,7 +14260,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/queue-intelligence",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/review/queues/_queue-intelligence.tsx:165",
+      "productConsumer": "apps/web/components/reviewer-experience/queueIntelligence.tsx:177",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14284,7 +14284,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/:workflowId/approve",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:796",
+      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:834",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14296,7 +14296,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/:workflowId/archive",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:525",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:588",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14308,7 +14308,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/:workflowId/assign",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/review/queues/page.tsx:665",
+      "productConsumer": "apps/web/components/reviewer-experience/ReviewInbox.tsx:346",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14320,7 +14320,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/:workflowId/pause",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:330",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:353",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14332,7 +14332,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/:workflowId/reassign",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:467",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:530",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14344,7 +14344,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/:workflowId/reject",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:818",
+      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:856",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14356,7 +14356,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/:workflowId/request-info",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:843",
+      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:881",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14368,7 +14368,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/:workflowId/response-received",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:330",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:353",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14380,7 +14380,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/:workflowId/resume",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:330",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:353",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14392,7 +14392,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/:workflowId/start",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/review/workspace/_components/FocusDecisionColumn.tsx:149",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:353",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14404,7 +14404,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/bulk",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/components/reviewer-experience/ReviewerBulkOpsBar.tsx:163",
+      "productConsumer": "apps/web/components/reviewer-experience/ReviewerBulkOpsBar.tsx:172",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14416,7 +14416,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/saved-views",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/components/reviewer-experience/ReviewerConsole.tsx:1199",
+      "productConsumer": "apps/web/components/reviewer-experience/ReviewInbox.tsx:927",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14440,7 +14440,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/workspace/:workflowId/decisions",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/review/workspace/_components/FocusDecisionColumn.tsx:169",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:496",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14452,7 +14452,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/workspace/:workflowId/notes",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1312",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1224",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14500,7 +14500,7 @@
       "method": "POST",
       "route": "/v1/reviewer/bulk/assign",
       "registeringFile": "services/api/src/routes/reviewer-workspace.routes.ts",
-      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:684",
+      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:722",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -14512,7 +14512,7 @@
       "method": "POST",
       "route": "/v1/reviewer/bulk/code",
       "registeringFile": "services/api/src/routes/reviewer-workspace.routes.ts",
-      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:734",
+      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:772",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -14524,7 +14524,7 @@
       "method": "POST",
       "route": "/v1/reviewer/bulk/decide",
       "registeringFile": "services/api/src/routes/reviewer-workspace.routes.ts",
-      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:708",
+      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:746",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -14548,7 +14548,7 @@
       "method": "POST",
       "route": "/v1/reviewer/qc/samples/:id/assign",
       "registeringFile": "services/api/src/routes/reviewer-workspace.routes.ts",
-      "productConsumer": "apps/web/app/(app)/review/qc/page.tsx:349",
+      "productConsumer": "apps/web/app/(app)/review/qc/_section.tsx:332",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -32560,8 +32560,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@4999",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4999",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@5005",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:5005",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -32593,8 +32593,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@5209",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:5209",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@5215",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:5215",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "applyStateMutation",
       "kind": "DATABASE",
@@ -32633,8 +32633,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#discussionMention.updateMany@5006",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:5006",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#discussionMention.updateMany@5012",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:5012",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -32666,8 +32666,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#discussionMention.updateMany@5222",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:5222",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#discussionMention.updateMany@5228",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:5228",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "applyStateMutation",
       "kind": "DATABASE",
@@ -32706,8 +32706,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.createMany@5011",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:5011",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.createMany@5017",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:5017",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -32739,8 +32739,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.updateMany@5026",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:5026",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.updateMany@5032",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:5032",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -32772,8 +32772,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.upsert@5231",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:5231",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.upsert@5237",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:5237",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "applyStateMutation",
       "kind": "DATABASE",
@@ -32812,8 +32812,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.createMany@1747",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1747",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.createMany@1748",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1748",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "syncInboxSnapshots",
       "kind": "DATABASE",
@@ -32847,8 +32847,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@1702",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1702",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@1703",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1703",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "mirrorSnapshotReadState",
       "kind": "DATABASE",
@@ -32882,8 +32882,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@1780",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1780",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@1781",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1781",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "syncInboxSnapshots",
       "kind": "DATABASE",
@@ -32917,8 +32917,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@1804",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1804",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@1805",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1805",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "syncInboxSnapshots",
       "kind": "DATABASE",
@@ -32952,8 +32952,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@5031",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:5031",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@5037",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:5037",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -32985,8 +32985,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@5252",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:5252",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@5258",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:5258",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "applyStateMutation",
       "kind": "DATABASE",
@@ -34247,8 +34247,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/reviewer-ops.routes.ts#evidenceReviewerComment.create@2823",
-      "terminalLocation": "services/api/src/routes/reviewer-ops.routes.ts:2823",
+      "writerId": "services/api/src/routes/reviewer-ops.routes.ts#evidenceReviewerComment.create@2837",
+      "terminalLocation": "services/api/src/routes/reviewer-ops.routes.ts:2837",
       "file": "services/api/src/routes/reviewer-ops.routes.ts",
       "enclosingDeclaration": "reviewerOpsRoutes",
       "kind": "DATABASE",
@@ -34280,8 +34280,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/reviewer-ops.routes.ts#teamActivity.create@2855",
-      "terminalLocation": "services/api/src/routes/reviewer-ops.routes.ts:2855",
+      "writerId": "services/api/src/routes/reviewer-ops.routes.ts#teamActivity.create@2869",
+      "terminalLocation": "services/api/src/routes/reviewer-ops.routes.ts:2869",
       "file": "services/api/src/routes/reviewer-ops.routes.ts",
       "enclosingDeclaration": "reviewerOpsRoutes",
       "kind": "DATABASE",
@@ -100830,8 +100830,8 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1288",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1288",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1332",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1332",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "startReview",
       "kind": "DATABASE",
@@ -100863,8 +100863,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1353",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1353",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1397",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1397",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "pauseReview",
       "kind": "DATABASE",
@@ -100897,8 +100897,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1457",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1457",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1501",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1501",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "resumeReview",
       "kind": "DATABASE",
@@ -100930,8 +100930,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1620",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1620",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1664",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1664",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "recordResponseReceived",
       "kind": "DATABASE",
@@ -100963,8 +100963,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1300",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1300",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1344",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1344",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "startReview",
       "kind": "DATABASE",
@@ -100996,8 +100996,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1366",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1366",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1410",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1410",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "pauseReview",
       "kind": "DATABASE",
@@ -101030,8 +101030,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1466",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1466",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1510",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1510",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "resumeReview",
       "kind": "DATABASE",
@@ -101063,8 +101063,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1629",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1629",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1673",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1673",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "recordResponseReceived",
       "kind": "DATABASE",
@@ -101269,8 +101269,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/workload.service.ts#reviewerWorkloadSnapshot.create@158",
-      "terminalLocation": "services/api/src/services/reviewer-ops/workload.service.ts:158",
+      "writerId": "services/api/src/services/reviewer-ops/workload.service.ts#reviewerWorkloadSnapshot.create@159",
+      "terminalLocation": "services/api/src/services/reviewer-ops/workload.service.ts:159",
       "file": "services/api/src/services/reviewer-ops/workload.service.ts",
       "enclosingDeclaration": "snapshotWorkspaceWorkload",
       "kind": "DATABASE",
@@ -118325,7 +118325,7 @@
       "method": "DELETE",
       "path": "/v1/reviewer-ops/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2151",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2162",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -118335,9 +118335,9 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/components/reviewer-experience/ReviewerConsole.tsx",
-          "line": 1226,
-          "caller": "SavedViewsPanel",
+          "file": "apps/web/components/reviewer-experience/ReviewInbox.tsx",
+          "line": 946,
+          "caller": "remove",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -118346,7 +118346,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/reviewer-experience/ReviewerConsole.tsx:1226 (SavedViewsPanel, WEB)",
+      "dispositionEvidence": "apps/web/components/reviewer-experience/ReviewInbox.tsx:946 (remove, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -127314,8 +127314,8 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/review/schemas/page.tsx",
-          "line": 108,
+          "file": "apps/web/app/(app)/review/schemas/_section.tsx",
+          "line": 95,
           "caller": "SchemasWorkspace",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -127333,7 +127333,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/review/schemas/page.tsx:108 (SchemasWorkspace, WEB); apps/web/app/(app)/reviewer-ops/components/CodingSchemaBindingPanel.tsx:133 (BindingWorkspace, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/review/schemas/_section.tsx:95 (SchemasWorkspace, WEB); apps/web/app/(app)/reviewer-ops/components/CodingSchemaBindingPanel.tsx:133 (BindingWorkspace, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -130675,15 +130675,7 @@
         },
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 391,
-          "caller": "fetchEvidencePreview",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        },
-        {
-          "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 455,
+          "line": 493,
           "caller": "fetchEvidenceSidePaneDetail",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -131064,7 +131056,7 @@
         },
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 608,
+          "line": 646,
           "caller": "fetchEvidenceArtifactsStatus",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -131909,12 +131901,20 @@
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
+        },
+        {
+          "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
+          "line": 416,
+          "caller": "fetchEvidencePreview",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
         }
       ],
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:870 (EvidenceDetailScreen, MOBILE); apps/web/app/(app)/evidence/[id]/_hooks/useOriginalDownload.ts:43 (downloadOriginalParts, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:870 (EvidenceDetailScreen, MOBILE); apps/web/app/(app)/evidence/[id]/_hooks/useOriginalDownload.ts:43 (downloadOriginalParts, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:416 (fetchEvidencePreview, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -132070,14 +132070,6 @@
           "file": "apps/web/app/(app)/evidence/page.tsx",
           "line": 1163,
           "caller": "downloadReport",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        },
-        {
-          "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 1054,
-          "caller": "open",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -140886,7 +140878,7 @@
         },
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 546,
+          "line": 584,
           "caller": "fetchExtractedTextsForEvidence",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -140896,7 +140888,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/intelligence.ts:93 (readEvidenceIntelligence, WEB); apps/web/lib/api/intelligence.ts:129 (fetchEvidenceIntelligence, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:546 (fetchExtractedTextsForEvidence, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/intelligence.ts:93 (readEvidenceIntelligence, WEB); apps/web/lib/api/intelligence.ts:129 (fetchEvidenceIntelligence, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:584 (fetchExtractedTextsForEvidence, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -142981,7 +142973,7 @@
       "method": "GET",
       "path": "/v1/me/inbox",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4122",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4128",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -143153,7 +143145,7 @@
       "method": "GET",
       "path": "/v1/me/inbox/summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4762",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4768",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -149497,7 +149489,7 @@
         },
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 953,
+          "line": 991,
           "caller": "lookupRedactionProjectForEvidence",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -149507,7 +149499,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/redaction/page.tsx:100 (RedactionProjectsShell, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:953 (lookupRedactionProjectForEvidence, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/redaction/page.tsx:100 (RedactionProjectsShell, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:991 (lookupRedactionProjectForEvidence, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -150951,8 +150943,8 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/review/queues/_evidence-request-queue.tsx",
-          "line": 139,
+          "file": "apps/web/app/(app)/evidence-requests/_components/EvidenceRequestReviewQueue.tsx",
+          "line": 133,
           "caller": "EvidenceRequestReviewQueue",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -150962,7 +150954,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/review/queues/_evidence-request-queue.tsx:139 (EvidenceRequestReviewQueue, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence-requests/_components/EvidenceRequestReviewQueue.tsx:133 (EvidenceRequestReviewQueue, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -151031,9 +151023,9 @@
           "viaResolution": false
         },
         {
-          "file": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx",
-          "line": 53,
-          "caller": "ReviewerCriteriaPageInner",
+          "file": "apps/web/app/(app)/settings/reviewer-criteria/_panel.tsx",
+          "line": 50,
+          "caller": "ReviewerCriteriaPanel",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -151050,7 +151042,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:107 (ReviewerCriteriaScreen, MOBILE); apps/web/app/(app)/settings/reviewer-criteria/page.tsx:53 (ReviewerCriteriaPageInner, WEB); apps/web/components/ai-copilot/ReviewerCopilotPanel.tsx:160 (ReviewerCopilotPanel, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:107 (ReviewerCriteriaScreen, MOBILE); apps/web/app/(app)/settings/reviewer-criteria/_panel.tsx:50 (ReviewerCriteriaPanel, WEB); apps/web/components/ai-copilot/ReviewerCopilotPanel.tsx:160 (ReviewerCopilotPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -151124,16 +151116,16 @@
           "viaResolution": false
         },
         {
-          "file": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx",
-          "line": 195,
+          "file": "apps/web/app/(app)/settings/reviewer-criteria/_panel.tsx",
+          "line": 192,
           "caller": "VersionHistory",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
         },
         {
-          "file": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx",
-          "line": 332,
+          "file": "apps/web/app/(app)/settings/reviewer-criteria/_panel.tsx",
+          "line": 329,
           "caller": "DraftEditor",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -151143,7 +151135,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/criteria-draft-editor.tsx:179 (CriteriaDraftEditor, MOBILE); apps/mobile/src/ui/criteria-version-history.tsx:45 (CriteriaVersionHistory, MOBILE); apps/web/app/(app)/settings/reviewer-criteria/page.tsx:195 (VersionHistory, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/criteria-draft-editor.tsx:179 (CriteriaDraftEditor, MOBILE); apps/mobile/src/ui/criteria-version-history.tsx:45 (CriteriaVersionHistory, MOBILE); apps/web/app/(app)/settings/reviewer-criteria/_panel.tsx:192 (VersionHistory, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -151205,8 +151197,8 @@
           "viaResolution": false
         },
         {
-          "file": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx",
-          "line": 201,
+          "file": "apps/web/app/(app)/settings/reviewer-criteria/_panel.tsx",
+          "line": 198,
           "caller": "VersionHistory",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -151216,7 +151208,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/criteria-version-history.tsx:51 (CriteriaVersionHistory, MOBILE); apps/web/app/(app)/settings/reviewer-criteria/page.tsx:201 (VersionHistory, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/criteria-version-history.tsx:51 (CriteriaVersionHistory, MOBILE); apps/web/app/(app)/settings/reviewer-criteria/_panel.tsx:198 (VersionHistory, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -151259,7 +151251,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/analytics/escalations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2177",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2188",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -151269,9 +151261,9 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/reviewer-ops/sla/page.tsx",
-          "line": 222,
-          "caller": "SlaDashboardPageInner",
+          "file": "apps/web/app/(app)/reviewer-ops/sla/_sections.tsx",
+          "line": 546,
+          "caller": "EscalationAnalyticsPanel",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -151280,7 +151272,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/sla/page.tsx:222 (SlaDashboardPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/sla/_sections.tsx:546 (EscalationAnalyticsPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -151321,7 +151313,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/analytics/reviewers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2198",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2209",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -151331,9 +151323,9 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/reviewer-ops/sla/page.tsx",
-          "line": 228,
-          "caller": "SlaDashboardPageInner",
+          "file": "apps/web/app/(app)/reviewer-ops/sla/_sections.tsx",
+          "line": 374,
+          "caller": "WorkloadSection",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -151342,7 +151334,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/sla/page.tsx:228 (SlaDashboardPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/sla/_sections.tsx:374 (WorkloadSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -151370,6 +151362,7 @@
         "supportAccessGrant",
         "team",
         "teamMember",
+        "user",
         "workflowReviewDecision"
       ],
       "modelsWritten": [],
@@ -151393,7 +151386,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/assignable-reviewers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1195",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1206",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -151403,8 +151396,8 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/review/qc/page.tsx",
-          "line": 234,
+          "file": "apps/web/app/(app)/review/qc/_section.tsx",
+          "line": 221,
           "caller": "QcWorkspace",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -151420,7 +151413,7 @@
         },
         {
           "file": "apps/web/components/reviewer-experience/ReviewerPickerModal.tsx",
-          "line": 69,
+          "line": 79,
           "caller": "useReviewerPicker",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -151430,7 +151423,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/review/qc/page.tsx:234 (QcWorkspace, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/_components/InspectorDialogs.tsx:125 (ReassignDialog, WEB); apps/web/components/reviewer-experience/ReviewerPickerModal.tsx:69 (useReviewerPicker, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/review/qc/_section.tsx:221 (QcWorkspace, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/_components/InspectorDialogs.tsx:125 (ReassignDialog, WEB); apps/web/components/reviewer-experience/ReviewerPickerModal.tsx:79 (useReviewerPicker, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -151482,23 +151475,14 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [
-        {
-          "file": "apps/web/components/reviewer-experience/ReviewerConsole.tsx",
-          "line": 297,
-          "caller": "ReviewerConsole",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        }
-      ],
+      "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": "PRODUCT_CONSUMED",
-      "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/reviewer-experience/ReviewerConsole.tsx:297 (ReviewerConsole, WEB)",
-      "dispositionReason": "reached from a product surface",
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
       "replacement": null,
-      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "result": "UNDISPOSED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -151524,6 +151508,7 @@
         "supportAccessGrant",
         "team",
         "teamMember",
+        "user",
         "workflowReviewDecision"
       ],
       "modelsWritten": [],
@@ -151552,7 +151537,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/dashboard",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:947",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:948",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -151562,9 +151547,9 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/reviewer-ops/sla/page.tsx",
-          "line": 184,
-          "caller": "SlaDashboardPageInner",
+          "file": "apps/web/app/(app)/reviewer-ops/sla/_sections.tsx",
+          "line": 162,
+          "caller": "useMonitoringDashboard",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -151573,7 +151558,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/sla/page.tsx:184 (SlaDashboardPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/sla/_sections.tsx:162 (useMonitoringDashboard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -151597,7 +151582,8 @@
         "ssoConnection",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [],
       "tenantBindingResolved": true,
@@ -151622,7 +151608,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/decisions/summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:3287",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:3301",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -151695,7 +151681,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/escalations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1670",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1681",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -151705,9 +151691,9 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
-          "line": 167,
-          "caller": "EscalationsConsolePageInner",
+          "file": "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx",
+          "line": 160,
+          "caller": "EscalationsSection",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -151724,7 +151710,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:167 (EscalationsConsolePageInner, WEB); apps/web/lib/useGlobalRuntimeState.ts:373 (tickOnce, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx:160 (EscalationsSection, WEB); apps/web/lib/useGlobalRuntimeState.ts:373 (tickOnce, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -151767,7 +151753,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/qc/pending-count",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1293",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1304",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -151777,9 +151763,9 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/review/queues/page.tsx",
-          "line": 497,
-          "caller": "QueuesShell",
+          "file": "apps/web/components/reviewer-experience/ReviewInbox.tsx",
+          "line": 284,
+          "caller": "ReviewInbox",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -151788,7 +151774,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/review/queues/page.tsx:497 (QueuesShell, WEB)",
+      "dispositionEvidence": "apps/web/components/reviewer-experience/ReviewInbox.tsx:284 (ReviewInbox, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -151831,7 +151817,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/queue",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:810",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:811",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -151841,17 +151827,25 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/review/queues/page.tsx",
-          "line": 384,
-          "caller": "QueuesShell",
+          "file": "apps/web/app/(app)/review/workspace/page.tsx",
+          "line": 55,
+          "caller": "FocusModeRedirect",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
         },
         {
-          "file": "apps/web/components/reviewer-experience/ReviewerConsole.tsx",
-          "line": 415,
-          "caller": "ReviewerConsole",
+          "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
+          "line": 427,
+          "caller": "ReviewWorkspacePageInner",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        },
+        {
+          "file": "apps/web/components/reviewer-experience/ReviewInbox.tsx",
+          "line": 204,
+          "caller": "ReviewInbox",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -151860,7 +151854,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/review/queues/page.tsx:384 (QueuesShell, WEB); apps/web/components/reviewer-experience/ReviewerConsole.tsx:415 (ReviewerConsole, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/review/workspace/page.tsx:55 (FocusModeRedirect, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:427 (ReviewWorkspacePageInner, WEB); apps/web/components/reviewer-experience/ReviewInbox.tsx:204 (ReviewInbox, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -151916,7 +151910,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/reminders",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1478",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1489",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -151926,9 +151920,9 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/reviewer-ops/sla/page.tsx",
-          "line": 205,
-          "caller": "SlaDashboardPageInner",
+          "file": "apps/web/app/(app)/reviewer-ops/sla/_sections.tsx",
+          "line": 201,
+          "caller": "DeadlinesSection",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -151937,7 +151931,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/sla/page.tsx:205 (SlaDashboardPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/sla/_sections.tsx:201 (DeadlinesSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -151980,7 +151974,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/runtime-probe",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:966",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:967",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -152041,7 +152035,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2088",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2099",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -152049,14 +152043,23 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [],
+      "productConsumers": [
+        {
+          "file": "apps/web/components/reviewer-experience/ReviewInbox.tsx",
+          "line": 305,
+          "caller": "ReviewInbox",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
       "nonProductConsumers": [],
-      "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "dispositionSource": "REVIEWED",
-      "dispositionEvidence": "PINNED CONTRACT — services/api/test/phase-c0-reviewer-console.test.ts:190 and services/api/test/phase-g3-2-final-live-operations-closure.test.ts:166 both assert the reviewer-console source CONTAINS this path, and services/api/test/phase25_5-reviewer-ops-hardening.test.ts:277-278 pins it alongside its :id sibling. The console references the path without issuing a request call today. NO visible control exists for it (zero product consumers in the canonical consumer analysis), so nothing disconnected is on screen. No release-completion credit; stays in the canonical backlog. Original absence proof retained: DEAD_CONFIRMED · surfaces searched: apps/web (rg suffix '/saved-views') -> the reviewer-ops saved-view calls are only the WRITE legs: apps/web/components/reviewer-experience/ReviewerConsole.tsx:1862 POST \"/v1/reviewer-ops/saved-views\" and :1890 DELETE `/v1/reviewer-ops/saved-views/${id}?teamId=`. No GET. Other /saved-views hits are different families: /v1/siu/saved-views* (apps/web/app/(app)/cases",
-      "dispositionReason": "no product contract to build, but the repository's own behavioural suite pins the registration",
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/components/reviewer-experience/ReviewInbox.tsx:305 (ReviewInbox, WEB)",
+      "dispositionReason": "reached from a product surface",
       "replacement": null,
-      "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
+      "result": "DISPOSED_PRODUCT_CONSUMED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -152094,7 +152097,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/sla-policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2225",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2239",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -152166,7 +152169,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/workload",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1135",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1146",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -152220,7 +152223,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/workspace/:workflowId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1011",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1012",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -152230,16 +152233,8 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/review/workspace/_components/FocusDecisionColumn.tsx",
-          "line": 91,
-          "caller": "FocusDecisionColumn",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        },
-        {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 281,
+          "line": 304,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -152257,7 +152252,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/review/workspace/_components/FocusDecisionColumn.tsx:91 (FocusDecisionColumn, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:281 (ReviewWorkspacePageInner, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:335 (fetchReviewerOpsWorkspace, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:304 (ReviewWorkspacePageInner, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:335 (fetchReviewerOpsWorkspace, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -152312,7 +152307,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/workspace/:workflowId/decisions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2965",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2979",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -152396,7 +152391,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/workspace/:workflowId/notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2689",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2703",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -152407,7 +152402,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 1283,
+          "line": 1195,
           "caller": "ReviewerNotesPanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -152417,7 +152412,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1283 (ReviewerNotesPanel, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1195 (ReviewerNotesPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -152473,7 +152468,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/review/disagreements/page.tsx",
-          "line": 150,
+          "line": 161,
           "caller": "DisagreementsShell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -152483,7 +152478,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/review/disagreements/page.tsx:150 (DisagreementsShell, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/review/disagreements/page.tsx:161 (DisagreementsShell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -152676,8 +152671,8 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/review/qc/page.tsx",
-          "line": 186,
+          "file": "apps/web/app/(app)/review/qc/_section.tsx",
+          "line": 173,
           "caller": "QcWorkspace",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -152695,7 +152690,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/review/qc/page.tsx:186 (QcWorkspace, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:244 (fetchQcSamples, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/review/qc/_section.tsx:173 (QcWorkspace, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:244 (fetchQcSamples, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -152751,17 +152746,17 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx",
-          "line": 966,
-          "caller": "ReviewerRoutingRecommendationsPane",
+          "file": "apps/web/app/(app)/reviewer-ops/sla/_sections.tsx",
+          "line": 344,
+          "caller": "useHasRoutingRecommendations",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
         },
         {
-          "file": "apps/web/components/reviewer-experience/ReviewerConsole.tsx",
-          "line": 772,
-          "caller": "useHasRoutingRecommendations",
+          "file": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx",
+          "line": 966,
+          "caller": "ReviewerRoutingRecommendationsPane",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -152770,7 +152765,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:966 (ReviewerRoutingRecommendationsPane, WEB); apps/web/components/reviewer-experience/ReviewerConsole.tsx:772 (useHasRoutingRecommendations, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/sla/_sections.tsx:344 (useHasRoutingRecommendations, WEB); apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx:966 (ReviewerRoutingRecommendationsPane, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -152831,6 +152826,14 @@
           "viaResolution": false
         },
         {
+          "file": "apps/web/components/reviewer-experience/ReviewCodingSection.tsx",
+          "line": 52,
+          "caller": "ReviewCodingSection",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        },
+        {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
           "line": 96,
           "caller": "fetchCodingState",
@@ -152842,7 +152845,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/components/CodingSchemaBindingPanel.tsx:96 (BindingWorkspace, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:96 (fetchCodingState, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/components/CodingSchemaBindingPanel.tsx:96 (BindingWorkspace, WEB); apps/web/components/reviewer-experience/ReviewCodingSection.tsx:52 (ReviewCodingSection, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:96 (fetchCodingState, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -161327,16 +161330,16 @@
           "viaResolution": false
         },
         {
-          "file": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx",
-          "line": 378,
+          "file": "apps/web/app/(app)/settings/reviewer-criteria/_panel.tsx",
+          "line": 375,
           "caller": "save",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
         },
         {
-          "file": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx",
-          "line": 441,
+          "file": "apps/web/app/(app)/settings/reviewer-criteria/_panel.tsx",
+          "line": 438,
           "caller": "saveAsNewDraft",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -161346,7 +161349,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/criteria-draft-editor.tsx:213 (CriteriaDraftEditor, MOBILE); apps/mobile/src/ui/criteria-draft-editor.tsx:278 (CriteriaDraftEditor, MOBILE); apps/web/app/(app)/settings/reviewer-criteria/page.tsx:378 (save, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/criteria-draft-editor.tsx:213 (CriteriaDraftEditor, MOBILE); apps/mobile/src/ui/criteria-draft-editor.tsx:278 (CriteriaDraftEditor, MOBILE); apps/web/app/(app)/settings/reviewer-criteria/_panel.tsx:375 (save, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -165559,7 +165562,7 @@
       "method": "POST",
       "path": "/v1/ai/copilot-runs/:runId/observations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ai-reviewer.routes.ts:490",
+      "registrationEvidence": "services/api/src/routes/ai-reviewer.routes.ts:494",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/routes/graph.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -165749,7 +165752,7 @@
       "method": "POST",
       "path": "/v1/ai/qc/samples/:runId/decision",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ai-reviewer.routes.ts:450",
+      "registrationEvidence": "services/api/src/routes/ai-reviewer.routes.ts:454",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/routes/graph.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -173762,8 +173765,8 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/review/schemas/page.tsx",
-          "line": 194,
+          "file": "apps/web/app/(app)/review/schemas/_section.tsx",
+          "line": 181,
           "caller": "SchemasWorkspace",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -173773,7 +173776,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/review/schemas/page.tsx:194 (SchemasWorkspace, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/review/schemas/_section.tsx:181 (SchemasWorkspace, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -193801,7 +193804,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:5408",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:5414",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -193865,7 +193868,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/dismiss",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:5425",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:5431",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -193921,7 +193924,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/read",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:5312",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:5318",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -193993,7 +193996,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/remind",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:5410",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:5416",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -194049,7 +194052,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/snooze",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:5427",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:5433",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -194096,7 +194099,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/unarchive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:5409",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:5415",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -194160,7 +194163,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/undismiss",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:5426",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:5432",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -194207,7 +194210,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/unread",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:5324",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:5330",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -194271,7 +194274,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/mark-all-read",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4892",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4898",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -201664,7 +201667,7 @@
         },
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 1011,
+          "line": 1049,
           "caller": "openRedactionProjectForEvidence",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -201674,7 +201677,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/redaction/page.tsx:343 (RedactionOpenForm, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:1011 (openRedactionProjectForEvidence, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/redaction/page.tsx:343 (RedactionOpenForm, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:1049 (openRedactionProjectForEvidence, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -203584,7 +203587,7 @@
         },
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 559,
+          "line": 622,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -203794,8 +203797,8 @@
           "viaResolution": false
         },
         {
-          "file": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx",
-          "line": 523,
+          "file": "apps/web/app/(app)/settings/reviewer-criteria/_panel.tsx",
+          "line": 520,
           "caller": "submit",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -203805,7 +203808,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:129 (ReviewerCriteriaScreen, MOBILE); apps/web/app/(app)/settings/reviewer-criteria/page.tsx:523 (submit, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:129 (ReviewerCriteriaScreen, MOBILE); apps/web/app/(app)/settings/reviewer-criteria/_panel.tsx:520 (submit, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -203879,16 +203882,16 @@
           "viaResolution": true
         },
         {
-          "file": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx",
-          "line": 73,
+          "file": "apps/web/app/(app)/settings/reviewer-criteria/_panel.tsx",
+          "line": 70,
           "caller": "act",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
         },
         {
-          "file": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx",
-          "line": 436,
+          "file": "apps/web/app/(app)/settings/reviewer-criteria/_panel.tsx",
+          "line": 433,
           "caller": "saveAsNewDraft",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -203898,7 +203901,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:155 (ReviewerCriteriaScreen, MOBILE); apps/mobile/src/ui/criteria-draft-editor.tsx:272 (CriteriaDraftEditor, MOBILE); apps/web/app/(app)/settings/reviewer-criteria/page.tsx:73 (act, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:155 (ReviewerCriteriaScreen, MOBILE); apps/mobile/src/ui/criteria-draft-editor.tsx:272 (CriteriaDraftEditor, MOBILE); apps/web/app/(app)/settings/reviewer-criteria/_panel.tsx:70 (act, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -203963,8 +203966,8 @@
           "viaResolution": true
         },
         {
-          "file": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx",
-          "line": 73,
+          "file": "apps/web/app/(app)/settings/reviewer-criteria/_panel.tsx",
+          "line": 70,
           "caller": "act",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -203974,7 +203977,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:155 (ReviewerCriteriaScreen, MOBILE); apps/web/app/(app)/settings/reviewer-criteria/page.tsx:73 (act, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:155 (ReviewerCriteriaScreen, MOBILE); apps/web/app/(app)/settings/reviewer-criteria/_panel.tsx:70 (act, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -204041,8 +204044,8 @@
           "viaResolution": true
         },
         {
-          "file": "apps/web/app/(app)/settings/reviewer-criteria/page.tsx",
-          "line": 73,
+          "file": "apps/web/app/(app)/settings/reviewer-criteria/_panel.tsx",
+          "line": 70,
           "caller": "act",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -204052,7 +204055,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:155 (ReviewerCriteriaScreen, MOBILE); apps/web/app/(app)/settings/reviewer-criteria/page.tsx:73 (act, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:155 (ReviewerCriteriaScreen, MOBILE); apps/web/app/(app)/settings/reviewer-criteria/_panel.tsx:70 (act, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -204096,7 +204099,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/escalations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1713",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1724",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -204106,16 +204109,8 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/review/workspace/_components/FocusDecisionColumn.tsx",
-          "line": 202,
-          "caller": "FocusDecisionColumn",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        },
-        {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 491,
+          "line": 554,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -204123,7 +204118,7 @@
         },
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 886,
+          "line": 924,
           "caller": "createEscalation",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -204133,7 +204128,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/review/workspace/_components/FocusDecisionColumn.tsx:202 (FocusDecisionColumn, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:491 (ReviewWorkspacePageInner, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:886 (createEscalation, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:554 (ReviewWorkspacePageInner, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:924 (createEscalation, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -204212,7 +204207,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/escalations/:id/acknowledge",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1773",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1784",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -204222,31 +204217,15 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
-          "line": 138,
-          "caller": "declared-by-review",
-          "class": "WEB",
-          "primitive": "declared",
-          "viaResolution": true
-        },
-        {
-          "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
-          "line": 140,
-          "caller": "declared-by-review",
-          "class": "WEB",
-          "primitive": "declared",
-          "viaResolution": true
-        },
-        {
-          "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
-          "line": 214,
-          "caller": "EscalationsConsolePageInner",
+          "file": "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx",
+          "line": 207,
+          "caller": "EscalationsSection",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": true
         },
         {
-          "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx|POST|EscalationsConsolePageInner|/v1/reviewer-ops/escalations/<interp>/<interp",
+          "file": "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx|POST|EscalationsSection|/v1/reviewer-ops/escalations/<interp>/<interp",
           "line": null,
           "caller": "declared-by-review",
           "class": "WEB",
@@ -204257,7 +204236,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:138 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/escalations/page.tsx:140 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/escalations/page.tsx:214 (EscalationsConsolePageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx:207 (EscalationsSection, WEB); apps/web/app/(app)/reviewer-ops/escalations/_section.tsx|POST|EscalationsSection|/v1/reviewer-ops/escalations/<interp>/<interp:NaN (declared-by-review, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -204300,7 +204279,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/escalations/:id/reassign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1796",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1807",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -204310,31 +204289,15 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
-          "line": 138,
-          "caller": "declared-by-review",
-          "class": "WEB",
-          "primitive": "declared",
-          "viaResolution": true
-        },
-        {
-          "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
-          "line": 140,
-          "caller": "declared-by-review",
-          "class": "WEB",
-          "primitive": "declared",
-          "viaResolution": true
-        },
-        {
-          "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
-          "line": 214,
-          "caller": "EscalationsConsolePageInner",
+          "file": "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx",
+          "line": 207,
+          "caller": "EscalationsSection",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": true
         },
         {
-          "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx|POST|EscalationsConsolePageInner|/v1/reviewer-ops/escalations/<interp>/<interp",
+          "file": "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx|POST|EscalationsSection|/v1/reviewer-ops/escalations/<interp>/<interp",
           "line": null,
           "caller": "declared-by-review",
           "class": "WEB",
@@ -204345,7 +204308,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:138 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/escalations/page.tsx:140 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/escalations/page.tsx:214 (EscalationsConsolePageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx:207 (EscalationsSection, WEB); apps/web/app/(app)/reviewer-ops/escalations/_section.tsx|POST|EscalationsSection|/v1/reviewer-ops/escalations/<interp>/<interp:NaN (declared-by-review, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -204393,7 +204356,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/escalations/:id/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1826",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1837",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -204403,31 +204366,15 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
-          "line": 138,
-          "caller": "declared-by-review",
-          "class": "WEB",
-          "primitive": "declared",
-          "viaResolution": true
-        },
-        {
-          "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
-          "line": 140,
-          "caller": "declared-by-review",
-          "class": "WEB",
-          "primitive": "declared",
-          "viaResolution": true
-        },
-        {
-          "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
-          "line": 214,
-          "caller": "EscalationsConsolePageInner",
+          "file": "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx",
+          "line": 207,
+          "caller": "EscalationsSection",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": true
         },
         {
-          "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx|POST|EscalationsConsolePageInner|/v1/reviewer-ops/escalations/<interp>/<interp",
+          "file": "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx|POST|EscalationsSection|/v1/reviewer-ops/escalations/<interp>/<interp",
           "line": null,
           "caller": "declared-by-review",
           "class": "WEB",
@@ -204438,7 +204385,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:138 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/escalations/page.tsx:140 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/escalations/page.tsx:214 (EscalationsConsolePageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx:207 (EscalationsSection, WEB); apps/web/app/(app)/reviewer-ops/escalations/_section.tsx|POST|EscalationsSection|/v1/reviewer-ops/escalations/<interp>/<interp:NaN (declared-by-review, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -204506,7 +204453,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/escalations/:id/suppress",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1879",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1890",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -204516,31 +204463,15 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
-          "line": 138,
-          "caller": "declared-by-review",
-          "class": "WEB",
-          "primitive": "declared",
-          "viaResolution": true
-        },
-        {
-          "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
-          "line": 140,
-          "caller": "declared-by-review",
-          "class": "WEB",
-          "primitive": "declared",
-          "viaResolution": true
-        },
-        {
-          "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
-          "line": 214,
-          "caller": "EscalationsConsolePageInner",
+          "file": "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx",
+          "line": 207,
+          "caller": "EscalationsSection",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": true
         },
         {
-          "file": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx|POST|EscalationsConsolePageInner|/v1/reviewer-ops/escalations/<interp>/<interp",
+          "file": "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx|POST|EscalationsSection|/v1/reviewer-ops/escalations/<interp>/<interp",
           "line": null,
           "caller": "declared-by-review",
           "class": "WEB",
@@ -204551,7 +204482,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:138 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/escalations/page.tsx:140 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/escalations/page.tsx:214 (EscalationsConsolePageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/_section.tsx:207 (EscalationsSection, WEB); apps/web/app/(app)/reviewer-ops/escalations/_section.tsx|POST|EscalationsSection|/v1/reviewer-ops/escalations/<interp>/<interp:NaN (declared-by-review, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -204619,7 +204550,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/maintenance/second-review-reevaluation",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2338",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2352",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "handler body -> handler: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)"
@@ -204631,7 +204562,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "CRON_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2338 — handler body -> handler: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)",
+      "dispositionEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2352 — handler body -> handler: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)",
       "dispositionReason": "gated by the canonical constant-time cron/internal shared secret, so only a scheduler or operator holding it can call it",
       "replacement": null,
       "result": "DISPOSED_CRON_CONSUMER",
@@ -204681,7 +204612,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/queue-intelligence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:921",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:922",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -204691,8 +204622,8 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/review/queues/_queue-intelligence.tsx",
-          "line": 165,
+          "file": "apps/web/components/reviewer-experience/queueIntelligence.tsx",
+          "line": 177,
           "caller": "useQueueIntelligence",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -204702,7 +204633,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/review/queues/_queue-intelligence.tsx:165 (useQueueIntelligence, WEB)",
+      "dispositionEvidence": "apps/web/components/reviewer-experience/queueIntelligence.tsx:177 (useQueueIntelligence, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -204749,7 +204680,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2368",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2382",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "handler body -> handler: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)"
@@ -204769,7 +204700,7 @@
       ],
       "primaryDisposition": "WORKER_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2368 — worker caller(s): services/worker/src/reviewer-ops/reviewer-reconciliation.worker.ts:129 (runReviewerReconciliation)",
+      "dispositionEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2382 — worker caller(s): services/worker/src/reviewer-ops/reviewer-reconciliation.worker.ts:129 (runReviewerReconciliation)",
       "dispositionReason": "called by the worker service",
       "replacement": null,
       "result": "DISPOSED_WORKER_CONSUMER",
@@ -204854,7 +204785,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/approve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1589",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1600",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -204865,7 +204796,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 796,
+          "line": 834,
           "caller": "approveReview",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -204875,7 +204806,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:796 (approveReview, WEB)",
+      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:834 (approveReview, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -204976,7 +204907,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2020",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2031",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -204987,7 +204918,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 525,
+          "line": 588,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -204997,7 +204928,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:525 (ReviewWorkspacePageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:588 (ReviewWorkspacePageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -205093,7 +205024,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1338",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1349",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -205103,17 +205034,9 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/review/queues/page.tsx",
-          "line": 665,
+          "file": "apps/web/components/reviewer-experience/ReviewInbox.tsx",
+          "line": 346,
           "caller": "runRowAssign",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        },
-        {
-          "file": "apps/web/components/reviewer-experience/ReviewerConsole.tsx",
-          "line": 361,
-          "caller": "ReviewerConsole",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -205122,7 +205045,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/review/queues/page.tsx:665 (runRowAssign, WEB); apps/web/components/reviewer-experience/ReviewerConsole.tsx:361 (ReviewerConsole, WEB)",
+      "dispositionEvidence": "apps/web/components/reviewer-experience/ReviewInbox.tsx:346 (runRowAssign, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -205200,7 +205123,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/pause",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1446",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1457",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -205211,7 +205134,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 330,
+          "line": 353,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -205237,7 +205160,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:330 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:353 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -205286,7 +205209,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/reassign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1387",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1398",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -205297,7 +205220,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 467,
+          "line": 530,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -205307,7 +205230,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:467 (ReviewWorkspacePageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:530 (ReviewWorkspacePageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -205385,7 +205308,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/reject",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1631",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1642",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -205396,7 +205319,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 818,
+          "line": 856,
           "caller": "rejectReview",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -205406,7 +205329,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:818 (rejectReview, WEB)",
+      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:856 (rejectReview, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -205505,7 +205428,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/request-info",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1530",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1541",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -205516,7 +205439,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 843,
+          "line": 881,
           "caller": "requestInfoReview",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -205526,7 +205449,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:843 (requestInfoReview, WEB)",
+      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:881 (requestInfoReview, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -205611,7 +205534,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/response-received",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1563",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1574",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -205622,7 +205545,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 330,
+          "line": 353,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -205648,7 +205571,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:330 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:353 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -205713,7 +205636,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/resume",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1501",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1512",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -205724,7 +205647,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 330,
+          "line": 353,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -205750,7 +205673,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:330 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:353 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -205799,7 +205722,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/start",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1422",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1433",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -205809,16 +205732,8 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/review/workspace/_components/FocusDecisionColumn.tsx",
-          "line": 149,
-          "caller": "FocusDecisionColumn",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        },
-        {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 330,
+          "line": 353,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -205844,7 +205759,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/review/workspace/_components/FocusDecisionColumn.tsx:149 (FocusDecisionColumn, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:330 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:353 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -205893,7 +205808,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/bulk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1940",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1951",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -205904,7 +205819,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/reviewer-experience/ReviewerBulkOpsBar.tsx",
-          "line": 163,
+          "line": 172,
           "caller": "send",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -205914,7 +205829,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/reviewer-experience/ReviewerBulkOpsBar.tsx:163 (send, WEB)",
+      "dispositionEvidence": "apps/web/components/reviewer-experience/ReviewerBulkOpsBar.tsx:172 (send, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -206012,7 +205927,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2109",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2120",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -206022,9 +205937,9 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/components/reviewer-experience/ReviewerConsole.tsx",
-          "line": 1199,
-          "caller": "SavedViewsPanel",
+          "file": "apps/web/components/reviewer-experience/ReviewInbox.tsx",
+          "line": 927,
+          "caller": "create",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -206033,7 +205948,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/reviewer-experience/ReviewerConsole.tsx:1199 (SavedViewsPanel, WEB)",
+      "dispositionEvidence": "apps/web/components/reviewer-experience/ReviewInbox.tsx:927 (create, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -206077,7 +205992,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/sla-policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2243",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2257",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -206163,7 +206078,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/workspace/:workflowId/decisions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:3156",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:3170",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -206173,16 +206088,8 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/review/workspace/_components/FocusDecisionColumn.tsx",
-          "line": 169,
-          "caller": "FocusDecisionColumn",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        },
-        {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 433,
+          "line": 496,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -206192,7 +206099,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/review/workspace/_components/FocusDecisionColumn.tsx:169 (FocusDecisionColumn, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:433 (ReviewWorkspacePageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:496 (ReviewWorkspacePageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -206293,7 +206200,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/workspace/:workflowId/notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2783",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2797",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -206304,7 +206211,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 1312,
+          "line": 1224,
           "caller": "ReviewerNotesPanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -206314,7 +206221,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1312 (ReviewerNotesPanel, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1224 (ReviewerNotesPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -206594,7 +206501,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 684,
+          "line": 722,
           "caller": "bulkAssign",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -206604,7 +206511,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:684 (bulkAssign, WEB)",
+      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:722 (bulkAssign, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -206709,7 +206616,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 734,
+          "line": 772,
           "caller": "bulkCode",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -206719,7 +206626,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:734 (bulkCode, WEB)",
+      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:772 (bulkCode, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -206800,7 +206707,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 708,
+          "line": 746,
           "caller": "bulkDecide",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -206810,7 +206717,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:708 (bulkDecide, WEB)",
+      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:746 (bulkDecide, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -206965,8 +206872,8 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/review/qc/page.tsx",
-          "line": 349,
+          "file": "apps/web/app/(app)/review/qc/_section.tsx",
+          "line": 332,
           "caller": "QcWorkspace",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -206976,7 +206883,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/review/qc/page.tsx:349 (QcWorkspace, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/review/qc/_section.tsx:332 (QcWorkspace, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

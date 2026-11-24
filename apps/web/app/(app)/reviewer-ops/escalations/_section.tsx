@@ -60,6 +60,7 @@ import { escalationSeverityLabel, escalationSeverityTone } from "../../../../lib
 import { FilterBar } from "../../../../components/ui/FilterBar";
 import { recordReference } from "../../../../lib/short-id";
 import "../../../../components/reviewer-experience/review-surfaces.css";
+import { presentReviewEscalationSummary } from "@proovra/shared";
 import { escalationReasonLabel } from "../../../../lib/labels/governanceReviewLabels";
 import { useReviewDestinationResolver } from "../../../../components/reviewer-experience/reviewDestination";
 import {
@@ -356,7 +357,7 @@ export function EscalationsSection() {
                       <span className="app-table__muted">{escalationReasonLabel(e.reason)}</span>
                     </td>
                     <td data-review-cell="extra" data-label="Summary">
-                      <span className="app-table__muted">{e.safeSummary}</span>
+                      <span className="app-table__muted">{presentReviewEscalationSummary(e.safeSummary)}</span>
                       {e.incidentId && operationsDestination ? (
                         <>
                           {" "}

@@ -32,6 +32,7 @@
  *   - Errors map to the Phase 25 ReviewerOpsErrorCode catalog.
  */
 
+import { loadReviewerIdentities, withReviewerIdentity } from "../services/reviewer-ops/reviewer-identity.service.js";
 import { listReminders } from "../services/reviewer-ops/reminder-engine.service.js";
 import { advanceSweepCursor, afterCursor, readSweepCursor } from "../services/reviewer-ops/sweep-cursor.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
@@ -1100,8 +1101,18 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
               viewerUserId: ctx.actorUserId,
             })
           : [];
+        // T-086 (stage D) — the assignee named the one way (display name,
+        // else masked e-mail), so the Review page header never shows an id.
+        const assigneeIdentity = ws.projection.assignedToUserId
+          ? (await loadReviewerIdentities([ws.projection.assignedToUserId], prisma)).get(ws.projection.assignedToUserId) ?? null
+          : null;
         return reply.code(200).send({
           ...ws,
+          projection: {
+            ...ws.projection,
+            assignedToDisplayName: assigneeIdentity?.displayName ?? null,
+            assignedToMaskedEmail: assigneeIdentity?.maskedEmail ?? null,
+          },
           analysisRevision: analysisSnapshots[0]?.revision ?? null,
           // Phase B-2 — additive governance block. Existing consumers
           // ignore this; new consumers (the reviewer detail page UI)
@@ -2214,7 +2225,10 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         limit: q.limit,
         viewerUserId: ctx.actorUserId,
       });
-      return reply.code(200).send(analytics);
+      // T-085 (stage D) — each row names its reviewer (display name / masked
+      // e-mail), so Monitoring never prints a user-id fragment.
+      const identities = await loadReviewerIdentities(analytics.rows.map((r) => r.reviewerUserId), prisma);
+      return reply.code(200).send({ ...analytics, rows: analytics.rows.map((r) => withReviewerIdentity(r, identities)) });
     },
   );
 

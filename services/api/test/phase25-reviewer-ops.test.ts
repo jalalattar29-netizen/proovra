@@ -337,7 +337,7 @@ describe("Phase 25 — wording sweep", () => {
     "../../../apps/web/app/(app)/review/page.tsx",
     "../../../apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
     "../../../apps/web/app/(app)/reviewer-ops/sla/page.tsx",
-    "../../../apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
+    "../../../apps/web/app/(app)/reviewer-ops/escalations/_section.tsx",
   ];
   for (const path of sources) {
     it(`no overclaim phrase appears in ${path.split("/").slice(-2).join("/")}`, () => {

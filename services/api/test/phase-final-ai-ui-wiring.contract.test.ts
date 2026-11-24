@@ -120,13 +120,15 @@ describe("UI wiring — QC sampling panel", () => {
     expect(src).toContain("/cases/");
     expect(src).toContain("catalogAvailable");
   });
-  it("is mounted on the Review page", () => {
-    expect(read("app/(app)/review/page.tsx")).toContain("<QcSamplingPanel");
+  // Stage D (T-080) — Copilot output checks live in Monitoring → Quality.
+  it("is mounted in Monitoring (Quality)", () => {
+    expect(read("app/(app)/reviewer-ops/sla/page.tsx")).toContain("<QcSamplingPanel");
+    expect(read("app/(app)/review/page.tsx")).not.toContain("<QcSamplingPanel");
   });
 });
 
 describe("UI wiring — Reviewer Criteria lifecycle page", () => {
-  const src = read("app/(app)/settings/reviewer-criteria/page.tsx");
+  const src = read("app/(app)/settings/reviewer-criteria/_panel.tsx");
   it("consumes the FULL lifecycle API surface (no orphan criteria route)", () => {
     expect(src).toContain("/v1/reviewer-criteria?teamId="); // list
     expect(src).toContain("`/v1/reviewer-criteria`"); // create
@@ -174,6 +176,7 @@ describe("UI honesty — no provider/model names in any AI component", () => {
       // page, spending an AI operation per press. The rule below is unchanged
       // for every component that still exists.
       "app/(app)/settings/reviewer-criteria/page.tsx",
+      "app/(app)/settings/reviewer-criteria/_panel.tsx",
     ]) {
       const src = read(rel).toLowerCase();
       expect(src, `${rel} must not mention a provider`).not.toContain("openai");

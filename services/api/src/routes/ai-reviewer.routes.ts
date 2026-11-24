@@ -382,6 +382,10 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
       const runs = await prisma.aiCopilotRun.findMany({
         where: {
           workspaceId: q.teamId,
+          // T-080 (stage D) — a human checks OUTPUT: a run that produced none
+          // (policy denied, schema error, a blocked claim, no selection) has
+          // nothing to check, so it is not offered for QC.
+          status: "ok",
           AND: [
             { OR: [{ caseId: null }, { caseId: { notIn: closed.caseIds } }] },
             { OR: [{ reviewId: null }, { reviewId: { notIn: closedReviews } }] },
