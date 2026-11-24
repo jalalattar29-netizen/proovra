@@ -112,7 +112,8 @@ async function mountAndOpen() {
 }
 
 const manageControls = () => ({
-  bulkInviteTab: document.querySelector('[data-tab="bulk"]'),
+  // T-136 (stage F): inviting is the "Invite reviewer" action, not a tab.
+  bulkInviteTab: document.querySelector("[data-invite-reviewer-action]"),
   bulkRevoke: document.querySelector("[data-bulk-revoke-action]"),
   rowCheckbox: document.querySelector(`[data-row-multi="${GRANT}"]`),
   resend: document.querySelector(`[data-invitation-resend="${GRANT}"]`),

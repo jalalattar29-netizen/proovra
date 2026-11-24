@@ -70,9 +70,13 @@ describe("T-125 / T-126 — platform-context navigation and plan features (live 
       if (r.requiredPlanFeature) keys.add(r.requiredPlanFeature);
       if (r.navPlanFeature) keys.add(r.navPlanFeature);
     }
+    // Stage E: a surface rule names its registry route (entitlementRouteId);
+    // its plan keys are that route's, already collected above.
     for (const rule of SURFACE_TIER_RULES) {
-      if (rule.entitlementOverride) keys.add(rule.entitlementOverride);
-      if (rule.readRetainedOverride) keys.add(rule.readRetainedOverride);
+      if (!rule.entitlementRouteId) continue;
+      const route = ROUTE_REGISTRY.find((r) => r.id === rule.entitlementRouteId);
+      expect(route, `surface rule ${rule.pathPrefix} names a registry route`).toBeTruthy();
+      if (route?.readRetainedPlanFeature) keys.add(route.readRetainedPlanFeature);
     }
     expect(keys.size).toBeGreaterThan(5);
     for (const key of keys) {
