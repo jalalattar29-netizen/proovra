@@ -648,6 +648,11 @@ function SearchInner() {
     null
   );
   const [savedViews, setSavedViews] = useState<SavedView[] | null>(null);
+  // T-148 (audit JRN-08 l) — a failed read of saved views / related evidence /
+  // suggestions is a failure, never an empty list.
+  const [savedViewsFailed, setSavedViewsFailed] = useState(false);
+  const [relationshipsFailed, setRelationshipsFailed] = useState(false);
+  const [suggestFailed, setSuggestFailed] = useState(false);
   const [savingView, setSavingView] = useState(false);
   const [qDraft, setQDraft] = useState("");
   // Search-page-final-cleanup (C) — date inputs go through a draft
@@ -761,9 +766,12 @@ function SearchInner() {
       .then((r: { views: SavedView[] }) => {
         if (cancelled) return;
         setSavedViews(r.views ?? []);
+        setSavedViewsFailed(false);
       })
       .catch(() => {
-        if (!cancelled) setSavedViews([]);
+        if (cancelled) return;
+        setSavedViews(null);
+        setSavedViewsFailed(true);
       });
     return () => {
       cancelled = true;
@@ -1137,6 +1145,7 @@ function SearchInner() {
 
   // Relationships for the selected evidence row.
   useEffect(() => {
+    setRelationshipsFailed(false);
     if (!teamId || !selected?.evidenceId) {
       setRelationships(null);
       return;
@@ -1151,9 +1160,12 @@ function SearchInner() {
       .then((r: { relationships: Relationship[] }) => {
         if (cancelled) return;
         setRelationships(r.relationships ?? []);
+        setRelationshipsFailed(false);
       })
       .catch(() => {
-        if (!cancelled) setRelationships([]);
+        if (cancelled) return;
+        setRelationships(null);
+        setRelationshipsFailed(true);
       });
     return () => {
       cancelled = true;
@@ -1364,11 +1376,15 @@ function SearchInner() {
           { signal: ctrl.signal },
         )) as { suggestions: Suggestion[] };
         setSuggestions(res.suggestions ?? []);
+        setSuggestFailed(false);
         setHighlighted(-1);
       } catch {
-        // Aborted or network — silently clear; the empty list
-        // renders nothing and the user can still type.
+        // An abort is a newer keystroke taking over: not a failure. Any other
+        // failure is said in the list ("Suggestions are unavailable"), never
+        // shown as "no matches"; the user can still run the search.
+        if (ctrl.signal.aborted) return;
         setSuggestions([]);
+        setSuggestFailed(true);
       }
     }, 250);
     return () => {
@@ -1400,13 +1416,18 @@ function SearchInner() {
             : r
         );
       })
-      .catch((err: unknown) =>
+      .catch((err: unknown) => {
+        if (liveFilterRef.current !== asked) return;
         setActionError(
           toSafeUserError(err, { message: t("searchLoadMoreFailed") })
             .message,
-        ),
-      )
-      .finally(() => setLoading(false));
+        );
+      })
+      // T-150 (audit JRN-08 n) — a stale page never clears the spinner of the
+      // newer search that replaced it: only the live request may end loading.
+      .finally(() => {
+        if (liveFilterRef.current === asked) setLoading(false);
+      });
   }, [filter, results?.nextCursor, t]);
 
   /**
@@ -1932,6 +1953,7 @@ function SearchInner() {
               <SearchTypeahead
                 query={qDraft}
                 suggestions={suggestions}
+                suggestFailed={suggestFailed}
                 recent={recent}
                 highlighted={highlighted}
                 onPick={(text) => {
@@ -2239,7 +2261,11 @@ function SearchInner() {
               >
                 {savingView ? "Saving…" : "Save current view"}
               </button>
-              {savedViews === null ? (
+              {savedViewsFailed ? (
+                <p className="app-hint" role="alert" data-search-saved-views-error>
+                  Saved views could not be loaded. Reload the page to try again.
+                </p>
+              ) : savedViews === null ? (
                 <p className="app-hint">Loading…</p>
               ) : savedViews.length === 0 ? (
                 <p className="app-hint">No saved views yet.</p>
@@ -2590,6 +2616,7 @@ function SearchInner() {
               }}
               onClearRecent={clearRecent}
               saved={savedViewEntries}
+              savedFailed={savedViewsFailed}
               onApplySaved={(id) => {
                 const view = savedViews?.find((v) => v.id === id);
                 if (view) applySavedView(view);
@@ -2600,6 +2627,7 @@ function SearchInner() {
             <Inspector
               row={selected}
               relationships={relationships}
+              relationshipsFailed={relationshipsFailed}
               canSeeWorkflows={canSeeWorkflows}
               canSeeInvestigation={canSeeInvestigation}
             />
@@ -2677,40 +2705,43 @@ function getOpenAction(
   // gating lives). The badge on the row already signals trash
   // state so the link decoration matches the row state.
   const isInTrash = row.badges.includes("in_trash");
-  const trashSuffix = isInTrash ? "?context=trash" : "";
+  // T-149 (audit JRN-08 m) — no context parameter is appended: the Evidence
+  // page never read one, and it already shows a trashed record's state (and
+  // gates its actions) from the record itself (EvidenceTrashBanner). The label
+  // still says where the link goes.
   switch (row.documentType) {
     case "EVIDENCE":
       return row.evidenceId
         ? {
-            href: `/evidence/${row.evidenceId}${trashSuffix}`,
+            href: `/evidence/${row.evidenceId}`,
             label: isInTrash ? t("searchOpenInTrash") : t("searchOpenEvidence"),
           }
         : null;
     case "CASE":
       return row.caseId
         ? {
-            href: `/cases/${row.caseId}${trashSuffix}`,
+            href: `/cases/${row.caseId}`,
             label: isInTrash ? t("searchOpenInTrash") : t("searchOpenCase"),
           }
         : null;
     case "REPORT":
       return row.evidenceId
         ? {
-            href: `/evidence/${row.evidenceId}${trashSuffix}`,
+            href: `/evidence/${row.evidenceId}`,
             label: isInTrash ? t("searchOpenInTrash") : t("searchOpenReport"),
           }
         : null;
     case "PACKAGE":
       return row.evidenceId
         ? {
-            href: `/evidence/${row.evidenceId}${trashSuffix}`,
+            href: `/evidence/${row.evidenceId}`,
             label: isInTrash ? t("searchOpenInTrash") : t("searchOpenPackage"),
           }
         : null;
     case "NOTE":
       return row.caseId
         ? {
-            href: `/cases/${row.caseId}${trashSuffix}`,
+            href: `/cases/${row.caseId}`,
             label: isInTrash ? t("searchOpenInTrash") : t("searchOpenNote"),
           }
         : null;
@@ -2739,7 +2770,7 @@ function getOpenAction(
     case "WORKFLOW":
       return row.workflowInstanceId
         ? {
-            href: `/workflows/${row.workflowInstanceId}${trashSuffix}`,
+            href: `/workflows/${row.workflowInstanceId}`,
             label: isInTrash ? t("searchOpenInTrash") : t("searchOpenWorkflow"),
           }
         : null;
@@ -2760,11 +2791,14 @@ function getOpenAction(
 function Inspector({
   row,
   relationships,
+  relationshipsFailed = false,
   canSeeWorkflows,
   canSeeInvestigation,
 }: {
   row: ResultRow;
   relationships: Relationship[] | null;
+  /** T-148 — the related-evidence read failed. */
+  relationshipsFailed?: boolean;
   // Phase IA-self-serve-completion — surface-tier gates for the
   // pointer + pivot links. Self-serve users see the IDs but not the
   // links, and the "Investigation pivots" section is renamed and
@@ -3013,7 +3047,11 @@ function Inspector({
 
       {row.evidenceId ? (
         <Section label={t("searchSectionRelatedEvidence")}>
-          {relationships === null ? (
+          {relationshipsFailed ? (
+            <p className="app-hint" role="alert" data-search-relationships-error>
+              Related evidence could not be loaded. Select the result again to retry.
+            </p>
+          ) : relationships === null ? (
             <p className="app-hint">{t("searchLoading")}</p>
           ) : relationships.length === 0 ? (
             <p className="app-hint">{t("searchNoRelatedEvidence")}</p>
@@ -3635,6 +3673,7 @@ const SEARCH_TYPEAHEAD_LISTBOX_ID = "search-typeahead-listbox";
 function SearchTypeahead({
   query,
   suggestions,
+  suggestFailed = false,
   recent,
   highlighted,
   onPick,
@@ -3648,6 +3687,8 @@ function SearchTypeahead({
     title: string;
     subtitle: string | null;
   }>;
+  /** T-148 — the suggestion read failed (said, never shown as "no matches"). */
+  suggestFailed?: boolean;
   recent: string[];
   highlighted: number;
   onPick: (text: string) => void;
@@ -3657,7 +3698,7 @@ function SearchTypeahead({
   const trimmed = query.trim();
   const showRecent = trimmed.length < 2;
   const showSuggestions = !showRecent && suggestions.length > 0;
-  const showEmpty = !showRecent && suggestions.length === 0 && trimmed.length >= 2;
+  const showEmpty = !showRecent && !suggestFailed && suggestions.length === 0 && trimmed.length >= 2;
   const showRecentEmpty = showRecent && recent.length === 0;
   const t = useT();
 
@@ -3778,6 +3819,12 @@ function SearchTypeahead({
             </button>
           ))}
         </div>
+      ) : null}
+
+      {!showRecent && suggestFailed ? (
+        <p className="search-typeahead__empty" role="status" data-search-typeahead-failed>
+          Suggestions are unavailable right now. Press Enter to search.
+        </p>
       ) : null}
 
       {showEmpty ? (

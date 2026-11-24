@@ -33,6 +33,7 @@ export function SearchGuidancePanel({
   onApplyRecent,
   onClearRecent,
   saved,
+  savedFailed = false,
   onApplySaved,
   supportHref,
 }: {
@@ -42,6 +43,8 @@ export function SearchGuidancePanel({
   onClearRecent: () => void;
   /** `null` when this workspace has no saved-search authority at all. */
   saved: readonly SavedSearchEntry[] | null;
+  /** T-148 — the saved-search read failed; said instead of "No saved searches yet". */
+  savedFailed?: boolean;
   onApplySaved: (id: string) => void;
   supportHref: string;
 }) {
@@ -98,7 +101,11 @@ export function SearchGuidancePanel({
         <h2 className="search-guidance__label" id="search-saved-label">
           Saved searches
         </h2>
-        {saved === null || saved.length === 0 ? (
+        {savedFailed ? (
+          <p className="search-guidance__empty" role="alert" data-search-guidance-saved-error>
+            Saved searches could not be loaded. Reload the page to try again.
+          </p>
+        ) : saved === null || saved.length === 0 ? (
           <p className="search-guidance__empty" data-search-guidance-saved-empty>
             No saved searches yet.
           </p>

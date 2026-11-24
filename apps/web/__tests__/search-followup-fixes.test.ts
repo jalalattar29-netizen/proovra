@@ -76,10 +76,9 @@ test("Inspector — getOpenAction helper exists and maps every result type to a 
     assert.ok(src.includes(`isInTrash ? t("searchOpenInTrash") : t("${key}")`), key);
     assert.equal(SEARCH_COPY.en[key as keyof typeof openLabels], english);
   }
-  // Hrefs hit the existing canonical routes — the trashSuffix is
-  // appended as an interpolation, so widen the pin to allow it.
-  assert.match(src, /href:\s*`\/evidence\/\$\{row\.evidenceId\}\$\{trashSuffix\}`/);
-  assert.match(src, /href:\s*`\/cases\/\$\{row\.caseId\}\$\{trashSuffix\}`/);
+  // Hrefs hit the existing canonical routes (T-149: no unread context suffix).
+  assert.match(src, /href:\s*`\/evidence\/\$\{row\.evidenceId\}`/);
+  assert.match(src, /href:\s*`\/cases\/\$\{row\.caseId\}`/);
 });
 
 test("Inspector renders the Open button with data-search-open-action + data-search-open-href attributes", () => {

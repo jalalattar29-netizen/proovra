@@ -43,7 +43,9 @@ test("renderBadgeLabel maps 'in_trash' to the user-facing 'In trash' string", ()
   assert.equal(SEARCH_COPY.en.searchBadgeInTrash, "In trash");
 });
 
-test("Open action routes trash rows to the read-only context (?context=trash)", () => {
+// T-149 (Team remediation stage F) — the parameter was appended but never read
+// by the Evidence page; trash state comes from the record itself. Removed.
+test("Open action keeps trash rows on the record URL with no unread context parameter", () => {
   const src = read(PAGE);
   const fnIdx = src.indexOf("function getOpenAction(");
   const fnEnd = src.indexOf("\nasync function ", fnIdx + 1);
