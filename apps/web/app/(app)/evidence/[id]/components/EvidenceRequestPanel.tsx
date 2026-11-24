@@ -148,6 +148,8 @@ export default function EvidenceRequestPanel({
 }) {
   const [requests, setRequests] = useState<RequestRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // T-143 (audit JRN-08 g) — a refused action is said inline, never in alert().
+  const [actionError, setActionError] = useState<string | null>(null);
   const [featureDisabled, setFeatureDisabled] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [reveal, setReveal] = useState<{ url: string; followUp?: boolean } | null>(null);
@@ -212,7 +214,7 @@ export default function EvidenceRequestPanel({
       if (res.intakeUrl) setReveal({ url: res.intakeUrl });
     } catch (err) {
       const e = err as { message?: string };
-      alert(toSafeUserError(e, { message: "Could not send request." }).message);
+      setActionError(toSafeUserError(e, { message: "Could not send request." }).message);
       return;
     }
     // R1-F-01 — the request WAS sent; a failed refresh is not "Could not send".
@@ -241,7 +243,7 @@ export default function EvidenceRequestPanel({
       await reload();
     } catch (err) {
       const e = err as { message?: string };
-      alert(toSafeUserError(e, { message: "Could not update response." }).message);
+      setActionError(toSafeUserError(e, { message: "Could not update response." }).message);
     }
   }
 
@@ -284,7 +286,7 @@ export default function EvidenceRequestPanel({
       try {
         await requestMoreEvidence(noteDialog.requestId, noteDialog.responseId, note);
       } catch (err) {
-        alert(toSafeUserError(err as { message?: string }, { message: "Could not create follow-up link." }).message);
+        setActionError(toSafeUserError(err as { message?: string }, { message: "Could not create follow-up link." }).message);
       }
       return;
     }
@@ -334,7 +336,7 @@ export default function EvidenceRequestPanel({
       await reload();
     } catch (err) {
       const e = err as { message?: string };
-      alert(toSafeUserError(e, { message: "Could not complete action." }).message);
+      setActionError(toSafeUserError(e, { message: "Could not complete action." }).message);
     }
   }
 
@@ -362,6 +364,14 @@ export default function EvidenceRequestPanel({
       </header>
 
       {error ? <div className="evd-error">{error}</div> : null}
+      {actionError ? (
+        <div className="app-alert app-alert--danger" role="alert" data-evidence-request-action-error>
+          <p>{actionError}</p>
+          <button type="button" className="app-ghost-action" onClick={() => setActionError(null)}>
+            Dismiss
+          </button>
+        </div>
+      ) : null}
 
       {requests !== null && requests.length === 0 ? (
         <p className="evd-muted">

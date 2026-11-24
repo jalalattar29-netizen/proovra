@@ -28,7 +28,8 @@
 
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import { BadgeCheck, Trash2 } from "lucide-react";
 import type { EvidenceDetailCtx } from "./_lib";
 import { AppStatusBadge } from "../../../../../components/app-primitives";
@@ -120,6 +121,27 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
   });
 
   const reviewerStatus = workspace.reviewWorkflow?.status ?? "NOT_STARTED";
+
+  // T-140 (audit JRN-08 d) — "Restore to active" asks first and shows a busy
+  // state; it used to post on the first click with no feedback.
+  const { confirm } = useConfirmAction();
+  const [restoringArchive, setRestoringArchive] = useState(false);
+  const restoreFromArchive = async () => {
+    if (restoringArchive) return;
+    const ok = await confirm({
+      title: "Restore this record to active?",
+      description:
+        "The record returns to Active evidence and its normal actions become available again. Its content, custody history and verification state are unchanged.",
+      confirmLabel: "Restore to active",
+    });
+    if (!ok) return;
+    setRestoringArchive(true);
+    try {
+      await runRecordAction(`/v1/evidence/${evidence.id}/unarchive`, "Evidence restored to active");
+    } finally {
+      setRestoringArchive(false);
+    }
+  };
 
   // "Open report" is offered only when a report artifact truthfully exists.
   // Without one the control is disabled and says why, rather than routing the
@@ -492,15 +514,12 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
                   <button
                     type="button"
                     className="app-secondary-action app-secondary-action--filled"
-                    onClick={() =>
-                      void runRecordAction(
-                        `/v1/evidence/${evidence.id}/unarchive`,
-                        "Evidence restored to active",
-                      )
-                    }
+                    onClick={() => void restoreFromArchive()}
+                    disabled={restoringArchive || actionBusy}
+                    aria-busy={restoringArchive || undefined}
                     data-evidence-action="restore-archive"
                   >
-                    Restore to active
+                    {restoringArchive ? "Restoring…" : "Restore to active"}
                   </button>
                 ) : null}
 

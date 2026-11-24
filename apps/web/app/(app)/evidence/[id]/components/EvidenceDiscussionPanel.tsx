@@ -214,6 +214,9 @@ export default function EvidenceDiscussionPanel({
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [messagesFailed, setMessagesFailed] = useState(false);
+  // T-142 (audit JRN-08 f) — a message-load failure belongs to the thread it
+  // happened in, never to the thread-list slot, and clears on success.
+  const [messagesError, setMessagesError] = useState<string | null>(null);
   // PRO-K2-16 — the read returns the NEWEST page; earlier pages on request.
   const [olderCursor, setOlderCursor] = useState<string | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -308,6 +311,7 @@ export default function EvidenceDiscussionPanel({
       if (!teamId) return;
       setLoadingMessages(true);
       setMessagesFailed(false);
+      setMessagesError(null);
       try {
         // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
         const data = (await apiFetch(
@@ -320,7 +324,7 @@ export default function EvidenceDiscussionPanel({
         setOlderFailed(false);
       } catch (err) {
         const e = err as { message?: string };
-        setError(toSafeUserError(e, { message: "Could not load messages." }).message);
+        setMessagesError(toSafeUserError(e, { message: "Could not load messages." }).message);
         setMessages([]);
         setMessagesFailed(true);
       } finally {
@@ -732,13 +736,25 @@ export default function EvidenceDiscussionPanel({
               {loadingMessages ? (
                 <p className="evidence-discussion__muted">Loading messages…</p>
               ) : messagesFailed ? (
-                <p
-                  className="evidence-discussion__muted"
+                <div
+                  className="app-alert app-alert--danger"
+                  role="alert"
                   data-evidence-discussion-messages-unavailable
                 >
-                  Messages could not be loaded. Select the thread again to
-                  retry.
-                </p>
+                  <p>
+                    Messages could not be loaded.{messagesError ? ` ${messagesError}` : ""}
+                  </p>
+                  {selectedThreadId ? (
+                    <button
+                      type="button"
+                      className="app-secondary-action"
+                      data-evidence-discussion-messages-retry
+                      onClick={() => void loadMessages(selectedThreadId)}
+                    >
+                      Retry
+                    </button>
+                  ) : null}
+                </div>
               ) : messages.length === 0 ? (
                 <p
                   className="evidence-discussion__muted"

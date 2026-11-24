@@ -80,6 +80,7 @@ import {
   isOtsTerminal,
   shortId,
   shouldPollArtifactReadiness,
+  recordDownloadBlock,
   type EvidenceDetailCtx,
   type EvidenceDetailTab,
   EvidenceHeroIconActions,
@@ -99,6 +100,7 @@ import { AppListbox } from "../../../../components/app-primitives";
 import { EvidenceReviewTab } from "./_tabs/EvidenceReviewTab";
 import { EvidenceArtifactsTab } from "./_tabs/EvidenceArtifactsTab";
 import { EvidenceTrashConsequence } from "./_tabs/EvidenceTrashConsequence";
+import { AssignCaseDialogBody, EvidenceLoadErrorCard, EvidenceRefreshBanner, classifyEvidenceLoadFailure, type EvidenceLoadFailure } from "./components/EvidenceLoadStates";
 import { OwnerDestructionApprovalPanel } from "./components/OwnerDestructionApprovalPanel";
 import { EvidenceDiscussionTab } from "./_tabs/EvidenceDiscussionTab";
 import { EvidenceDerivedReviewTab } from "./_tabs/EvidenceDerivedReviewTab";
@@ -198,7 +200,11 @@ function EvidenceDetailPageInner() {
   const [workspace, setWorkspace] = useState<ReviewWorkspaceResponse | null>(null);
   const [cases, setCases] = useState<CaseOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // T-137/T-145 — a first-load failure (typed) vs a background-refresh one.
+  const [error, setError] = useState<EvidenceLoadFailure | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [casesFailed, setCasesFailed] = useState(false);
+  const loadedIdRef = useRef<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [labelDraft, setLabelDraft] = useState("");
   const [editingLabel, setEditingLabel] = useState(false);
@@ -338,6 +344,8 @@ function EvidenceDetailPageInner() {
       if (workspaceResult.status !== "fulfilled") throw workspaceResult.reason;
       const workspaceData = workspaceResult.value as ReviewWorkspaceResponse;
       setWorkspace(workspaceData);
+      loadedIdRef.current = evidenceId;
+      setRefreshError(null);
       const newUpdatedAt = workspaceData.reviewWorkflow.updatedAt ?? null;
       if (opts?.bumpBaseline) {
         setInitialUpdatedAtUtc(newUpdatedAt);
@@ -359,13 +367,13 @@ function EvidenceDetailPageInner() {
           ? (casesResult.value.items as CaseOption[])
           : [];
         setCases(items);
-      } else {
-        setCases([]);
       }
+      setCasesFailed(casesResult.status !== "fulfilled");
     } catch (loadError) {
-      const message =
-        toSafeUserError(loadError, { message: "Failed to load evidence review workspace" }).message;
-      setError(message);
+      const failure = classifyEvidenceLoadFailure(loadError);
+      // T-137 — a record already on screen stays; the failure is a banner.
+      if (loadedIdRef.current === evidenceId) setRefreshError(failure.message);
+      else setError(failure);
       captureException(loadError, {
         feature: "web_evidence_review_workspace_load",
         evidenceId,
@@ -890,26 +898,7 @@ function EvidenceDetailPageInner() {
   }
 
   if (error || !workspace || !evidence || !workspaceCaps) {
-    return (
-      <div className="evidence-detail-page">
-        <div className="evidence-detail-shell">
-          <section className="evidence-detail-section evidence-detail-error-card">
-            <p className="evidence-detail-kicker">Evidence record</p>
-            <h1>Unable to load the record</h1>
-            <p>{error || "This evidence record is unavailable right now."}</p>
-            <div className="evidence-detail-inline-actions">
-              <button
-                type="button"
-                className="app-primary-action"
-                onClick={() => void loadWorkspace()}
-              >
-                Retry
-              </button>
-            </div>
-          </section>
-        </div>
-      </div>
-    );
+    return <EvidenceLoadErrorCard failure={error} onRetry={() => void loadWorkspace()} />;
   }
 
   const preservation = workspace.preservationMatrix;
@@ -998,21 +987,18 @@ function EvidenceDetailPageInner() {
   const packageArtifactAvailable =
     workspace.artifactStatus.verificationPackage.available === true;
 
-  const reportDownloadBlockedReason = isIntegrityFailed
-    ? "Downloads are unavailable while recorded integrity is failed."
-    : exportDisabled
-      ? (exportBlockedReason ?? "Governance policy currently blocks this download.")
-      : !reportArtifactAvailable
+  const downloadBlock = recordDownloadBlock({ isIntegrityFailed, exportDisabled, exportBlockedReason, packageDisabled, packageBlockedReason });
+  const reportDownloadBlockedReason = downloadBlock.report
+    ? downloadBlock.report
+    : !reportArtifactAvailable
         ? OUTPUT_STATE_COPY[
             workspace.artifactStatus.outputs.report.state
           ].reason("report")
         : null;
 
-  const packageDownloadBlockedReason = isIntegrityFailed
-    ? "Downloads are unavailable while recorded integrity is failed."
-    : packageDisabled
-      ? (packageBlockedReason ?? "Governance policy currently blocks this download.")
-      : !packageArtifactAvailable
+  const packageDownloadBlockedReason = downloadBlock.package
+    ? downloadBlock.package
+    : !packageArtifactAvailable
         ? // The governance-denial blob carries a specific, operator-written
           // reason; the canonical state is the fallback for everything else.
           (workspace.artifactStatus.verificationPackage.blockedReason ??
@@ -1074,6 +1060,7 @@ function EvidenceDetailPageInner() {
     downloadReportVersion,
     downloadVerificationPackageVersion,
     downloadExternalDisclosurePackageVersion,
+    versionDownloadBlock: downloadBlock,
     generateOutputs,
     createNewVersion,
     generateOutputsBusy,
@@ -1107,6 +1094,9 @@ function EvidenceDetailPageInner() {
               resourceId={evidenceId}
             />
           </div>
+        ) : null}
+        {refreshError ? (
+          <EvidenceRefreshBanner message={refreshError} onRetry={() => void loadWorkspace()} onDismiss={() => setRefreshError(null)} />
         ) : null}
         <CollisionWarning
           entityLabel="Evidence record"
@@ -1511,7 +1501,7 @@ function EvidenceDetailPageInner() {
               type="button"
               className="app-primary-action"
               onClick={() => void assignCase()}
-              disabled={actionBusy || !selectedCaseId || cases.length === 0}
+              disabled={actionBusy || !selectedCaseId || cases.length === 0 || casesFailed}
               data-evidence-modal-action="confirm-assign-case"
             >
               Save assignment
@@ -1519,31 +1509,7 @@ function EvidenceDetailPageInner() {
           </>
         }
       >
-        {/* Phase ASSIGN-CASE-ELIGIBILITY — the cases array is now the
-            eligibility-narrowed list from
-            `/v1/cases?eligibleForEvidenceId=...`. When the workspace
-            has no attachable cases (no same-team active case, or all
-            of them are archived/deleted) the dropdown collapses to a
-            single read-only empty-state message and Save is disabled.
-            The backend cross-workspace gate stays authoritative. */}
-        {cases.length === 0 ? (
-          <p
-            className="evidence-detail-muted"
-            data-evidence-assign-case-empty
-          >
-            No attachable cases are available in this workspace.
-          </p>
-        ) : (
-          <div data-evidence-assign-case-select>
-            <AppListbox
-              value={selectedCaseId || null}
-              placeholder="Select case"
-              ariaLabel="Select case"
-              options={cases.map((item) => ({ value: item.id, label: item.name }))}
-              onChange={(next) => setSelectedCaseId(next)}
-            />
-          </div>
-        )}
+        <AssignCaseDialogBody cases={cases} casesFailed={casesFailed} selectedCaseId={selectedCaseId} onSelect={setSelectedCaseId} onRetry={() => void loadWorkspace()} />
       </PortalModal>
 
       {/* Phase EVIDENCE-REVIEW-VISIBILITY — the reviewer-workflow

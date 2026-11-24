@@ -194,7 +194,8 @@ export function useDerivedReview(input: UseDerivedReviewInput): UseDerivedReview
         err instanceof Error && "statusCode" in err
           ? `http_${(err as Error & { statusCode?: number }).statusCode ?? "unknown"}`
           : "network_error";
-      setState({ loading: false, data: null, error: { code } });
+      // T-141 — a failed re-read keeps the last answer; the error is said beside it.
+      setState((prev) => ({ loading: false, data: prev.data, error: { code } }));
     }
   }, [evidenceId, teamId, enabled, offset, limit]);
 

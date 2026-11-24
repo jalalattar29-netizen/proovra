@@ -12,12 +12,25 @@
  * neighbour. Every version stays independently downloadable.
  */
 
-import { useState, type ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import { FileText, ShieldCheck } from "lucide-react";
 
 import { DISCLOSURE_PROFILE_LABELS } from "@proovra/shared";
 
 import type { ArtifactPackageAccess, MatchedHistory, MatchedIssuance, MatchedPackage, MatchedVersion } from "./artifact-status-types";
+
+/**
+ * T-139 (audit JRN-08 c) — the record-level gates on a download (recorded
+ * integrity failed, an export-governance block) apply to EVERY version's
+ * download, as they do to the header's. Null = not blocked.
+ */
+export type VersionDownloadBlock = { report: string | null; package: string | null };
+const DownloadBlockContext = createContext<VersionDownloadBlock>({ report: null, package: null });
+function blockedProps(reason: string | null) {
+  return reason
+    ? { disabled: true, title: reason, "data-evidence-disabled-reason": reason }
+    : {};
+}
 
 /** PROOVRA's public package record (Public Verify), where anyone holding a package checks it. */
 function packageRecordHref(packageId: string): string {
@@ -55,6 +68,7 @@ function PackageCell({
   access: ArtifactPackageAccess | null;
   missingAction: ReactNode;
 }) {
+  const block = useContext(DownloadBlockContext);
   if (!pkg) {
     return (
       <div className="rga-pair__artifact rga-pair__artifact--missing" data-testid={`pair-${version.reportVersion}-package-missing`}>
@@ -101,6 +115,7 @@ function PackageCell({
           type="button"
           className="app-secondary-action rga-pair__download"
           onClick={() => onDownload(pkg.version)}
+          {...blockedProps(block.package)}
           data-testid={`download-package-v${pkg.version}`}
           data-evidence-artifact-version-download="package"
           data-evidence-artifact-version-number={pkg.version}
@@ -114,6 +129,7 @@ function PackageCell({
           type="button"
           className="app-secondary-action rga-pair__download"
           onClick={() => onDownloadExternal(pkg.version)}
+          {...blockedProps(block.package)}
           data-testid={`download-external-package-v${pkg.version}`}
         >
           Download external disclosure package v{pkg.version}
@@ -140,6 +156,7 @@ function ExternalPackageCell({
   onDownloadExternal?: (v: number) => void;
   access: ArtifactPackageAccess | null;
 }) {
+  const block = useContext(DownloadBlockContext);
   const noteId = `pair-${version.reportVersion}-external-note`;
   return (
     <div className="rga-pair__artifact" data-testid={`pair-${version.reportVersion}-external`}>
@@ -170,6 +187,7 @@ function ExternalPackageCell({
           type="button"
           className="app-secondary-action rga-pair__download"
           onClick={() => onDownloadExternal(pkg.version)}
+          {...blockedProps(block.package)}
           data-testid={`download-external-package-v${pkg.version}`}
           aria-describedby={noteId}
         >
@@ -201,6 +219,7 @@ export function MatchedVersionHistory({
   onDownloadExternalPackageVersion,
   packageAccess = null,
   latestPackageAction,
+  downloadBlock = { report: null, package: null },
 }: {
   history: MatchedHistory;
   formatDateTime: (v: string | null | undefined) => string;
@@ -211,6 +230,8 @@ export function MatchedVersionHistory({
   packageAccess?: ArtifactPackageAccess | null;
   /** The server-offered Recover/Retry control for the LATEST version's missing package. */
   latestPackageAction?: ReactNode;
+  /** T-139 — the same record-level download gates as the page header. */
+  downloadBlock?: VersionDownloadBlock;
 }) {
   const [showAll, setShowAll] = useState(false);
   const versions = history.versions;
@@ -218,6 +239,7 @@ export function MatchedVersionHistory({
   const hidden = versions.length - visible.length;
 
   return (
+    <DownloadBlockContext.Provider value={downloadBlock}>
     <section id="artifacts" className="rga-history" aria-labelledby="rga-history-title" data-testid="matched-version-history">
       <div className="rga-history__head">
         <span className="rga-history__icon" aria-hidden="true">
@@ -273,6 +295,7 @@ export function MatchedVersionHistory({
                     type="button"
                     className="app-secondary-action rga-pair__download"
                     onClick={() => onDownloadReportVersion(v.reportVersion)}
+                    {...blockedProps(downloadBlock.report)}
                     data-testid={`download-report-v${v.reportVersion}`}
                     data-evidence-artifact-version-download="report"
                     data-evidence-artifact-version-number={v.reportVersion}
@@ -364,5 +387,6 @@ export function MatchedVersionHistory({
         </div>
       ) : null}
     </section>
+    </DownloadBlockContext.Provider>
   );
 }
