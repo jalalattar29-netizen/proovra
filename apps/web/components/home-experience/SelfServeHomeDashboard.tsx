@@ -43,6 +43,7 @@ import { PageShell, PageSection } from "../ui";
 import "./home.css";
 
 import { useHomeData } from "./useHomeData";
+import { TwoFactorPrompt } from "../identity-security/TwoFactorPrompt";
 import {
   ActiveMatters,
   ActivityFeed,
@@ -110,6 +111,10 @@ export function SelfServeHomeDashboard() {
           (hero-aware: capture-first onboarding vs. "All evidence").
           Search / inbox live in the global app header, not duplicated. */}
       <HomeHeader hero={vm.heroAction} />
+
+      {/* T-034 (stage B) — Team review step-up needs a second factor; say so
+          before the first verdict, not in the middle of one. */}
+      <TwoFactorPrompt enabled={vm.plan === "TEAM"} />
 
       {/* F-21 — a transient read failure is said, with a retry, instead of
           rendering as an empty workspace. */}
