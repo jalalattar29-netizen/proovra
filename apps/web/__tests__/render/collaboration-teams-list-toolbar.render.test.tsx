@@ -171,7 +171,7 @@ describe("one coherent toolbar", () => {
   it("Clear filters appears only when a filter differs from the default, and resets the request", async () => {
     const view = await mountList();
     expect(view.queryByTestId("teams-clear-filters")).toBeNull();
-    await choose(view, "Sort teams", "Name (A–Z)");
+    await choose(view, "Sort Collaboration Teams", "Name (A–Z)");
     await waitFor(() => expect(H.listQueries.at(-1)!.get("sort")).toBe("NAME_ASC"));
     await act(async () => {
       fireEvent.click(view.getByTestId("teams-clear-filters"));
@@ -219,7 +219,7 @@ describe("load more", () => {
       fireEvent.click(view.getByTestId("teams-load-more"));
     });
     await waitFor(() => expect(H.hold).not.toBeNull());
-    await choose(view, "Sort teams", "Name (A–Z)");
+    await choose(view, "Sort Collaboration Teams", "Name (A–Z)");
     await waitFor(() => expect(H.listQueries.at(-1)!.get("sort")).toBe("NAME_ASC"));
     await act(async () => {
       H.hold!(undefined);

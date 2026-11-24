@@ -346,7 +346,7 @@ function MembersTab({
             }}
           >
             <span>
-              Team is at capacity for your plan
+              This Collaboration Team is at capacity for your plan
               {planLabel ? ` (${planLabel})` : ""}.
               {entitlement?.upgradeHref ? " Upgrade to add more." : ""}
             </span>
@@ -553,8 +553,8 @@ function MemberCapacityBadge({
       tone={atCapacity ? "red" : "green"}
       title={
         atCapacity
-          ? "Team is at capacity for your plan. Upgrade to add more."
-          : `Team member capacity${planLabel}.`
+          ? "This Collaboration Team is at capacity for your plan. Upgrade to add more."
+          : `Collaboration Team member capacity${planLabel}.`
       }
       className="cc-member-capacity-badge"
     >
@@ -562,7 +562,7 @@ function MemberCapacityBadge({
         role="status"
         aria-label={
           atCapacity
-            ? `Team is at capacity${planLabel}: ${label}. Upgrade to add more.`
+            ? `This Collaboration Team is at capacity${planLabel}: ${label}. Upgrade to add more.`
             : `${label}${planLabel}.`
         }
         data-testid="member-capacity-badge"
@@ -709,7 +709,7 @@ function MemberRow({
         "They stop being responsible for this team's assignments, work and activity. " +
         "Their workspace access, role and evidence are unaffected — this only removes " +
         "them from this Collaboration Team.",
-      confirmLabel: "Remove from team",
+      confirmLabel: "Remove from Collaboration Team",
       tone: "danger",
     });
     if (!ok) return;
@@ -821,7 +821,7 @@ function MemberRow({
                 title={
                   isLastLead
                     ? "Transfer leadership before suspending the last Lead."
-                    : "Suspend participation in this team (workspace access is unaffected)"
+                    : "Suspend participation in this Collaboration Team (workspace access is unaffected)"
                 }
               >
                 Suspend
@@ -839,10 +839,10 @@ function MemberRow({
                     ? "Transfer leadership before removing the last Lead."
                     // Scope, not object. Workspace removal is a Members &
                     // Access governance action and never happens from here.
-                    : "Remove from this team (workspace access is unaffected)"
+                    : "Remove from this Collaboration Team (workspace access is unaffected)"
                 }
               >
-                Remove from team
+                Remove from Collaboration Team
               </button>
               ) : null}
             </>
@@ -853,7 +853,7 @@ function MemberRow({
               disabled={busy}
               className="app-ghost-action"
               data-testid={`member-reinstate-${member.id}`}
-              title="Restore this member's participation in this team"
+              title="Restore this member's participation in this Collaboration Team"
             >
               Reinstate
             </button>
@@ -1171,7 +1171,7 @@ function AddMemberPanel({
           flexWrap: "wrap",
         }}
       >
-        <span className="app-table__muted">Role in this team</span>
+        <span className="app-table__muted">Role in this Collaboration Team</span>
         <div style={{ minWidth: 148 }}>
           <AppListbox<CollaborationTeamRole>
             value={role}
@@ -1182,7 +1182,7 @@ function AddMemberPanel({
             }))}
             onChange={setRole}
             disabled={busy}
-            ariaLabel="Role in this team"
+            ariaLabel="Role in this Collaboration Team"
           />
         </div>
         <input
@@ -1199,8 +1199,8 @@ function AddMemberPanel({
           data-testid="add-member-submit"
         >
           {selectedUserIds.size > 1
-            ? `Add ${selectedUserIds.size} to team`
-            : "Add to team"}
+            ? `Add ${selectedUserIds.size} to Collaboration Team`
+            : "Add to Collaboration Team"}
         </button>
         <button
           type="button"

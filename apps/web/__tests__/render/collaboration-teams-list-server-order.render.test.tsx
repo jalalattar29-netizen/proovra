@@ -181,7 +181,7 @@ describe("CT-13 — the Teams list sends its sort and type filter to the server 
     expect(H.listQueries[0]!.get("sort")).toBe("ACTIVITY_DESC");
     expect(rowOrder(view)).toEqual([ALPHA.id, ZULU.id]);
 
-    await choose(view, "Sort teams", "Name (A–Z)");
+    await choose(view, "Sort Collaboration Teams", "Name (A–Z)");
     await waitFor(() => expect(H.listQueries.at(-1)!.get("sort")).toBe("NAME_ASC"));
     // The server answered Zulu before Alpha; a browser-side sort would flip it.
     await waitFor(() => expect(rowOrder(view)).toEqual([ZULU.id, ALPHA.id]));
@@ -189,7 +189,7 @@ describe("CT-13 — the Teams list sends its sort and type filter to the server 
 
   it("choosing a type asks the server for it, renders its rows unfiltered, and Load more appends the next server page", async () => {
     const view = await mountList();
-    await choose(view, "Filter by team type", "Legal");
+    await choose(view, "Filter by Collaboration Team type", "Legal");
     await waitFor(() => expect(H.listQueries.at(-1)!.get("type")).toBe("LEGAL"));
     // The server's rows, in its order — including the one a local type filter would drop.
     await waitFor(() => expect(rowOrder(view)).toEqual([BRAVO.id, MIKE.id]));
