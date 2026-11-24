@@ -264,6 +264,21 @@ export function renderTransactionalTemplate(
         "Second review required",
         "A first review was recorded. Assign an independent second reviewer",
       );
+    // Team remediation T-159 — the reviewer the second review was handed to.
+    case "REVIEW_SECOND_REVIEW_ASSIGNED":
+      return renderReviewVariant(
+        expectCtx(ctx, "ReviewAssigned"),
+        "Second review assigned to you",
+        "A first review was recorded. You are the independent second reviewer",
+      );
+    // Team remediation T-160 — nobody in the workspace can give the required
+    // second review; the owner is told what they can do.
+    case "REVIEW_SECOND_REVIEWER_UNAVAILABLE":
+      return renderReviewVariant(
+        expectCtx(ctx, "ReviewAssigned"),
+        "No one can give the second review",
+        "A review needs an independent second reviewer and nobody eligible is available. Invite or place a reviewer, or keep the review open",
+      );
     case "EXTERNAL_INTAKE_LINK_CREATED":
       return renderIntakeLinkCreated(expectCtx(ctx, "IntakeLinkCreated"));
     case "EXTERNAL_INTAKE_SUBMITTED":

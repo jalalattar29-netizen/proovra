@@ -122,6 +122,7 @@ async function resolveAssigneeAndWorkspace(
 type DispatchKind =
   | { eventType: Extract<NotificationEventType, "REVIEW_REQUEST_ASSIGNED">; isReassignment: false }
   | { eventType: Extract<NotificationEventType, "REVIEW_REASSIGNED">; isReassignment: true }
+  | { eventType: Extract<NotificationEventType, "REVIEW_SECOND_REVIEW_ASSIGNED">; isReassignment: true }
   | { eventType: Extract<NotificationEventType, "REVIEW_ESCALATED"> }
   | { eventType: Extract<NotificationEventType, "REVIEW_NEEDS_MORE_INFO"> }
   | { eventType: Extract<NotificationEventType, "REVIEW_RESPONSE_RECEIVED"> }
@@ -173,6 +174,17 @@ async function dispatchToAssignee(
 // Public API — every function is safe-by-default; failures NEVER throw.
 // -----------------------------------------------------------------------------
 
+/** The current round holds a FIRST decision by someone other than the assignee, and no SECOND. */
+async function isSecondReviewHandoff(workflow: DbWorkflow, client: PrismaClient): Promise<boolean> {
+  if (!workflow.assignedToUserId) return false;
+  const rows = await client.workflowReviewDecision.findMany({
+    where: { workflowId: workflow.id, round: workflow.decisionRound },
+    select: { stage: true, reviewerUserId: true },
+  });
+  const first = rows.find((r) => r.stage === "FIRST");
+  return !!first && first.reviewerUserId !== workflow.assignedToUserId && !rows.some((r) => r.stage !== "FIRST");
+}
+
 export async function notifyReviewAssigned(
   input: {
     workflow: DbWorkflow;
@@ -182,11 +194,18 @@ export async function notifyReviewAssigned(
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
   try {
+    // T-159 — a hand-off for the SECOND review tells the new assignee what it
+    // is ("Second review assigned to you"), once: the current round holds a
+    // FIRST decision by someone else and no SECOND yet.
+    const secondReviewHandoff =
+      input.isReassignment && (await isSecondReviewHandoff(input.workflow, client).catch(() => false));
     await dispatchToAssignee(
       input.workflow,
-      input.isReassignment
-        ? { eventType: "REVIEW_REASSIGNED", isReassignment: true }
-        : { eventType: "REVIEW_REQUEST_ASSIGNED", isReassignment: false },
+      secondReviewHandoff
+        ? { eventType: "REVIEW_SECOND_REVIEW_ASSIGNED", isReassignment: true }
+        : input.isReassignment
+          ? { eventType: "REVIEW_REASSIGNED", isReassignment: true }
+          : { eventType: "REVIEW_REQUEST_ASSIGNED", isReassignment: false },
       input.actorUserId,
       client,
     );
@@ -316,78 +335,135 @@ export async function listReviewAssignmentManagers(
 
 /**
  * A FIRST decision was recorded and the round now needs an independent SECOND
- * reviewer. Tells the workspace's assignment managers (never the first
- * reviewer) with a link to the review inspector, where the reassignment lives.
+ * reviewer.
+ *
+ *   - The workspace's ASSIGNMENT MANAGERS (never the first reviewer) are told
+ *     to select one, with a link to the review page where reassignment lives.
+ *     The reviewer finally chosen is told when the review is handed to them
+ *     ("Second review assigned to you", notifyReviewAssigned) — eligible
+ *     reviewers are not all messaged up front (no indiscriminate notice).
+ *   - T-160 — when NOBODY is eligible (`eligibleReviewerCount === 0`), the
+ *     workspace OWNER is told instead, once per round, with what they can do:
+ *     invite or place a reviewer, or keep the review open. In a one-person
+ *     workspace that is the first reviewer themself — the only person who can
+ *     act on it.
  *
  * Best-effort, like every helper here: never throws, never undoes the decision.
- * Idempotent per workflow + round: a manager already sent this event for the
- * record since the round's FIRST decision is not sent it again (the delivery
- * log is the ledger; a later round's FIRST decision is later, so it notifies
- * afresh).
+ * Idempotent per workflow + round against the delivery log: a recipient
+ * already sent this event for the record since the round's FIRST decision is
+ * not sent it again (a later round's FIRST decision notifies afresh).
  */
 export async function notifySecondReviewRequired(
   input: {
     workflow: NotifiedWorkflow & { id: string };
     firstReviewerUserId: string;
     firstDecidedAt: Date;
+    /** From THE assignee authority (countEligibleSecondReviewers). Absent = unknown (managers only). */
+    eligibleReviewerCount?: number;
+    cause?: string | null;
   },
   client: PrismaClient = defaultPrisma,
-): Promise<{ notifiedUserIds: string[] }> {
+): Promise<{ notifiedUserIds: string[]; unavailableNotifiedUserIds: string[] }> {
   const notifiedUserIds: string[] = [];
+  const unavailableNotifiedUserIds: string[] = [];
   try {
-    if (!input.workflow.teamId) return { notifiedUserIds };
-    const managers = await listReviewAssignmentManagers(
-      {
-        teamId: input.workflow.teamId,
-        evidenceId: input.workflow.evidenceId,
-        excludeUserIds: [input.firstReviewerUserId],
-      },
-      client,
-    );
-    if (managers.length === 0) return { notifiedUserIds };
-    const already = await client.notificationDelivery.findMany({
-      where: {
-        eventType: "REVIEW_SECOND_REVIEW_REQUIRED",
-        evidenceId: input.workflow.evidenceId,
-        recipientUserId: { in: managers.map((m) => m.id) },
-        createdAt: { gte: input.firstDecidedAt },
-      },
-      select: { recipientUserId: true },
-    });
-    const sent = new Set(already.map((r) => r.recipientUserId));
+    if (!input.workflow.teamId) return { notifiedUserIds, unavailableNotifiedUserIds };
+    const teamId = input.workflow.teamId;
     let workspaceName = "Workspace";
-    const team = await client.team
-      .findUnique({ where: { id: input.workflow.teamId }, select: { name: true } })
-      .catch(() => null);
+    const team = await client.team.findUnique({ where: { id: teamId }, select: { name: true } }).catch(() => null);
     if (team?.name) workspaceName = team.name;
     const reviewUrl = reviewEmailLink(input.workflow);
-    for (const manager of managers) {
-      if (sent.has(manager.id)) continue;
-      await safeSendEmailNotification(
-        {
-          eventType: "REVIEW_SECOND_REVIEW_REQUIRED",
-          teamId: input.workflow.teamId,
-          recipientEmail: manager.email ?? "",
-          recipientName: manager.displayName,
-          recipientUserId: manager.id,
+    const requestTitle = "Evidence " + input.workflow.evidenceId.slice(0, 8) + "…";
+    const send = async (
+      eventType: "REVIEW_SECOND_REVIEW_REQUIRED" | "REVIEW_SECOND_REVIEWER_UNAVAILABLE",
+      recipients: Array<{ id: string; email: string | null; displayName: string | null }>,
+      out: string[],
+    ) => {
+      if (recipients.length === 0) return;
+      const already = await client.notificationDelivery.findMany({
+        where: {
+          eventType,
           evidenceId: input.workflow.evidenceId,
-          initiatedByUserId: input.firstReviewerUserId,
-          template: {
-            kind: "ReviewAssigned",
-            data: {
-              workspaceName,
-              requestTitle: `Evidence ${input.workflow.evidenceId.slice(0, 8)}…`,
-              reviewerName: manager.displayName,
-              requestUrl: reviewUrl,
+          recipientUserId: { in: recipients.map((m) => m.id) },
+          createdAt: { gte: input.firstDecidedAt },
+        },
+        select: { recipientUserId: true },
+      });
+      const sent = new Set(already.map((r) => r.recipientUserId));
+      for (const r of recipients) {
+        if (sent.has(r.id)) continue;
+        await safeSendEmailNotification(
+          {
+            eventType,
+            teamId,
+            recipientEmail: r.email ?? "",
+            recipientName: r.displayName,
+            recipientUserId: r.id,
+            evidenceId: input.workflow.evidenceId,
+            initiatedByUserId: input.firstReviewerUserId,
+            template: {
+              kind: "ReviewAssigned",
+              data: { workspaceName, requestTitle, reviewerName: r.displayName, requestUrl: reviewUrl },
             },
           },
-        },
-        client,
+          client,
+        );
+        out.push(r.id);
+      }
+    };
+
+    if (input.eligibleReviewerCount === 0) {
+      // T-160 — nobody can give it: the owner(s), first reviewer included.
+      const owners = await client.teamMember.findMany({
+        where: { teamId, status: "ACTIVE", role: "OWNER" },
+        select: { user: { select: { id: true, email: true, displayName: true } } },
+        take: 20,
+      });
+      await send(
+        "REVIEW_SECOND_REVIEWER_UNAVAILABLE",
+        owners.map((o) => ({ id: o.user.id, email: o.user.email ?? null, displayName: o.user.displayName ?? null })),
+        unavailableNotifiedUserIds,
       );
-      notifiedUserIds.push(manager.id);
+      return { notifiedUserIds, unavailableNotifiedUserIds };
     }
+
+    const managers = await listReviewAssignmentManagers(
+      { teamId, evidenceId: input.workflow.evidenceId, excludeUserIds: [input.firstReviewerUserId] },
+      client,
+    );
+    await send("REVIEW_SECOND_REVIEW_REQUIRED", managers, notifiedUserIds);
   } catch {
     /* swallowed — the decision stands */
   }
-  return { notifiedUserIds };
+  return { notifiedUserIds, unavailableNotifiedUserIds };
+}
+
+/**
+ * T-170 — a PERSON raised an escalation: the person who now holds it is told
+ * (the escalation's assignee, else the review's assignee), never the person
+ * who raised it. Automatic sweep escalations notify through the SLA reminder
+ * path instead (no second message for the same breach); an unrouted
+ * escalation on an unassigned review reaches owners and admins through the
+ * inbox.
+ */
+export async function notifyEscalationRaised(
+  input: {
+    workflow: NotifiedWorkflow & { id: string };
+    escalationAssigneeUserId: string | null;
+    raisedByUserId: string;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<NotificationSendResult | null> {
+  try {
+    const recipient = input.escalationAssigneeUserId ?? input.workflow.assignedToUserId ?? null;
+    if (!recipient || recipient === input.raisedByUserId) return null;
+    return await dispatchToAssignee(
+      { ...input.workflow, assignedToUserId: recipient },
+      { eventType: "REVIEW_ESCALATED" },
+      input.raisedByUserId,
+      client,
+    );
+  } catch {
+    return null;
+  }
 }
