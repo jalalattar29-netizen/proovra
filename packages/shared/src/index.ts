@@ -1857,6 +1857,7 @@ export type {
   AdaptiveAuthDecision,
   AdaptiveAuthInput,
   AdaptiveAuthResult,
+  ConcurrentSessionFingerprint,
   IdentityTimelineEvent,
   IdentityTimelineEventKind,
   ScimGroupInput,
@@ -1895,6 +1896,9 @@ export {
   ScimGroupSchema,
   SuspiciousSessionSignalKindSchema,
   computeSuspiciousSessionRisk,
+  concurrentSessionsSignalApplies,
+  countCorroboratedConcurrentSessions,
+  CONCURRENT_RISKY_SESSIONS_MIN_CORROBORATED,
   evaluateAdaptiveAuth,
   evaluateSessionTimeout,
   isSafeRedirectAfter,
@@ -2898,3 +2902,4 @@ export * from "./public-verification-page.js";
 
 // F-P1-08 — the one storage-PUT retry rule (web legacy, web multipart, extension).
 export * from "./storage-put-retry.js";
+

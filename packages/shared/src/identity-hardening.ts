@@ -89,6 +89,72 @@ export function computeSuspiciousSessionRisk(
 }
 
 // -----------------------------------------------------------------------------
+// Concurrent sessions — counted only when corroborated (T-025, P2).
+// -----------------------------------------------------------------------------
+
+/**
+ * The fields of a session the concurrency rule compares. Display previews and
+ * hashes only: never a raw IP or coordinates.
+ */
+export type ConcurrentSessionFingerprint = {
+  ipPreview: string | null;
+  deviceIdHash: string | null;
+  countryCode: string | null;
+};
+
+/** How many corroborated other sessions raise `CONCURRENT_RISKY_SESSIONS`. */
+export const CONCURRENT_RISKY_SESSIONS_MIN_CORROBORATED = 3;
+
+/**
+ * T-025 — ONE PERSON'S OWN SESSIONS ARE NOT AN ATTACK SIGNAL BY COUNT ALONE.
+ *
+ * The scorer used to add `CONCURRENT_RISKY_SESSIONS` (35, MEDIUM on its own)
+ * for any three other live sessions of the same person in the same workspace.
+ * Signing in again from the same browser therefore made every routine verdict
+ * demand a second factor, and an account without one could not act at all.
+ *
+ * A concurrent session now counts only when something CORROBORATES that it is
+ * somewhere else: a different network (IP preview), a different bound device,
+ * or a different country — each compared only when BOTH sides carry the value,
+ * so a missing preview never reads as a difference. Several sessions from the
+ * same device or network stay LOW. The other signals (IP shift, unknown
+ * device, geo change, impossible travel) are unchanged, so a genuinely
+ * distributed set of sessions still scores as before.
+ *
+ * Shared, so the sign-in scorer, the runtime re-score sweep and the
+ * activation preview decide with one rule.
+ */
+export function countCorroboratedConcurrentSessions(
+  current: ConcurrentSessionFingerprint,
+  others: ReadonlyArray<ConcurrentSessionFingerprint>,
+): number {
+  const differs = (a: string | null, b: string | null) =>
+    typeof a === "string" && a.length > 0 && typeof b === "string" && b.length > 0 && a !== b;
+  let count = 0;
+  for (const other of others) {
+    if (
+      differs(current.ipPreview, other.ipPreview) ||
+      differs(current.deviceIdHash, other.deviceIdHash) ||
+      differs(current.countryCode, other.countryCode)
+    ) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+/** True when the concurrency signal applies to this session (T-025). */
+export function concurrentSessionsSignalApplies(
+  current: ConcurrentSessionFingerprint,
+  others: ReadonlyArray<ConcurrentSessionFingerprint>,
+): boolean {
+  return (
+    countCorroboratedConcurrentSessions(current, others) >=
+    CONCURRENT_RISKY_SESSIONS_MIN_CORROBORATED
+  );
+}
+
+// -----------------------------------------------------------------------------
 // Risk level — reused naming convention from Phase 19 risk service.
 // -----------------------------------------------------------------------------
 
