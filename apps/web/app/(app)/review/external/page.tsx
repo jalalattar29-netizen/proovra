@@ -350,7 +350,17 @@ function ExternalReviewManagementConsole() {
   /** The list's `viewerCanIssue`; undefined = not projected (older API). */
   const [listCanIssue, setListCanIssue] = useState<boolean | undefined>(undefined);
   const caps = useExternalReviewCapabilities(listCanIssue, rows);
-  const [tab, setTab] = useState<TabId>("active");
+  // T-114 (ARCH-15) — the console is READ-ONLY for a caller who may neither
+  // issue nor manage (MEMBER). It stays reachable — the list and each
+  // invitation's activity are operational information — but it offers no
+  // inert controls: no Bulk Invite tab, no bulk selection, no Resend / Revoke /
+  // End sessions / token reveal, and a plain note says why. The answer is the
+  // same manage predicate the page already reads (the API's viewerCanIssue /
+  // viewerCanRevoke, else the envelope role OWNER/ADMIN).
+  const readOnly = !caps.canInvite && !caps.canBulkRevoke;
+  const tabOrder = readOnly ? TAB_ORDER.filter((t) => t.id !== "bulk") : TAB_ORDER;
+  const [requestedTab, setTab] = useState<TabId>("active");
+  const tab: TabId = readOnly && requestedTab === "bulk" ? "active" : requestedTab;
   const [selected, setSelected] = useState<string | null>(null);
   const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set());
   const { confirm: confirmBulk } = useConfirmAction();
@@ -491,15 +501,13 @@ function ExternalReviewManagementConsole() {
         <ReviewPageHeader
           backToHub
           title="External review"
-          subtitle={`External reviewer invitations, delivery and audit for this workspace — included on Pro, Team and Enterprise. Every action you take here is recorded on the grant's audit timeline.${
-            caps.canInvite || caps.canRevoke ? "" : ` ${EXTERNAL_REVIEW_MANAGE_EXPLANATION}`
-          }`}
+          subtitle="External reviewer invitations, delivery and audit for this workspace — included on Pro, Team and Enterprise. Every action you take here is recorded on the grant's audit timeline."
           secondaryActions={
             // TEAM-UI-SPEC §1 — revoking is irreversible: a `--danger` entry
             // point that opens the danger confirm, never a filled red button.
             // Bulk revoke applies to the rows of a lifecycle tab, so it is not
             // offered on the Bulk Invite tab (whose one primary is Issue).
-            tab === "bulk" ? null : (
+            tab === "bulk" || readOnly ? null : (
             <button
               type="button"
               className="app-secondary-action app-secondary-action--danger"
@@ -533,7 +541,7 @@ function ExternalReviewManagementConsole() {
         aria-label="Invitation lifecycle"
         style={{ overflowX: "auto", maxWidth: "100%" }}
       >
-        {TAB_ORDER.map((t, idx) => (
+        {tabOrder.map((t, idx) => (
           <button
             type="button"
             key={t.id}
@@ -548,13 +556,13 @@ function ExternalReviewManagementConsole() {
             onClick={() => selectTab(t.id)}
             onKeyDown={(event) => {
               let next: number | null = null;
-              if (event.key === "ArrowRight") next = (idx + 1) % TAB_ORDER.length;
-              else if (event.key === "ArrowLeft") next = (idx - 1 + TAB_ORDER.length) % TAB_ORDER.length;
+              if (event.key === "ArrowRight") next = (idx + 1) % tabOrder.length;
+              else if (event.key === "ArrowLeft") next = (idx - 1 + tabOrder.length) % tabOrder.length;
               else if (event.key === "Home") next = 0;
-              else if (event.key === "End") next = TAB_ORDER.length - 1;
+              else if (event.key === "End") next = tabOrder.length - 1;
               if (next === null) return;
               event.preventDefault();
-              const target = TAB_ORDER[next]!;
+              const target = tabOrder[next]!;
               selectTab(target.id);
               document.getElementById(`external-review-tab-${target.id}`)?.focus();
             }}
@@ -568,6 +576,19 @@ function ExternalReviewManagementConsole() {
           </button>
         ))}
       </nav>
+
+      {readOnly && !listDenied ? (
+        <section
+          data-external-review-read-only
+          className="app-panel"
+          role="note"
+        >
+          <p className="app-panel__body" style={{ margin: 0 }}>
+            Read-only. You can see this workspace's external reviewer
+            invitations and their activity. {EXTERNAL_REVIEW_MANAGE_EXPLANATION}
+          </p>
+        </section>
+      ) : null}
 
       {listDenied ? (
         <section
@@ -631,6 +652,7 @@ function ExternalReviewManagementConsole() {
         >
           <InvitationsTable
             rows={filtered}
+            selectable={!readOnly}
             multiSelected={multiSelected}
             onSelect={(id) => setSelected(id)}
             onToggleMulti={onToggleMulti}
@@ -648,6 +670,7 @@ function ExternalReviewManagementConsole() {
               }
               stepUp={stepUp}
               teamId={teamId}
+              readOnly={readOnly}
               onClose={() => setSelected(null)}
               onChanged={(text) => {
                 setBanner({ tone: "ok", text });
@@ -719,12 +742,15 @@ function deriveCounts(rows: InvitationRow[]): Record<TabId, number> {
 
 function InvitationsTable({
   rows,
+  selectable = true,
   multiSelected,
   selectedId,
   onSelect,
   onToggleMulti,
 }: {
   rows: InvitationRow[];
+  /** T-114 — false for a read-only caller: no bulk-selection column. */
+  selectable?: boolean;
   multiSelected: Set<string>;
   selectedId: string | null;
   onSelect: (grantId: string) => void;
@@ -752,7 +778,9 @@ function InvitationsTable({
       <table data-invitations-table className="app-table" data-responsive="">
         <thead>
           <tr>
-            <th scope="col"><span className="app-visually-hidden">Select</span></th>
+            {selectable ? (
+              <th scope="col"><span className="app-visually-hidden">Select</span></th>
+            ) : null}
             <th scope="col">Email</th>
             <th scope="col">Role</th>
             <th scope="col">Auth</th>
@@ -778,15 +806,17 @@ function InvitationsTable({
                 onClick={() => onSelect(r.grantId)}
                 style={{ cursor: "pointer" }}
               >
-                <td data-label="Select" onClick={(e) => e.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    data-row-multi={r.grantId}
-                    aria-label={`Select ${r.inviteEmail}`}
-                    checked={multiSelected.has(r.grantId)}
-                    onChange={() => onToggleMulti(r.grantId)}
-                  />
-                </td>
+                {selectable ? (
+                  <td data-label="Select" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      data-row-multi={r.grantId}
+                      aria-label={`Select ${r.inviteEmail}`}
+                      checked={multiSelected.has(r.grantId)}
+                      onChange={() => onToggleMulti(r.grantId)}
+                    />
+                  </td>
+                ) : null}
                 <td data-label="Email" style={{ overflowWrap: "anywhere" }}>
                   <span className="app-table__primary">{r.inviteEmail}</span>
                 </td>
@@ -855,6 +885,7 @@ function InvitationDetailDrawer({
   caps,
   stepUp,
   teamId,
+  readOnly = false,
   onClose,
   onChanged,
   onRefuse,
@@ -866,6 +897,8 @@ function InvitationDetailDrawer({
   stepUp: ReturnType<typeof useStepUpAction>;
   /** EP-0450 — the workspace the renew route is asked in. */
   teamId: string | null;
+  /** T-114 — a read-only caller sees the record, never manage controls. */
+  readOnly?: boolean;
   onClose: () => void;
   onChanged: (msg: string) => void;
   onRefuse: (msg: string) => void;
@@ -1113,7 +1146,10 @@ function InvitationDetailDrawer({
 
       {/* TEAM-UI-SPEC §1 — Resend and Renew are ordinary (secondary);
           Revoke and End sessions are irreversible, so each is a `--danger`
-          entry point that opens a danger confirm. No primary here. */}
+          entry point that opens a danger confirm. No primary here.
+          T-114 — none of it (nor the break-glass reveal) renders for a
+          read-only caller; the page note says why. */}
+      {readOnly ? null : (<>
       <section
         data-drawer-actions
         style={{
@@ -1265,6 +1301,7 @@ function InvitationDetailDrawer({
           </div>
         ) : null}
       </section>
+      </>)}
 
       <section
         data-drawer-delivery-panel
