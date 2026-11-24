@@ -1159,6 +1159,14 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
         .object({
           teamId: z.string().uuid(),
           status: z.enum(EVIDENCE_REQUEST_STATUSES).optional(),
+          // T-133 — several statuses at once (comma-separated), e.g. the
+          // reviewable set the Requests list opens on.
+          statuses: z
+            .string()
+            .max(400)
+            .optional()
+            .transform((v) => (v ? v.split(",").map((s) => s.trim()).filter(Boolean) : undefined))
+            .pipe(z.array(z.enum(EVIDENCE_REQUEST_STATUSES)).max(EVIDENCE_REQUEST_STATUSES.length).optional()),
           priority: z.enum(EVIDENCE_REQUEST_PRIORITIES).optional(),
           assignedReviewerUserId: z.string().uuid().optional(),
           unassigned: z.union([z.literal("true"), z.literal("false")]).optional(),
@@ -1169,21 +1177,45 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const ok = await requireMember(req, reply, query.teamId, "evidence.read");
       if (!ok) return;
 
+      // T-133 — every filter is part of the query, before the page bound (the
+      // priority filter used to run on the first page only, so URGENT could
+      // come back short); the list reads no deliverable or response rows.
       const rows = await listEvidenceRequests({
         teamId: query.teamId,
         hidden: await hiddenRecordIdsInWorkspace(query.teamId, ok.userId),
         status: query.status,
+        statuses: query.statuses,
+        priority: query.priority,
         assignedReviewerUserId: query.assignedReviewerUserId,
         unassigned: query.unassigned === "true",
         limit: query.limit,
+        withoutRelations: true,
       });
 
-      const filtered = query.priority
-        ? rows.filter((r) => r.priority === query.priority)
-        : rows;
+      // T-133 — the assignee is named (never an id fragment). A display name
+      // only; an address is never used as the label.
+      const assigneeIds = [...new Set(rows.map((r) => r.assignedReviewerUserId).filter((v): v is string => !!v))];
+      const assignees = assigneeIds.length
+        ? await prisma.user.findMany({
+            where: { id: { in: assigneeIds } },
+            select: { id: true, displayName: true, firstName: true, lastName: true },
+          })
+        : [];
+      const nameOf = new Map(
+        assignees.map((u) => {
+          const full = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
+          return [u.id, u.displayName?.trim() || full || "Workspace member"] as const;
+        }),
+      );
+      const items = await projectRequestsForCaller(req, query.teamId, rows);
 
       return reply.code(200).send({
-        items: await projectRequestsForCaller(req, query.teamId, filtered),
+        items: items.map((item) => ({
+          ...item,
+          assignedReviewerDisplayName: item.assignedReviewerUserId
+            ? (nameOf.get(item.assignedReviewerUserId) ?? "Workspace member")
+            : null,
+        })),
       });
     },
   );

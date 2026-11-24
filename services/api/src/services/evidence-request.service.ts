@@ -31,6 +31,7 @@ import {
   EvidenceRequestInput,
   EvidenceRequestInputSchema,
   EvidenceRequestStatus,
+  type EvidenceRequestPriority,
   isExternalRecipientMode,
   isTerminalEvidenceRequestStatus,
 } from "@proovra/shared";
@@ -631,9 +632,18 @@ export type ListEvidenceRequestsInput = {
   evidenceId?: string;
   caseId?: string;
   status?: EvidenceRequestStatus;
+  /** T-133 — any of these statuses (ignored when `status` is given). */
+  statuses?: readonly EvidenceRequestStatus[];
+  /** T-133 — filtered in SQL, before the page bound (it used to run after `take`). */
+  priority?: EvidenceRequestPriority;
   assignedReviewerUserId?: string | null;
   unassigned?: boolean;
   limit?: number;
+  /**
+   * T-133 — a list view that renders no deliverable or response reads none:
+   * the rows come back with both relations empty (the review queue).
+   */
+  withoutRelations?: boolean;
 };
 
 export async function listEvidenceRequests(
@@ -654,13 +664,27 @@ export async function listEvidenceRequests(
     ],
     ...(input.evidenceId ? { evidenceId: input.evidenceId } : {}),
     ...(input.caseId ? { caseId: input.caseId } : {}),
-    ...(input.status ? { status: input.status } : {}),
+    ...(input.status
+      ? { status: input.status }
+      : input.statuses && input.statuses.length > 0
+        ? { status: { in: [...input.statuses] } }
+        : {}),
+    ...(input.priority ? { priority: input.priority } : {}),
     ...(input.unassigned
       ? { assignedReviewerUserId: null }
       : input.assignedReviewerUserId
         ? { assignedReviewerUserId: input.assignedReviewerUserId }
         : {}),
   };
+
+  if (input.withoutRelations) {
+    const rows = await client.evidenceRequest.findMany({
+      where,
+      orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
+      take: Math.min(Math.max(input.limit ?? 50, 1), 200),
+    });
+    return rows.map((r) => ({ ...r, deliverables: [], responses: [] })) as unknown as RequestRow[];
+  }
 
   return client.evidenceRequest.findMany({
     where,
