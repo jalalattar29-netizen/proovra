@@ -127,13 +127,13 @@ test("the page header, legal boundary and the eight workspace KPI cards match th
     "Legal boundary",
     "Active records",
     "Verification packages missing",
-    "Review-ready records",
+    "Review-ready markers", // stage C T-064: records, not reviews
     "Workspace total",
     "Evidence queue",
     "Results are loaded from the server using the selected filters.",
   ]) assert.ok(r.hasText(t), `missing "${t}"`);
   assert.ok(r.byLabel("Active records: 42").length > 0);
-  assert.ok(r.byLabel("Unassigned records: 9").length > 0);
+  assert.ok(r.byLabel("Records not in a case: 9").length > 0);
   await r.press("Upload / Capture Evidence");
   await r.press("New Case");
   assert.deepEqual(M.calls.push, ["/capture", "/cases"]);
