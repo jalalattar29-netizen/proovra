@@ -165,6 +165,26 @@ async function renderInspector() {
 const banner = () => document.querySelector("[data-review-handoff]");
 
 describe("inspector handoff banner", () => {
+  it("T-086 / E2E-08: without a display name the first reviewer is named by the masked e-mail, never an id reference", async () => {
+    workspace = workspaceBody(
+      secondReviewHandoff({ firstReviewerDisplayName: null, firstReviewerMaskedEmail: "d***@example.com" }),
+      viewer(["reassign"]),
+    );
+    await renderInspector();
+    await waitFor(() => expect(banner()?.getAttribute("data-review-handoff")).toBe("manager"));
+    expect(banner()?.textContent).toContain(HANDOFF_COPY.managerLead("d***@example.com"));
+    expect(banner()?.textContent).not.toMatch(/Reviewer ref|ref [0-9A-F]{6}/i);
+  });
+
+  it("T-086: with nothing projected the banner says 'another reviewer'", async () => {
+    workspace = workspaceBody(
+      secondReviewHandoff({ firstReviewerDisplayName: null, firstReviewerMaskedEmail: null }),
+      viewer(["reassign"]),
+    );
+    await renderInspector();
+    await waitFor(() => expect(banner()?.textContent).toContain(HANDOFF_COPY.managerLead("another reviewer")));
+  });
+
   it("an assignment manager is told who recorded the first review and assigns from the Next step primary — never to the first reviewer", async () => {
     await renderInspector();
     await waitFor(() => expect(banner()?.getAttribute("data-review-handoff")).toBe("manager"));

@@ -183,7 +183,8 @@ test.describe("Phase B.1 — reviewer notes + collaboration depth @critical", ()
     expect(src).not.toContain("data-reviewer-deferred-item");
     expect(src).not.toContain("Reviewer collaboration scope");
     // Phase B.1 must preserve Phase A.1D + Phase B continuity markers.
-    expect(src).toContain("data-reviewer-cross-surface-links");
+    // T-073 (stage D): one "Open evidence" replaced the cross-surface row.
+    expect(src).toContain('data-reviewer-link="open-evidence"');
     expect(src).toContain('data-section="reviewer-governance-signals"');
   });
 

@@ -258,6 +258,8 @@ describe("second-review handoff — queue slice, handoff block, notification", (
       requirement: "second_review",
       firstReviewerUserId: T.member.userId,
       firstReviewerDisplayName: "TRH member",
+      // T-086 / E2E-08 — masked, never the full address.
+      firstReviewerMaskedEmail: expect.stringMatching(/^[^@]\*\*\*@[^@]+$/),
       secondReviewerUserId: null,
       awaitingAssignment: true,
       eligibleReviewerCount: 3,
@@ -360,6 +362,8 @@ describe("single-occupant TEAM personal workspace", () => {
       requirement: "second_review",
       firstReviewerUserId: S.owner.userId,
       firstReviewerDisplayName: "TRH solo",
+      // T-086 / E2E-08 — masked, never the full address.
+      firstReviewerMaskedEmail: expect.stringMatching(/^[^@]\*\*\*@[^@]+$/),
       secondReviewerUserId: null,
       awaitingAssignment: true,
       eligibleReviewerCount: 0,

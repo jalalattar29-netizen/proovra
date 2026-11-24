@@ -146,7 +146,8 @@ test.describe("Phase B — reviewer operations enterprise depth @critical", () =
       "apps/web/components/reviewer-experience/ReviewerBulkOpsBar.tsx",
     );
     const console_ = await read(
-      "apps/web/components/reviewer-experience/ReviewerConsole.tsx",
+      // Team remediation T-065 (stage D): the console became the one Inbox.
+      "apps/web/components/reviewer-experience/ReviewInbox.tsx",
     );
 
     // The action bar owns the actions.
@@ -167,7 +168,8 @@ test.describe("Phase B — reviewer operations enterprise depth @critical", () =
     // The console owns the selection the bar acts on, and mounts the bar —
     // without which the markers above would be shipped and unreachable, which
     // is exactly the state this test used to be blind to.
-    expect(console_).toContain("data-reviewer-bulk-select-all");
+    // Stage D: the Inbox owns the selection (select-all marker renamed).
+    expect(console_).toContain("data-inbox-select-all");
     expect(console_).toContain("ReviewerBulkOpsBar");
   });
 
@@ -239,8 +241,8 @@ test.describe("Phase B — reviewer operations enterprise depth @critical", () =
     expect(src).toContain("data-reviewer-requires-redaction");
     expect(src).toContain('data-reviewer-governance-chip="legal-hold"');
     expect(src).toContain('data-reviewer-governance-chip="requires-redaction"');
-    // A.1D continuity still present (regression).
-    expect(src).toContain("data-reviewer-cross-surface-links");
+    // A.1D continuity: the Review page keeps ONE way to the evidence (T-073).
+    expect(src).toContain('data-reviewer-link="open-evidence"');
   });
 
   test("Backend workspace endpoint ships the Phase B-2 governance projection", async () => {

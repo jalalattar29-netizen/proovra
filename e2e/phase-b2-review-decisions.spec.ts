@@ -102,7 +102,7 @@ test.describe("Phase B.2 — multi-stage review governance @critical", () => {
     expect(resp.status()).toBe(400);
   });
 
-  test("POST decisions rejects empty rationale", async () => {
+  test("POST decisions with an empty rationale from a non-member: concealed 404", async () => {
     const session = await createGuestSession();
     const resp = await session.api.post(
       `/v1/reviewer-ops/workspace/${NONEXISTENT_WORKFLOW}/decisions`,
@@ -114,10 +114,15 @@ test.describe("Phase B.2 — multi-stage review governance @critical", () => {
         },
       },
     );
-    expect(resp.status()).toBe(400);
+    // Team remediation T-010 (stage A): the rationale rules live in the ONE
+    // decision authority, which runs only for a review the caller can reach.
+    // A non-member posting to an unknown review gets the concealed 404 before
+    // any rationale check; rationale_required / rationale_too_long (400) on a
+    // real review are proven in services/api/test/team-rem-a-decision-doors.
+    expect(resp.status()).toBe(404);
   });
 
-  test("POST decisions rejects rationale over 4000 chars", async () => {
+  test("POST decisions with a rationale over 4000 chars from a non-member: concealed 404", async () => {
     const session = await createGuestSession();
     const resp = await session.api.post(
       `/v1/reviewer-ops/workspace/${NONEXISTENT_WORKFLOW}/decisions`,
@@ -129,7 +134,12 @@ test.describe("Phase B.2 — multi-stage review governance @critical", () => {
         },
       },
     );
-    expect(resp.status()).toBe(400);
+    // Team remediation T-010 (stage A): the rationale rules live in the ONE
+    // decision authority, which runs only for a review the caller can reach.
+    // A non-member posting to an unknown review gets the concealed 404 before
+    // any rationale check; rationale_required / rationale_too_long (400) on a
+    // real review are proven in services/api/test/team-rem-a-decision-doors.
+    expect(resp.status()).toBe(404);
   });
 
   test("POST decisions rejects invalid reason code", async () => {
@@ -299,6 +309,11 @@ test.describe("Phase B.2 — multi-stage review governance @critical", () => {
       "\n" +
       (await read(
         "apps/web/app/(app)/reviewer-ops/[reviewId]/_components/DecisionPanel.tsx",
+      )) +
+      "\n" +
+      // Team remediation stage D: the lineage section is its own component.
+      (await read(
+        "apps/web/app/(app)/reviewer-ops/[reviewId]/_components/DecisionLineagePanel.tsx",
       ));
     // Section root + state attrs
     expect(src).toContain('data-section="reviewer-decision-lineage"');
