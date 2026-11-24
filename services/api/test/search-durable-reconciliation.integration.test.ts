@@ -388,13 +388,20 @@ describe("Search durable reconciliation (live PostgreSQL 16)", () => {
   it("6. different workspaces reconcile concurrently", async () => {
     // The slot is per (kind, lock_key), and the lock key is the workspace id,
     // so nothing here may serialise one tenant behind another.
+    // Each body waits (bounded) until the other is inside too: if the two were
+    // serialised, the first would wait alone, time out and leave, and
+    // `overlapped` stays false. (Was a fixed 150 ms window, which a slow claim
+    // under a loaded run could miss without any serialisation.)
     let overlapped = false;
-    let inA = false;
+    const inside = { A: false, B: false };
     const body = (mark: "A" | "B") => async () => {
-      if (mark === "A") inA = true;
-      else if (inA) overlapped = true;
-      await new Promise((r) => setTimeout(r, 150));
-      if (mark === "A") inA = false;
+      inside[mark] = true;
+      const other = mark === "A" ? "B" : "A";
+      const deadline = Date.now() + 2_000;
+      while (!inside[other] && Date.now() < deadline) await new Promise((r) => setTimeout(r, 10));
+      if (inside[other]) overlapped = true;
+      await new Promise((r) => setTimeout(r, 20));
+      inside[mark] = false;
       return { scanned: 0, indexed: 0, removed: 0, failed: 0 };
     };
 

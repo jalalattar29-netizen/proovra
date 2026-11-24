@@ -138,7 +138,7 @@ export function ReviewActionsPanel({
           <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: theme.space.s2 }}>
             <ProovraBadge tone="governance" label={stage} />
             <ProovraText variant="label" color={theme.color.ink.muted}>
-              {workflow.assignedToUserId ? `assigned to ${workflow.assignedToUserId.slice(0, 8)}…` : COPY.unassigned}
+              {workflow.assignedToUserId ? `assigned to ${workflow.assigneeLabel ?? "a workspace member"}` : COPY.unassigned}
             </ProovraText>
           </View>
           {error ? <ProovraText variant="label" color={theme.color.status.risk.fg}>{error}</ProovraText> : null}

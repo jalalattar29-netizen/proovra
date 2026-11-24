@@ -125,6 +125,12 @@ export interface ReviewWorkflowRef {
   status: string | null;
   assignedToUserId: string | null;
   /**
+   * T-084 / T-086 (team remediation) — the assignee named the one way the web
+   * names them (display name, else the MASKED e-mail, else "a workspace
+   * member"); never a user-id fragment. Null when unassigned.
+   */
+  assigneeLabel?: string | null;
+  /**
    * PRO-R2Z-10 (WS-ENT) — decisions the SERVER says are outside the plan
    * (`availableActions[].blockedBy === "ESCALATION_NOT_INCLUDED"`): Escalate on
    * Pro. Empty when the API does not project actions (older API).
@@ -152,7 +158,26 @@ export function projectReviewWorkflowRef(reviewWorkspace: unknown): ReviewWorkfl
       enabled: a.enabled === true,
       blockedBy: typeof a.blockedBy === "string" ? (a.blockedBy as string) : null,
     }));
-  return { teamId: s(wf.teamId), status: s(wf.status), assignedToUserId: s(o(wf.assignedTo).id), notIncluded, actions: projected };
+  const assignee = o(wf.assignedTo);
+  const assignedToUserId = s(assignee.id);
+  return {
+    teamId: s(wf.teamId),
+    status: s(wf.status),
+    assignedToUserId,
+    assigneeLabel: assignedToUserId ? reviewAssigneeLabel(assignee.displayName, assignee.email) : null,
+    notIncluded,
+    actions: projected,
+  };
+}
+
+/** T-084 / T-086 — display name, else masked e-mail ("j***@example.com"), else a neutral noun. */
+export function reviewAssigneeLabel(displayName: unknown, email: unknown): string {
+  if (typeof displayName === "string" && displayName.trim().length > 0) return displayName.trim();
+  if (typeof email === "string") {
+    const at = email.indexOf("@");
+    if (at > 0) return `${email[0]}***${email.slice(at)}`;
+  }
+  return "a workspace member";
 }
 
 export const REVIEW_ACTIONS_COPY = {
