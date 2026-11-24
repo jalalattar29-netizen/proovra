@@ -243,6 +243,8 @@ describe("internal-grant rollout — migration state", () => {
       "20281123050000_evidence_owner_destruction_approval",
       // FINAL-VERIFY-2: the durable intent of a derived write. EXPAND.
       "20281123060000_derived_asset_storage_intent",
+      // Team remediation stage C (T-044): the review's first decision time. EXPAND.
+      "20281124010000_review_first_decided_at",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

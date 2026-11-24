@@ -290,11 +290,17 @@ export async function stampReviewDeadlines(
     reviewDueHours: resolved.reviewDueHours,
   });
   const data: Prisma.EvidenceReviewWorkflowUncheckedUpdateInput = {};
-  if (!row.assignmentDueAtUtc) data.assignmentDueAtUtc = next.assignmentDueAtUtc;
-  if (!row.firstResponseDueAtUtc) data.firstResponseDueAtUtc = next.firstResponseDueAtUtc;
+  // T-047 (stage C) — a dimension whose fact already exists is never given a
+  // deadline: a deadline stamped after the assignment (or the first decision,
+  // or the escalation) it measures is meaningless and used to read "Met". Only
+  // the dimensions still open are stamped, from the anchor above.
+  if (!row.assignmentDueAtUtc && !row.assignedAtUtc) data.assignmentDueAtUtc = next.assignmentDueAtUtc;
+  if (!row.firstResponseDueAtUtc && !row.firstDecidedAtUtc) {
+    data.firstResponseDueAtUtc = next.firstResponseDueAtUtc;
+  }
   if (!row.completionDueAtUtc) data.completionDueAtUtc = next.completionDueAtUtc;
   if (!row.dueAt) data.dueAt = next.dueAt;
-  if (!row.escalationDueAtUtc) data.escalationDueAtUtc = next.escalationDueAtUtc;
+  if (!row.escalationDueAtUtc && !row.escalatedAtUtc) data.escalationDueAtUtc = next.escalationDueAtUtc;
   if (row.slaDueSoonHours == null) data.slaDueSoonHours = next.slaDueSoonHours;
   if (Object.keys(data).length === 0) return row;
   const merged = { ...row, ...data } as DbWorkflow;

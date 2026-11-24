@@ -34,6 +34,7 @@ function mockWorkflowRow(
     priority: "NORMAL" as never,
     dueAt: null,
     lastReviewedAt: null,
+    firstDecidedAtUtc: null,
     closedAt: null,
     assignedAtUtc: null,
     reassignedAtUtc: null,
