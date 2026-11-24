@@ -397,9 +397,9 @@ describe("Review / Custody / Artifact boundary (Postgres + Redis + MinIO, real w
     // review is handed to the admin (FIRST of round 1), then back to the member
     // (the independent SECOND).
     await prisma.evidenceReviewWorkflow.update({ where: { evidenceId }, data: { assignedToUserId: A().adminUserId } });
-    expect((await call("POST", `/v1/review-operations/evidence/${evidenceId}/decision`, A().adminToken, { decision: "APPROVE_INTERNAL", note: null })).statusCode).toBe(200);
+    expect((await call("POST", `/v1/review-operations/evidence/${evidenceId}/decision`, A().adminToken, { decision: "APPROVE_INTERNAL", note: "Looks complete" })).statusCode).toBe(200);
     await prisma.evidenceReviewWorkflow.update({ where: { evidenceId }, data: { assignedToUserId: A().memberUserId } });
-    expect((await call("POST", `/v1/review-operations/evidence/${evidenceId}/decision`, A().memberToken, { decision: "APPROVE_INTERNAL", note: null })).statusCode).toBe(200);
+    expect((await call("POST", `/v1/review-operations/evidence/${evidenceId}/decision`, A().memberToken, { decision: "APPROVE_INTERNAL", note: "Looks complete" })).statusCode).toBe(200);
     expect((await call("POST", `/v1/review-operations/evidence/${evidenceId}/decision`, A().adminToken, { decision: "CLOSE", note: "closing" })).statusCode).toBe(200);
     expect((await call("POST", `/v1/review-operations/evidence/${evidenceId}/decision`, A().adminToken, { decision: "REOPEN", note: "again" })).statusCode).toBe(200);
 
@@ -444,7 +444,7 @@ describe("Review / Custody / Artifact boundary (Postgres + Redis + MinIO, real w
     expect((await call("POST", `/v1/review-operations/evidence/${evidenceId}/decision`, A().adminToken, { decision: "REOPEN", note: "again" })).statusCode).toBe(200);
     expect((await ws()).decision).toBe("NO_DECISION");
     await begin();
-    expect((await call("POST", `/v1/review-operations/evidence/${evidenceId}/decision`, A().memberToken, { decision: "APPROVE_INTERNAL", note: null })).statusCode).toBe(200);
+    expect((await call("POST", `/v1/review-operations/evidence/${evidenceId}/decision`, A().memberToken, { decision: "APPROVE_INTERNAL", note: "Looks complete" })).statusCode).toBe(200);
     expect((await ws()).decision).toBe("APPROVED");
     expect((await call("POST", `/v1/review-operations/evidence/${evidenceId}/decision`, A().adminToken, { decision: "CLOSE", note: "done" })).statusCode).toBe(200);
     expect(await ws()).toMatchObject({ workflowState: "CLOSED", decision: "APPROVED" });

@@ -80,7 +80,7 @@ const assign = (a: Actor, teamId: string, workflowId: string, to: string) =>
 const start = (a: Actor, teamId: string, workflowId: string) =>
   call(a.token, "POST", `/v1/reviewer-ops/reviews/${workflowId}/start`, { teamId });
 const approve = (a: Actor, teamId: string, workflowId: string) =>
-  call(a.token, "POST", `/v1/reviewer-ops/reviews/${workflowId}/approve`, { teamId, note: null });
+  call(a.token, "POST", `/v1/reviewer-ops/reviews/${workflowId}/approve`, { teamId, note: "Looks complete" });
 const workspaceView = (a: Actor, teamId: string, workflowId: string) =>
   call(a.token, "GET", `/v1/reviewer-ops/workspace/${workflowId}?teamId=${teamId}`);
 

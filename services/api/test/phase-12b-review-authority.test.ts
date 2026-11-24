@@ -34,6 +34,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // ---------------------------------------------------------------------------
 
 vi.mock("../src/db.js", () => ({ prisma: {} }));
+// Team remediation — the authority now emits the outcome signals itself and
+// reads second-review eligibility after commit; both have their own suites.
+vi.mock("../src/services/reviewer-ops/decision-outcome-signals.js", () => ({
+  emitDecisionOutcomeSignals: vi.fn(async () => {}),
+}));
+vi.mock("../src/services/reviewer-ops/review-handoff.service.js", () => ({
+  countEligibleSecondReviewers: vi.fn(async () => 1),
+}));
 // The permission check itself is proved on real rows in
 // review-door-authority.integration.test.ts.
 vi.mock("../src/services/identity/access-policy.service.js", () => ({
@@ -247,6 +255,11 @@ function makeDb(seed: {
         state.events.push(args.data);
         return args.data;
       },
+      // A round's events (roundPinnedToSecondReview, Team remediation T-017).
+      findMany: async (args: { where?: { nextValue?: { equals?: unknown } } }) =>
+        state.events
+          .filter((e) => (e.nextValue as Record<string, unknown> | undefined)?.round === args.where?.nextValue?.equals)
+          .map((e) => ({ eventType: e.eventType, nextValue: e.nextValue })),
       // The latest DECISION_LOGGED event of a round (secondReviewForRound).
       findFirst: async (args: { where?: { eventType?: string; nextValue?: { path?: string[]; equals?: unknown } } }) => {
         const round = args.where?.nextValue?.equals;
@@ -337,7 +350,7 @@ describe("canonical recordReviewDecision — decision success", () => {
 
   // Table-driven outcome mapping for single-stage resolutions.
   const outcomes = [
-    { decision: "APPROVE", rationale: "", projected: "APPROVED_INTERNAL" },
+    { decision: "APPROVE", rationale: "Complete.", projected: "APPROVED_INTERNAL" },
     {
       decision: "REJECT",
       rationale: "Insufficient custody data.",
@@ -607,7 +620,7 @@ describe("canonical recordReviewDecision — TEAM-SPEC R3 decision authority", (
     });
     await expect(
       recordReviewDecision(
-        { workflowId: WORKFLOW_ID, teamId: TEAM_ID, actorUserId: ACTOR_B, decision: "APPROVE", rationale: "" },
+        { workflowId: WORKFLOW_ID, teamId: TEAM_ID, actorUserId: ACTOR_B, decision: "APPROVE", rationale: "Complete." },
         prisma,
       ),
     ).rejects.toMatchObject({ code: "second_stage_needs_reassignment" });
@@ -624,7 +637,7 @@ describe("canonical recordReviewDecision — TEAM-SPEC R3 decision authority", (
     });
     await expect(
       recordReviewDecision(
-        { workflowId: WORKFLOW_ID, teamId: TEAM_ID, actorUserId: ACTOR_C, decision: "APPROVE", rationale: "", actorIsAdjudicator: true },
+        { workflowId: WORKFLOW_ID, teamId: TEAM_ID, actorUserId: ACTOR_C, decision: "APPROVE", rationale: "Complete.", actorIsAdjudicator: true },
         prisma,
       ),
     ).rejects.toMatchObject({ code: "use_adjudication" });
@@ -635,10 +648,10 @@ describe("canonical recordReviewDecision — TEAM-SPEC R3 decision authority", (
   it("the outcome reports a FIRST-only decision as recorded, status unchanged", async () => {
     const { prisma } = makeDb({ legalHolds: 1 });
     const result = await recordReviewDecision(
-      { workflowId: WORKFLOW_ID, teamId: TEAM_ID, actorUserId: ACTOR_A, decision: "APPROVE", rationale: "" },
+      { workflowId: WORKFLOW_ID, teamId: TEAM_ID, actorUserId: ACTOR_A, decision: "APPROVE", rationale: "Complete." },
       prisma,
     );
-    expect(result.outcome).toEqual({
+    expect(result.outcome).toMatchObject({
       stageRecorded: "FIRST",
       statusChanged: false,
       reviewState: "second_required",
@@ -719,7 +732,7 @@ describe("canonical recordReviewDecision — idempotency", () => {
           teamId: TEAM_ID,
           actorUserId: ACTOR_A,
           decision: "APPROVE",
-          rationale: "",
+          rationale: "Complete.",
         },
         prisma,
       ),

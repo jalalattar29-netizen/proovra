@@ -24,6 +24,8 @@ import {
   REVIEW_FINISHED_DB_STATUSES,
   computeReviewerOpsSlaSnapshot,
   deriveLifecycleState,
+  escalationForcesIndependentReview,
+  isAllowedReviewStageTransition,
   isAllowedLifecycleTransition,
   isReviewOpenDbStatus,
   mapDbStatusToReviewStage,
@@ -80,6 +82,7 @@ import {
   scanReviewDecisionProjections,
   loadCurrentRoundDecisionState,
   type CurrentRoundDecisionState,
+  type ReviewDecisionOutcome,
 } from "./review-decision.service.js";
 import {
   createEscalation,
@@ -105,6 +108,7 @@ import {
 import { notifyReviewResponseReceived } from "../review-operations/review-notifications.service.js";
 import { workspaceIncludesReviewCapability } from "../billing-enforcement.service.js";
 import { warn as logWarn } from "../../utils/logger.js";
+import { sampleClosedWorkflow } from "../reviewer-workspace/qc-sample.service.js";
 import { resolveReviewPolicyForEvidence } from "./review-sla-stamp.service.js";
 import { advanceSweepCursor, afterCursor, readSweepCursor } from "./sweep-cursor.js";
 import {
@@ -115,7 +119,6 @@ import {
 // Phase 3 — QC sampling at workflow close. Single chokepoint so every
 // approve / reject (route, bulk, future programmatic) is sampled
 // exactly once. The service itself is idempotent per (workflowId, teamId).
-import { sampleClosedWorkflow } from "../reviewer-workspace/qc-sample.service.js";
 import {
   detectStuckWorkflow,
   stuckStatusFromDbStatus,
@@ -241,6 +244,20 @@ function assertLifecycleTransition(
   if (!isAllowedLifecycleTransition(from, to)) {
     bump("reviewer_invalid_transition_blocked_total");
     throw new ReviewerOpsError("REVIEW_INVALID_TRANSITION", { reason, from, to });
+  }
+}
+
+/**
+ * T-010 — the legacy verdict doors refuse input exactly as THE decision
+ * authority does: it applies the non-empty / 4000-character rule (answered as
+ * REVIEW_NOTE_REQUIRED, details.reason the authority code, status 400).
+ */
+function assertDecisionInput(note: string | null | undefined): void {
+  // Emptiness and length are the authority's (checked after who may decide);
+  // the overclaim screen stays first, as it always was on these doors.
+  const trimmed = (note ?? "").trim();
+  if (stringContainsForbiddenOverclaim(trimmed)) {
+    throw new ReviewerOpsError("REVIEW_PERMISSION_DENIED", { reason: "forbidden_wording" });
   }
 }
 
@@ -695,6 +712,10 @@ export const REVIEWER_VIEWER_ACTIONS = [
   "reassign",
   "adjudicate",
   "archive",
+  // Team remediation — T-009 (Reopen on the Review page) and T-019 (Escalate
+  // availability computed by the server, like every other action).
+  "reopen",
+  "escalate",
 ] as const;
 export type ReviewerViewerAction = (typeof REVIEWER_VIEWER_ACTIONS)[number];
 
@@ -702,6 +723,12 @@ export type ReviewerViewerProjection = {
   userId: string;
   isAssignee: boolean;
   actions: ReadonlyArray<{ action: ReviewerViewerAction; allowed: boolean; reason?: string }>;
+  /**
+   * T-019 — whether an escalation this viewer raises will require an
+   * independent second review (escalationForcesIndependentReview: every
+   * escalation a person raises does). The Escalate dialog states it.
+   */
+  escalationForcesIndependentReview: boolean;
 };
 
 export type ReviewerOpsWorkspaceProjection = {
@@ -740,6 +767,8 @@ export function computeViewerActions(input: {
   facts: ReviewerViewerFacts;
   decision: CurrentRoundDecisionState;
   assignmentsIncluded: boolean;
+  /** REVIEW_ESCALATION in the effective plan (escalate is a Team capability). Absent = included. */
+  escalationIncluded?: boolean;
 }): ReviewerViewerProjection {
   const { row, lifecycle, viewerUserId, facts, decision } = input;
   const isAssignee = !!row.assignedToUserId && row.assignedToUserId === viewerUserId;
@@ -769,18 +798,25 @@ export function computeViewerActions(input: {
     if (!facts.isReviewerCapable) return "reviewer_required";
     if (finished) return "review_finished";
     if (row.assignedToUserId && !isAssignee && !facts.mayAssign) return "not_assignee";
+    // T-021 — only an assignment manager stops an unassigned review's clock.
+    if (!row.assignedToUserId && !facts.mayAssign) return "review_assign_required";
     if (wantPaused && !row.slaPausedAtUtc) return "not_paused";
     if (!wantPaused && row.slaPausedAtUtc) return "already_paused";
     return null;
   };
   const reasons: Record<ReviewerViewerAction, string | null> = {
+    // T-020 — Start is offered only for a review that has not started: the
+    // PERSISTED stage, not the lifecycle an open escalation derives (an
+    // in-review review with an escalation offered a no-op "Start review").
     start: !facts.isReviewerCapable
       ? "reviewer_required"
-      : !isAllowedLifecycleTransition(lifecycle, "IN_REVIEW")
-        ? "invalid_transition"
-        : !isAssignee
-          ? "not_assignee"
-          : null,
+      : stage === "IN_REVIEW" || stage === "ESCALATED" || stage === "RESPONSE_RECEIVED" || stage === "NEEDS_MORE_INFO"
+        ? "already_started"
+        : !isAllowedLifecycleTransition(lifecycle, "IN_REVIEW")
+          ? "invalid_transition"
+          : !isAssignee
+            ? "not_assignee"
+            : null,
     pause: clock(false),
     resume: clock(true),
     request_info: verdict("NEEDS_INFORMATION"),
@@ -819,10 +855,28 @@ export function computeViewerActions(input: {
         : decision.state === "second_required" || decision.state === "conflict_detected"
           ? "second_review_pending"
           : null,
+    // T-009 — a finished review is reopened by the same people and the same
+    // transition the Evidence page uses (REJECTED/APPROVED/CLOSED → REOPENED).
+    reopen: !facts.isReviewerCapable
+      ? "reviewer_required"
+      : !isAllowedReviewStageTransition(stage, "REOPENED")
+        ? "review_not_finished"
+        : null,
+    // T-019 — raising an escalation stays open to every reviewer-capable
+    // member (ADDENDUM §4.2) on an open review, with no step-up.
+    escalate:
+      input.escalationIncluded === false
+        ? "review_escalation_not_included"
+        : !facts.isReviewerCapable
+          ? "reviewer_required"
+          : finished
+            ? "review_finished"
+            : null,
   };
   return {
     userId: viewerUserId,
     isAssignee,
+    escalationForcesIndependentReview: escalationForcesIndependentReview({ reason: "REVIEWER_ESCALATED", createdByUserId: viewerUserId }),
     actions: REVIEWER_VIEWER_ACTIONS.map((action) => {
       const reason = reasons[action];
       return reason ? { action, allowed: false, reason } : { action, allowed: true };
@@ -856,7 +910,7 @@ export async function getReviewerOpsWorkspace(
   let viewer: ReviewerViewerProjection | undefined;
   let handoff: ReviewHandoff | undefined;
   if (input.viewerFacts && row.teamId) {
-    const [decision, assignmentsIncluded] = await Promise.all([
+    const [decision, assignmentsIncluded, escalationIncluded] = await Promise.all([
       loadCurrentRoundDecisionState(
         {
           id: row.id,
@@ -868,6 +922,7 @@ export async function getReviewerOpsWorkspace(
         client,
       ),
       workspaceIncludesReviewCapability(input.teamId, "REVIEW_ASSIGNMENTS"),
+      workspaceIncludesReviewCapability(input.teamId, "REVIEW_ESCALATION"),
     ]);
     viewer = computeViewerActions({
       row,
@@ -876,6 +931,7 @@ export async function getReviewerOpsWorkspace(
       facts: input.viewerFacts,
       decision,
       assignmentsIncluded,
+      escalationIncluded,
     });
     handoff = await computeReviewHandoff(row, decision, client);
   }
@@ -950,14 +1006,19 @@ async function recordDecisionViaAuthority(
   client: PrismaClient,
 ): Promise<Awaited<ReturnType<typeof recordCanonicalReviewDecision>>> {
   try {
-    return await recordCanonicalReviewDecision(input, client);
+    return await recordCanonicalReviewDecision({ source: "legacy_reviewer_ops", ...input }, client);
   } catch (err) {
     if (err instanceof ReviewDecisionAuthorityError) {
       switch (err.code) {
         case "workflow_not_found":
           throw new ReviewerOpsError("REVIEW_WORKFLOW_NOT_FOUND");
+        // T-010 — the same input refusals as the canonical door, with the
+        // authority code as details.reason (status 400 at the route).
         case "rationale_required":
-          throw new ReviewerOpsError("REVIEW_NOTE_REQUIRED");
+        case "rationale_too_long":
+          throw new ReviewerOpsError("REVIEW_NOTE_REQUIRED", { ...(err.details ?? {}), reason: err.code });
+        case "forbidden_wording":
+          throw new ReviewerOpsError("REVIEW_PERMISSION_DENIED", { reason: "forbidden_wording" });
         // TEAM-SPEC R3 — the decision belongs to the assignee
         // (not_assignee, second_stage_needs_reassignment).
         case "adjudicator_role_required":
@@ -1315,6 +1376,11 @@ function assertMayChangeSlaClock(ctx: LifecycleActorContext, row: DbWorkflow): v
   ) {
     throw new ReviewerOpsError("REVIEW_PERMISSION_DENIED", { reason: "actor_not_assignee" });
   }
+  // T-021 — an UNASSIGNED review clock is the assignment managers' to stop:
+  // any reviewer could pause one and stop its SLA clock.
+  if (!row.assignedToUserId && !ctx.mayActOnOthersReviews) {
+    throw new ReviewerOpsError("REVIEW_PERMISSION_DENIED", { reason: "review_assign_required" });
+  }
 }
 
 // ----- resumeReview -----------------------------------------------------------
@@ -1410,6 +1476,8 @@ export type ReviewerOpsDecisionOutcome = {
   reviewState: string;
   nextRequirement: "second_review" | "adjudication" | null;
   idempotent: boolean;
+  /** T-015 — the second-review cause and staffing, when the round waits for one. */
+  secondReview?: ReviewDecisionOutcome["secondReview"];
 };
 
 export type ReviewerOpsDecisionResult = {
@@ -1449,79 +1517,11 @@ function outcomeOf(
 }
 
 /**
- * The signals a recorded decision emits, by what it DID (TEAM-SPEC §2.3):
- *   - approved / rejected / completed only when the status reached that
- *     terminal stage in this submission;
- *   - information_requested only when the status moved to NEEDS_MORE_INFO;
- *   - a decision that recorded a stage and moved nothing is
- *     `reviewer_first_decision_recorded` (a tenant audit row: the security
- *     event catalog lives in @proovra/shared and has no such member yet);
- *   - an idempotent replay emits nothing.
+ * The outcome signals now live in ./decision-outcome-signals.ts and are
+ * emitted ONCE by the decision authority for every door (T-171). Re-exported
+ * for existing importers.
  */
-export async function emitDecisionOutcomeSignals(
-  input: {
-    teamId: string;
-    actorUserId: string;
-    workflowId: string;
-    decision: string;
-    workflowStatusAfter: string;
-    outcome: ReviewerOpsDecisionOutcome;
-  },
-  client: PrismaClient = defaultPrisma,
-): Promise<void> {
-  const { outcome } = input;
-  if (outcome.idempotent) return;
-  const stageAfter = mapDbStatusToReviewStage(input.workflowStatusAfter);
-  const details = {
-    workflowId: input.workflowId,
-    actorUserId: input.actorUserId,
-    stageRecorded: outcome.stageRecorded,
-  };
-  if (outcome.statusChanged && stageAfter === "APPROVED_INTERNAL") {
-    bump("reviewer_review_approved_total");
-    bump("reviewer_review_completed_total");
-    safeEmitSecurityEvent({ teamId: input.teamId, eventType: "reviewer_review_approved", severity: "INFO", details });
-    return;
-  }
-  if (outcome.statusChanged && stageAfter === "REJECTED_INSUFFICIENT") {
-    bump("reviewer_review_rejected_total");
-    bump("reviewer_review_completed_total");
-    safeEmitSecurityEvent({ teamId: input.teamId, eventType: "reviewer_review_rejected", severity: "INFO", details });
-    return;
-  }
-  if (outcome.statusChanged && stageAfter === "NEEDS_MORE_INFO") {
-    bump("reviewer_information_requested_total");
-    safeEmitSecurityEvent({ teamId: input.teamId, eventType: "reviewer_information_requested", severity: "INFO", details });
-    return;
-  }
-  if (outcome.stageRecorded === "FIRST" && !outcome.statusChanged) {
-    try {
-      await emitTenantAudit(
-        {
-          action: "reviewer.first_decision_recorded",
-          outcome: "success",
-          sourceApp: "API",
-          actorUserId: input.actorUserId,
-          workspaceId: input.teamId,
-          resourceType: "review_workflow",
-          resourceId: input.workflowId,
-          metadata: {
-            eventType: "reviewer_first_decision_recorded",
-            decision: input.decision,
-            reviewState: outcome.reviewState,
-            nextRequirement: outcome.nextRequirement,
-          },
-        },
-        client,
-      );
-    } catch (err) {
-      logWarn("reviewer_ops.first_decision_audit_failed", {
-        workflowId: input.workflowId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
-}
+export { emitDecisionOutcomeSignals } from "./decision-outcome-signals.js";
 
 // ----- requestInformation -----------------------------------------------------
 
@@ -1531,7 +1531,7 @@ export async function requestInformation(
   client: PrismaClient = defaultPrisma,
 ): Promise<ReviewerOpsDecisionResult> {
   requireHuman(ctx);
-  assertNoteIfRequired(input.note);
+  assertDecisionInput(input.note);
   const row = await loadWorkflowOrThrow(ctx, input.workflowId, client);
   const fromLc = await currentLifecycle(ctx, row, client);
   assertLifecycleTransition(fromLc, "NEEDS_INFORMATION", "decision_not_from_stage");
@@ -1547,17 +1547,7 @@ export async function requestInformation(
   );
   const updated = result.workflow;
   const outcome = outcomeOf(result, String(row.status));
-  await emitDecisionOutcomeSignals(
-    {
-      teamId: ctx.teamId,
-      actorUserId: ctx.actorUserId,
-      workflowId: row.id,
-      decision: "REQUEST_INFO",
-      workflowStatusAfter: String(updated.status),
-      outcome,
-    },
-    client,
-  );
+  // The authority emitted the outcome signals (T-171).
   return { projection: buildWorkflowProjection(updated), outcome };
 }
 
@@ -1653,11 +1643,7 @@ async function approveReviewInner(
   client: PrismaClient,
 ): Promise<ReviewerOpsDecisionResult> {
   requireHuman(ctx);
-  if (input.note && stringContainsForbiddenOverclaim(input.note)) {
-    throw new ReviewerOpsError("REVIEW_PERMISSION_DENIED", {
-      reason: "forbidden_wording",
-    });
-  }
+  assertDecisionInput(input.note);
   const row = await loadWorkflowOrThrow(ctx, input.workflowId, client);
   const fromLc = await currentLifecycle(ctx, row, client);
   // NEEDS_INFORMATION → APPROVED is not a move the matrix allows: record the
@@ -1675,18 +1661,7 @@ async function approveReviewInner(
   );
   const updated = result.workflow;
   const outcome = outcomeOf(result, String(row.status));
-  // TEAM-SPEC §2.3 — "approved" only when the status reached that stage.
-  await emitDecisionOutcomeSignals(
-    {
-      teamId: ctx.teamId,
-      actorUserId: ctx.actorUserId,
-      workflowId: row.id,
-      decision: "APPROVE",
-      workflowStatusAfter: String(updated.status),
-      outcome,
-    },
-    client,
-  );
+  // The authority emitted the outcome signals (T-171).
   // Phase 3 — opportunistic QC sampling at workflow close. Idempotent
   // per (workflowId, teamId). MUST NOT roll back the close transaction:
   // any failure here is logged and swallowed so the operator's approve
@@ -1726,7 +1701,7 @@ export async function rejectReview(
   client: PrismaClient = defaultPrisma,
 ): Promise<ReviewerOpsDecisionResult> {
   requireHuman(ctx);
-  assertNoteIfRequired(input.note);
+  assertDecisionInput(input.note);
   const row = await loadWorkflowOrThrow(ctx, input.workflowId, client);
   const fromLc = await currentLifecycle(ctx, row, client);
   assertLifecycleTransition(fromLc, "REJECTED", "decision_not_from_stage");
@@ -1742,18 +1717,7 @@ export async function rejectReview(
   );
   const updated = result.workflow;
   const outcome = outcomeOf(result, String(row.status));
-  // TEAM-SPEC §2.3 — "rejected" only when the status reached that stage.
-  await emitDecisionOutcomeSignals(
-    {
-      teamId: ctx.teamId,
-      actorUserId: ctx.actorUserId,
-      workflowId: row.id,
-      decision: "REJECT",
-      workflowStatusAfter: String(updated.status),
-      outcome,
-    },
-    client,
-  );
+  // The authority emitted the outcome signals (T-171).
   // Phase 3 — opportunistic QC sampling at workflow close. Idempotent
   // per (workflowId, teamId). MUST NOT roll back the close transaction:
   // any failure here is logged and swallowed so the operator's reject

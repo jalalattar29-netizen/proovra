@@ -70,7 +70,7 @@ const claim = (token: string, evidenceId: string, teamId: string) =>
 const decide = (token: string, evidenceId: string, decision: string, note?: string) =>
   call(token, "POST", `/v1/review-operations/evidence/${evidenceId}/decision`, {
     decision,
-    note: note ?? null,
+    note: note ?? (decision === "APPROVE_INTERNAL" || decision === "REQUEST_MORE_INFO" ? "Reviewed — rationale required for every verdict (T-010)." : null),
     ...(decision === "ESCALATE" ? { escalationReason: note } : {}),
   });
 const workflowOf = (evidenceId: string) =>

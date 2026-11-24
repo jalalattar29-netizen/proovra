@@ -287,7 +287,7 @@ describe("PRO — BASIC_RECORD_REVIEW included, the TEAM tiers refused", () => {
     const decide = (decision: string, note?: string) =>
       call(P.token, "POST", `/v1/review-operations/evidence/${evidenceId}/decision`, {
         decision,
-        note: note ?? null,
+        note: note ?? (decision === "APPROVE_INTERNAL" || decision === "REQUEST_MORE_INFO" ? "Reviewed — rationale required for every verdict (T-010)." : null),
         ...(decision === "ESCALATE" ? { escalationReason: note } : {}),
       });
     const moveInReview = async () => {
@@ -421,7 +421,7 @@ describe("downgrade — history stays, mutation stops, nothing is deleted", () =
       });
       expect(moved.status, moved.raw).toBe(200);
     }
-    expect((await call(A.memberToken, "POST", `/v1/review-operations/evidence/${evidenceId}/decision`, { decision: "APPROVE_INTERNAL", note: null })).status).toBe(200);
+    expect((await call(A.memberToken, "POST", `/v1/review-operations/evidence/${evidenceId}/decision`, { decision: "APPROVE_INTERNAL", note: "Looks complete" })).status).toBe(200);
 
     const before = {
       workflows: await prisma.evidenceReviewWorkflow.count({ where: { teamId: A.teamId } }),

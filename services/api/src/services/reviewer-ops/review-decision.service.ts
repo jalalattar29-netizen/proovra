@@ -60,6 +60,8 @@ import {
   kindToProjectedStage,
   mapDbStatusToReviewStage,
   mapReviewStageToDbStatus,
+  roundContinuesInNewRound,
+  stringContainsForbiddenOverclaim,
   type ReviewStage,
 } from "@proovra/shared";
 
@@ -74,8 +76,16 @@ import {
 } from "../review-operations/review-notifications.service.js";
 import { resolveOpenReviewEscalation } from "./escalation-engine.service.js";
 import { releaseHeldOutputs } from "../governance/output-hold-release.service.js";
-import { requiresSecondReview, secondReviewForRound } from "../evidence-review/second-review.service.js";
+import {
+  requiresSecondReview,
+  secondReviewForRound,
+  type SecondReviewRequirement,
+} from "../evidence-review/second-review.service.js";
 import { recordReviewActivityTx } from "../evidence-review/reviewer-audit.service.js";
+import { emitDecisionOutcomeSignals } from "./decision-outcome-signals.js";
+// Read-only eligibility (T-015). review-handoff reads this module's round
+// state; both sides only call each other at run time.
+import { countEligibleSecondReviewers } from "./review-handoff.service.js";
 
 // -----------------------------------------------------------------------------
 // Types + error surface
@@ -101,7 +111,10 @@ export class ReviewDecisionAuthorityError extends Error {
       | "not_assignee"
       | "second_stage_needs_reassignment"
       | "use_adjudication"
-      | "second_review_pending",
+      | "second_review_pending"
+      // T-010 — one input schema on every door.
+      | "rationale_too_long"
+      | "forbidden_wording",
     public readonly details?: Record<string, unknown>,
   ) {
     super(code);
@@ -122,6 +135,30 @@ const ADJUDICATION_ONLY_KINDS: ReadonlySet<string> = new Set([
   "UPHOLD_SECOND",
   "UNRESOLVED",
 ]);
+
+/**
+ * T-011 — the ONLY kinds an adjudication records. A plain verdict during a
+ * conflict is refused with `use_adjudication`; it used to be recorded as
+ * `ADJUDICATION:REJECT`, a kind the adjudication vocabulary does not have.
+ */
+export const ADJUDICATION_KINDS: ReadonlySet<string> = new Set([
+  "UPHOLD_FIRST",
+  "UPHOLD_SECOND",
+  "NEEDS_MORE_INFO",
+  "UNRESOLVED",
+]);
+
+/** T-010 — the rationale bound every door shares (the canonical door's). */
+export const REVIEW_DECISION_RATIONALE_MAX = 4000;
+
+/** Which door recorded a decision (audit metadata only; never changes the rules). */
+export type ReviewDecisionSource =
+  | "inspector"
+  | "legacy_reviewer_ops"
+  | "evidence_page"
+  | "bulk"
+  | "reconcile"
+  | null;
 
 /**
  * Workflow stages that are terminal for DECISION purposes. Recording a
@@ -188,6 +225,8 @@ export type RecordReviewDecisionInput = {
    * ZERO mutation.
    */
   expectedStatus?: string | null;
+  /** Which door recorded it — audit metadata only. */
+  source?: ReviewDecisionSource;
 };
 
 export type ReviewDecisionNextRequirement = "second_review" | "adjudication" | null;
@@ -203,6 +242,17 @@ export type ReviewDecisionOutcome = {
   reviewState: ReviewDecisionState;
   nextRequirement: ReviewDecisionNextRequirement;
   idempotent: boolean;
+  /**
+   * T-015 — present when the round now waits for an independent SECOND
+   * reviewer: why, and whether anyone can give it. `staffing` is the
+   * machine-readable `no_eligible_second_reviewer` when nobody can.
+   */
+  secondReview?: {
+    cause: string | null;
+    escalation: { id: string; reason: string; severity: string } | null;
+    eligibleReviewerCount: number;
+    staffing: "ok" | "no_eligible_second_reviewer";
+  };
 };
 
 export function nextRequirementFor(state: ReviewDecisionState): ReviewDecisionNextRequirement {
@@ -235,6 +285,7 @@ export async function recordReviewDecision(
   input: RecordReviewDecisionInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<RecordReviewDecisionResult> {
+  const rationale = (input.rationale ?? "").trim();
   // THE AUTHORITY ASKS, NOT ITS CALLERS (WORKFLOW-001). A verdict satisfies the
   // report, package and public-verify gates and cannot be erased from the log,
   // and one door skipped the check, so a read-only member could approve. The
@@ -251,7 +302,7 @@ export async function recordReviewDecision(
   );
   if (!decision.allowed) throw new ReviewDecisionAuthorityError("reviewer_required");
 
-  const result = await client.$transaction(async (tx) => {
+  const result: RecordReviewDecisionResult = await client.$transaction(async (tx): Promise<RecordReviewDecisionResult> => {
     // (i) Workspace isolation — cross-workspace probes are
     // indistinguishable from missing workflows. So is a record closed to the
     // actor by a restricted case (WORKFLOW-003).
@@ -283,6 +334,29 @@ export async function recordReviewDecision(
       where: { workflowId: input.workflowId, teamId: input.teamId, round },
       orderBy: { decidedAt: "asc" },
     });
+    // T-018 — a round an adjudicator left UNRESOLVED is finished: the next
+    // submission opens a new round, whose first decision must again be
+    // confirmed by an independent second reviewer (the disagreement stood).
+    let freshRoundRequirement: SecondReviewRequirement | null = null;
+    if (rows.length > 0) {
+      const continued = roundContinuesInNewRound(
+        rows,
+        deriveDecisionProjection(rows, true),
+        mapDbStatusToReviewStage(wf.status as string),
+      );
+      if (continued === "unresolved_adjudication") {
+        const bumped = await tx.evidenceReviewWorkflow.updateMany({
+          where: { id: wf.id, decisionRound: round },
+          data: { decisionRound: round + 1 },
+        });
+        if (bumped.count !== 1) {
+          throw new ReviewDecisionAuthorityError("stale_decision", { reason: "round_moved" });
+        }
+        round += 1;
+        rows = [];
+        freshRoundRequirement = { required: true, reason: "unresolved_adjudication", escalation: null };
+      }
+    }
     {
       // The round is finished only by the SAME rule that resolved it. A
       // request for information as the FIRST of two required reviews leaves
@@ -386,14 +460,23 @@ export async function recordReviewDecision(
         verdictStage,
       });
     }
-    const secondReview = await requiresSecondReview(
-      {
-        workflowId: input.workflowId,
-        teamId: input.teamId,
-        evidenceId: wf.evidenceId,
-      },
+    // The requirement that governs THIS round: a fresh round after an
+    // unresolved adjudication requires it; a round that already holds its
+    // FIRST decision keeps the requirement that decision was recorded under
+    // (secondReviewForRound — resolving the escalation never finalises it);
+    // otherwise the live requirement (T-013 forcing predicate).
+    const liveRequirement = await requiresSecondReview(
+      { workflowId: input.workflowId, teamId: input.teamId, evidenceId: wf.evidenceId },
       tx,
     );
+    let secondReview: SecondReviewRequirement = freshRoundRequirement ?? liveRequirement;
+    if (!freshRoundRequirement && !liveRequirement.required && rows.length > 0) {
+      const pinned = await secondReviewForRound(
+        { workflowId: input.workflowId, teamId: input.teamId, evidenceId: wf.evidenceId, round },
+        tx,
+      );
+      if (pinned.required) secondReview = pinned;
+    }
     const state = deriveReviewState({
       decisions: rows,
       requiresSecond: secondReview.required,
@@ -474,6 +557,17 @@ export async function recordReviewDecision(
       }
     }
 
+    // T-011 — an adjudication records ONLY an adjudication kind. A plain
+    // verdict (approve / reject / request info) during a conflict is refused
+    // with use_adjudication instead of being stored as ADJUDICATION:<verdict>.
+    if (targetStage === "ADJUDICATION" && !ADJUDICATION_KINDS.has(input.decision)) {
+      throw new ReviewDecisionAuthorityError("use_adjudication", {
+        reason: "use_adjudication",
+        reviewState: state,
+        decision: input.decision,
+      });
+    }
+
     // Kind constraints — UPHOLD_* / UNRESOLVED only at ADJUDICATION.
     if (
       targetStage !== "ADJUDICATION" &&
@@ -485,12 +579,22 @@ export async function recordReviewDecision(
       });
     }
 
-    // Rationale — required for every kind except APPROVE.
-    const rationale = (input.rationale ?? "").trim().slice(0, 4000);
-    if (rationale.length === 0 && input.decision !== "APPROVE") {
-      throw new ReviewDecisionAuthorityError("rationale_required", {
+    // T-010 — ONE input schema, here, so every door inherits it: a non-empty
+    // rationale for EVERY kind (an approval included), at most 4000 characters,
+    // screened for public-authenticity overclaims. Checked where the rationale
+    // rule always sat — after who may decide and at which stage (the workspace
+    // policy step of the precedence), so a refusal names the real blocker.
+    if (rationale.length === 0) {
+      throw new ReviewDecisionAuthorityError("rationale_required", { decision: input.decision });
+    }
+    if (rationale.length > REVIEW_DECISION_RATIONALE_MAX) {
+      throw new ReviewDecisionAuthorityError("rationale_too_long", {
         decision: input.decision,
+        max: REVIEW_DECISION_RATIONALE_MAX,
       });
+    }
+    if (stringContainsForbiddenOverclaim(rationale)) {
+      throw new ReviewDecisionAuthorityError("forbidden_wording", { reason: "forbidden_wording" });
     }
 
     // (iv) Append the IMMUTABLE decision row. The DB unique
@@ -603,6 +707,24 @@ export async function recordReviewDecision(
           round,
           decision: input.decision,
           state: projection.state,
+          // T-015 / T-022 — the requirement that governed this decision, as it
+          // was when it was recorded. A FIRST decision recorded under an
+          // escalation-caused requirement pins its round to the second review
+          // (decisionEventPinsSecondReview).
+          ...(secondReview.required
+            ? {
+                secondReviewCause: secondReview.reason,
+                ...(secondReview.escalation
+                  ? {
+                      secondReviewEscalation: {
+                        reason: secondReview.escalation.reason,
+                        severity: secondReview.escalation.severity,
+                      },
+                    }
+                  : {}),
+              }
+            : { secondReviewCause: null }),
+          ...(input.source ? { source: input.source } : {}),
         } as Prisma.InputJsonValue,
         note: rationale.slice(0, 1000) || null,
       },
@@ -664,20 +786,53 @@ export async function recordReviewDecision(
   // (never the first reviewer). After commit, best-effort: a failed send never
   // undoes the decision. A replay notifies nobody; the helper is also
   // idempotent per workflow + round against the delivery log.
-  if (
-    !result.idempotent &&
-    result.outcome.stageRecorded === "FIRST" &&
-    result.outcome.nextRequirement === "second_review"
-  ) {
-    await notifySecondReviewRequired(
+  if (result.outcome.stageRecorded === "FIRST" && result.outcome.nextRequirement === "second_review") {
+    // T-015 — who could give the second review, from THE assignee authority
+    // the reassignment applies. Read-only; never reduces the requirement.
+    const eligible = await countEligibleSecondReviewers(result.workflow, input.actorUserId, client).catch(() => 0);
+    const cause = await secondReviewForRound(
       {
-        workflow: result.workflow,
-        firstReviewerUserId: input.actorUserId,
-        firstDecidedAt: result.decision.decidedAt,
+        workflowId: result.workflow.id,
+        teamId: input.teamId,
+        evidenceId: result.workflow.evidenceId,
+        round: result.decision.round,
       },
       client,
     ).catch(() => null);
+    result.outcome.secondReview = {
+      cause: cause?.reason ?? null,
+      escalation: cause?.escalation ?? null,
+      eligibleReviewerCount: eligible,
+      staffing: eligible > 0 ? "ok" : "no_eligible_second_reviewer",
+    };
+    if (!result.idempotent) {
+      await notifySecondReviewRequired(
+        {
+          workflow: result.workflow,
+          firstReviewerUserId: input.actorUserId,
+          firstDecidedAt: result.decision.decidedAt,
+          eligibleReviewerCount: eligible,
+          cause: cause?.reason ?? null,
+        },
+        client,
+      ).catch(() => null);
+    }
   }
+
+  // T-171 — the outcome signals (metrics, security events, the first-decision
+  // and completion audit rows) are emitted HERE, once, for every door.
+  await emitDecisionOutcomeSignals(
+    {
+      teamId: input.teamId,
+      actorUserId: input.actorUserId,
+      workflowId: result.workflow.id,
+      decision: String(input.decision),
+      workflowStatusAfter: String(result.workflow.status),
+      outcome: result.outcome,
+      source: input.source ?? null,
+    },
+    client,
+  ).catch(() => null);
 
   // A verdict that FINISHES the review resolves the escalation raised about
   // it (2026-10-23), so the admins' inbox item does not outlive the issue.
@@ -715,8 +870,12 @@ export type CurrentRoundDecisionState = {
   round: number;
   secondReviewRequired: boolean;
   secondReviewReason: string | null;
+  /** The forcing escalation, when one is the cause (T-015). */
+  secondReviewEscalation?: { id: string; reason: string; severity: string } | null;
   firstReviewerUserId: string | null;
   secondReviewerUserId: string | null;
+  /** The previous round finished this way and the next submission opens a new round. */
+  continuedFrom?: "request_info" | "unresolved_adjudication" | null;
 };
 
 /**
@@ -739,6 +898,7 @@ export async function loadCurrentRoundDecisionState(
     { workflowId: wf.id, teamId: wf.teamId, evidenceId: wf.evidenceId },
     client,
   );
+  let governing: SecondReviewRequirement = live;
   if (rows.length > 0) {
     const roundSecond = await secondReviewForRound(
       { workflowId: wf.id, teamId: wf.teamId, evidenceId: wf.evidenceId, round: wf.decisionRound },
@@ -746,29 +906,37 @@ export async function loadCurrentRoundDecisionState(
     );
     const outcome = deriveDecisionProjection(rows, roundSecond.required);
     const stageNow = mapDbStatusToReviewStage(wf.status);
-    if (
-      outcome.state === "resolved" &&
-      outcome.projectedStage === "NEEDS_MORE_INFO" &&
-      !DECISION_TERMINAL_STAGES.has(stageNow) &&
-      stageNow !== "NEEDS_MORE_INFO"
-    ) {
+    const continued = roundContinuesInNewRound(rows, outcome, stageNow);
+    if (continued !== null) {
+      const fresh: SecondReviewRequirement =
+        continued === "unresolved_adjudication"
+          ? { required: true, reason: "unresolved_adjudication", escalation: null }
+          : live;
       return {
         state: "first_required",
         round: wf.decisionRound + 1,
-        secondReviewRequired: live.required,
-        secondReviewReason: live.reason,
+        secondReviewRequired: fresh.required,
+        secondReviewReason: fresh.reason,
+        secondReviewEscalation: fresh.escalation ?? null,
         firstReviewerUserId: null,
         secondReviewerUserId: null,
+        continuedFrom: continued,
       };
     }
+    // The round's own requirement ADDS to the live one: a FIRST decision
+    // recorded under an escalation-caused requirement keeps it (never
+    // "resolved" while the review is still in review, T-017).
+    governing = live.required ? live : roundSecond.required ? roundSecond : live;
   }
   return {
-    state: deriveReviewState({ decisions: rows, requiresSecond: live.required }),
+    state: deriveReviewState({ decisions: rows, requiresSecond: governing.required }),
     round: wf.decisionRound,
-    secondReviewRequired: live.required,
-    secondReviewReason: live.reason,
+    secondReviewRequired: governing.required,
+    secondReviewReason: governing.reason,
+    secondReviewEscalation: governing.escalation ?? null,
     firstReviewerUserId: rows.find((r) => r.stage === "FIRST")?.reviewerUserId ?? null,
     secondReviewerUserId: rows.find((r) => r.stage === "SECOND")?.reviewerUserId ?? null,
+    continuedFrom: null,
   };
 }
 
@@ -784,6 +952,7 @@ export type ReconcileProjectionResult = {
     | "no_decisions"
     | "reopened_after_decisions"
     | "continued_after_request_info"
+    | "continued_after_unresolved_adjudication"
     | "closed_after_decisions"
     | "no_projectable_outcome"
     | "moved_during_repair"
@@ -862,6 +1031,15 @@ export async function reconcileWorkflowProjection(
   ) {
     return { workflowId, repaired: false, reason: "continued_after_request_info" };
   }
+  // T-018 — a round an adjudicator left UNRESOLVED continues in a new round;
+  // a review that moved on meanwhile is not a diverged projection either.
+  if (
+    roundContinuesInNewRound(rows, projection, mapDbStatusToReviewStage(wf.status as string)) ===
+      "unresolved_adjudication" &&
+    mapDbStatusToReviewStage(wf.status as string) !== "ESCALATED"
+  ) {
+    return { workflowId, repaired: false, reason: "continued_after_unresolved_adjudication" };
+  }
   if (projection.projectedStage === null) {
     return { workflowId, repaired: false, reason: "no_projectable_outcome" };
   }
@@ -880,6 +1058,12 @@ export async function reconcileWorkflowProjection(
       !wf.completedAtUtc
     ) {
       data.completedAtUtc = now;
+    }
+    // A projected rejection carries the reason the deciding verdict gave, as
+    // the decision write does (T-017 / T-014: never a rejection with no reason).
+    if (toStage === "REJECTED_INSUFFICIENT" && !wf.rejectionReason) {
+      const deciding = [...rows].reverse().find((r) => r.decision === "REJECT" || r.stage === "FIRST");
+      data.rejectionReason = deciding?.rationale?.slice(0, 400) || null;
     }
     // WORKFLOW-019: conditional on the status this repair was computed from,
     // like every other writer. A move committed since the read wins, and this

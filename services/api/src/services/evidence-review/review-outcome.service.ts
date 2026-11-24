@@ -30,7 +30,10 @@
  */
 import { Prisma, type PrismaClient } from "@prisma/client";
 import {
+  SECOND_REVIEW_REEVALUATION_SOURCE,
+  decisionEventPinsSecondReview,
   deriveDecisionProjection,
+  escalationForcesIndependentReview,
   legacyReviewDecisionFromStatus,
   reviewDecisionFromProjection,
   type ReviewDecision,
@@ -294,7 +297,7 @@ export async function secondReviewRequiredForRounds(
     client.evidenceReviewWorkflow.findMany({ where: { id: { in: ids } }, select: { id: true, status: true } }),
     client.reviewEscalation.findMany({
       where: { workflowId: { in: ids }, status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] } },
-      select: { workflowId: true, teamId: true },
+      select: { workflowId: true, teamId: true, reason: true, createdByUserId: true },
     }),
     client.evidenceLegalHold.findMany({
       where: { evidenceId: { in: evidenceIds }, status: "ACTIVE" },
@@ -307,16 +310,50 @@ export async function secondReviewRequiredForRounds(
     }),
   ]);
   const escalated = new Set(statuses.filter((w) => w.status === "ESCALATED").map((w) => w.id));
-  const escByWf = new Set(openEsc.map((e) => `${e.workflowId}|${e.teamId}`));
+  // T-013 — only escalations that FORCE independent review count.
+  const escByWf = new Set(
+    openEsc.filter((e) => escalationForcesIndependentReview(e)).map((e) => `${e.workflowId}|${e.teamId}`),
+  );
   const holdByEv = new Set(holds.map((h) => `${h.evidenceId}|${h.teamId}`));
   const redacted = new Set(redactions.map((r) => r.evidenceId));
+  // A round pinned by its FIRST decision (second-review.service.ts
+  // `roundPinnedToSecondReview`) keeps its requirement; an explicit
+  // re-evaluation marker (T-014) lifts the pin.
+  const pinCandidates = live.filter((wf) =>
+    (byWorkflow.get(wf.id) ?? []).some(
+      (e) =>
+        (e.nextValue as { round?: unknown } | null)?.round === wf.decisionRound && decisionEventPinsSecondReview(e.nextValue),
+    ),
+  );
+  const markers =
+    pinCandidates.length === 0
+      ? []
+      : await client.evidenceReviewWorkflowEvent.findMany({
+          where: {
+            workflowId: { in: pinCandidates.map((w) => w.id) },
+            eventType: "STAGE_CHANGED",
+            nextValue: { path: ["source"], equals: SECOND_REVIEW_REEVALUATION_SOURCE },
+          },
+          select: { workflowId: true, nextValue: true },
+        });
+  const pinned = new Set(
+    pinCandidates
+      .filter(
+        (wf) =>
+          !markers.some(
+            (m) => m.workflowId === wf.id && (m.nextValue as { round?: unknown } | null)?.round === wf.decisionRound,
+          ),
+      )
+      .map((wf) => wf.id),
+  );
   for (const wf of live) {
     required.set(
       wf.id,
       escalated.has(wf.id) ||
         escByWf.has(`${wf.id}|${wf.teamId}`) ||
         holdByEv.has(`${wf.evidenceId}|${wf.teamId}`) ||
-        redacted.has(wf.evidenceId),
+        redacted.has(wf.evidenceId) ||
+        pinned.has(wf.id),
     );
   }
   return required;

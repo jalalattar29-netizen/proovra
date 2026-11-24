@@ -101,7 +101,7 @@ async function offered(a: Actor, evidenceId: string): Promise<Offered> {
 }
 
 const approve = (a: Actor, workflowId: string) =>
-  call(a.token, "POST", `/v1/reviewer-ops/reviews/${workflowId}/approve`, { teamId: T.teamId, note: null });
+  call(a.token, "POST", `/v1/reviewer-ops/reviews/${workflowId}/approve`, { teamId: T.teamId, note: "Looks complete" });
 const reject = (a: Actor, workflowId: string) =>
   call(a.token, "POST", `/v1/reviewer-ops/reviews/${workflowId}/reject`, { teamId: T.teamId, note: "custody gap" });
 const reassign = (a: Actor, workflowId: string, to: string) =>

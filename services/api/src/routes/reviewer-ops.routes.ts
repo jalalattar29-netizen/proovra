@@ -73,9 +73,9 @@ import { requestWorkspaceCandidate } from "../services/access/request-workspace.
 import {
   ReviewerOpsError,
   approveReview,
+  buildWorkflowProjection,
   assignReviewerToWorkflow,
   buildDashboard,
-  emitDecisionOutcomeSignals,
   recordResponseReceived,
   getReviewerOpsWorkspace,
   listReviewerOpsQueue,
@@ -89,6 +89,9 @@ import {
   type LifecycleActorContext,
 } from "../services/reviewer-ops/reviewer-operations-engine.service.js";
 import { projectQueueIntelligence } from "../services/reviewer-ops/queue-intelligence.service.js";
+import { reevaluateSecondReviewPolicyHolds } from "../services/reviewer-ops/second-review-reevaluation.service.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
+import { ReviewOperationError, recordLifecycleTransition } from "../services/review-operations/review-operations.service.js";
 import {
   EscalationEngineError,
   acknowledgeEscalation,
@@ -96,6 +99,7 @@ import {
   createEscalation,
   listEscalations,
   reassignEscalation,
+  precheckEscalationMove,
   resolveEscalation,
   suppressEscalation,
 } from "../services/reviewer-ops/escalation-engine.service.js";
@@ -167,9 +171,11 @@ import { buildReviewerOpsRuntimeProbe } from "../services/reviewer-ops/reviewer-
 import {
   ReviewDecisionAuthorityError,
   deriveReviewState,
+  loadCurrentRoundDecisionState,
   recordReviewDecision as recordCanonicalReviewDecision,
   secondReviewForRound,
 } from "../services/reviewer-ops/review-decision.service.js";
+import { classifyCurrentRounds, countEligibleSecondReviewers } from "../services/reviewer-ops/review-handoff.service.js";
 
 // -----------------------------------------------------------------------------
 // Auth helpers — 404-on-non-member + reviewer-capability resolution
@@ -488,7 +494,11 @@ function sendEngineError(reply: FastifyReply, err: unknown): boolean {
           ? 403
           : err.code === "REVIEW_STEP_UP_REQUIRED"
             ? 401
-            : err.code === "REVIEW_ASSIGNEE_NOT_ELIGIBLE" ||
+            : // T-010 — an input refusal is a 400 on every door (it was a 409
+              // here and a 400 on the canonical door).
+              err.code === "REVIEW_NOTE_REQUIRED"
+              ? 400
+              : err.code === "REVIEW_ASSIGNEE_NOT_ELIGIBLE" ||
                 err.code === "REVIEW_ASSIGNEE_NOT_PLACED"
               ? 422
               : 409;
@@ -512,6 +522,30 @@ function sendEngineError(reply: FastifyReply, err: unknown): boolean {
       .code(status)
       .send({ error: { code: err.code, details: refusalDetails(status, err.code, err.details) } });
     return true;
+  }
+  return false;
+}
+
+/**
+ * T-161 — the single-archive route's refusals from the lifecycle service and
+ * its Close guard, in the reviewer-ops refusal shape (details.reason = the
+ * service code: second_review_pending, invalid_stage_transition, …).
+ */
+function sendArchiveRefusal(reply: FastifyReply, err: unknown): boolean {
+  if (err instanceof ReviewDecisionAuthorityError) {
+    return sendEngineError(
+      reply,
+      new ReviewerOpsError("REVIEW_INVALID_TRANSITION", { ...(err.details ?? {}), reason: err.code }),
+    );
+  }
+  if (err instanceof ReviewOperationError) {
+    const code =
+      err.code === "workflow_not_found"
+        ? "REVIEW_WORKFLOW_NOT_FOUND"
+        : err.code === "permission_denied"
+          ? "REVIEW_PERMISSION_DENIED"
+          : "REVIEW_INVALID_TRANSITION";
+    return sendEngineError(reply, new ReviewerOpsError(code, { ...(err.details ?? {}), reason: err.code }));
   }
   return false;
 }
@@ -671,6 +705,18 @@ function sendDecisionAuthorityError(
         },
       });
       return;
+    case "rationale_too_long":
+      out.code(400).send({
+        error: {
+          code: "rationale_too_long",
+          reason: "A decision rationale is at most 4000 characters.",
+          ...(err.details ?? {}),
+        },
+      });
+      return;
+    case "forbidden_wording":
+      out.code(403).send({ error: { code: "REVIEW_PERMISSION_DENIED", details: { reason: "forbidden_wording" } } });
+      return;
     // PRO-R2-01 — a verdict not allowed from the review's current stage
     // (e.g. APPROVE on an ASSIGNED, not-started review) is a typed 409, like
     // a stale decision; it used to fall through with no reply at all.
@@ -704,6 +750,14 @@ const ParamsWorkflowId = z.object({ workflowId: z.string().uuid() });
 const ParamsId = z.object({ id: z.string().uuid() });
 
 const BoundedNote = z.string().min(1).max(1000);
+/**
+ * T-010 — the legacy verdict doors (approve / reject / request-info) take the
+ * note as-is and let THE decision authority apply the one input schema
+ * (non-empty, at most 4000 characters, forbidden wording), so every door
+ * refuses the same input with the same details.reason. The bound here only
+ * caps the request body.
+ */
+const DecisionNote = z.string().max(16000);
 
 /**
  * Per-team wrapper around `runReconcile()` used by the all-teams
@@ -1470,7 +1524,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { workflowId } = ParamsWorkflowId.parse(req.params);
       const body = z
-        .object({ teamId: z.string().uuid(), note: BoundedNote })
+        .object({ teamId: z.string().uuid(), note: DecisionNote.nullable().optional() })
         .parse(req.body ?? {});
       const ctx = await requireReviewerActor(req, reply, body.teamId, "BASIC_RECORD_REVIEW");
       if (!ctx) return;
@@ -1479,7 +1533,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       try {
         const result = await requestInformation(ctx, {
           workflowId,
-          note: body.note,
+          note: body.note ?? "",
         });
         return reply.code(200).send({ projection: result.projection, outcome: result.outcome });
       } catch (err) {
@@ -1531,7 +1585,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const body = z
         .object({
           teamId: z.string().uuid(),
-          note: BoundedNote.nullable().optional(),
+          note: DecisionNote.nullable().optional(),
         })
         .parse(req.body ?? {});
       const ctx = await requireReviewerActor(req, reply, body.teamId, "BASIC_RECORD_REVIEW");
@@ -1571,7 +1625,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { workflowId } = ParamsWorkflowId.parse(req.params);
       const body = z
-        .object({ teamId: z.string().uuid(), note: BoundedNote })
+        .object({ teamId: z.string().uuid(), note: DecisionNote.nullable().optional() })
         .parse(req.body ?? {});
       const ctx = await requireReviewerActor(req, reply, body.teamId, "BASIC_RECORD_REVIEW");
       if (!ctx) return;
@@ -1590,7 +1644,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       try {
         const result = await rejectReview(ctx, {
           workflowId,
-          note: body.note,
+          note: body.note ?? "",
         });
         return reply.code(200).send({ projection: result.projection, outcome: result.outcome });
       } catch (err) {
@@ -1774,6 +1828,19 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_ESCALATION");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
+      // T-016 — the independence refusal comes BEFORE any step-up challenge.
+      try {
+        await precheckEscalationMove({
+          teamId: body.teamId,
+          escalationId: id,
+          actorUserId: ctx.actorUserId,
+          actorRole: provenRole(ctx),
+          move: "resolve",
+        });
+      } catch (err) {
+        if (sendEngineError(reply, err)) return;
+        throw err;
+      }
       if (
         !(await enforceReviewActionGate(req, reply, {
           teamId: body.teamId,
@@ -1790,6 +1857,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           escalationId: id,
           actorUserId: ctx.actorUserId,
           resolutionNote: body.resolutionNote,
+          actorRole: provenRole(ctx),
         });
         return reply.code(200).send({ escalation });
       } catch (err) {
@@ -1817,6 +1885,19 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       // administrative tier's call, not the reviewer's (WF-R09): the bulk
       // authority, the same floor the permission matrix states for Operations.
       if (!requireReviewerBulkCapable(ctx, reply)) return;
+      // T-016 — the independence refusal comes BEFORE any step-up challenge.
+      try {
+        await precheckEscalationMove({
+          teamId: body.teamId,
+          escalationId: id,
+          actorUserId: ctx.actorUserId,
+          actorRole: provenRole(ctx),
+          move: "suppress",
+        });
+      } catch (err) {
+        if (sendEngineError(reply, err)) return;
+        throw err;
+      }
       if (
         !(await enforceReviewActionGate(req, reply, {
           teamId: body.teamId,
@@ -1833,6 +1914,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           escalationId: id,
           actorUserId: ctx.actorUserId,
           suppressionReason: body.suppressionReason,
+          actorRole: provenRole(ctx),
         });
         return reply.code(200).send({ escalation });
       } catch (err) {
@@ -1910,6 +1992,82 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         },
       });
       return reply.code(result.failed === 0 ? 200 : 207).send(result);
+    },
+  );
+
+  // ===========================================================================
+  // POST /v1/reviewer-ops/reviews/:workflowId/archive — T-161 / T-030
+  //
+  // A SINGLE Archive (close without a decision) from the Review page is its
+  // own action, never a bulk triage: it used to go through the bulk door, so
+  // the audit read "reviewer.bulk_triage" and an empty note was stored as
+  // "Closed via bulk triage.". It keeps the same authority as before
+  // (BULK_REVIEW_OPERATIONS, OWNER/ADMIN), the Close guard (never while a
+  // second review or an adjudication is pending), and is governed by the
+  // reject flag (coordinator decision T-030; stage B refines its purpose).
+  // ===========================================================================
+
+  app.post(
+    "/v1/reviewer-ops/reviews/:workflowId/archive",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { workflowId } = ParamsWorkflowId.parse(req.params);
+      const body = z
+        .object({ teamId: z.string().uuid(), note: z.string().max(1000).nullable().optional() })
+        .parse(req.body ?? {});
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "BULK_REVIEW_OPERATIONS");
+      if (!ctx) return;
+      if (!requireReviewerCapable(ctx, reply)) return;
+      if (!requireReviewerBulkCapable(ctx, reply)) return;
+      if (!(await requireWorkflowInReach(ctx, reply, workflowId))) return;
+      const note = (body.note ?? "").trim();
+      if (note && stringContainsForbiddenOverclaim(note)) {
+        return reply
+          .code(403)
+          .send({ error: { code: "REVIEW_PERMISSION_DENIED", details: { reason: "forbidden_wording" } } });
+      }
+      const wf = await prisma.evidenceReviewWorkflow.findFirst({
+        where: { id: workflowId, teamId: body.teamId },
+        select: { evidenceId: true, status: true },
+      });
+      if (!wf) return reply.code(404).send({ error: { code: "REVIEW_WORKFLOW_NOT_FOUND" } });
+      if (
+        !(await enforceReviewActionGate(req, reply, {
+          teamId: body.teamId,
+          userId: ctx.actorUserId,
+          action: "reject",
+          resource: { kind: "review_workflow", id: workflowId },
+        }))
+      ) {
+        return;
+      }
+      try {
+        const updated = await recordLifecycleTransition({
+          evidenceId: wf.evidenceId,
+          decision: "CLOSE",
+          actorUserId: ctx.actorUserId,
+          note: note || "Archived from the review page.",
+        });
+        await emitTenantAudit({
+          action: "reviewer.review.archive",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: ctx.actorUserId,
+          workspaceId: body.teamId,
+          resourceType: "review_workflow",
+          resourceId: workflowId,
+          metadata: {
+            source: "REVIEW_PAGE",
+            fromStatus: String(wf.status),
+            toStatus: String(updated.status),
+            noteGiven: note.length > 0,
+          },
+        }).catch(() => null);
+        return reply.code(200).send({ projection: buildWorkflowProjection(updated) });
+      } catch (err) {
+        if (sendEngineError(reply, err) || sendArchiveRefusal(reply, err)) return;
+        throw err;
+      }
     },
   );
 
@@ -2149,6 +2307,42 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         loadWorkspaceReviewerOpsFlags(body.teamId),
       ]);
       return reply.code(200).send({ policy, flags });
+    },
+  );
+
+  // ===========================================================================
+  // POST /v1/reviewer-ops/maintenance/second-review-reevaluation — T-014
+  //
+  // The EXPLICIT, idempotent, audited re-evaluation of open reviews whose
+  // FIRST decision waits for a second review only because of the old trigger
+  // rule (automatic overdue escalations forced it). Never run by the sweep.
+  // Cron-secret protected like /reconcile; `dryRun` defaults to TRUE so an
+  // operator sees the list before anything moves.
+  // ===========================================================================
+
+  app.post(
+    "/v1/reviewer-ops/maintenance/second-review-reevaluation",
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const expected = readCronSecretFromEnvs(["REVIEWER_OPS_CRON_SECRET", "INTEGRATION_CRON_SECRET"]);
+      if (expected === null) {
+        return reply.code(503).send({ error: { code: "REVIEWER_OPS_CRON_SECRET_NOT_CONFIGURED" } });
+      }
+      if (!cronSecretMatches(expected, req.headers[REVIEWER_OPS_CRON_HEADER])) {
+        return reply.code(401).send({ error: { code: "unauthorized" } });
+      }
+      const body = z
+        .object({
+          teamId: z.string().uuid().optional(),
+          dryRun: z.boolean().optional(),
+          limit: z.number().int().min(1).max(5000).optional(),
+        })
+        .parse(req.body ?? {});
+      const result = await reevaluateSecondReviewPolicyHolds({
+        teamId: body.teamId,
+        dryRun: body.dryRun !== false,
+        limit: body.limit,
+      });
+      return reply.code(200).send(result);
     },
   );
 
@@ -2727,7 +2921,9 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
     teamId: z.string().uuid(),
     decision: DecisionKindSchema,
     reasonCode: ReasonCodeSchema.optional(),
-    rationale: z.string().trim().min(1).max(4000),
+    // T-010 — the authority applies the one input schema (non-empty, at most
+    // 4000 characters) and answers with the same details.reason on every door.
+    rationale: z.string().max(16000).default(""),
   });
 
   // Track 1C — `requiresSecondReview` + `deriveReviewState` moved to the
@@ -2737,6 +2933,19 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
 
   // ---------------------------------------------------------------------------
   // GET /v1/reviewer-ops/workspace/:workflowId/decisions
+  //
+  // Team remediation (2026-11-24):
+  //   - T-023 — EVERY round is listed (`rounds`), each with how it was
+  //     settled; `decisions` stays the current round for older clients.
+  //   - T-022 — `governing` describes the requirement that governed the
+  //     recorded decisions (two reviewers + the cause captured at FIRST),
+  //     never today's re-derived rule.
+  //   - T-015 — `secondReview` states, BEFORE submission, whether a second
+  //     review is required, why, and how many reviewers could give it.
+  //   - T-024 — `externalFeedback`: External Review verdicts, read-only and
+  //     advisory (they never decide the review).
+  //   - The state is the CURRENT round's (loadCurrentRoundDecisionState), the
+  //     same reader the viewer actions and the Close guard use.
   // ---------------------------------------------------------------------------
   app.get(
     "/v1/reviewer-ops/workspace/:workflowId/decisions",
@@ -2752,18 +2961,18 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
 
       const wf = await prisma.evidenceReviewWorkflow.findFirst({
         where: { id: workflowId, teamId: q.teamId },
-        select: { id: true, evidenceId: true, status: true, decisionRound: true },
+        select: { id: true, teamId: true, evidenceId: true, status: true, decisionRound: true, assignedToUserId: true },
       });
       if (!wf) return reply.code(404).send({ error: { code: "not_found" } });
 
-      const [rows, secondReview] = await Promise.all([
+      const [allRows, current, events, external] = await Promise.all([
         prisma.workflowReviewDecision.findMany({
-          // The CURRENT round (2026-10-23); earlier rounds decide nothing now.
-          where: { workflowId, teamId: q.teamId, round: wf.decisionRound },
-          orderBy: { decidedAt: "asc" },
+          where: { workflowId, teamId: q.teamId },
+          orderBy: [{ round: "asc" }, { decidedAt: "asc" }],
           select: {
             id: true,
             stage: true,
+            round: true,
             decision: true,
             reasonCode: true,
             rationale: true,
@@ -2771,19 +2980,29 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             reviewerUserId: true,
           },
         }),
-        // The same round rule as the authority and the Evidence page.
-        secondReviewForRound({
-          workflowId,
+        loadCurrentRoundDecisionState({
+          id: wf.id,
           teamId: q.teamId,
           evidenceId: wf.evidenceId,
-          round: wf.decisionRound,
+          status: String(wf.status),
+          decisionRound: wf.decisionRound,
+        }),
+        prisma.evidenceReviewWorkflowEvent.findMany({
+          where: { workflowId, eventType: "DECISION_LOGGED" },
+          orderBy: { createdAt: "asc" },
+          select: { nextValue: true },
+        }),
+        prisma.externalReviewDecision.findMany({
+          where: { teamId: q.teamId, workflowId },
+          orderBy: { submittedAtUtc: "desc" },
+          take: 50,
+          select: { id: true, verdict: true, rationale: true, reviewerEmail: true, reviewerDisplay: true, submittedAtUtc: true },
         }),
       ]);
+      const rows = allRows.filter((r) => r.round === current.round);
 
       // Denormalise reviewer identity for operator-readable display.
-      const reviewerIds = Array.from(
-        new Set(rows.map((r) => r.reviewerUserId)),
-      );
+      const reviewerIds = Array.from(new Set(allRows.map((r) => r.reviewerUserId)));
       const reviewers = reviewerIds.length
         ? await prisma.user.findMany({
             where: { id: { in: reviewerIds } },
@@ -2791,31 +3010,64 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           })
         : [];
       const reviewerById = new Map(reviewers.map((r) => [r.id, r]));
+      const decisionOut = (r: (typeof allRows)[number]) => {
+        const rv = reviewerById.get(r.reviewerUserId) ?? null;
+        return {
+          id: r.id,
+          stage: r.stage,
+          round: r.round,
+          decision: r.decision,
+          reasonCode: r.reasonCode,
+          rationale: r.rationale,
+          decidedAt: r.decidedAt.toISOString(),
+          reviewer: rv
+            ? { userId: rv.id, email: rv.email, displayName: rv.displayName }
+            : { userId: r.reviewerUserId, email: null, displayName: null },
+        };
+      };
 
-      const state = deriveReviewState({
-        decisions: rows,
-        requiresSecond: secondReview.required,
+      // The requirement each round's FIRST decision was recorded under.
+      const firstEventOfRound = new Map<number, { secondReviewCause?: unknown; secondReviewEscalation?: unknown; state?: unknown }>();
+      for (const e of events) {
+        const v = (e.nextValue ?? {}) as { round?: unknown; decisionStage?: unknown };
+        if (typeof v.round !== "number" || v.decisionStage !== "FIRST") continue;
+        if (!firstEventOfRound.has(v.round)) firstEventOfRound.set(v.round, v as never);
+      }
+      const roundNumbers = Array.from(new Set(allRows.map((r) => r.round))).sort((a, b) => a - b);
+      const rounds = roundNumbers.map((round) => {
+        const list = allRows.filter((r) => r.round === round);
+        const recorded = firstEventOfRound.get(round) ?? null;
+        const hasSecond = list.some((r) => r.stage === "SECOND");
+        const adjudication = list.find((r) => r.stage === "ADJUDICATION") ?? null;
+        const settledBy =
+          round === current.round && current.state !== "resolved"
+            ? null
+            : adjudication
+              ? adjudication.decision === "UNRESOLVED"
+                ? "unresolved_adjudication"
+                : "adjudication"
+              : list.length > 0 && list.every((r) => r.decision === "REQUEST_INFO")
+                ? "request_info"
+                : "decision";
+        return {
+          round,
+          current: round === current.round,
+          settledBy,
+          governing: {
+            reviewers: adjudication ? 3 : hasSecond ? 2 : list.length > 0 ? 1 : 0,
+            secondReviewRequired: recorded ? recorded.state === "second_required" || hasSecond : hasSecond,
+            cause: typeof recorded?.secondReviewCause === "string" ? recorded.secondReviewCause : null,
+            escalation: (recorded?.secondReviewEscalation as { reason?: string; severity?: string } | undefined) ?? null,
+          },
+          decisions: list.map(decisionOut),
+        };
       });
+      const governing = rounds.find((r) => r.round === current.round)?.governing ?? null;
 
-      // Determine what the caller can do next, given the current state
-      // and their role on the team. ADJUDICATION requires team
-      // OWNER/ADMIN; other stages require any reviewer-capable member
-      // (already enforced by requireReviewerActor).
       // AUTH-005 — adjudicator authority is read from the PROVEN context.
-      // The former block re-read the TeamMember row with no status
-      // predicate, so a SUSPENDED/REVOKED OWNER or ADMIN was still treated
-      // as an adjudicator.  here is the CANONICAL role of an
-      // ACTIVE member in a live workspace (OWNER/ADMIN map 1:1; DB MEMBER
-      // maps to REVIEWER), so the admission set is identical and the
-      // inactive case is now unrepresentable.
       const adjudicatorRole = provenRole(ctx);
-      const isAdjudicator =
-        adjudicatorRole === "OWNER" || adjudicatorRole === "ADMIN";
-
-      const firstReviewerId = rows.find((r) => r.stage === "FIRST")
-        ?.reviewerUserId;
-      const callerIsFirstReviewer =
-        firstReviewerId === ctx.actorUserId;
+      const isAdjudicator = adjudicatorRole === "OWNER" || adjudicatorRole === "ADMIN";
+      const callerIsFirstReviewer = current.firstReviewerUserId === ctx.actorUserId;
 
       let nextAction:
         | "submit_first"
@@ -2824,24 +3076,43 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         | "blocked_same_reviewer"
         | "blocked_not_adjudicator"
         | "no_action_resolved" = "no_action_resolved";
-      if (state === "first_required") nextAction = "submit_first";
-      else if (state === "second_required")
-        nextAction = callerIsFirstReviewer
-          ? "blocked_same_reviewer"
-          : "submit_second";
-      else if (state === "conflict_detected")
-        nextAction = isAdjudicator
-          ? "submit_adjudication"
-          : "blocked_not_adjudicator";
+      if (current.state === "first_required") nextAction = "submit_first";
+      else if (current.state === "second_required")
+        nextAction = callerIsFirstReviewer ? "blocked_same_reviewer" : "submit_second";
+      else if (current.state === "conflict_detected")
+        nextAction = isAdjudicator ? "submit_adjudication" : "blocked_not_adjudicator";
+
+      // T-015 — the requirement, its cause and who could give it, BEFORE
+      // anyone submits. Read-only; never reduces the requirement.
+      const eligibleSecond =
+        current.secondReviewRequired && (current.state === "first_required" || current.state === "second_required")
+          ? await countEligibleSecondReviewers(
+              { teamId: q.teamId, evidenceId: wf.evidenceId },
+              current.firstReviewerUserId ?? (current.state === "first_required" ? wf.assignedToUserId : null),
+            )
+          : null;
 
       return reply.code(200).send({
         workflowId,
         evidenceId: wf.evidenceId,
-        state,
+        state: current.state,
+        round: current.round,
+        continuedFrom: current.continuedFrom ?? null,
         secondReviewRequirement: {
-          required: secondReview.required,
-          reason: secondReview.reason,
+          required: current.secondReviewRequired,
+          reason: current.secondReviewReason,
         },
+        secondReview: {
+          required: current.secondReviewRequired,
+          cause: current.secondReviewReason,
+          escalation: current.secondReviewEscalation
+            ? { reason: current.secondReviewEscalation.reason, severity: current.secondReviewEscalation.severity }
+            : null,
+          eligibleReviewerCount: eligibleSecond,
+          staffing:
+            eligibleSecond === null ? null : eligibleSecond > 0 ? "ok" : "no_eligible_second_reviewer",
+        },
+        governing,
         callerContext: {
           userId: ctx.actorUserId,
           // AUTH-005 — the canonical role of the PROVEN active member.
@@ -2850,28 +3121,16 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           callerIsFirstReviewer,
           nextAction,
         },
-        decisions: rows.map((r) => {
-          const rv = reviewerById.get(r.reviewerUserId) ?? null;
-          return {
-            id: r.id,
-            stage: r.stage,
-            decision: r.decision,
-            reasonCode: r.reasonCode,
-            rationale: r.rationale,
-            decidedAt: r.decidedAt.toISOString(),
-            reviewer: rv
-              ? {
-                  userId: rv.id,
-                  email: rv.email,
-                  displayName: rv.displayName,
-                }
-              : {
-                  userId: r.reviewerUserId,
-                  email: null,
-                  displayName: null,
-                },
-          };
-        }),
+        decisions: rows.map(decisionOut),
+        rounds,
+        externalFeedback: external.map((x) => ({
+          id: x.id,
+          verdict: x.verdict,
+          rationale: x.rationale,
+          reviewer: { email: x.reviewerEmail, displayName: x.reviewerDisplay },
+          submittedAt: x.submittedAtUtc.toISOString(),
+          advisory: true as const,
+        })),
       });
     },
   );
@@ -2956,16 +3215,9 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           // Request info never pass this, so a conflict reached through them is
           // refused with use_adjudication.
           adjudicationDoor: true,
+          source: "inspector",
         });
-        // TEAM-SPEC §2.3 — the same outcome-driven signals as the engine.
-        await emitDecisionOutcomeSignals({
-          teamId: body.teamId,
-          actorUserId: ctx.actorUserId,
-          workflowId,
-          decision: body.decision,
-          workflowStatusAfter: String(result.workflow.status),
-          outcome: result.outcome,
-        });
+        // TEAM-SPEC §2.3 — the outcome signals are emitted by the authority (T-171).
         return reply.code(result.idempotent ? 200 : 201).send({
           workflowId,
           evidenceId: wf.evidenceId,
@@ -3062,96 +3314,21 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         take: 500, // hard upper bound on the summary's input set
       });
 
-      const workflowIds = workflows.map((w) => w.id);
-      const evidenceIds = workflows.map((w) => w.evidenceId);
-
-      const [decisions, openEscalations, legalHolds, redactionDecisions] =
-        workflowIds.length === 0
-          ? [[], [], [], []]
-          : await Promise.all([
-              prisma.workflowReviewDecision.findMany({
-                where: {
-                  workflowId: { in: workflowIds },
-                  teamId: q.teamId,
-                },
-                select: {
-                  workflowId: true,
-                  stage: true,
-                  decision: true,
-                  reviewerUserId: true,
-                  round: true,
-                },
-              }),
-              prisma.reviewEscalation.findMany({
-                where: {
-                  teamId: q.teamId,
-                  workflowId: { in: workflowIds },
-                  status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
-                },
-                select: { workflowId: true },
-              }),
-              prisma.evidenceLegalHold.groupBy({
-                by: ["evidenceId"],
-                where: {
-                  teamId: q.teamId,
-                  evidenceId: { in: evidenceIds },
-                  // PHASE 12B CLUSTER 8 — evidence_id is nullable now that
-                  // the table also carries CASE / WORKSPACE holds. Explicit
-                  // scope keeps this an evidence-hold rollup; the `in`
-                  // predicate can never match a NULL target.
-                  scope: "EVIDENCE",
-                  status: "ACTIVE",
-                },
-                _count: { id: true },
-              }),
-              prisma.evidenceWorkflowVisibilityDecision.groupBy({
-                by: ["evidenceId"],
-                where: {
-                  evidenceId: { in: evidenceIds },
-                  requiresRedaction: true,
-                },
-                _count: { id: true },
-              }),
-            ]);
-
-      const decisionsByWorkflow = new Map<
-        string,
-        Array<{ stage: string; decision: string; reviewerUserId: string }>
-      >();
-      // Only the CURRENT round decides a workflow's state (2026-10-23).
-      const currentRound = new Map(workflows.map((w) => [w.id, w.decisionRound]));
-      for (const d of decisions) {
-        if (d.round !== currentRound.get(d.workflowId)) continue;
-        const arr = decisionsByWorkflow.get(d.workflowId) ?? [];
-        arr.push({
-          stage: d.stage,
-          decision: d.decision,
-          reviewerUserId: d.reviewerUserId,
-        });
-        decisionsByWorkflow.set(d.workflowId, arr);
-      }
-      const escalatedSet = new Set<string>(
-        openEscalations
-          .map((e) => e.workflowId)
-          .filter((id): id is string => id !== null),
-      );
-      const legalHoldEvidenceSet = new Set<string>(
-        legalHolds
-          .filter((h) => (h._count?.id ?? 0) > 0)
-          .map((h) => h.evidenceId)
-          .filter((id): id is string => typeof id === "string"),
-      );
-      const redactionEvidenceSet = new Set<string>(
-        redactionDecisions
-          .filter((r) => (r._count?.id ?? 0) > 0)
-          .map((r) => r.evidenceId)
-          .filter((id): id is string => id !== null),
+      // Team remediation (T-013) — the SAME batched current-round reader the
+      // queues and counts use (classifyCurrentRounds), so this summary obeys
+      // the forcing predicate, pinned rounds and round continuation exactly as
+      // the per-workflow endpoint does. It used to re-derive the requirement
+      // inline, with any open escalation forcing a second review.
+      const classified = await classifyCurrentRounds(
+        workflows.map((w) => ({
+          id: w.id,
+          teamId: q.teamId,
+          evidenceId: w.evidenceId,
+          status: String(w.status),
+          decisionRound: w.decisionRound,
+        })),
       );
 
-      // For each workflow, compute the same derived state the per-
-      // workflow endpoint computes (deriveReviewState) so the summary
-      // is *exactly consistent* with what an operator sees on the
-      // detail page.
       type StateBucket =
         | "first_required"
         | "second_required"
@@ -3175,27 +3352,8 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       };
 
       for (const wf of workflows) {
-        const rows = decisionsByWorkflow.get(wf.id) ?? [];
-        const first = rows.find((r) => r.stage === "FIRST");
-        const second = rows.find((r) => r.stage === "SECOND");
-        const adjudication = rows.find((r) => r.stage === "ADJUDICATION");
-
-        const requiresSecond =
-          wf.status === "ESCALATED" ||
-          escalatedSet.has(wf.id) ||
-          legalHoldEvidenceSet.has(wf.evidenceId) ||
-          redactionEvidenceSet.has(wf.evidenceId);
-
-        let state: StateBucket;
-        if (adjudication) state = "resolved";
-        else if (first && second) {
-          state =
-            first.decision !== second.decision ? "conflict_detected" : "resolved";
-        } else if (first) {
-          state = requiresSecond ? "second_required" : "resolved";
-        } else {
-          state = "first_required";
-        }
+        const derived = classified.get(wf.id) ?? "first_required";
+        const state: StateBucket = derived === "adjudication_required" ? "conflict_detected" : derived;
 
         // Only push to a bucket if we still have room for preview rows
         // OR if we're counting (always counted).

@@ -548,7 +548,9 @@ describe("review door authority (live PostgreSQL)", () => {
       expect(await prisma.reviewEscalation.count({ where: { workflowId: r.workflowId } })).toBe(1);
 
       const id = (first.json() as { escalation: { id: string } }).escalation.id;
-      const resolved = await post(`/v1/reviewer-ops/escalations/${id}/resolve`, reviewer, {
+      // A person's escalation forces an independent second review, so an
+      // owner or admin who is not the reviewer resolves it (T-016).
+      const resolved = await post(`/v1/reviewer-ops/escalations/${id}/resolve`, admin, {
         teamId: A().teamId,
         resolutionNote: "fixed",
       });

@@ -154,9 +154,12 @@ function reviewErrorToReply(err: unknown, reply: FastifyReply): void {
     const status =
       err.code === "workflow_not_found"
         ? 404
-        : err.code === "reviewer_required"
+        : err.code === "reviewer_required" || err.code === "forbidden_wording"
           ? 403
-          : err.code === "rationale_required"
+          : // T-010 — the same input refusals as every other door (details.reason
+            // is the authority code); this door keeps its 422 because live
+            // mobile installs read it.
+            err.code === "rationale_required" || err.code === "rationale_too_long"
             ? 422
             : 409;
     // TEAM-SPEC §2.2 — every refusal carries details.reason (the 404 keeps
@@ -304,7 +307,8 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
           // last reason for the review surfaces to hold a tenant id.
           teamId: z.string().uuid().optional(),
           decision: z.enum(REVIEW_DECISION_TYPES),
-          note: z.string().max(2000).nullable().optional(),
+          // T-010 — the authority applies the one input schema (<= 4000).
+          note: z.string().max(16000).nullable().optional(),
           escalationReason: z.string().max(400).nullable().optional(),
         })
         .parse(req.body ?? {});
@@ -364,6 +368,9 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
 
       try {
         let updated;
+        // T-171 / one outcome vocabulary — what the submission actually did
+        // (a first-of-two decision changes no status).
+        let outcome: unknown = null;
         if (
           body.decision === "APPROVE_INTERNAL" ||
           body.decision === "REJECT_INSUFFICIENT" ||
@@ -397,8 +404,10 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
                   : "REQUEST_INFO",
             rationale: body.note ?? body.escalationReason ?? null,
             actorIsAdjudicator: provenRole === "OWNER" || provenRole === "ADMIN",
+            source: "evidence_page",
           });
           updated = result.workflow;
+          outcome = result.outcome;
         } else {
           // TEAM-SPEC §2.2 — Close never skips a pending second review or an
           // unresolved disagreement: the required number of reviews is never
@@ -438,7 +447,10 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
         // after a commit.
         return reply
           .code(200)
-          .send({ workflow: projectReviewWorkflow(updated, await currentDecisionOf(updated)) });
+          .send({
+            workflow: projectReviewWorkflow(updated, await currentDecisionOf(updated)),
+            ...(outcome ? { outcome } : {}),
+          });
       } catch (err) {
         return reviewErrorToReply(err, reply);
       }

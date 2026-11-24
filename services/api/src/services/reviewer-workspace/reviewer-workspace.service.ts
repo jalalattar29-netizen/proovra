@@ -29,6 +29,9 @@ import { resolveReviewerRole } from "./reviewer-roles.js";
 import { getQcAccuracy7d } from "./qc-sample.service.js";
 import { getReviewerMetrics7d } from "./reviewer-metrics.service.js";
 
+/** How many assigned reviews are considered when picking the caller's next one (T-003). */
+const ACTIVE_REVIEW_CANDIDATES = 25;
+
 export type ProjectReviewerWorkspaceInput = {
   prisma?: PrismaClient;
   teamId: string;
@@ -67,7 +70,7 @@ export async function projectReviewerWorkspace(
     awaitingAdj,
     resolvedWeek,
     metrics,
-    activeReview,
+    activeCandidates,
   ] = await Promise.all([
     prisma.evidenceReviewWorkflow.count({
       where: { teamId: input.teamId, evidence, assignedToUserId: input.userId, status: { in: ["ASSIGNED", "QUEUED"] } },
@@ -112,7 +115,7 @@ export async function projectReviewerWorkspace(
       },
     }),
     getReviewerMetrics7d({ prisma, teamId: input.teamId, userId: input.userId }),
-    prisma.evidenceReviewWorkflow.findFirst({
+    prisma.evidenceReviewWorkflow.findMany({
       where: {
         teamId: input.teamId,
         evidence,
@@ -120,14 +123,38 @@ export async function projectReviewerWorkspace(
         status: { in: ["ASSIGNED", "IN_REVIEW"] },
       },
       orderBy: [{ priority: "desc" }, { dueAt: "asc" }],
+      take: ACTIVE_REVIEW_CANDIDATES,
       select: {
         id: true,
         evidenceId: true,
         codingSchemaId: true,
         codingSchemaVersion: true,
+        decisionRound: true,
       },
     }),
   ]);
+  // T-003 (Team remediation) — the caller's NEXT item is never a review whose
+  // current round already holds the caller's own FIRST decision: it waits for
+  // an independent second reviewer, and focus mode used to re-select it after
+  // every first-of-two decision.
+  const decidedByMe = activeCandidates.length
+    ? await prisma.workflowReviewDecision.findMany({
+        where: { workflowId: { in: activeCandidates.map((w) => w.id) }, reviewerUserId: input.userId, stage: "FIRST" },
+        select: { workflowId: true, round: true },
+      })
+    : [];
+  const activeRow =
+    activeCandidates.find(
+      (w) => !decidedByMe.some((d) => d.workflowId === w.id && d.round === w.decisionRound),
+    ) ?? null;
+  const activeReview = activeRow
+    ? {
+        id: activeRow.id,
+        evidenceId: activeRow.evidenceId,
+        codingSchemaId: activeRow.codingSchemaId,
+        codingSchemaVersion: activeRow.codingSchemaVersion,
+      }
+    : null;
 
   // Pending QC samples — visible to QC reviewers + supervisors.
   const pendingSamples = await prisma.qcSample.count({

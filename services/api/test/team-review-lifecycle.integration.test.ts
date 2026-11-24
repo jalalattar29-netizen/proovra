@@ -145,7 +145,7 @@ const ops = (ws: { teamId: string }) => ({
   responseReceived: (a: Actor, workflowId: string) =>
     call(a.token, "POST", `/v1/reviewer-ops/reviews/${workflowId}/response-received`, { teamId: ws.teamId, note: "file arrived" }),
   approve: (a: Actor, workflowId: string) =>
-    call(a.token, "POST", `/v1/reviewer-ops/reviews/${workflowId}/approve`, { teamId: ws.teamId, note: null }),
+    call(a.token, "POST", `/v1/reviewer-ops/reviews/${workflowId}/approve`, { teamId: ws.teamId, note: "Looks complete" }),
   reject: (a: Actor, workflowId: string) =>
     call(a.token, "POST", `/v1/reviewer-ops/reviews/${workflowId}/reject`, { teamId: ws.teamId, note: "custody gap" }),
   decide: (a: Actor, workflowId: string, decision: string) =>
@@ -325,7 +325,7 @@ describe("TEAM personal workspace — second review, reassignment, conflict and 
 
     const first = await o.approve(T.member, workflowId);
     expect(first.status, first.raw).toBe(200);
-    expect(first.body.outcome).toEqual({
+    expect(first.body.outcome).toMatchObject({
       stageRecorded: "FIRST",
       statusChanged: false,
       reviewState: "second_required",
