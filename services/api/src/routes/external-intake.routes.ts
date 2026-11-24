@@ -284,9 +284,17 @@ function orchestrationErrorToReply(
   const friendly = friendlyPublicIntakeMessage;
   switch (err.code) {
     case "session_bytes_exceeded":
-      // ET-INT-06 — the link's per-submission byte cap.
+      // ET-INT-06 — the link's per-submission byte cap. T-127 — also asked at
+      // presign; the cap itself (already public in the link projection) is
+      // echoed so the page can state the allowance.
       reply.code(413).send({
-        error: { code: "SUBMISSION_TOO_LARGE", message: friendly("SUBMISSION_TOO_LARGE") },
+        error: {
+          code: "SUBMISSION_TOO_LARGE",
+          message: friendly("SUBMISSION_TOO_LARGE"),
+          ...(typeof err.details?.maxBytes === "string" && err.details.maxBytes
+            ? { maxBytes: Number(err.details.maxBytes) }
+            : {}),
+        },
       });
       return;
     case "max_files_reached": {

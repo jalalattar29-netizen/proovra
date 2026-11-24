@@ -30,6 +30,7 @@ import { MAX_EVIDENCE_PARTS } from "@proovra/shared";
 import { EVIDENCE_RESERVATION_TTL_MS } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { boundPartSizeBytes } from "./evidence-part-binding.service.js";
 
 type Tx = Prisma.TransactionClient;
 type AnyClient = PrismaClient | Tx;
@@ -64,7 +65,10 @@ export type EvidencePartWriteRefusalCode =
   | "EVIDENCE_NOT_WRITABLE"
   | "PART_INDEX_TAKEN"
   // ET-INT-09 — the caller's per-record part cap, checked under the record lock.
-  | "PART_COUNT_EXCEEDED";
+  | "PART_COUNT_EXCEEDED"
+  // T-127 — the caller's per-record DECLARED byte cap (external intake's
+  // per-submission cap), checked under the record lock at presign.
+  | "DECLARED_BYTES_EXCEEDED";
 
 export class EvidencePartWriteRefused extends Error {
   readonly statusCode: number;
@@ -77,7 +81,9 @@ export class EvidencePartWriteRefused extends Error {
           ? "This part index is already in use"
           : code === "PART_COUNT_EXCEEDED"
             ? "This record has reached its file limit"
-            : "This evidence record no longer accepts new files",
+            : code === "DECLARED_BYTES_EXCEEDED"
+              ? "This record has reached its size limit"
+              : "This evidence record no longer accepts new files",
     );
     this.name = "EvidencePartWriteRefused";
     this.code = code;
@@ -156,6 +162,16 @@ export type EvidencePartWriteInput = {
    * (the external-intake route counted before inserting, outside any lock).
    */
   maxPartCount?: number | null;
+  /**
+   * T-127 — refuse a NEW part when its declared size plus the sizes every held
+   * part was BOUND with at its own presign (`clientSignals.boundSizeBytes`,
+   * evidence-part-binding.service) would exceed `cap`. Counted under the record
+   * lock (two concurrent presigns cannot both slip under it) and only for a new
+   * row: a retry of an occupied index returns that row and is never counted
+   * twice. A held row bound to no size (from before the binding) counts 0; the
+   * stored-object check at submit stays the authority.
+   */
+  declaredBytesCap?: { cap: number; declaredSizeBytes: number } | null;
 };
 
 export type EvidencePartWriteResult = {
@@ -270,6 +286,13 @@ export async function writeEvidencePart(
     if (input.partIndex >= MAX_EVIDENCE_PARTS) throw new EvidencePartWriteRefused("PART_COUNT_EXCEEDED");
     const held = await tx.evidencePart.count({ where: { evidenceId: input.evidenceId } });
     if (held >= cap) throw new EvidencePartWriteRefused("PART_COUNT_EXCEEDED");
+    if (input.declaredBytesCap) {
+      const rows = await tx.evidencePart.findMany({ where: { evidenceId: input.evidenceId }, select: { clientSignals: true } });
+      const staged = rows.reduce((sum, r) => sum + (boundPartSizeBytes(r.clientSignals) ?? 0), 0);
+      if (staged + Math.max(0, input.declaredBytesCap.declaredSizeBytes) > input.declaredBytesCap.cap) {
+        throw new EvidencePartWriteRefused("DECLARED_BYTES_EXCEEDED");
+      }
+    }
     const part = await tx.evidencePart.create({
       data: { ...input.data, evidenceId: input.evidenceId, partIndex: input.partIndex },
     });
