@@ -125,11 +125,11 @@ export type HomeRecordAllowanceInput = {
  */
 /**
  * UC-WEB-004 — the ONE destination for "submissions waiting for review": the
- * evidence-request review queue panel (GET /v1/review/queue) on the reviewer
- * queues page. /evidence-requests has no list page (only [id]).
+ * evidence-request review queue panel (GET /v1/review/queue) on the evidence
+ * requests page (team remediation T-066: it left the review Inbox).
  */
 export const HOME_SUBMISSION_REVIEW_HREF =
-  "/review/queues#evidence-request-queue";
+  "/evidence-requests#evidence-request-queue";
 
 export const HOME_INTEGRITY_REVIEW_HREF =
   "/evidence?verificationStatus=REVIEW_REQUIRED,FAILED";

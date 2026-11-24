@@ -38,7 +38,7 @@ import {
 import { ToastProvider } from "../../components/ui";
 import { ConfirmActionProvider } from "../../components/ui/ConfirmActionModal";
 import SearchPage from "../../app/(app)/search/page";
-import { SavedViewsPanel } from "../../components/reviewer-experience/ReviewerConsole";
+import { SavedViewsPanel } from "../../components/reviewer-experience/ReviewInbox";
 import { setActiveWorkspaceId } from "../../lib/api";
 
 const WS = "55555555-5555-4555-8555-555555555555";
@@ -181,7 +181,7 @@ describe("closure 2 sem item 4 — reviewer console saved queue views offer Dele
       <PlatformContextProvider testEnvelope={envelope(role, false) as never}>
         <ToastProvider>
           <ConfirmActionProvider>
-            <SavedViewsPanel teamId={WS} activeTab="queue" views={rows} onChanged={() => {}} />
+            <SavedViewsPanel teamId={WS} view="UNASSIGNED" views={rows} onChanged={() => {}} onApply={() => {}} />
           </ConfirmActionProvider>
         </ToastProvider>
       </PlatformContextProvider>,

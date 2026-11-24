@@ -27,6 +27,11 @@ export type QueueRow = {
   dueAt: string | null;
   /** SLA rollup (`slaRollupState`); null when the projection omits it. */
   slaState: string | null;
+  /**
+   * T-086 (stage D) — the assignee as the server names them (display name or
+   * masked e-mail); null when unassigned or when an older API omits it.
+   */
+  assignee: { displayName: string | null; maskedEmail: string | null } | null;
 };
 
 export type QueueProjection = {
@@ -37,6 +42,7 @@ export type QueueProjection = {
   assignedToUserId: string | null;
   slaRollupState?: string | null;
   legacy?: { dueAt?: string | null; stage?: string | null } | null;
+  assignee?: { displayName?: string | null; maskedEmail?: string | null } | null;
 };
 
 export function toQueueRow(projection: QueueProjection): QueueRow {
@@ -49,6 +55,12 @@ export function toQueueRow(projection: QueueProjection): QueueRow {
     assignedToUserId: projection.assignedToUserId ?? null,
     dueAt: projection.legacy?.dueAt ?? null,
     slaState: projection.slaRollupState ?? null,
+    assignee: projection.assignee
+      ? {
+          displayName: typeof projection.assignee.displayName === "string" ? projection.assignee.displayName : null,
+          maskedEmail: typeof projection.assignee.maskedEmail === "string" ? projection.assignee.maskedEmail : null,
+        }
+      : null,
   };
 }
 
@@ -68,6 +80,7 @@ export function toQueueRows(rows: ReadonlyArray<unknown> | null | undefined): Qu
         assignedToUserId: typeof r.assignedToUserId === "string" ? r.assignedToUserId : null,
         slaRollupState: typeof r.slaRollupState === "string" ? r.slaRollupState : null,
         legacy: r.legacy ?? null,
+        assignee: r.assignee && typeof r.assignee === "object" ? r.assignee : null,
       }),
     );
   }

@@ -1,33 +1,37 @@
 "use client";
 
 /**
- * TEAM-SPEC §3 — THE REVIEW HUB'S LOCAL TABS.
+ * TEAM-SPEC §3 — THE REVIEW HUB'S LOCAL TABS (one navigation level).
  *
- * One sidebar entry ("Review" → /review) leads into a hub whose pages keep
- * their URLs, so deep links survive:
+ * Stage D (team remediation, T-065 / T-078 / T-079 / T-088 / T-092):
  *
- *   My reviews      /review
- *   Queues          /review/queues
- *   Monitoring      /reviewer-ops/sla   (sub-view: Escalations /reviewer-ops/escalations)
- *   Review settings /review/settings
+ *   Inbox           /review                 one Inbox with views (`?view=`)
+ *   Monitoring      /reviewer-ops/sla       deadlines, escalations, workload,
+ *                                            quality and metrics as sections
+ *   Review settings /review/settings        policy, reviewer criteria, schemas
+ *
+ * The separate Queues tab is gone (`/review/queues` redirects to the Inbox
+ * view it named) and Monitoring has no second tab row: its sections are an
+ * in-page segmented control. The tab row scrolls sideways on a phone, so
+ * every tab stays reachable at 390 px.
  *
  * A tab is rendered ONLY when its destination resolves ALLOWED for this actor
  * in this workspace (`useReviewDestinationResolver`, the same two gates the
- * page itself applies). Team vs Enterprise therefore reads as "the tab exists
- * and works" or "the tab does not exist" — never a tab that opens a refusal.
+ * page itself applies) — never a tab that opens a refusal.
  *
- * `?queue=` is carried into the Queues tab, so returning to Queues from the
- * inspector or Monitoring keeps the slice the reviewer was working.
+ * The Inbox tab carries the current `?view=` (or a legacy `?queue=`), so
+ * returning to the Inbox from Monitoring keeps the view the reviewer was
+ * working.
  */
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import { useReviewDestinationResolver, type ReviewDestination } from "./reviewDestination";
+import { INBOX_TITLE, inboxHref, isInboxView } from "../../lib/reviewer-workspace/inbox-views";
 import "./review-surfaces.css";
 
-export type ReviewHubTabId = "my-reviews" | "queues" | "monitoring" | "settings";
-export type ReviewHubMonitoringView = "sla" | "escalations";
+export type ReviewHubTabId = "inbox" | "monitoring" | "settings";
 
 type HubTab = {
   id: ReviewHubTabId;
@@ -35,65 +39,59 @@ type HubTab = {
   destination: Extract<ReviewDestination, { kind: "link" }>;
 };
 
-/** Keep only the params a tab understands (never leak unrelated state). */
-function withQueueParam(href: string, queue: string | null): string {
-  if (!queue || !/^[A-Z_]{1,40}$/.test(queue)) return href;
-  return `${href}?queue=${encodeURIComponent(queue)}`;
-}
-
 function asLink(d: ReviewDestination): Extract<ReviewDestination, { kind: "link" }> | null {
   return d && d.kind === "link" ? d : null;
 }
 
-export function useReviewHubTabs(): {
-  tabs: ReadonlyArray<HubTab>;
-  monitoring: { sla: HubTab["destination"] | null; escalations: HubTab["destination"] | null };
-} {
+export function useReviewHubTabs(): { tabs: ReadonlyArray<HubTab> } {
   const resolve = useReviewDestinationResolver();
   const searchParams = useSearchParams();
-  const queue = searchParams?.get("queue") ?? null;
+  const view = searchParams?.get("view") ?? searchParams?.get("queue") ?? null;
 
-  const mine = asLink(resolve("review.queue", { label: "My reviews" }));
-  const queues = asLink(
-    resolve("workspace.review_queues", {
-      label: "Queues",
-      href: withQueueParam("/review/queues", queue),
-    }),
+  const inbox = asLink(
+    resolve("review.queue", { label: INBOX_TITLE, href: inboxHref(isInboxView(view) ? view : null) }),
   );
-  const sla = asLink(resolve("review.sla", { label: "SLA" }));
-  const escalations = asLink(resolve("review.escalations", { label: "Escalations" }));
+  const sla = asLink(resolve("review.sla", { label: "Monitoring" }));
+  const escalations = asLink(
+    resolve("review.escalations", { label: "Monitoring", href: "/reviewer-ops/sla?section=escalations" }),
+  );
   const settings = asLink(resolve("review.settings", { label: "Review settings" }));
 
   const tabs: HubTab[] = [];
-  if (mine) tabs.push({ id: "my-reviews", label: "My reviews", destination: mine });
-  if (queues) tabs.push({ id: "queues", label: "Queues", destination: queues });
+  if (inbox) tabs.push({ id: "inbox", label: INBOX_TITLE, destination: inbox });
   const monitoringEntry = sla ?? escalations;
   if (monitoringEntry) {
-    tabs.push({
-      id: "monitoring",
-      label: "Monitoring",
-      destination: { ...monitoringEntry, label: "Monitoring" },
-    });
+    tabs.push({ id: "monitoring", label: "Monitoring", destination: { ...monitoringEntry, label: "Monitoring" } });
   }
   if (settings) tabs.push({ id: "settings", label: "Review settings", destination: settings });
-  return { tabs, monitoring: { sla, escalations } };
+  return { tabs };
 }
 
 /**
- * TEAM-SPEC R2 / TEAM-UI-SPEC §3 — the advanced review tools (Reviewer
- * workspace, QC, disagreements, metrics, coding schemas) and External Review.
- * They are not hub responsibilities of their own, so they are NOT a row under
- * the hub tabs: My reviews lists them at the bottom in a "Review tools" panel
- * (`ReviewToolsPanel`), each row rendered only where its route opens for this
- * actor (the same resolver as the tabs), never a link into a refusal.
+ * The operational tools that are not hub tabs: External Review (an
+ * operational task, T-079) and Challenged decisions (filed challenges, named
+ * apart from the Inbox's Conflicts view, T-081). Quality control and metrics
+ * are Monitoring sections, coding schemas are a Review settings section and
+ * the reviewer workspace is the Review page's focus mode, so none of them is a
+ * tool row any more. Each row renders only where its route opens.
  */
-const REVIEW_TOOLS: ReadonlyArray<{ routeId: string; label: string; purpose: string }> = [
-  { routeId: "workspace.review_workspace", label: "Reviewer workspace", purpose: "Receive, review, code and decide evidence workflows." },
-  { routeId: "workspace.review_qc", label: "Quality control", purpose: "Sample-based checks of closed reviews." },
-  { routeId: "workspace.review_disagreements", label: "Disagreements", purpose: "Reviews where reviewers reached different outcomes." },
-  { routeId: "workspace.review_metrics", label: "Reviewer metrics", purpose: "Reviewer activity over the last seven days." },
-  { routeId: "workspace.coding_schemas", label: "Coding schemas", purpose: "Structured templates reviewers code against." },
-  { routeId: "workspace.review_external", label: "External review", purpose: "Invitations and access for reviewers outside the workspace." },
+const REVIEW_TOOLS: ReadonlyArray<{ routeId: string; label: string; purpose: string; href?: string }> = [
+  {
+    routeId: "workspace.review_external",
+    label: "External review",
+    purpose: "Invite reviewers from outside the workspace and manage their access.",
+  },
+  {
+    routeId: "workspace.review_disagreements",
+    label: "Challenged decisions",
+    purpose: "Decisions a reviewer has formally challenged. Reviews whose two reviews differ are in the Inbox's Conflicts view.",
+  },
+  {
+    // T-066 — evidence requests are reviewed on the Requests page, not here.
+    routeId: "workspace.evidence_requests",
+    label: "Evidence requests awaiting review",
+    purpose: "Responses to evidence requests are reviewed with the requests, not in this Inbox.",
+  },
 ];
 
 export type ReviewTool = Extract<ReviewDestination, { kind: "link" }> & { purpose: string };
@@ -102,13 +100,13 @@ export function useReviewTools(): ReadonlyArray<ReviewTool> {
   const resolve = useReviewDestinationResolver();
   const out: ReviewTool[] = [];
   for (const t of REVIEW_TOOLS) {
-    const d = asLink(resolve(t.routeId, { label: t.label }));
+    const d = asLink(resolve(t.routeId, t.href ? { label: t.label, href: t.href } : { label: t.label }));
     if (d) out.push({ ...d, purpose: t.purpose });
   }
   return out;
 }
 
-/** The bottom "Review tools" panel on My reviews; nothing when no tool opens. */
+/** The bottom "Review tools" panel on the Inbox; nothing when no tool opens. */
 export function ReviewToolsPanel() {
   const tools = useReviewTools();
   if (tools.length === 0) return null;
@@ -133,66 +131,28 @@ export function ReviewToolsPanel() {
   );
 }
 
-export function ReviewHubNav({
-  active,
-  monitoringView,
-}: {
-  active: ReviewHubTabId;
-  /** Which Monitoring sub-view is open (only read when active = monitoring). */
-  monitoringView?: ReviewHubMonitoringView;
-}) {
-  const { tabs, monitoring } = useReviewHubTabs();
+export function ReviewHubNav({ active }: { active: ReviewHubTabId }) {
+  const { tabs } = useReviewHubTabs();
   // A single tab is not navigation: render nothing rather than a lone pill.
-  if (tabs.length < 2 && !(active === "monitoring" && monitoring.sla && monitoring.escalations)) {
-    return null;
-  }
+  if (tabs.length < 2) return null;
   return (
     <div className="review-hub-nav" data-review-hub-nav data-review-hub-active={active}>
-      {tabs.length >= 2 ? (
-        <nav className="app-tabs" aria-label="Review">
-          {tabs.map((tab) => {
-            const isActive = tab.id === active;
-            return (
-              <Link
-                key={tab.id}
-                href={tab.destination.href}
-                className={isActive ? "app-tab is-active" : "app-tab"}
-                aria-current={isActive ? "page" : undefined}
-                data-review-hub-tab={tab.id}
-              >
-                {tab.label}
-              </Link>
-            );
-          })}
-        </nav>
-      ) : null}
-      {active === "monitoring" && monitoring.sla && monitoring.escalations ? (
-        <nav
-          className="app-tabs"
-          aria-label="Monitoring"
-          data-review-hub-subnav="monitoring"
-        >
-          {(
-            [
-              ["sla", monitoring.sla, "SLA"],
-              ["escalations", monitoring.escalations, "Escalations"],
-            ] as const
-          ).map(([id, dest, label]) => {
-            const isActive = (monitoringView ?? "sla") === id;
-            return (
-              <Link
-                key={id}
-                href={dest.href}
-                className={isActive ? "app-tab is-active" : "app-tab"}
-                aria-current={isActive ? "page" : undefined}
-                data-review-hub-subtab={id}
-              >
-                {label}
-              </Link>
-            );
-          })}
-        </nav>
-      ) : null}
+      <nav className="app-tabs review-hub-tabs" aria-label="Review" data-review-hub-tabs-scroll>
+        {tabs.map((tab) => {
+          const isActive = tab.id === active;
+          return (
+            <Link
+              key={tab.id}
+              href={tab.destination.href}
+              className={isActive ? "app-tab is-active" : "app-tab"}
+              aria-current={isActive ? "page" : undefined}
+              data-review-hub-tab={tab.id}
+            >
+              {tab.label}
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }

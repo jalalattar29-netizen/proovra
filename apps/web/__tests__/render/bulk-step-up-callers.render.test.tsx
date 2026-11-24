@@ -36,11 +36,12 @@ vi.mock("../../lib/platform-context", () => ({
   useWorkspaceFragment: () => null,
   usePersonalSpaceFragment: () => null,
 }));
-vi.mock("../../app/(app)/review/queues/_evidence-request-queue", () => ({
+vi.mock("../../app/(app)/evidence-requests/_components/EvidenceRequestReviewQueue", () => ({
   EvidenceRequestReviewQueue: () => null,
 }));
 
-import QueuesPage from "../../app/(app)/review/queues/page";
+// Stage D (T-065) — the Queues page is the Inbox now; its bulk tags keep the step-up.
+import { ReviewInbox } from "../../components/reviewer-experience/ReviewInbox";
 import { ReviewerBulkOpsBar } from "../../components/reviewer-experience/ReviewerBulkOpsBar";
 import { StepUpModal, useStepUpAction } from "../../components/identity-security/StepUpModal";
 import { ConfirmActionProvider } from "../../components/ui/ConfirmActionModal";
@@ -153,28 +154,32 @@ describe("T-167 console bulk bar satisfies a step-up in place", () => {
   });
 });
 
-describe("T-167 / T-036 Queues bulk decide satisfies a step-up; row assign is not wrapped", () => {
-  it("Apply a coded verdict refused with STEP_UP_REQUIRED opens the dialog and retries with the header", async () => {
+describe("T-167 / T-036 Inbox bulk tags satisfy a step-up; row assign is not wrapped", () => {
+  it("Apply a coded tag refused with STEP_UP_REQUIRED opens the dialog and retries with the header", async () => {
     bulkAnswers = [stepUpRefusal()];
-    render(<QueuesPage />);
+    render(
+      <ConfirmActionProvider>
+        <ReviewInbox />
+      </ConfirmActionProvider>,
+    );
     const checkbox = await waitFor(() => {
-      const el = document.querySelector(`[data-reviewer-queue-checkbox="${WORKFLOW}"]`);
+      const el = document.querySelector(`[data-inbox-row-checkbox="${WORKFLOW}"]`);
       expect(el).not.toBeNull();
       return el as HTMLInputElement;
     });
-    fireEvent.click(checkbox.closest("tr")!);
+    fireEvent.click(checkbox);
     const bar = await waitFor(() => {
-      const el = document.querySelector('[data-bulk-bar-state="active"]');
+      const el = document.querySelector("[data-reviewer-bulk-actions-bar]");
       expect(el).not.toBeNull();
       return el as HTMLElement;
     });
-    fireEvent.click(bar.querySelector("[data-bulk-code-verdict-select]")!);
+    fireEvent.click(bar.querySelector("[data-inbox-bulk-tag-select]")!);
     fireEvent.click(await waitFor(() => document.querySelector('[role="option"][data-value="REJECT"]') as HTMLElement));
-    const apply = bar.querySelector('[data-bulk-action="CODE_VERDICT"]') as HTMLButtonElement;
+    const apply = bar.querySelector("[data-inbox-bulk-tag-apply]") as HTMLButtonElement;
     await waitFor(() => expect(apply.disabled).toBe(false));
     fireEvent.click(apply);
     await act(async () => {
-      fireEvent.click(await waitFor(() => document.querySelector("[data-bulk-confirm-go]") as HTMLElement));
+      fireEvent.click(await waitFor(() => document.querySelector("[data-inbox-bulk-confirm]") as HTMLElement));
     });
     await answerChallenge();
     await waitFor(() => {

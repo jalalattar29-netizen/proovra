@@ -4,7 +4,7 @@
  *
  *   T-124   stale comments in the commercial code are rewritten to the
  *           Team-on-Personal model (comment-only item: a grep is the proof)
- *   ARCH-18 the console shortcut help lists only keys ReviewerConsole handles
+ *   ARCH-18 / T-094 the shortcut help lists only keys the page registered
  */
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
@@ -13,6 +13,12 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { CONSOLE_ROWS } from "../app/(app)/reviewer-ops/components/ReviewerShortcutsHelp";
+import {
+  INBOX_KEYMAP,
+  REVIEW_PAGE_KEYMAP,
+  bindingForEvent,
+  keymapHelpRows,
+} from "../lib/reviewer-workspace/review-keymap";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "../../..");
@@ -36,22 +42,28 @@ test("T-124 — the stale pre-Team-on-Personal statements are gone", () => {
 });
 
 // ===========================================================================
-// ARCH-18 — console shortcut help lists only keys the console handles
+// ARCH-18 / T-094 (stage D) — the shortcut help is GENERATED from the keymap
+// the page registers its handlers from, so every help row is a handled key.
 // ===========================================================================
 
-test("ARCH-18 — every console help row maps to a key ReviewerConsole handles", () => {
-  const consoleSrc = read("apps/web/components/reviewer-experience/ReviewerConsole.tsx");
-  const handled = new Set<string>(["?"]); // the help hotkey itself (useReviewerHelpHotkey)
-  for (const m of consoleSrc.matchAll(/e\.key(?:\.toLowerCase\(\))?\s*===\s*"([^"]+)"/g)) {
-    handled.add(m[1].toLowerCase());
+test("T-094 — every help row maps to a registered handler; an unregistered key is never listed", () => {
+  const handlers = { next: () => {}, previous: () => {}, open: () => {}, filter: () => {}, help: () => {} };
+  const rows = keymapHelpRows(INBOX_KEYMAP, handlers);
+  assert.deepEqual(rows.map((r) => r.action), ["next", "previous", "open", "filter", "help"]);
+  for (const row of rows) {
+    assert.equal(typeof (handlers as Record<string, unknown>)[row.action], "function", row.key);
   }
-  // Sanity: the extraction sees the console's real bindings.
-  for (const k of ["j", "k", "enter", "/", "a"]) assert.ok(handled.has(k), `extractor missed ${k}`);
-  for (const row of CONSOLE_ROWS) {
-    for (const key of row.key.split("/").map((k) => k.trim().toLowerCase()).filter(Boolean)) {
-      assert.ok(handled.has(key), `help lists "${row.key}" (${row.label}), the console handles no "${key}"`);
-    }
+  // A key the page did not register (assign, focus) is not in the help.
+  assert.ok(!rows.some((r) => r.action === "assign" || r.action === "focus"));
+  // The default rows are exactly the keymap: E and M (never handled by the
+  // Inbox) are not listed.
+  assert.deepEqual(CONSOLE_ROWS.map((r) => r.key), INBOX_KEYMAP.map((b) => b.display));
+  assert.ok(!CONSOLE_ROWS.some((r) => r.key === "E" || r.key === "M"));
+  // The binding a key event selects is the one its row names.
+  for (const b of REVIEW_PAGE_KEYMAP) {
+    const picked = bindingForEvent(REVIEW_PAGE_KEYMAP, { key: b.keys[0]!, ctrlKey: false, metaKey: false, altKey: false });
+    assert.equal(picked?.action, b.action, b.display);
   }
-  // "/" itself is a row: the split above drops it, so check it explicitly.
-  if (CONSOLE_ROWS.some((r) => r.key === "/")) assert.ok(handled.has("/"));
+  // Ctrl/Cmd chords belong to the app-wide palette.
+  assert.equal(bindingForEvent(INBOX_KEYMAP, { key: "k", ctrlKey: true, metaKey: false, altKey: false }), null);
 });

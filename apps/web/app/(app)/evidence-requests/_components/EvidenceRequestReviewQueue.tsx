@@ -53,7 +53,8 @@ import {
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { formatUserDate } from "../../../../lib/date";
-import { Badge } from "../../../../components/ui/Badge";
+import { AppStatusText } from "../../../../components/app-primitives/AppStatusText";
+import { priorityTone } from "../../../../lib/reviewer-workspace/review-status";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 
 /** Server cap for GET /v1/review/queue (`limit` max 200). */
@@ -92,13 +93,6 @@ type PanelState =
   | { kind: "FORBIDDEN"; message: string }
   | { kind: "ERROR"; message: string }
   | { kind: "READY"; items: ReadonlyArray<ReviewQueueItem>; loadedAt: string };
-
-const PRIORITY_TONE: Record<EvidenceRequestPriority, "risk" | "pending" | "neutral"> = {
-  URGENT: "risk",
-  HIGH: "risk",
-  NORMAL: "neutral",
-  LOW: "neutral",
-};
 
 export function EvidenceRequestReviewQueue({
   teamId,
@@ -326,19 +320,10 @@ export function EvidenceRequestReviewQueue({
                         <span className="app-table__muted">{identifierLabel(item.requestType)}</span>
                       </td>
                       <td data-label="Status">
-                        <Badge tone="info" subtle>
-                          {identifierLabel(item.status)}
-                        </Badge>
+                        <AppStatusText tone="slate">{identifierLabel(item.status)}</AppStatusText>
                       </td>
                       <td data-label="Priority">
-                        <Badge
-                          tone={
-                            PRIORITY_TONE[item.priority as EvidenceRequestPriority] ??
-                            "neutral"
-                          }
-                        >
-                          {identifierLabel(item.priority)}
-                        </Badge>
+                        <AppStatusText tone={priorityTone(item.priority)}>{identifierLabel(item.priority)}</AppStatusText>
                       </td>
                       <td data-label="Assignee">
                         <span className="app-table__muted">

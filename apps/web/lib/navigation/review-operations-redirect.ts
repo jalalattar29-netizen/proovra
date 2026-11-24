@@ -17,5 +17,5 @@ export function reviewOperationsRedirectTarget(params: Record<string, string | s
   const raw = params.stage ?? params.queue;
   const stage = (Array.isArray(raw) ? raw[0] : raw)?.toUpperCase() ?? "";
   const queue = STAGE_TO_QUEUE[stage];
-  return queue ? `/review/queues?queue=${encodeURIComponent(queue)}` : "/review";
+  return queue ? `/review?view=${encodeURIComponent(queue)}` : "/review";
 }

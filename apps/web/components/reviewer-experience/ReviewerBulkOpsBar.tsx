@@ -11,7 +11,7 @@
  *
  * This capability was previously only reachable from the unmounted
  * `ReviewerCommandConsole`. It now lives on the canonical `/review`
- * console (`ReviewerConsole`), which owns the queue rows and the
+ * Inbox (`ReviewInbox`, stage D), which owns the rows and the
  * selection set; this component owns the action bar, note gating, and
  * outcome reporting.
  *
@@ -32,7 +32,7 @@
 
 import { PLAN_REFUSAL_COPY, isPlanRefusal } from "../../lib/feedback/plan-refusal";
 import { AppListbox } from "../app-primitives/AppListbox";
-import { useCallback, useState } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 
 import { apiFetch } from "../../lib/api";
 import { useConfirmAction } from "../ui/ConfirmActionModal";
@@ -86,7 +86,16 @@ export function ReviewerBulkOpsBar({
   onMutated,
   onResult,
   runStepUpAction,
+  extraActions,
+  rowLabel,
 }: {
+  /**
+   * Stage D (T-065) — the Inbox adds its own bulk controls (assign to a chosen
+   * reviewer, coded-value tags) to this one bar instead of a second bar.
+   */
+  extraActions?: ReactNode;
+  /** T-084 — how a failed row is named (an evidence reference), never an id fragment. */
+  rowLabel?: (workflowId: string) => string;
   teamId: string | null;
   selection: ReadonlySet<string>;
   /** T-167 — the page's step-up runner (its StepUpModal hosts the dialog). */
@@ -271,6 +280,7 @@ export function ReviewerBulkOpsBar({
         >
           Assign to me
         </button>
+        {extraActions}
         <button
           type="button"
           className="app-secondary-action"
@@ -397,8 +407,7 @@ export function ReviewerBulkOpsBar({
                     data-reviewer-bulk-failed-workflow={i.workflowId}
                     data-reviewer-bulk-failed-error-code={i.errorCode ?? ""}
                   >
-                    {i.workflowId.slice(0, 8)}…: {i.errorCode ?? "error"}{" "}
-                    {i.message ? `— ${i.message}` : ""}
+                    {rowLabel ? rowLabel(i.workflowId) : "A review"}: {i.message ?? "not applied"}
                   </li>
                 ))}
             </ul>

@@ -25,10 +25,20 @@ import {
   placementPrerequisiteSentence,
 } from "../../lib/members/placement";
 import { Modal } from "../cases-experience/matter-modals/Modal";
+import { reviewerIdentityLabel } from "../../lib/reviewer-workspace/reviewer-identity";
+
+const REVIEWER_ROLE_WORDS: Readonly<Record<string, string>> = {
+  OWNER: "Owner",
+  ADMIN: "Admin",
+  MEMBER: "Member",
+  VIEWER: "Viewer",
+};
 
 export type AssignableReviewer = {
   userId: string;
   displayName: string | null;
+  /** T-086 (stage D) — projected by the API, already masked. */
+  maskedEmail?: string | null;
   role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
   status: "ACTIVE";
   currentWorkloadCount?: number;
@@ -134,6 +144,7 @@ export function ReviewerPickerModal({
     return state.reviewers.filter(
       (r) =>
         (r.displayName ? r.displayName.toLowerCase().includes(q) : false) ||
+        (r.maskedEmail ? r.maskedEmail.toLowerCase().includes(q) : false) ||
         r.userId.toLowerCase().includes(q),
     );
   }, [state, query]);
@@ -214,7 +225,7 @@ export function ReviewerPickerModal({
                 <ul className="review-tools review-picker__list">
                   {visibleReviewers.map((r) => {
                     const placed = isPlacedReviewer(r);
-                    const name = r.displayName ?? "Unnamed reviewer";
+                    const name = reviewerIdentityLabel(r);
                     return (
                     <li
                       key={r.userId}
@@ -225,7 +236,7 @@ export function ReviewerPickerModal({
                       <span className="app-table__identity">
                         <span className="app-table__primary">{name}</span>
                         <span className="app-table__muted">
-                          <code>{r.userId.slice(0, 8)}…</code> {identifierLabel(r.role)}
+                          {REVIEWER_ROLE_WORDS[r.role] ?? "Member"}
                           {typeof r.currentWorkloadCount === "number" ? (
                             <span data-reviewer-picker-workload={r.userId}>
                               {" "}

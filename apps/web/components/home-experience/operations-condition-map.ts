@@ -312,7 +312,7 @@ export const HOME_CONDITION_REPRESENTATION: Record<
     kind: "ROW",
     severity: "warning",
     domains: ["review"],
-    href: "/review/queues",
+    href: "/review",
   },
   "review.escalation": {
     kind: "ROW",

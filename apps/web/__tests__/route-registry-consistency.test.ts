@@ -30,12 +30,9 @@ const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
  * (deletion / repointing) and are already hidden from every nav surface.
  * Adding a NEW dangling href without a page will fail this test.
  */
-const ALLOWED_DANGLING: ReadonlyMap<string, string> = new Map([
-  [
-    "/evidence-requests",
-    "List page not yet shipped (only /evidence-requests/[id] exists); entry is hidden from all nav surfaces. Repoint or ship the list in a later phase.",
-  ],
-]);
+// Stage D (T-066) — /evidence-requests now ships its list page (the requests
+// awaiting review), so nothing is allowed to dangle.
+const ALLOWED_DANGLING: ReadonlyMap<string, string> = new Map<string, string>([]);
 
 function hrefHasPage(rawHref: string): boolean {
   // Settings IA refactor (2026-07-17): registry entries may target a

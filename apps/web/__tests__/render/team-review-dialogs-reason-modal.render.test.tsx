@@ -184,12 +184,13 @@ describe("ReviewerShortcutsHelp", () => {
     fireEvent.click(opener);
     const dialog = await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
     expect(dialog.classList.contains("app-dialog")).toBe(true);
-    // TEAM-UI-SPEC §2 — M goes to the decision panel; there is no approve key.
-    expect(dialog.textContent).toContain("Go to the decision panel with Request information selected");
+    // T-094 (stage D) — the rows ARE the Review page keymap: a verdict key
+    // only chooses that option in the decision form; nothing submits.
+    expect(dialog.textContent).toContain("Choose Request information in the decision form");
+    expect(dialog.textContent).toContain("Choose Approve in the decision form");
     expect(within(dialog).queryByText("C", { selector: "kbd" })).toBeNull();
-    expect(dialog.textContent).not.toMatch(/Approve/);
+    expect(within(dialog).queryByText("M", { selector: "kbd" })).toBeNull();
     expect(dialog.textContent).not.toMatch(/Cmd|Ctrl\s*\+\s*K|⌘/);
-    expect(dialog.textContent).not.toContain("Escalate");
     fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(document.activeElement).toBe(opener);
@@ -198,7 +199,7 @@ describe("ReviewerShortcutsHelp", () => {
   it("lists the console keys by default", async () => {
     render(<ReviewerShortcutsHelp open onClose={() => {}} />);
     const dialog = await screen.findByRole("dialog");
-    for (const k of ["J / K", "Enter", "A", "/"]) {
+    for (const k of ["J", "K", "Enter", "A", "/"]) {
       expect(within(dialog).getByText(k, { selector: "kbd" })).toBeTruthy();
     }
     // ARCH-18 — the console handles no E (escalate) or M (request info) key,

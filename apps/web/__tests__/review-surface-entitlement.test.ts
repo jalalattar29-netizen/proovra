@@ -236,8 +236,9 @@ test("NEW-RG-14-1 — on PRO (reviewer operations not included) the review Opera
 
 test("NEW-RG-14-1 — on TEAM (reviewer operations included) the rows keep their review destinations", () => {
   // T-125 — a real TEAM envelope carries reviewQueuesIncluded as well; the
-  // stale-workflow row links to /review/queues, which follows that key.
+  // stale-workflow row links to the review Inbox (stage D, T-065: the Queues
+  // page is retired and redirects there).
   const vm = homeWithReviewConditions(teamCtx());
-  assert.equal(opsHref(vm, "review.stale_workflows"), "/review/queues");
+  assert.equal(opsHref(vm, "review.stale_workflows"), "/review");
   assert.equal(opsHref(vm, "review.escalation"), "/reviewer-ops/escalations");
 });

@@ -85,7 +85,8 @@ test("every Home href resolves to a page or a redirect (no 404 CTA)", () => {
 
 test("'Review submissions' lands on the evidence-request review queue", () => {
   assert.doesNotMatch(VIEW_MODEL, /href:\s*"\/evidence-requests\?/);
-  assert.match(VIEW_MODEL, /HOME_SUBMISSION_REVIEW_HREF\s*=\s*\n?\s*"\/review\/queues#evidence-request-queue"/);
-  const panel = readFileSync(join(APP, "(app)/review/queues/_evidence-request-queue.tsx"), "utf8");
+  // T-066 (stage D) — the panel lives on the evidence requests page now.
+  assert.match(VIEW_MODEL, /HOME_SUBMISSION_REVIEW_HREF\s*=\s*\n?\s*"\/evidence-requests#evidence-request-queue"/);
+  const panel = readFileSync(join(APP, "(app)/evidence-requests/_components/EvidenceRequestReviewQueue.tsx"), "utf8");
   assert.match(panel, /id="evidence-request-queue"/);
 });

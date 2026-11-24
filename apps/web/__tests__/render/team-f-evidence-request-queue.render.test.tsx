@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../lib/sentry", () => ({ captureException: () => {} }));
 
-import { EvidenceRequestReviewQueue } from "../../app/(app)/review/queues/_evidence-request-queue";
+import { EvidenceRequestReviewQueue } from "../../app/(app)/evidence-requests/_components/EvidenceRequestReviewQueue";
 
 const TEAM = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const ref = { current: TEAM };
