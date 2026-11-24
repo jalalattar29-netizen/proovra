@@ -246,6 +246,10 @@ const CLASSIFIED_MODULES = new Map([
     "MEMBERSHIP TRANSITION ENGINE — reads the SUBJECT membership row it is about to mutate; the ACTOR is authorized upstream by the orchestrator.",
   ],
   [
+    "src/services/identity/standing-reach.ts",
+    "MEMBERSHIP TRANSITION ENGINE (Team remediation T-099) — inside a role change's transaction, reads the SUBJECT's just-written role only to END the case assignments that role cannot exercise. It grants nothing and makes no access decision; the ACTOR is authorized upstream by the role-change orchestrator. Its only TeamMember read.",
+  ],
+  [
     "src/services/identity/membership-provisioning.service.ts",
     "MEMBERSHIP ORCHESTRATOR — provisions and withdraws the SUBJECT's membership; the ACTOR is authorized at the route boundary.",
   ],

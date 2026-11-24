@@ -617,3 +617,19 @@ export async function authorizeOriginalPart(
   }
   return body.upload.putUrl;
 }
+
+/**
+ * Team remediation T-118 — a workspace-scoped CREATE names its workspace (the
+ * `x-proovra-workspace-id` header the web and mobile send, or a body
+ * `teamId`); a request that names none is refused with 400 WORKSPACE_REQUIRED
+ * instead of landing silently in the caller's personal space. API-level specs
+ * that create cases name the session's personal workspace with this.
+ */
+export async function personalWorkspaceId(api: APIRequestContext): Promise<string> {
+  const res = await api.get("/v1/teams");
+  if (!res.ok()) throw new Error(`GET /v1/teams: ${res.status()} ${await res.text()}`);
+  const body = (await res.json()) as { teams?: Array<{ id: string; isPersonal?: boolean }> };
+  const personal = body.teams?.find((t) => t.isPersonal) ?? body.teams?.[0];
+  if (!personal?.id) throw new Error("expected a personal workspace for the guest session");
+  return personal.id;
+}

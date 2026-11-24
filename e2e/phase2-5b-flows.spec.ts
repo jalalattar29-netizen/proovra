@@ -32,6 +32,7 @@ import {
   clearTestRateLimits,
   createGuestSession,
   disposeSession,
+  personalWorkspaceId,
 } from "./helpers/api-client";
 
 test.beforeEach(async () => {
@@ -113,8 +114,10 @@ test.describe("Phase 2.5B — bulk + reconciler @critical", () => {
     try {
       // Create two cases the caller owns (Phase 2.1 backend ships
       // POST /v1/cases for guests).
+      // T-118: a create names its workspace.
+      const teamId = await personalWorkspaceId(session.api);
       const create = async (name: string) => {
-        const r = await session.api.post("/v1/cases", { data: { name } });
+        const r = await session.api.post("/v1/cases", { data: { name, teamId } });
         expect(r.status()).toBeLessThan(300);
         const body = (await r.json()) as { id: string };
         return body.id;
@@ -197,8 +200,10 @@ test.describe("Phase 2.5B — bulk + reconciler @critical", () => {
     // for a plan that includes it.
     const session = await createGuestSession({ plan: "PRO" });
     try {
+      // T-118: a create names its workspace.
+      const teamId = await personalWorkspaceId(session.api);
       const create = await session.api.post("/v1/cases", {
-        data: { name: "Phase 2.5B reconciler test" },
+        data: { name: "Phase 2.5B reconciler test", teamId },
       });
       const { id } = (await create.json()) as { id: string };
       const resp = await session.api.get(

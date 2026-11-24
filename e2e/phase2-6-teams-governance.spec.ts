@@ -84,7 +84,7 @@ test.describe("Phase 2.6 — teams governance @critical", () => {
     // PlatformContextEnvelope.navigation. So we verify the envelope
     // contains the new entry id for an authenticated user who has
     // TEAM_VIEW capability (every authed user does).
-    const session = await createGuestSession();
+    const session = await createGuestSession({ plan: "TEAM" });
     try {
       const resp = await session.api.get("/v1/platform/context");
       expect(
@@ -107,14 +107,10 @@ test.describe("Phase 2.6 — teams governance @critical", () => {
         `expected workspace.team_governance in the resolved nav; got ${JSON.stringify(ids)}`,
       ).toContain("workspace.team_governance");
 
-      // And the dual-surface admin.teams entry must STILL be present
-      // — Phase 2.6 §10.5 added the workspace entry, didn't remove
-      // the admin one. (Defense against accidental removal in a
-      // future PR.)
-      expect(
-        ids,
-        `expected admin.teams to still exist in the resolved nav`,
-      ).toContain("admin.teams");
+      // Team remediation T-125: the server navigation advertises only routes
+      // that load for the context. Collaboration Teams need a plan that
+      // includes them (Pro and above), and admin.teams is Enterprise-only.
+      expect(ids, "admin.teams is advertised to Enterprise only").not.toContain("admin.teams");
 
       // The new entry must be in the WORKSPACE group, not the
       // ADMINISTRATION group, so the discoverability fix actually
