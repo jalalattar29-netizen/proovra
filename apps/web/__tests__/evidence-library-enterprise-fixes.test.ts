@@ -230,8 +230,13 @@ test("FIX 6 — Evidence Library page computes canSeeReviewerOps via the server-
   // billing aggregate as the source of the workspace list — broke a test about
   // the reviewer-operations gate. What matters is that the page reads the
   // server-projected gate, and the next line asserts exactly that.
-  assert.match(PAGE, /useEnterpriseSurfaceAccess/);
-  assert.match(PAGE, /const canSeeReviewerOps = useEnterpriseSurfaceAccess\(\);/);
+  //
+  // T-112 (ARCH-04) — the gate is the server-projected PLAN FEATURE that sells
+  // review assignments (Team and Enterprise), no longer the Enterprise surface
+  // flag: Team runs on a Personal Workspace. The behaviour is proven by
+  // __tests__/render/evidence-library-reviewer-rows.render.test.tsx.
+  assert.match(PAGE, /const canSeeReviewerOps = usePlanFeatureGate\("reviewerOperationsIncluded"\);/);
+  assert.doesNotMatch(PAGE, /const canSeeReviewerOps = useEnterpriseSurfaceAccess\(\);/);
   assert.match(PAGE, /canSeeReviewerOps=\{canSeeReviewerOps\}/);
 });
 

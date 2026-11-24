@@ -11,7 +11,7 @@ import { listAllCases } from "../../../lib/cases/listAllCases";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import {
   useActiveSpaceId,
-  useEnterpriseSurfaceAccess,
+  usePlanFeatureGate,
   usePlatformContext,
 } from "../../../lib/platform-context";
 import { captureException } from "../../../lib/sentry";
@@ -1291,13 +1291,14 @@ function EvidenceLibraryPageInner() {
     setSelectedIds(new Set());
   };
 
-  // Phase EVIDENCE-LIBRARY-ENTERPRISE-GATE (FIX 6) / Track 1A — the
-  // QueueSelectionPreview's reviewer-assignment + due-date rows are
-  // enterprise-only — they assume an external reviewer is on the
-  // workflow. Personal Space / small-business workspaces hide those
-  // rows; the user IS the reviewer there. Server-projected boolean
-  // only; backend authorization is unchanged.
-  const canSeeReviewerOps = useEnterpriseSurfaceAccess();
+  // T-112 (ARCH-04) — the QueueSelectionPreview reviewer-assignment and
+  // due-date rows follow the plan that sells review assignments
+  // (`planFeatures.reviewerOperationsIncluded`: Team and Enterprise), not the
+  // Enterprise surface flag: Team runs on a Personal Workspace and assigns
+  // reviewers there. A plan without reviewer operations (Free, Pro) hides the
+  // rows — the owner IS the reviewer. Server-projected boolean only; backend
+  // authorization is unchanged.
+  const canSeeReviewerOps = usePlanFeatureGate("reviewerOperationsIncluded");
 
   return (
     <PageShell className="evidence-library-page" data-evidence-library-page>
