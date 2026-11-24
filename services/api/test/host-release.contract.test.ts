@@ -27,6 +27,11 @@ st="$STUB_STATE"; args="$*"; last="\${@: -1}"
 rev_of_tag() { cat "$st/tag-$1" 2>/dev/null; }
 case "$args" in
   "compose --env-file "*" -f "*" ps -q "*)
+    # Like the real prod compose file: it does not even parse without these.
+    [ -n "\${GHCR_OWNER:-}" ] || { echo 'error while interpolating services.proovra-api.image: required variable GHCR_OWNER is missing a value: GHCR_OWNER is required' >&2; exit 1; }
+    [ -n "\${IMAGE_TAG:-}" ] || { echo 'error while interpolating services.proovra-api.image: required variable IMAGE_TAG is missing a value' >&2; exit 1; }
+    [ -n "\${STUB_PS_FAIL:-}" ] && { echo 'Cannot connect to the Docker daemon' >&2; exit 1; }
+    echo "WARN[0000] a compose warning on stdout"
     shift 5
     for s in "$@"; do r="$(cat "$st/running-$s" 2>/dev/null)"; [ -n "$r" ] && echo "cid-$s-$r-$(cat "$st/gen-$s" 2>/dev/null || echo 0)"; done; exit 0 ;;
   *"run --rm --no-deps -T --entrypoint bash pg-backup /ops/pg-backup.sh")
@@ -233,6 +238,27 @@ describe("host-release.sh release", () => {
     expect(r.marks.reason).toMatch(/not an ancestor .* never deploy over a newer or diverged release/);
   });
 
+  // 2026-11-24, first automatic release: the prod compose file does not parse
+  // without GHCR_OWNER/IMAGE_TAG, the error was swallowed, and the live release
+  // read as "none". The stub compose now refuses exactly like the real one.
+  it("reads the live release although no release variables are exported yet (prod compose interpolation)", () => {
+    const w = stubWorld();
+    const r = w.run(["release", NEW], HOST_RELEASE, { GHCR_OWNER: "", IMAGE_TAG: "", RELEASE_SHA: "" });
+    expect(r.status, r.out).toBe(0);
+    expect(r.marks.running_api).toBe(OLD);
+    expect(r.marks.running_worker).toBe(OLD);
+    expect(r.out).not.toMatch(/WARN\[0000\].*(revision|image=)/);
+  });
+
+  it("containers that cannot be listed are 'unreadable' and refused, never read as 'none'", () => {
+    const w = stubWorld({ env: { STUB_PS_FAIL: "1" } });
+    const r = w.run(["release", NEW]);
+    expect(r.status).toBe(10);
+    expect(r.marks.running_api).toBe("unreadable");
+    expect(r.out).toMatch(/compose ps: Cannot connect to the Docker daemon/);
+    expect(r.calls.some((l) => / pg-backup /.test(l) || l.startsWith("deploy-prod-pull"))).toBe(false);
+  });
+
   it("a deploy refused by its own gates before any restart is REFUSED_BEFORE_CHANGE, never a rollback", () => {
     const w = stubWorld({ env: { STUB_DEPLOY: "schema-gate" } });
     const r = w.run(["release", NEW]);
@@ -302,6 +328,7 @@ describe("host-release.sh rollback and status", () => {
     const r = w.run(["status"]);
     expect(r.status).toBe(0);
     expect(r.marks.revision_api).toBe(NEW);
+    expect(r.marks.revision_worker).toBe(NEW);
     expect(r.marks.previous_release).toBe("none");
     expect(r.calls.some((l) => l.startsWith("deploy-prod-pull") || /git checkout/.test(l))).toBe(false);
   });

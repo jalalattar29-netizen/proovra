@@ -78,20 +78,46 @@ main() {
 
   compose() { docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" "$@"; }
 
+  # Container IDs of services. The prod compose file refuses to PARSE without
+  # GHCR_OWNER and IMAGE_TAG (`${…:?}`), and those are exported only once a
+  # release is chosen; `ps` selects containers by project and service labels,
+  # never by image, so before that a placeholder tag satisfies the parse. Only
+  # `ps` ever sees the placeholder (never pull/up/run). A failure is REPORTED,
+  # never read as "no containers" (2026-11-24: a hidden parse error read the
+  # live release as "none" and refused the first automatic release).
+  ps_ids() {
+    local out err rc=0
+    err="$(mktemp)"
+    out="$(
+      export GHCR_OWNER="${GHCR_OWNER:-${OWNER}}" IMAGE_TAG="${IMAGE_TAG:-sha-0000000}"
+      compose ps -q "$@" 2>"${err}"
+    )" || rc=$?
+    if [ "${rc}" -ne 0 ]; then
+      sed 's/^/  compose ps: /' "${err}" >&2
+      rm -f "${err}"
+      return 1
+    fi
+    rm -f "${err}"
+    # Container IDs only: a warning on stdout is never read as a container.
+    printf '%s\n' "${out}" | grep -E '^[[:alnum:]][[:alnum:]_.-]*$' || true
+  }
+
   # --- facts about what runs now ------------------------------------------------
   # "<revision> <image ref>" of every container of a service, one per line.
   running_of() {
-    local svc="$1" cid img rev
-    for cid in $(compose ps -q "${svc}" 2>/dev/null); do
+    local svc="$1" cid img rev cids
+    cids="$(ps_ids "${svc}")" || return 1
+    for cid in ${cids}; do
       img="$(docker inspect --format '{{.Config.Image}}' "${cid}")"
       rev="$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "${cid}" 2>/dev/null || true)"
       echo "${rev:-unknown} ${img}"
     done
   }
-  # The single revision a service runs, or "mixed"/"none".
+  # The single revision a service runs, or "mixed"/"none"/"unreadable".
   revision_of() {
-    local lines
-    lines="$(running_of "$1" | awk '{print $1}' | sort -u)"
+    local out lines
+    out="$(running_of "$1")" || { echo unreadable; return 0; }
+    lines="$(printf '%s\n' "${out}" | awk 'NF {print $1}' | sort -u)"
     if [ -z "${lines}" ]; then echo none
     elif [ "$(printf '%s\n' "${lines}" | wc -l | tr -d ' ')" != 1 ]; then echo mixed
     else echo "${lines}"; fi
@@ -110,7 +136,7 @@ main() {
     local sha="$1" tag="sha-${1:0:7}" svc cid img rev health ok=0 epoch contract
     for svc in "${WORKER_SVC}" "${API_SVC}"; do
       local cids
-      cids="$(compose ps -q "${svc}" 2>/dev/null)"
+      if ! cids="$(ps_ids "${svc}")"; then echo "  VERIFY FAIL: ${svc} containers unreadable"; ok=1; continue; fi
       if [ -z "${cids}" ]; then echo "  VERIFY FAIL: ${svc} has no container"; ok=1; continue; fi
       for cid in ${cids}; do
         img="$(docker inspect --format '{{.Config.Image}}' "${cid}")"
@@ -246,7 +272,9 @@ do_release() {
   mark "rollback_point=${R0}"
   # Which containers run now: "nothing changed" is decided by container identity.
   local CIDS0
-  CIDS0="$(compose ps -q "${API_SVC}" "${WORKER_SVC}" 2>/dev/null | sort | tr '\n' ' ')"
+  CIDS0="$(ps_ids "${API_SVC}" "${WORKER_SVC}")" && [ -n "${CIDS0}" ] ||
+    { refuse "the running containers could not be listed"; return 10; }
+  CIDS0="$(printf '%s\n' "${CIDS0}" | sort | tr '\n' ' ')"
 
   # Compose interpolation needs these exported even for the backup service.
   export GHCR_OWNER="${OWNER}" RELEASE_SHA="${SHA}" IMAGE_TAG="${TAG}"
@@ -301,7 +329,7 @@ do_release() {
 
   # --- 5. nothing changed? then nothing to roll back --------------------------
   local CIDS1
-  CIDS1="$(compose ps -q "${API_SVC}" "${WORKER_SVC}" 2>/dev/null | sort | tr '\n' ' ')"
+  CIDS1="$(ps_ids "${API_SVC}" "${WORKER_SVC}" | sort | tr '\n' ' ')"
   if [ -n "${CIDS0}" ] && [ "${CIDS1}" = "${CIDS0}" ] &&
      [ "$(revision_of "${API_SVC}")" = "${R0}" ] && [ "$(revision_of "${WORKER_SVC}")" = "${R0}" ]; then
     refuse "the deploy stopped before any service changed (deploy-prod-pull exit ${deploy_rc})"; return 10
