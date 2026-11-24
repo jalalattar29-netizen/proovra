@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 12977,
-      "UNRESOLVED_IDENTIFIER": 1868
+      "METHOD_ON_VALUE": 12987,
+      "UNRESOLVED_IDENTIFIER": 1869
     },
     "MutationFixpointRounds": 11,
     "MutationClosurePass": false,
@@ -100596,8 +100596,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-sla-stamp.service.ts#evidenceReviewWorkflow.update@311",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-sla-stamp.service.ts:311",
+      "writerId": "services/api/src/services/reviewer-ops/review-sla-stamp.service.ts#evidenceReviewWorkflow.update@323",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-sla-stamp.service.ts:323",
       "file": "services/api/src/services/reviewer-ops/review-sla-stamp.service.ts",
       "enclosingDeclaration": "stampReviewDeadlines",
       "kind": "DATABASE",
@@ -100653,8 +100653,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-sla-stamp.service.ts#evidenceReviewWorkflowEvent.create@312",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-sla-stamp.service.ts:312",
+      "writerId": "services/api/src/services/reviewer-ops/review-sla-stamp.service.ts#evidenceReviewWorkflowEvent.create@324",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-sla-stamp.service.ts:324",
       "file": "services/api/src/services/reviewer-ops/review-sla-stamp.service.ts",
       "enclosingDeclaration": "stampReviewDeadlines",
       "kind": "DATABASE",
@@ -100710,8 +100710,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-sla-truth-repair.service.ts#evidenceReviewWorkflow.updateMany@209",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-sla-truth-repair.service.ts:209",
+      "writerId": "services/api/src/services/reviewer-ops/review-sla-truth-repair.service.ts#evidenceReviewWorkflow.updateMany@202",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-sla-truth-repair.service.ts:202",
       "file": "services/api/src/services/reviewer-ops/review-sla-truth-repair.service.ts",
       "enclosingDeclaration": "applyChange",
       "kind": "DATABASE",
@@ -100740,8 +100740,8 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-sla-truth-repair.service.ts#evidenceReviewWorkflow.updateMany@218",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-sla-truth-repair.service.ts:218",
+      "writerId": "services/api/src/services/reviewer-ops/review-sla-truth-repair.service.ts#evidenceReviewWorkflow.updateMany@211",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-sla-truth-repair.service.ts:211",
       "file": "services/api/src/services/reviewer-ops/review-sla-truth-repair.service.ts",
       "enclosingDeclaration": "applyChange",
       "kind": "DATABASE",
@@ -100770,8 +100770,8 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-sla-truth-repair.service.ts#evidenceReviewWorkflow.updateMany@227",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-sla-truth-repair.service.ts:227",
+      "writerId": "services/api/src/services/reviewer-ops/review-sla-truth-repair.service.ts#evidenceReviewWorkflow.updateMany@220",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-sla-truth-repair.service.ts:220",
       "file": "services/api/src/services/reviewer-ops/review-sla-truth-repair.service.ts",
       "enclosingDeclaration": "applyChange",
       "kind": "DATABASE",
@@ -100800,8 +100800,8 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-sla-truth-repair.service.ts#evidenceReviewWorkflow.updateMany@236",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-sla-truth-repair.service.ts:236",
+      "writerId": "services/api/src/services/reviewer-ops/review-sla-truth-repair.service.ts#evidenceReviewWorkflow.updateMany@229",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-sla-truth-repair.service.ts:229",
       "file": "services/api/src/services/reviewer-ops/review-sla-truth-repair.service.ts",
       "enclosingDeclaration": "applyChange",
       "kind": "DATABASE",
@@ -100830,8 +100830,8 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1260",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1260",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1288",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1288",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "startReview",
       "kind": "DATABASE",
@@ -100863,8 +100863,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1327",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1327",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1353",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1353",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "pauseReview",
       "kind": "DATABASE",
@@ -100897,8 +100897,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1431",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1431",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1457",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1457",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "resumeReview",
       "kind": "DATABASE",
@@ -100930,8 +100930,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1594",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1594",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1620",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1620",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "recordResponseReceived",
       "kind": "DATABASE",
@@ -100963,8 +100963,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1272",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1272",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1300",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1300",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "startReview",
       "kind": "DATABASE",
@@ -100996,8 +100996,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1340",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1340",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1366",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1366",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "pauseReview",
       "kind": "DATABASE",
@@ -101030,8 +101030,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1440",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1440",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1466",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1466",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "resumeReview",
       "kind": "DATABASE",
@@ -101063,8 +101063,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1603",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1603",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1629",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1629",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "recordResponseReceived",
       "kind": "DATABASE",
@@ -131558,7 +131558,6 @@
         "evidenceReviewWorkflow",
         "operationalIncident",
         "organizationSecurityPolicy",
-        "reviewEscalation",
         "revokedSession",
         "supportAccessGrant",
         "team",
@@ -131574,8 +131573,7 @@
         "packages/shared-runtime/src/standing-creator-authority.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
         "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts: evidenceLegalHold.count — no tenant or self predicate",
-        "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts: reviewEscalation.findUnique — no tenant or self predicate"
+        "services/api/src/services/governance-lifecycle/governance-snapshot.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -151537,8 +151535,8 @@
         "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceLegalHold.findMany — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate",
-        "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
-        "services/api/src/services/reviewer-ops/escalation-engine.service.ts: reviewEscalation.findMany — no tenant or self predicate"
+        "services/api/src/services/reviewer-ops/review-sla-read-facts.ts: workflowReviewDecision.groupBy — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -151901,6 +151899,7 @@
         "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceLegalHold.findMany — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/review-sla-read-facts.ts: workflowReviewDecision.groupBy — no tenant or self predicate",
         "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
@@ -152295,6 +152294,7 @@
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/review-sla-read-facts.ts: workflowReviewDecision.groupBy — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate"
       ],
@@ -204715,6 +204715,7 @@
         "authenticatedSession",
         "enterpriseContract",
         "evidenceReviewWorkflow",
+        "evidenceReviewWorkflowEvent",
         "operationalIncident",
         "organization",
         "organizationSecurityPolicy",
@@ -204724,13 +204725,15 @@
         "ssoConnection",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "workflowReviewDecision"
       ],
       "modelsWritten": [],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/review-sla-read-facts.ts: workflowReviewDecision.groupBy — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -205247,13 +205250,16 @@
         "authenticatedSession",
         "enterpriseContract",
         "evidenceReviewWorkflow",
+        "evidenceReviewWorkflowEvent",
         "organization",
         "organizationSecurityPolicy",
+        "reviewEscalation",
         "revokedSession",
         "ssoConnection",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "workflowReviewDecision"
       ],
       "modelsWritten": [
         "evidenceReviewWorkflow",
@@ -205263,7 +205269,8 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/review-sla-read-facts.ts: workflowReviewDecision.groupBy — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -205654,6 +205661,7 @@
         "authenticatedSession",
         "enterpriseContract",
         "evidenceReviewWorkflow",
+        "evidenceReviewWorkflowEvent",
         "organization",
         "organizationNotificationPolicy",
         "organizationSecurityPolicy",
@@ -205665,6 +205673,7 @@
         "teamMember",
         "user",
         "webhookEndpoint",
+        "workflowReviewDecision",
         "workspaceNotificationPreference"
       ],
       "modelsWritten": [
@@ -205680,7 +205689,8 @@
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate"
+        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/review-sla-read-facts.ts: workflowReviewDecision.groupBy — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -205753,13 +205763,16 @@
         "authenticatedSession",
         "enterpriseContract",
         "evidenceReviewWorkflow",
+        "evidenceReviewWorkflowEvent",
         "organization",
         "organizationSecurityPolicy",
+        "reviewEscalation",
         "revokedSession",
         "ssoConnection",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "workflowReviewDecision"
       ],
       "modelsWritten": [
         "evidenceReviewWorkflow",
@@ -205769,7 +205782,8 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/review-sla-read-facts.ts: workflowReviewDecision.groupBy — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -205843,6 +205857,7 @@
         "authenticatedSession",
         "enterpriseContract",
         "evidenceReviewWorkflow",
+        "evidenceReviewWorkflowEvent",
         "organization",
         "organizationSecurityPolicy",
         "reviewEscalation",
@@ -205850,7 +205865,8 @@
         "ssoConnection",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "workflowReviewDecision"
       ],
       "modelsWritten": [
         "evidenceReviewWorkflow",
@@ -205860,7 +205876,8 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/review-sla-read-facts.ts: workflowReviewDecision.groupBy — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
