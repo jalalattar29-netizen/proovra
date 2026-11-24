@@ -52,6 +52,7 @@ import {
 import { apiFetch } from "../../../../lib/api";
 import { listAllCases } from "../../../../lib/cases/listAllCases";
 import { claimAndBeginReview } from "./components/EvidenceReviewActionsPanel";
+import { CLAIM_PLACEMENT_REFUSAL_TEXT, isPlacementRefusal } from "../../../../lib/members/placement";
 import { getEvidenceDeletionEligibility } from "../lib/evidence-delete-eligibility";
 import { captureException } from "../../../../lib/sentry";
 import { formatUserDateTime } from "../../../../lib/date";
@@ -399,7 +400,10 @@ function EvidenceDetailPageInner() {
     } catch (claimError) {
       await loadWorkspace({ bumpBaseline: true });
       addToast(
-        toSafeUserError(claimError, { message: "The review could not be started. Try again." }).message,
+        // T-098 — the placement prerequisite, said as itself.
+        isPlacementRefusal(claimError)
+          ? CLAIM_PLACEMENT_REFUSAL_TEXT
+          : toSafeUserError(claimError, { message: "The review could not be started. Try again." }).message,
         "error",
       );
     }

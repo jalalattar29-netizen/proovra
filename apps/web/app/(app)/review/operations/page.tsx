@@ -34,6 +34,7 @@ import { usePlatformContext, useTeamId } from "../../../../lib/platform-context"
 // the `evidence_request.review` permission GET /v1/review/queue enforces, so a
 // Viewer is not offered it. The PageRouteGate matches the backend boundary.
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { CLAIM_PLACEMENT_REFUSAL_TEXT, isPlacementRefusal } from "../../../../lib/members/placement";
 type Stage =
   | "QUEUED"
   | "ASSIGNED"
@@ -183,7 +184,12 @@ useEffect(() => {
       setReloadTick((t) => t + 1);
     } catch (err) {
       const e = err as { message?: string };
-      alert(toSafeUserError(e, { message: "Could not claim." }).message);
+      // T-098 — the placement prerequisite, said as itself.
+      alert(
+        isPlacementRefusal(err)
+          ? CLAIM_PLACEMENT_REFUSAL_TEXT
+          : toSafeUserError(e, { message: "Could not claim." }).message,
+      );
     } finally {
       setBusy(false);
     }
