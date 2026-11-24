@@ -43,6 +43,7 @@ vi.mock("next/navigation", () => ({
 
 import ReviewWorkspacePage from "../../app/(app)/reviewer-ops/[reviewId]/page";
 import { FIRST_ONLY_MESSAGE } from "../../app/(app)/reviewer-ops/[reviewId]/_components/inspector-model";
+import { reviewStringScanViolations } from "./_review-string-scan";
 import { EVIDENCE_LIBRARY_LEGAL_BOUNDARY } from "../../app/(app)/evidence/lib/evidence-library-formatters";
 
 const teamId = "44444444-4444-4444-8444-444444444444";
@@ -85,6 +86,7 @@ const json = (status: number, body: unknown) =>
 
 let workspace: Record<string, unknown>;
 let parts: unknown;
+let coding: unknown = {};
 let postResponses: Record<string, () => Response>;
 const calls: Array<{ method: string; path: string; body: unknown }> = [];
 const decisionsPostPath = `/v1/reviewer-ops/workspace/${workflowId}/decisions`;
@@ -95,6 +97,7 @@ beforeEach(() => {
   nav.replace.mockReset();
   workspace = workspaceBody("IN_REVIEW", viewerWith(["approve", "reject", "request_info", "escalate", "pause"]));
   parts = { parts: [{ partIndex: 0, isPrimary: true, previewable: true, mimeType: "image/png", previewUrl: "https://s3.example/presigned.png", displayName: "photo.png" }] };
+  coding = {};
   postResponses = {};
   calls.length = 0;
   vi.stubGlobal(
@@ -115,6 +118,8 @@ beforeEach(() => {
         });
       }
       if (method === "GET" && path === `/v1/evidence/${evidenceId}/parts`) return json(200, parts);
+      if (method === "GET" && path.startsWith(`/v1/reviewer/work/${workflowId}/coding`)) return json(200, coding);
+      if (method === "GET" && path.startsWith("/v1/coding/schemas/schema-1")) return json(200, { schema: { id: "schema-1", fields: [{ id: "f1", key: "relevance", label: "Relevance", fieldType: "TEXT", required: true, options: null, order: 1 }] } });
       if (method === "GET" && path.startsWith(`/v1/reviewer-ops/workspace/${workflowId}/notes`)) return json(200, { workflowId, evidenceId, summary: { total: 0 }, items: [] });
       if (method === "GET" && path.startsWith("/v1/reviewer-ops/queue?")) {
         return json(200, { rows: [{ workflowId, evidenceId }, { workflowId: NEXT, evidenceId: "e2" }].map((r) => ({ ...r, lifecycleState: "IN_REVIEW", priority: "NORMAL", assignedToUserId: null })), nextCursor: null });
@@ -301,3 +306,47 @@ describe("standard layout — T-074 / T-090 / T-093", () => {
 
 // Keep act imported for helpers that may need it later.
 void act;
+
+describe("T-084 — the Review page string scan (both layouts)", () => {
+  for (const search of ["", "mode=focus&from=inbox&view=ESCALATED"]) {
+    it(`no raw enum, code, engine wording or id fragment (${search || "standard"})`, async () => {
+      nav.search = search;
+      workspace = {
+        ...workspaceBody("ESCALATED", viewerWith(["approve", "reject", "request_info", "pause"])),
+        openEscalation: {
+          id: "esc-1",
+          reason: "REVIEW_OVERDUE",
+          severity: "WARNING",
+          status: "OPEN",
+          safeSummary: "Review past due — automatic escalation by reviewer ops reconcile.",
+          createdAt: "2026-11-20T10:00:00.000Z",
+          assignedToUserId: null,
+        },
+        activeEscalationCount: 1,
+      };
+      await renderPage();
+      const text = document.body.textContent ?? "";
+      expect(reviewStringScanViolations(text)).toEqual([]);
+      // The escalation line is the catalog summary of the governing escalation.
+      expect(document.querySelector("[data-review-header-escalation]")!.textContent).toBe("Escalation: Warning (1 active)");
+    });
+  }
+});
+
+describe("T-082 — coding on the shared Review page", () => {
+  for (const search of ["", "mode=focus&from=inbox&view=MY_REVIEWS"]) {
+    it(`a review with a bound schema shows the coding fields (${search || "standard"})`, async () => {
+      nav.search = search;
+      coding = { schemaBinding: { id: "schema-1", label: "Privilege review", version: 1, status: "PUBLISHED" }, values: [], coverage: { unfulfilledFieldIds: ["f1"] } };
+      await renderPage();
+      const panel = await waitFor(() => {
+        const el = document.querySelector("[data-review-coding-panel]");
+        expect(el).toBeTruthy();
+        return el as HTMLElement;
+      });
+      expect(panel.querySelector("[data-coding-panel]")).not.toBeNull();
+      expect(panel.textContent).toContain("Relevance");
+      expect(panel.textContent).toMatch(/do not decide it/);
+    });
+  }
+});

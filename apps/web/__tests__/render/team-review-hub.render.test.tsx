@@ -86,7 +86,7 @@ function envelope(p: Persona) {
     flags: { isEnterpriseWorkspace: false },
     platform: { isPlatformAdmin: false },
     planFeatures: team
-      ? { reviewerOperationsIncluded: true, reviewQueuesIncluded: true, externalReviewIncluded: true, intakeIncluded: true, reportsIncluded: true, professionalSurfacesIncluded: true, casesIncluded: true }
+      ? { reviewerOperationsIncluded: true, reviewQueuesIncluded: true, externalReviewIncluded: true, basicRecordReviewIncluded: true, intakeIncluded: true, reportsIncluded: true, professionalSurfacesIncluded: true, casesIncluded: true }
       : { reviewerOperationsIncluded: false, reviewQueuesIncluded: false, externalReviewIncluded: true, intakeIncluded: true, reportsIncluded: true, professionalSurfacesIncluded: true, casesIncluded: true },
   };
 }
@@ -421,5 +421,43 @@ describe("global palette — DENIED rows are hidden, never a silent /home", () =
     });
     expect(push).toHaveBeenCalled();
     expect(push).not.toHaveBeenCalledWith("/home");
+  });
+});
+
+describe("T-079 — Review settings holds the policy, reviewer criteria and coding schemas", () => {
+  it("offers Policy, Reviewer criteria and Coding schemas as sections; External review stays an Inbox tool", async () => {
+    mount("TEAM_OWNER", <ReviewSettingsPage />);
+    await settle();
+    const links = Array.from(document.querySelectorAll("[data-review-settings-section-link]")).map((a) => [
+      a.getAttribute("data-review-settings-section-link"),
+      a.getAttribute("href"),
+    ]);
+    expect(links).toEqual([
+      ["policy", "/review/settings"],
+      ["criteria", "/review/settings?section=criteria"],
+      ["schemas", "/review/settings?section=schemas"],
+    ]);
+    expect(document.body.textContent).not.toMatch(/Reviewer operations/i);
+    cleanup();
+    mount("TEAM_OWNER", <ReviewToolsPanel />);
+    await settle();
+    expect(document.querySelector('[data-review-tool="/review/external"]')).not.toBeNull();
+  });
+});
+
+describe("T-078 — one Monitoring area", () => {
+  it("offers Deadlines, Escalations, Workload, Quality and Metrics as in-page sections to an owner; a Viewer is not offered Metrics", async () => {
+    mount("TEAM_OWNER", <MonitoringPage />);
+    await settle();
+    const owner = Array.from(document.querySelectorAll("[data-monitoring-section-link]")).map((a) => a.getAttribute("data-monitoring-section-link"));
+    expect(owner).toEqual(["deadlines", "escalations", "workload", "quality", "metrics"]);
+    expect(document.querySelector('[data-monitoring-section-link="metrics"]')!.getAttribute("href")).toBe("/reviewer-ops/sla?section=metrics");
+    expect(document.querySelectorAll("[data-review-hub-nav] nav")).toHaveLength(1);
+    cleanup();
+    mount("TEAM_VIEWER", <MonitoringPage />);
+    await settle();
+    const viewer = Array.from(document.querySelectorAll("[data-monitoring-section-link]")).map((a) => a.getAttribute("data-monitoring-section-link"));
+    expect(viewer).not.toContain("metrics");
+    expect(viewer).toContain("deadlines");
   });
 });

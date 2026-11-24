@@ -1,4 +1,5 @@
 "use client";
+import { AppStatusText } from "../app-primitives/AppStatusText";
 
 /**
  * TEAM-SPEC §2 item 9 / §3 — the reviewer SLA policy, as a shared panel.
@@ -422,7 +423,7 @@ export function ReviewerSlaPolicyPanel({
               <div key={f.key}>
                 <div className="review-check-row" data-review-sla-policy-flag={f.key}>
                   <span>{f.label}:</span>
-                  <span className={value ? "app-chip app-chip--ok" : "app-chip"}>{value ? "On" : "Off"}</span>
+                  <AppStatusText tone={value ? "green" : "slate"}>{value ? "On" : "Off"}</AppStatusText>
                 </div>
                 {governsList}
               </div>

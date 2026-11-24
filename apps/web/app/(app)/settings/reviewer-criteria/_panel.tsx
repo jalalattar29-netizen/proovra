@@ -252,9 +252,9 @@ function VersionHistory({ teamId, setId }: { teamId: string; setId: string }) {
           <div key={v.id} style={{ marginBottom: 8 }}>
             <div style={{ fontSize: 13 }}>
               <strong>v{v.version}</strong> — {v.title}{" "}
-              <span className={`app-chip ${v.publishedAt ? "app-chip--ok" : ""}`}>
+              <AppStatusText tone={v.publishedAt ? "green" : "amber"}>
                 {v.publishedAt ? `published ${formatUserDate(v.publishedAt)} · immutable` : "draft"}
-              </span>
+              </AppStatusText>
               <span style={{ opacity: 0.6, marginLeft: 6 }}>created {formatUserDate(v.createdAt)}</span>
             </div>
             {u && u.runCount > 0 ? (

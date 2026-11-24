@@ -13,6 +13,7 @@
  *
  * Real pages, real apiFetch over a stubbed fetch, RTL cleanup().
  */
+import { reviewStringScanViolations } from "./_review-string-scan";
 import React from "react";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -342,5 +343,32 @@ describe("SLA page", () => {
     expect(failures).toBe(2);
     expect(document.querySelector("[data-sla-dashboard-error]")).toBeNull();
     expect(document.body.textContent).toContain("Workspace pressure");
+  });
+});
+
+describe("T-084 / T-083 — Monitoring escalations string scan", () => {
+  it("an old automatic escalation reads catalog words; no enum, code or id fragment on screen", async () => {
+    responder = (p) =>
+      p.startsWith("/v1/reviewer-ops/escalations")
+        ? {
+            status: 200,
+            body: {
+              escalations: [
+                {
+                  ...escalation(ESC, "OPEN"),
+                  severity: "WARNING",
+                  reason: "REVIEW_OVERDUE",
+                  safeSummary: "Review past due — automatic escalation by reviewer ops reconcile.",
+                },
+              ],
+              total: 1,
+            },
+          }
+        : null;
+    mount(<EscalationsPage />);
+    await settle();
+    const section = document.querySelector('[data-monitoring-section-body="escalations"]') as HTMLElement;
+    expect(section.textContent).toContain("Review is past its deadline; raised automatically.");
+    expect(reviewStringScanViolations(section.textContent ?? "")).toEqual([]);
   });
 });

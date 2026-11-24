@@ -51,6 +51,7 @@ import ReviewPage from "../../app/(app)/review/page";
 import { setActiveWorkspaceId } from "../../lib/api";
 import { formatUserDate } from "../../lib/date";
 import { INBOX_KEYMAP } from "../../lib/reviewer-workspace/review-keymap";
+import { reviewStringScanViolations } from "./_review-string-scan";
 
 const WS = "77777777-7777-4777-8777-777777777777";
 const ME = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -485,5 +486,32 @@ describe("T-065 — the handoff slices are Inbox views", () => {
     const hint = document.querySelector("[data-inbox-conflicts-hint]") as HTMLElement;
     expect(hint.textContent).toMatch(/first and second reviews reached different outcomes/);
     expect(hint.querySelector("[data-inbox-challenged-link]")!.getAttribute("href")).toBe("/review/disagreements");
+  });
+});
+
+describe("T-084 — the Inbox string scan", () => {
+  it("no raw enum, code or id fragment reaches the screen, even for an escalated, attention-band row", async () => {
+    rows = [
+      row(WF1, EV1, { lifecycleState: "ESCALATED", priority: "URGENT" }),
+      row(WF2, EV2, { lifecycleState: "IN_REVIEW", assignedToUserId: PEER, assignee: null }),
+    ];
+    intelligence = [
+      {
+        workflowId: WF1,
+        evidenceId: EV1,
+        status: "ESCALATED",
+        priority: { band: "ATTENTION", score: 60 },
+        stuckState: { isStuck: true, topSeverity: "WARNING" },
+        reviewerPressure: "overloaded",
+        governanceBlockers: { legalHold: false, immutableDrift: false, packageBlocked: true, exportBlocked: true, retentionExpired: false },
+        slaState: { status: "BREACHED", signal: "OVERDUE", dueAtUtc: GOVERNING_DUE, breachedAtUtc: GOVERNING_DUE },
+        escalationState: { activeEscalationId: "e-1", severity: "WARNING", activeCount: 1 },
+        queueAging: { createdAtUtc: GOVERNING_DUE, daysOpen: 3, agedFrom: "assigned", lastReviewerTouchAtUtc: null },
+      },
+    ];
+    qcPending = { status: 200, count: 2 };
+    await mount();
+    const text = (document.querySelector("[data-review-inbox]") as HTMLElement).textContent ?? "";
+    expect(reviewStringScanViolations(text)).toEqual([]);
   });
 });

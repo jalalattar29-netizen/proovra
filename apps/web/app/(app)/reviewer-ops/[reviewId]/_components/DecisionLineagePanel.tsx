@@ -27,9 +27,13 @@ import {
   describeGoverningRequirement,
   describeSecondReviewRequirement,
   identifierLabel,
+  maskEmail,
 } from "@proovra/shared";
 
 import { apiFetch } from "../../../../../lib/api";
+import { reviewerIdentityLabel } from "../../../../../lib/reviewer-workspace/reviewer-identity";
+import { AppStatusText } from "../../../../../components/app-primitives/AppStatusText";
+import type { AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { PLAN_REFUSAL_COPY, isPlanRefusal } from "../../../../../lib/feedback/plan-refusal";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
@@ -176,8 +180,13 @@ export function refusalMessage(err: unknown, fallback: string): string {
   return mapped || toSafeUserError(err, { message: fallback }).message;
 }
 
+/**
+ * T-086 (stage D) — a reviewer in the lineage is named the way the Inbox and
+ * the picker name them: the display name, else the e-mail MASKED, never an id
+ * reference.
+ */
 export function reviewerName(r: { userId: string; email: string | null; displayName: string | null }): string {
-  return r.displayName || r.email || recordReference("Reviewer", r.userId);
+  return reviewerIdentityLabel({ userId: r.userId, displayName: r.displayName, maskedEmail: maskEmail(r.email) });
 }
 
 const STATE_LABELS: Record<ReviewState, string> = {
@@ -188,13 +197,13 @@ const STATE_LABELS: Record<ReviewState, string> = {
   resolved: "Review resolved",
 };
 
-/** The state chip's tone, from the canonical chip set. */
-const STATE_CHIP: Record<ReviewState, string> = {
-  first_required: "app-chip",
-  second_required: "app-chip app-chip--warn",
-  conflict_detected: "app-chip app-chip--warn",
-  adjudication_required: "app-chip app-chip--warn",
-  resolved: "app-chip app-chip--ok",
+/** The state's tone — plain status text (stage D, T-071), never a capsule. */
+const STATE_TONE: Record<ReviewState, AppTone> = {
+  first_required: "slate",
+  second_required: "amber",
+  conflict_detected: "amber",
+  adjudication_required: "amber",
+  resolved: "green",
 };
 
 const ROUND_SETTLED_LABELS: Record<string, string> = {
@@ -211,10 +220,10 @@ const EXTERNAL_VERDICT_LABELS: Record<string, string> = {
   NEEDS_MORE_INFO: "Asks for more information",
 };
 
-function decisionChipClass(kind: string): string {
-  if (kind === "APPROVE" || kind === "UPHOLD_FIRST" || kind === "UPHOLD_SECOND") return "app-chip app-chip--ok";
-  if (kind === "REJECT") return "app-chip app-chip--warn";
-  return "app-chip";
+function decisionTone(kind: string): AppTone {
+  if (kind === "APPROVE" || kind === "UPHOLD_FIRST" || kind === "UPHOLD_SECOND") return "green";
+  if (kind === "REJECT") return "red";
+  return "slate";
 }
 
 function DecisionRowItem({ d, index }: { d: DecisionRow; index: number }) {
@@ -230,16 +239,16 @@ function DecisionRowItem({ d, index }: { d: DecisionRow; index: number }) {
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 12 }}>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>
-          <span data-decision-stage-chip={d.stage} className="app-chip">
-            #{index + 1} · {STAGE_LABELS[d.stage] ?? identifierLabel(d.stage)}
-          </span>
-          <span data-decision-kind-chip={d.decision} className={decisionChipClass(d.decision)}>
-            {DECISION_KIND_LABELS[d.decision] ?? identifierLabel(d.decision)}
-          </span>
+          <AppStatusText tone="slate" data-decision-stage-chip={d.stage}>
+            #{index + 1} · {STAGE_LABELS[d.stage] ?? "Review"}
+          </AppStatusText>
+          <AppStatusText tone={decisionTone(d.decision)} data-decision-kind-chip={d.decision}>
+            {DECISION_KIND_LABELS[d.decision] ?? "Decision"}
+          </AppStatusText>
           {d.reasonCode ? (
-            <span data-decision-reason-chip={d.reasonCode} className="app-chip">
-              {REASON_CODE_LABELS[d.reasonCode] ?? identifierLabel(d.reasonCode)}
-            </span>
+            <AppStatusText tone="slate" data-decision-reason-chip={d.reasonCode}>
+              {REASON_CODE_LABELS[d.reasonCode] ?? "Other reason"}
+            </AppStatusText>
           ) : null}
           <span style={{ fontWeight: 600, overflowWrap: "anywhere" }}>{reviewerName(d.reviewer)}</span>
         </div>
@@ -445,9 +454,9 @@ export function ReviewerDecisionLineagePanel({
         <h2 id="review-decision-title" className="app-panel__title" style={{ margin: 0 }}>
           {conflict ? "Adjudication" : "Record decision"}
         </h2>
-        <span data-decision-state-chip={data.state} className={STATE_CHIP[data.state] ?? "app-chip"}>
+        <AppStatusText tone={STATE_TONE[data.state] ?? "slate"} data-decision-state-chip={data.state}>
           {STATE_LABELS[data.state] ?? "Review in progress"}
-        </span>
+        </AppStatusText>
       </div>
       <div className="app-panel__body" style={{ display: "grid", gap: 12, minWidth: 0 }}>
         {data.continuedFrom === "unresolved_adjudication" && data.state === "first_required" ? (
@@ -568,7 +577,7 @@ export function ReviewerDecisionLineagePanel({
                 <li key={x.id} data-external-feedback-row data-external-verdict={x.verdict} className="app-inner-surface" style={{ padding: "0.5rem 0.7rem", minWidth: 0 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 6, flexWrap: "wrap", fontSize: 12 }}>
                     <span style={{ fontWeight: 600, overflowWrap: "anywhere" }}>
-                      {(EXTERNAL_VERDICT_LABELS[x.verdict] ?? identifierLabel(x.verdict))} · {x.reviewer.displayName || x.reviewer.email}
+                      {(EXTERNAL_VERDICT_LABELS[x.verdict] ?? identifierLabel(x.verdict))} · {reviewerIdentityLabel({ displayName: x.reviewer.displayName, maskedEmail: maskEmail(x.reviewer.email ?? null) })}
                     </span>
                     <time dateTime={x.submittedAt} className="app-field-help" style={{ margin: 0 }}>
                       {formatUserDateTime(x.submittedAt)}

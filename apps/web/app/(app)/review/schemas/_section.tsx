@@ -34,6 +34,7 @@ import {
 } from "../../../../lib/reviewer-workspace/reviewer-api";
 import { Badge } from "../../../../components/ui/Badge";
 import { CanonicalActionButton } from "../../../../components/external-review/CanonicalActionButton";
+import { AppStatusText } from "../../../../components/app-primitives/AppStatusText";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 
 type ListState =
@@ -348,9 +349,9 @@ function SchemasWorkspace({ teamId }: { teamId: string }) {
                     <td data-label="Category">{identifierLabel(s.category)}</td>
                     <td data-label="Version" style={{ whiteSpace: "nowrap" }}>{`v${s.version}`}</td>
                     <td data-label="Status">
-                      <Badge tone={s.status === "ARCHIVED" ? "neutral" : "verified"} subtle>
+                      <AppStatusText tone={s.status === "ARCHIVED" ? "slate" : s.status === "PUBLISHED" ? "green" : "amber"}>
                         {identifierLabel(s.status)}
-                      </Badge>
+                      </AppStatusText>
                     </td>
                     <td data-label="Fields" style={{ textAlign: "right" }}>
                       {(s as unknown as { _count?: { fields: number } })._count?.fields ?? "—"}

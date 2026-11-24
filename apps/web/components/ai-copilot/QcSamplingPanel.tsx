@@ -1,5 +1,6 @@
 "use client";
 import { AppListbox } from "../app-primitives/AppListbox";
+import { AppStatusText } from "../app-primitives/AppStatusText";
 import { identifierLabel } from "@proovra/shared";
 import { formatUserDateTime } from "../../lib/date";
 
@@ -68,7 +69,7 @@ const FEATURE_LABEL: Record<string, string> = {
  * verdict wins; otherwise the LATEST verdict across QC reviewers (with the
  * reviewer count shown). Never an arbitrary first reviewer.
  */
-function qcChip(s: Pick<QcSample, "myQcState" | "latestQcState" | "qcReviewerCount">): { label: string; cls: string } {
+function qcChip(s: Pick<QcSample, "myQcState" | "latestQcState" | "qcReviewerCount">): { label: string; tone: "green" | "amber" } {
   const stateLabel = (state: string | null): string | null => {
     switch (state) {
       case "ACCEPTED": return "accepted";
@@ -78,13 +79,13 @@ function qcChip(s: Pick<QcSample, "myQcState" | "latestQcState" | "qcReviewerCou
     }
   };
   const mine = stateLabel(s.myQcState);
-  if (mine) return { label: `Your QC: ${mine}`, cls: "app-chip--ok" };
+  if (mine) return { label: `Your QC: ${mine}`, tone: "green" };
   const latest = stateLabel(s.latestQcState);
   if (latest) {
     const suffix = s.qcReviewerCount > 1 ? ` (${s.qcReviewerCount} reviewers)` : "";
-    return { label: `Latest QC: ${latest}${suffix}`, cls: "app-chip--ok" };
+    return { label: `Latest QC: ${latest}${suffix}`, tone: "green" };
   }
-  return { label: "awaiting QC", cls: "app-chip--warn" };
+  return { label: "awaiting QC", tone: "amber" };
 }
 
 export function QcSamplingPanel() {
@@ -135,9 +136,8 @@ export function QcSamplingPanel() {
   return (
     <section className="app-panel review-qc-panel" aria-labelledby="qc-sampling-title" data-qc-sampling-panel>
       <div className="app-panel__head">
-        <h3 className="app-panel__title" id="qc-sampling-title">AI QC sampling</h3>
+        <h3 className="app-panel__title" id="qc-sampling-title">Sampled Copilot runs</h3>
         <span className="review-chip-row">
-          <span className="app-chip">Human quality control</span>
           <AppListbox
             value={strategy}
             options={[
@@ -174,8 +174,8 @@ export function QcSamplingPanel() {
                   <li key={s.id} data-qc-sample={s.id}>
                     <div className="review-chip-row">
                       <strong>{FEATURE_LABEL[s.feature] ?? s.feature}</strong>
-                      <span className="app-chip">{identifierLabel(s.status)}</span>
-                      <span className={`app-chip ${chip.cls}`}>{chip.label}</span>
+                      <AppStatusText tone="slate">{identifierLabel(s.status)}</AppStatusText>
+                      <AppStatusText tone={chip.tone}>{chip.label}</AppStatusText>
                       <span className="app-table__muted">{formatUserDateTime(s.generatedAt)}</span>
                     </div>
                     <div className="app-table__muted review-chip-row">
