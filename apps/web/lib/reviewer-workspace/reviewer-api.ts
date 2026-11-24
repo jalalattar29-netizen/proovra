@@ -379,27 +379,65 @@ export type EvidencePreviewMeta = {
   id: string;
   mimeType: string | null;
   previewUrl: string | null;
+  /**
+   * T-076 (stage D) — why there is no URL, when there is none:
+   *   not_previewable  the file type has no in-page preview
+   *   policy           the workspace download policy withholds original bytes
+   *   no_file          the record has no stored file yet
+   *   failed           the parts listing could not be read
+   */
+  unavailable?: "not_previewable" | "policy" | "no_file" | "failed" | null;
+  /** The file name the API projects for the previewed part. */
+  displayName?: string | null;
 };
 
+type PartsListingItem = {
+  mimeType?: string | null;
+  previewUrl?: string | null;
+  previewable?: boolean;
+  isPrimary?: boolean;
+  displayName?: string | null;
+};
+
+/**
+ * T-076 (stage D) — THE preview contract: `GET /v1/evidence/:id/parts`.
+ *
+ * The record read (`GET /v1/evidence/:id`) never carries a preview URL, so the
+ * viewer always said "Evidence bytes are not yet available". The parts
+ * listing does: each part carries `previewable` and, when the workspace's
+ * original-download decision allows it, a presigned `previewUrl` (the listing
+ * is custody-logged as `parts_listing`, unchanged). The primary part is
+ * previewed; otherwise the first previewable one. No new endpoint.
+ */
 export async function fetchEvidencePreview(
   evidenceId: string,
 ): Promise<EvidencePreviewMeta> {
-  // The existing evidence detail route returns the canonical fields
-  // including a presigned preview URL when authorised. Bounded to a
-  // single read for the workspace.
   try {
-    const res = await apiFetch(`/v1/evidence/${evidenceId}`, { method: "GET" });
-    return {
-      id: res?.evidence?.id ?? evidenceId,
-      mimeType: res?.evidence?.mimeType ?? null,
-      previewUrl:
-        res?.previewUrl ??
-        res?.evidence?.previewUrl ??
-        res?.evidence?.signedPreviewUrl ??
-        null,
-    };
+    const res = (await apiFetch(`/v1/evidence/${encodeURIComponent(evidenceId)}/parts`, { method: "GET" })) as {
+      parts?: ReadonlyArray<PartsListingItem>;
+    } | null;
+    const parts = Array.isArray(res?.parts) ? res!.parts! : [];
+    if (parts.length === 0) {
+      return { id: evidenceId, mimeType: null, previewUrl: null, unavailable: "no_file" };
+    }
+    const primary = parts.find((p) => p?.isPrimary) ?? null;
+    const target =
+      (primary && primary.previewable ? primary : null) ??
+      parts.find((p) => p?.previewable) ??
+      primary ??
+      parts[0]!;
+    const mimeType = typeof target.mimeType === "string" ? target.mimeType : null;
+    const displayName = typeof target.displayName === "string" ? target.displayName : null;
+    if (!target.previewable) {
+      return { id: evidenceId, mimeType, previewUrl: null, unavailable: "not_previewable", displayName };
+    }
+    const url = typeof target.previewUrl === "string" && target.previewUrl.length > 0 ? target.previewUrl : null;
+    if (!url) {
+      return { id: evidenceId, mimeType, previewUrl: null, unavailable: "policy", displayName };
+    }
+    return { id: evidenceId, mimeType, previewUrl: url, unavailable: null, displayName };
   } catch {
-    return { id: evidenceId, mimeType: null, previewUrl: null };
+    return { id: evidenceId, mimeType: null, previewUrl: null, unavailable: "failed" };
   }
 }
 

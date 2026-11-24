@@ -26,7 +26,7 @@ import { describeEscalationIndependence } from "@proovra/shared";
 import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { Modal } from "../../../../../components/cases-experience/matter-modals/Modal";
 import { apiFetch } from "../../../../../lib/api";
-import { recordReference } from "../../../../../lib/short-id";
+import { reviewerIdentityLabel } from "../../../../../lib/reviewer-workspace/reviewer-identity";
 import { escalationReasonLabel } from "../../../../../lib/labels/governanceReviewLabels";
 import {
   COLLABORATION_TEAMS_HREF,
@@ -36,7 +36,7 @@ import {
 } from "../../../../../lib/members/placement";
 
 /** `placed: false` (T-097): not in a Collaboration Team; absent (older API) = placed. */
-type AssignableReviewer = { userId: string; displayName: string | null; placed?: boolean };
+type AssignableReviewer = { userId: string; displayName: string | null; maskedEmail?: string | null; placed?: boolean };
 
 function ConfirmFooter({
   formId,
@@ -200,7 +200,7 @@ export function ReassignDialog({
             options={[
               { value: "", label: handoff ? "Choose a second reviewer…" : "Choose a reviewer…" },
               ...reviewers.map((r) => {
-                const name = r.displayName?.trim() || recordReference("Reviewer", r.userId);
+                const name = reviewerIdentityLabel(r);
                 // T-097 — an unplaced person is listed, unavailable, with why.
                 return isPlacedReviewer(r)
                   ? { value: r.userId, label: name }

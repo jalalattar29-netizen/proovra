@@ -10,7 +10,9 @@
  *     Go to decision (an anchor that focuses the "Record decision" panel);
  *   - secondary actions only where the server allows them: Pause / Resume
  *     (one slot), Reassign, Escalate (envelope capability REVIEW_ESCALATE);
- *   - Archive as a `--danger` entry point that opens a confirm;
+ *   - Archive inside a "More actions" overflow menu, as a danger item that
+ *     opens a confirm (stage D, T-075: the decision is the primary, Pause and
+ *     Reassign are secondary, Archive is never a peer button);
  *   - the main blocked reason as ONE muted line under the title.
  *
  * There is no Approve / Reject / Request information control here: a verdict
@@ -23,6 +25,9 @@
  * screens. `data-reviewer-next-step-layout="strip"` pins the layout.
  */
 
+import { MoreHorizontal } from "lucide-react";
+
+import { AppRowMenu } from "../../../../../components/app-primitives/AppRowMenu";
 import {
   ACTION_LABELS,
   mainBlockedReason,
@@ -111,9 +116,9 @@ export function InspectorActions({
       data-reviewer-next-step-layout="strip"
     >
       <div className="review-next-step__lead">
-        <h3 id="review-next-step-title" className="app-panel__title review-next-step__title">
+        <h2 id="review-next-step-title" className="app-panel__title review-next-step__title">
           Next step
-        </h3>
+        </h2>
         {primary === null && blocked ? (
           <p className="app-field-help review-next-step__note" data-reviewer-main-blocked-reason>
             {blocked}
@@ -160,7 +165,7 @@ export function InspectorActions({
           </div>
         ) : null}
 
-        {pauseSlot !== null || showReassign || showEscalate || showArchive || showReopen ? (
+        {pauseSlot !== null || showReassign || showEscalate || showReopen ? (
           <div data-reviewer-next-step-secondary className="review-next-step__group">
             {pauseSlot ? (
               <button
@@ -213,18 +218,27 @@ export function InspectorActions({
                 Escalate
               </button>
             ) : null}
-            {showArchive ? (
-              <button
-                type="button"
-                className="app-secondary-action app-secondary-action--danger"
-                disabled={disabled}
-                onClick={handlers.archive}
-                data-reviewer-action="archive"
-                data-reviewer-action-allowed="true"
-              >
-                Archive
-              </button>
-            ) : null}
+
+          </div>
+        ) : null}
+
+        {showArchive ? (
+          <div data-reviewer-next-step-overflow className="review-next-step__group">
+            <AppRowMenu
+              label="More actions for this review"
+              dataPrefix="reviewer-overflow"
+              triggerLabel="More"
+              icon={<MoreHorizontal size={16} aria-hidden="true" />}
+              actions={[
+                {
+                  key: "archive",
+                  label: "Archive review…",
+                  danger: true,
+                  disabled: disabled,
+                  onSelect: handlers.archive,
+                },
+              ]}
+            />
           </div>
         ) : null}
       </div>

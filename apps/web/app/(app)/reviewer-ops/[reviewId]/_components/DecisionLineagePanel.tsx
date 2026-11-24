@@ -340,9 +340,9 @@ export function ReviewerDecisionLineagePanel({
       {...attrs}
     >
       <div className="app-panel__head">
-        <h3 id="review-decision-title" className="app-panel__title">
+        <h2 id="review-decision-title" className="app-panel__title">
           {title}
-        </h3>
+        </h2>
       </div>
       <div className="app-panel__body" style={{ minWidth: 0 }}>
         {body}
@@ -442,9 +442,9 @@ export function ReviewerDecisionLineagePanel({
       {...(conflict ? { "data-decision-panel-mode": "adjudication" } : { "data-decision-panel-mode": "decision" })}
     >
       <div className="app-panel__head" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-        <h3 id="review-decision-title" className="app-panel__title" style={{ margin: 0 }}>
+        <h2 id="review-decision-title" className="app-panel__title" style={{ margin: 0 }}>
           {conflict ? "Adjudication" : "Record decision"}
-        </h3>
+        </h2>
         <span data-decision-state-chip={data.state} className={STATE_CHIP[data.state] ?? "app-chip"}>
           {STATE_LABELS[data.state] ?? "Review in progress"}
         </span>

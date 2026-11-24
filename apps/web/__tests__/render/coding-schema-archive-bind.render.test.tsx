@@ -16,7 +16,7 @@ vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
 }));
 
-import CodingSchemasPage from "../../app/(app)/review/schemas/page";
+import { CodingSchemasSection as CodingSchemasPage } from "../../app/(app)/review/schemas/_section";
 import { CodingSchemaBindingPanel } from "../../app/(app)/reviewer-ops/components/CodingSchemaBindingPanel";
 
 const teamId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -251,8 +251,10 @@ describe("coding schema binding on a review", () => {
     expect(within(empty).getByRole("link", { name: "Coding schemas" }).getAttribute("href")).toBe("/review/schemas");
   });
 
-  it("the review page mounts the binding panel", () => {
+  it("the review page mounts the binding panel (inside the shared coding section, T-082)", () => {
     const src = readFileSync(join(__dirname, "../../app/(app)/reviewer-ops/[reviewId]/page.tsx"), "utf8");
-    expect(src).toMatch(/<CodingSchemaBindingPanel teamId=\{teamId\} workflowId=\{workflowId\} \/>/);
+    expect(src).toMatch(/<ReviewCodingSection teamId=\{teamId\} workflowId=\{workflowId\}/);
+    const section = readFileSync(join(__dirname, "../../components/reviewer-experience/ReviewCodingSection.tsx"), "utf8");
+    expect(section).toMatch(/<CodingSchemaBindingPanel teamId=\{teamId\} workflowId=\{workflowId\} \/>/);
   });
 });

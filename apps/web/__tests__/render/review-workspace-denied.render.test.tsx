@@ -1,24 +1,29 @@
 /**
- * PRO-077 (UI-06) — a VIEWER on /review/workspace.
+ * Stage D (T-077) — `/review/workspace` is retired: it opens the Review page's
+ * FOCUS MODE on the next review assigned to the viewer.
  *
- * GET /v1/reviewer/workspace answers a VIEWER 403 { denial: "NOT_PERMITTED" }.
- * The page's load effect awaited it without a catch, so the rejection escaped,
- * `loadingWorkspace` never went false, and the page read "Loading reviewer
- * workspace…" forever with an unhandled "HTTP 403: API error".
+ *   - an assigned review → `/reviewer-ops/<id>?from=inbox&view=MY_REVIEWS&mode=focus`;
+ *   - nothing assigned   → it says so and links to the Inbox (never a spinner);
+ *   - a refusal or failure (PRO-077) → an alert with Retry, never "Loading…"
+ *     forever, and Retry reads again.
  *
- * Mounted with the REAL apiFetch over a stubbed fetch, so the error is the
- * shape production raises for this flat body (not an ApiError).
+ * Mounted with the REAL apiFetch over a stubbed fetch.
  */
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 
+const nav = vi.hoisted(() => ({ replace: vi.fn() }));
 vi.mock("../../lib/sentry", () => ({ captureException: () => {} }));
 vi.mock("next/link", () => ({
-  default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
 }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: () => {}, replace: () => {}, back: () => {} }),
+  useRouter: () => ({ push: () => {}, replace: nav.replace, back: () => {} }),
   useSearchParams: () => new URLSearchParams(""),
   usePathname: () => "/review/workspace",
   useParams: () => ({}),
@@ -26,38 +31,31 @@ vi.mock("next/navigation", () => ({
 vi.mock("../../components/navigation/PageRouteGate", () => ({
   PageRouteGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
+vi.mock("../../components/reviewer-experience/ReviewPageHeader", () => ({
+  ReviewPageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
+}));
 vi.mock("../../lib/platform-context", () => ({
   useActiveSpaceId: () => "11111111-1111-4111-8111-111111111111",
-  useActiveSpace: () => ({ id: "11111111-1111-4111-8111-111111111111", roleLabel: "VIEWER" }),
-  // PRO-R3-06 (WS-ENT): the redaction affordance reads planFeatures.redactionIncluded.
-  usePlatformContext: () => ({ envelope: null }),
 }));
 
-// PRO-R2-05 — the page asks before an approval through the shared confirm dialog.
-vi.mock("../../components/ui/ConfirmActionModal", () => ({
-  useConfirmAction: () => ({ confirm: async () => false, askReason: async () => null }),
-}));
-
-import { ToastProvider } from "../../components/ui";
 import ReviewerWorkspacePage from "../../app/(app)/review/workspace/page";
 
 type Reply = { status: number; body: unknown };
-let reply: () => Reply = () => ({ status: 403, body: { denial: "NOT_PERMITTED" } });
+const WF = "22222222-2222-4222-8222-222222222222";
+let reply: () => Reply = () => ({ status: 200, body: { rows: [], nextCursor: null } });
 const calls: string[] = [];
 
 beforeEach(() => {
   calls.length = 0;
+  nav.replace.mockReset();
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       calls.push(url);
-      if (url.includes("/v1/reviewer/workspace")) {
+      if (url.includes("/v1/reviewer-ops/queue?")) {
         const r = reply();
-        return new Response(JSON.stringify(r.body), {
-          status: r.status,
-          headers: { "content-type": "application/json" },
-        });
+        return new Response(JSON.stringify(r.body), { status: r.status, headers: { "content-type": "application/json" } });
       }
       return new Response(JSON.stringify({}), { status: 404, headers: { "content-type": "application/json" } });
     }),
@@ -71,46 +69,51 @@ afterEach(() => {
 
 async function mount() {
   await act(async () => {
-    render(
-      <ToastProvider>
-        <ReviewerWorkspacePage />
-      </ToastProvider>,
-    );
+    render(<ReviewerWorkspacePage />);
   });
-  // let the load effect settle
-  await act(async () => {
-    await new Promise((r) => setTimeout(r, 0));
-  });
+  for (let i = 0; i < 6; i += 1) {
+    await act(async () => {
+      await Promise.resolve();
+    });
+  }
 }
 
-describe("PRO-077: the reviewer workspace never spins on a refusal", () => {
-  it("a VIEWER's 403 shows the no-reviewer-role state, not a loader", async () => {
-    reply = () => ({ status: 403, body: { denial: "NOT_PERMITTED" } });
+describe("T-077 — /review/workspace opens focus mode on the next assigned review", () => {
+  it("an assigned review: replaces the URL with the Review page in focus mode, carrying the Assigned to me view", async () => {
+    reply = () => ({
+      status: 200,
+      body: { rows: [{ workflowId: WF, evidenceId: "e", lifecycleState: "ASSIGNED", priority: "NORMAL", assignedToUserId: "u" }], nextCursor: null },
+    });
     await mount();
-    expect(calls.some((u) => u.includes("/v1/reviewer/workspace"))).toBe(true);
-    expect(screen.queryByText("Loading reviewer workspace…")).toBeNull();
-    expect(screen.getByText("You do not have a reviewer role in this workspace.")).toBeTruthy();
+    expect(calls[0]).toContain("queue=MY_REVIEWS");
+    expect(nav.replace).toHaveBeenCalledWith(`/reviewer-ops/${WF}?from=inbox&view=MY_REVIEWS&mode=focus`);
   });
 
-  it("a server failure offers a retry, and the retry loads the workspace", async () => {
-    reply = () => ({ status: 500, body: { message: "boom" } });
+  it("nothing assigned: says so and links to the Inbox — not a spinner", async () => {
+    reply = () => ({ status: 200, body: { rows: [], nextCursor: null } });
     await mount();
-    expect(screen.queryByText("Loading reviewer workspace…")).toBeNull();
-    expect(screen.getByText("The reviewer workspace could not be loaded.")).toBeTruthy();
-    // a failure is not presented as a missing role
-    expect(screen.queryByText("You do not have a reviewer role in this workspace.")).toBeNull();
-    // TEAM-UI-SPEC §1 — the canonical secondary action, never the legacy Button.
-    expect(screen.getByRole("button", { name: "Try again" }).className).toBe("app-secondary-action");
-    expect(document.querySelectorAll(".ui-button")).toHaveLength(0);
+    expect(nav.replace).not.toHaveBeenCalled();
+    expect(screen.getByText("No reviews are assigned to you.")).toBeTruthy();
+    expect(document.querySelector("[data-focus-redirect-inbox]")!.getAttribute("href")).toBe("/review?view=UNASSIGNED");
+    expect(document.body.textContent).not.toMatch(/Opening your next review/);
+  });
 
-    reply = () => ({ status: 200, body: { workspace: null } });
+  it("PRO-077: a VIEWER's 403 is a stated refusal with Retry, never 'Loading…' forever; Retry reads again", async () => {
+    reply = () => ({ status: 403, body: { denial: "NOT_PERMITTED" } });
+    await mount();
+    expect(screen.getByRole("alert")).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/Opening your next review/);
+    const before = calls.length;
+    reply = () => ({ status: 200, body: { rows: [], nextCursor: null } });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+      fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     });
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 0));
-    });
-    expect(calls.filter((u) => u.includes("/v1/reviewer/workspace")).length).toBe(2);
-    expect(screen.queryByText("The reviewer workspace could not be loaded.")).toBeNull();
+    for (let i = 0; i < 6; i += 1) {
+      await act(async () => {
+        await Promise.resolve();
+      });
+    }
+    expect(calls.length).toBeGreaterThan(before);
+    expect(screen.getByText("No reviews are assigned to you.")).toBeTruthy();
   });
 });

@@ -90,8 +90,8 @@ export const ACTION_LABELS: Record<ViewerActionName, string> = {
   resume: "Resume",
   request_info: "Request information",
   record_response: "Record response",
-  approve: "Approve (internal)",
-  reject: "Reject (internal)",
+  approve: "Approve",
+  reject: "Reject",
   reassign: "Reassign",
   adjudicate: "Adjudicate the disagreement",
   archive: "Archive",
@@ -385,16 +385,16 @@ export function decisionConsequence(input: {
     return "Asks for more information — the review waits until the response is recorded.";
   }
   if ((ADJUDICATION_KINDS as string[]).includes(choice)) {
-    return "Records the adjudication — the final internal decision for this round, not a public authenticity statement.";
+    return "Records the adjudication — the final decision for this round.";
   }
   if (state === "first_required" && secondRequired) {
     return "Records the first review; an independent second reviewer must confirm.";
   }
   if (state === "second_required") {
-    return "Records the second review. If it matches the first, the review is decided (internal); if it differs, it goes to adjudication.";
+    return "Records the second review. If it matches the first, the review is decided; if it differs, it goes to adjudication.";
   }
-  if (choice === "APPROVE") return "Final decision — approved (internal), not a public authenticity statement.";
-  if (choice === "REJECT") return "Final decision — rejected (internal), not a public authenticity statement.";
+  if (choice === "APPROVE") return "Final decision — approved.";
+  if (choice === "REJECT") return "Final decision — rejected.";
   return null;
 }
 
@@ -486,8 +486,8 @@ export const LIFECYCLE_LABELS: Record<LifecycleState, string> = {
   IN_REVIEW: "In review",
   NEEDS_INFORMATION: "Waiting for information",
   ESCALATED: "Escalated",
-  APPROVED: "Approved (internal)",
-  REJECTED: "Rejected (internal)",
+  APPROVED: "Approved",
+  REJECTED: "Rejected",
   ARCHIVED: "Archived",
 };
 
@@ -539,8 +539,8 @@ export function slaDimensionLabel(dimension: string): string {
 }
 
 export const DECISION_KIND_LABELS: Record<string, string> = {
-  APPROVE: "Approved (internal)",
-  REJECT: "Rejected (internal)",
+  APPROVE: "Approved",
+  REJECT: "Rejected",
   REQUEST_INFO: "Information requested",
   NEEDS_MORE_INFO: "Needs more information",
   UPHOLD_FIRST: "Upheld the first decision",
@@ -549,8 +549,8 @@ export const DECISION_KIND_LABELS: Record<string, string> = {
 };
 
 export const DECISION_OPTION_LABELS: Record<string, string> = {
-  APPROVE: "Approve (internal)",
-  REJECT: "Reject (internal)",
+  APPROVE: "Approve",
+  REJECT: "Reject",
   REQUEST_INFO: "Request information",
   NEEDS_MORE_INFO: "Needs more information",
   UPHOLD_FIRST: "Uphold the first decision",

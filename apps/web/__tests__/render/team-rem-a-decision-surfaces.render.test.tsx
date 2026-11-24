@@ -24,7 +24,6 @@ import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import { FocusDecisionColumn } from "../../app/(app)/review/workspace/_components/FocusDecisionColumn";
 import { DecisionForm } from "../../app/(app)/reviewer-ops/[reviewId]/_components/DecisionPanel";
 import { ReviewerDecisionLineagePanel } from "../../app/(app)/reviewer-ops/[reviewId]/_components/DecisionLineagePanel";
 import { InspectorActions } from "../../app/(app)/reviewer-ops/[reviewId]/_components/InspectorActions";
@@ -135,24 +134,6 @@ afterEach(() => {
 const choice = (kind: string) => document.querySelector(`[data-decision-choice="${kind}"]`) as HTMLButtonElement | null;
 const rationale = () => document.querySelector("[data-decision-form-rationale]") as HTMLTextAreaElement | null;
 
-async function renderFocus(props: Partial<Parameters<typeof FocusDecisionColumn>[0]> = {}) {
-  const onNotice = vi.fn();
-  const onDecided = vi.fn();
-  const utils = render(
-    <FocusDecisionColumn
-      teamId={teamId}
-      workflowId={workflowId}
-      hotkeyRequest={null}
-      onNotice={onNotice}
-      onDecided={onDecided}
-      onMutated={() => {}}
-      {...props}
-    />,
-  );
-  await waitFor(() => expect(document.querySelector("[data-decision-panel]")?.getAttribute("data-decision-state")).toBe("first_required"));
-  return { ...utils, onNotice, onDecided };
-}
-
 async function chooseAndType(kind: string, text: string) {
   await waitFor(() => expect(choice(kind)).toBeTruthy());
   fireEvent.click(choice(kind)!);
@@ -160,83 +141,9 @@ async function chooseAndType(kind: string, text: string) {
   fireEvent.click(document.querySelector("[data-decision-form-submit]")!);
 }
 
-describe("focus mode — the shared decision panel (T-001 … T-006)", () => {
-  it("records through the canonical door and reports a first-of-two decision as such (T-001, T-003)", async () => {
-    postResponses[decisionsPostPath] = () =>
-      json(201, { outcome: { stageRecorded: "FIRST", statusChanged: false, reviewState: "second_required", nextRequirement: "second_review", idempotent: false } });
-    const { onNotice, onDecided } = await renderFocus();
-    await chooseAndType("REJECT", "Custody gap at upload");
-    await waitFor(() => expect(onNotice).toHaveBeenCalledWith(FIRST_ONLY_MESSAGE));
-    const sent = calls.filter((c) => c.method === "POST");
-    expect(sent.map((c) => c.path)).toEqual([decisionsPostPath]);
-    expect(sent[0]!.body).toMatchObject({ teamId, decision: "REJECT", rationale: "Custody gap at upload" });
-    expect(onDecided).toHaveBeenCalledWith(expect.objectContaining({ decision: "REJECT" }), expect.anything(), true);
-  });
-
-  it("keeps the form, the typed text and an inline alert beside the controls on a refusal (T-002)", async () => {
-    postResponses[decisionsPostPath] = () =>
-      json(409, { error: { code: "decision_not_allowed", details: { reason: "stale_decision" } } });
-    await renderFocus();
-    await chooseAndType("APPROVE", "Everything reconciles");
-    const alert = await waitFor(() => {
-      const el = document.querySelector("[data-decision-form] [role=alert]");
-      expect(el).toBeTruthy();
-      return el!;
-    });
-    expect(alert.textContent).toMatch(/changed while you were working/);
-    expect(rationale()!.value).toBe("Everything reconciles");
-    expect(choice("APPROVE")!.getAttribute("aria-checked")).toBe("true");
-  });
-
-  it("offers Start on an assigned review and closes the verdicts with the server's reason (T-004)", async () => {
-    workspace = workspaceBody("ASSIGNED", viewerWith(["start", "escalate"], { approve: "not_started", reject: "not_started", request_info: "not_started" }));
-    await renderFocus();
-    expect(document.querySelector('[data-focus-action="start"]')).toBeTruthy();
-    expect(choice("REJECT")).toBeNull();
-    expect(document.querySelector("[data-decision-blocked-banner]")?.textContent).toMatch(/Start the review first/);
-    fireEvent.click(document.querySelector('[data-focus-action="start"]')!);
-    await waitFor(() => expect(calls.some((c) => c.method === "POST" && c.path === `/v1/reviewer-ops/reviews/${workflowId}/start`)).toBe(true));
-  });
-
-  it("a non-assignee sees closed verdicts with the reason, not enabled buttons (T-005)", async () => {
-    workspace = workspaceBody("IN_REVIEW", viewerWith(["escalate"], { approve: "not_assignee", reject: "not_assignee", request_info: "not_assignee" }, false));
-    await renderFocus();
-    expect(choice("APPROVE")).toBeNull();
-    expect(document.querySelector("[data-decision-blocked-banner]")?.textContent).toMatch(/Only the assigned reviewer can decide/);
-  });
-
-  it("escalates through the shared dialog with the chosen reason and severity (T-006, T-019)", async () => {
-    const { rerender } = await renderFocus();
-    rerender(
-      <FocusDecisionColumn
-        teamId={teamId}
-        workflowId={workflowId}
-        hotkeyRequest={{ kind: "ESCALATE", nonce: 1 }}
-        onNotice={() => {}}
-        onDecided={() => {}}
-        onMutated={() => {}}
-      />,
-    );
-    await waitFor(() => expect(document.querySelector("[data-reviewer-escalate-form]")).toBeTruthy());
-    expect(document.querySelector("[data-reviewer-escalate-independence]")?.textContent).toMatch(/independent second review/);
-    fireEvent.change(document.querySelector("[data-reviewer-escalate-summary]")!, { target: { value: "Hash mismatch" } });
-    await act(async () => {
-      fireEvent.submit(document.querySelector("[data-reviewer-escalate-form]")!);
-    });
-    await waitFor(() => expect(calls.some((c) => c.method === "POST" && c.path === "/v1/reviewer-ops/escalations")).toBe(true));
-    const body = calls.find((c) => c.path === "/v1/reviewer-ops/escalations")!.body as Record<string, unknown>;
-    expect(body.reason).not.toBe("WORKFLOW_STALLED");
-    expect(body).toMatchObject({ severity: "WARNING", safeSummary: "Hash mismatch" });
-  });
-
-  it("the focus-mode page no longer imports the legacy verdict helpers (T-001)", () => {
-    const src = readFileSync(resolve(__dirname, "../../app/(app)/review/workspace/page.tsx"), "utf8");
-    for (const legacy of ["approveReview", "rejectReview", "requestInfoReview", "createEscalation", "WORKFLOW_STALLED"]) {
-      expect(src.includes(legacy), legacy).toBe(false);
-    }
-    expect(src).toContain("FocusDecisionColumn");
-  });
-});
+// T-001 … T-006 — focus mode is the Review page itself since stage D (T-077):
+// its decision, Start, refusal and Escalate behaviour is proven on the page in
+// review-focus-mode.render.test.tsx.
 
 describe("the decision form (T-012, T-015)", () => {
   const actions = deriveActions({ viewer: viewerWith(["approve", "reject", "request_info"]), lifecycleState: "IN_REVIEW", paused: false });
@@ -430,7 +337,7 @@ describe("the Evidence page review panel (T-008)", () => {
 describe("/review/operations is retired (T-007)", () => {
   it("redirects to the inbox, preserving a stage filter, and is not offered in the palette", () => {
     expect(reviewOperationsRedirectTarget({})).toBe("/review");
-    expect(reviewOperationsRedirectTarget({ stage: "ESCALATED" })).toBe("/review/queues?queue=ESCALATED");
+    expect(reviewOperationsRedirectTarget({ stage: "ESCALATED" })).toBe("/review?view=ESCALATED");
     const entry = ROUTE_REGISTRY.find((r) => r.id === "review.operations")!;
     expect(entry.commandPaletteVisible).toBe(false);
     expect(entry.allToolsVisible).toBe(false);

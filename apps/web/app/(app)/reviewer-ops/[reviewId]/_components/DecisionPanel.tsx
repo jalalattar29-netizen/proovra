@@ -143,6 +143,16 @@ export function DecisionForm({
 
   const trimmed = rationale.trim();
   const ready = choice !== "" && trimmed.length > 0 && !submitting && !blockedReason;
+  // T-090 (stage D) — a disabled submit always says why.
+  const submitDisabledReason = submitting
+    ? "Recording the decision…"
+    : blockedReason
+      ? blockedReason
+      : choice === ""
+        ? "Choose a decision first."
+        : trimmed.length === 0
+          ? "Write a rationale first."
+          : null;
   const consequence = decisionConsequence({ state: reviewState, secondRequired, choice });
   const closedReasons = choices
     .filter((c) => !isOpen(c))
@@ -295,6 +305,14 @@ export function DecisionForm({
         </div>
       </fieldset>
 
+      {/* T-093 (stage D) — ONE line says what a decision here is; the verbs
+          carry no "(internal)" suffix. */}
+      <p className="app-field-help" data-decision-internal-note style={{ margin: 0 }}>
+        {mode === "adjudication"
+          ? "An adjudication is an internal review outcome, not a public statement about the evidence's authenticity."
+          : "A decision here is an internal review outcome, not a public statement about the evidence's authenticity."}
+      </p>
+
       {consequence ? (
         <p className="app-field-help" data-decision-consequence style={{ margin: 0, overflowWrap: "anywhere" }}>
           {consequence}
@@ -320,12 +338,19 @@ export function DecisionForm({
         </p>
       ) : null}
 
-      <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+        {!ready && submitDisabledReason ? (
+          <span id={`${id}-submit-reason`} className="app-field-help" data-decision-submit-reason style={{ margin: 0 }}>
+            {submitDisabledReason}
+          </span>
+        ) : null}
         <button
           type="submit"
           className="app-primary-action"
           disabled={!ready}
           aria-busy={submitting || undefined}
+          aria-describedby={!ready && submitDisabledReason ? `${id}-submit-reason` : undefined}
+          title={!ready && submitDisabledReason ? submitDisabledReason : undefined}
           data-decision-form-submit
           {...(mode === "adjudication" ? { "data-adjudication-submit": "" } : {})}
         >
