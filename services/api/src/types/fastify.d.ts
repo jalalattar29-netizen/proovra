@@ -27,6 +27,8 @@ declare module "fastify" {
       mfaAt?: number | null;
       /** ET-DC-11 — a restricted token's scope (the extension's capture.direct); null for ordinary tokens. */
       tokenScope?: string | null;
+      /** T-039 — the verified token's `iat` (epoch seconds): the cut-off "sign out other sessions" writes. */
+      sessionIat?: number | null;
     };
     apiCredential?: {
       credentialId: string;

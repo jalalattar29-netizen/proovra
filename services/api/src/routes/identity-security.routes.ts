@@ -83,6 +83,7 @@ import {
   listRevocationsForTeam,
   projectRevokedSession,
   revokeSession,
+  revokeTokensIssuedBeforeCaller,
 } from "../services/identity-security/session-revocation.service.js";
 import {
   endChildSessionsOf,
@@ -1359,6 +1360,16 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
       if (body.revokeOtherSessions) {
         const currentHash =
           req.user?.sessionIdHash ?? null;
+        // T-039 — every token issued before this one ends too, with or
+        // without an inventory row; this session and newer ones stay valid.
+        if (typeof req.user?.sessionIat === "number") {
+          await revokeTokensIssuedBeforeCaller(prisma, {
+            userId,
+            callerIat: req.user.sessionIat,
+            reason: "PASSWORD_CHANGED",
+            actorUserId: userId,
+          });
+        }
         const where: {
           userId: string;
           revokedAtUtc: null;
@@ -1503,6 +1514,19 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
         where,
         select: { id: true, sessionIdHash: true, teamId: true },
       });
+
+      // T-039 — a token with no inventory row has no hash to revoke here. The
+      // cut-off at THIS token's `iat` ends every token issued before it,
+      // inventoried or not; this session (and any signed in after it, revoked
+      // by hash below) is unaffected.
+      if (typeof req.user?.sessionIat === "number") {
+        await revokeTokensIssuedBeforeCaller(prisma, {
+          userId,
+          callerIat: req.user.sessionIat,
+          reason: "USER_LOGGED_OUT",
+          actorUserId: userId,
+        });
+      }
 
       for (const target of targets) {
         if (!target.sessionIdHash) continue;

@@ -30,6 +30,7 @@ import { gateSecurityAction } from "../services/governance/policy-runtime-gates.
 import { enforceSessionTimeoutPolicy } from "../services/identity-security/session-timeout-policy.service.js";
 import { bindRequestSession } from "../services/auth/request-session-context.js";
 import { trustedClientIpKey } from "./client-ip.js";
+import { adoptRowlessSession } from "../services/identity-security/session-adoption.service.js";
 import { refuseSupportContextWrite } from "./support-context-boundary.js";
 import { refuseStaleLegalAcceptanceOnWrite } from "./legal-acceptance-gate.js";
 
@@ -271,6 +272,39 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
           .send(createErrorResponse(ErrorCode.SECURITY_CONTEXT_UNAVAILABLE, req.id));
       }
 
+      // T-038 — a verified, unrevoked token whose sid has NO inventory row is
+      // a pre-2026-11-22 legacy session (or a test/dev mint). It is adopted
+      // into the inventory now, with its real issue time, so it is visible,
+      // scored, revocable and held to the privileged session-age windows. A
+      // token whose row cannot be written is not served.
+      // Scope-restricted tokens (extension capture, MFA enrolment) are not
+      // interactive sessions and are never adopted.
+      if (!sessionRow && !isRestrictedScope((payload as { scope?: unknown }).scope)) {
+        try {
+          sessionRow = await adoptRowlessSession(req, {
+            userId: payload.sub,
+            sid,
+            iat,
+            exp: typeof payload.exp === "number" ? payload.exp : null,
+          });
+        } catch (err) {
+          req.log.warn(
+            {
+              requestId: req.id,
+              userId: payload.sub,
+              errorMessage: err instanceof Error ? err.message : "session_adoption_failed",
+            },
+            "auth.legacy_session_adoption_failed",
+          );
+          if (isDatabasePoolTimeout(err)) return sendServerBusy(req, reply);
+          return reply.code(401).send(
+            createErrorResponse(ErrorCode.UNAUTHORIZED, req.id, {
+              reason: "reauthentication_required",
+            }),
+          );
+        }
+      }
+
       // AUD-020 — an ENDED inventory row is an ended session. `RevokedSession`
       // (checked above) is what every revoking path writes; the row mirrors the
       // same fact, and a session the inventory records as signed out is never
@@ -462,6 +496,7 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
       ssoConnId: typeof payload.ssoConnId === "string" ? payload.ssoConnId : null,
       mfaAt: typeof payload.mfaAt === "number" ? payload.mfaAt : null,
       tokenScope: (() => { const s = (payload as { scope?: unknown }).scope; return typeof s === "string" ? s : null; })(),
+      sessionIat: iat,
     };
     req.log = req.log.child({ userId: payload.sub });
 

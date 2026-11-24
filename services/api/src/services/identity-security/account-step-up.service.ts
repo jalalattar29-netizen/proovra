@@ -41,6 +41,7 @@ import { enforceRateLimit } from "../rate-limit.js";
 import { assertLimiterAvailable } from "../../http/limiter-unavailable.js";
 import { verifyActiveTotp } from "../security/mfa.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
+import { ADOPTED_LEGACY_AUTH_METHOD } from "./session-adoption.service.js";
 
 /** OAuth-only recent-auth window — 10 minutes. */
 export const RECENT_AUTH_WINDOW_MS = 10 * 60 * 1000;
@@ -273,7 +274,16 @@ export async function verifyAccountStepUp(input: {
     }
     if (sessionIdHash) {
       const session = await prisma.authenticatedSession.findFirst({
-        where: { userId, sessionIdHash, revokedAtUtc: null },
+        // T-038 (stage B) — an ADOPTED legacy row was written by the server on
+        // a later request, not by a sign-in ceremony: it never proves a recent
+        // sign-in, whatever its issue time.
+        where: {
+          userId,
+          sessionIdHash,
+          revokedAtUtc: null,
+          // A null method is an older real sign-in; SQL `<>` would drop it.
+          OR: [{ authMethod: null }, { authMethod: { not: ADOPTED_LEGACY_AUTH_METHOD } }],
+        },
         select: { issuedAtUtc: true },
       });
       if (

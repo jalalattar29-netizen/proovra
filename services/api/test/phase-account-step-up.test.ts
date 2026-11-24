@@ -114,10 +114,13 @@ describe("sensitive routes enforce step-up before mutating", () => {
   });
 
   it("revoke-other-sessions requires step-up before revoking", () => {
-    const h = handlerSlice(IDSEC_ROUTES, '"/v1/identity-security/my-sessions/revoke-others"', 3200);
+    const h = handlerSlice(IDSEC_ROUTES, '"/v1/identity-security/my-sessions/revoke-others"', 4800);
     expect(h).toMatch(/verifyAccountStepUp/);
     expect(h).toMatch(/"sessions_revoke_others"/);
+    expect(h.indexOf("updateMany")).toBeGreaterThan(-1);
     expect(h.indexOf("verifyAccountStepUp")).toBeLessThan(h.indexOf("updateMany"));
+    // Stage B (T-039): the iat cut-off is written only after the step-up too.
+    expect(h.indexOf("verifyAccountStepUp")).toBeLessThan(h.indexOf("revokeTokensIssuedBeforeCaller"));
   });
 
   it("password change keeps its equivalent re-auth (current password required)", () => {
