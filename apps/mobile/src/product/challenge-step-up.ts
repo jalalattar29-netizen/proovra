@@ -95,7 +95,21 @@ export interface ChallengeDetails {
   readonly purpose: string;
   readonly resourceKind: string | null;
   readonly resourceId: string | null;
+  /** T-028 (additive) — why the server asked (`details.reason`). */
+  readonly reason?: string | null;
 }
+
+/**
+ * T-029 (stage B) — a privileged action needs a RECENT sign-in. The session is
+ * valid for everything else: this is never "signed out".
+ */
+export function isReauthRequired(err: unknown): boolean {
+  const e = obj(err);
+  return e["code"] === "reauth_required" && e["statusCode"] === 401;
+}
+
+/** T-027 — where the enrolment state sends the person (the stack keeps the task underneath). */
+export const SECURITY_SETTINGS_ROUTE = "/(stack)/settings/security";
 
 function obj(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
@@ -114,6 +128,7 @@ export function challengeDetailsFrom(err: unknown): ChallengeDetails {
     purpose: typeof d["purpose"] === "string" ? (d["purpose"] as string) : "SENSITIVE_ACTION",
     resourceKind: typeof d["resourceKind"] === "string" ? (d["resourceKind"] as string) : null,
     resourceId: typeof d["resourceId"] === "string" ? (d["resourceId"] as string) : null,
+    reason: typeof d["reason"] === "string" ? (d["reason"] as string) : null,
   };
 }
 

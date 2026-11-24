@@ -7,8 +7,12 @@
 import React, { useState } from "react";
 import { View } from "react-native";
 
+import { reauthRequiredSentence } from "@proovra/shared";
+
 import { apiFetch } from "../api";
 import { toSafeUserError } from "../errors/safe-error";
+import { STEP_UP_CANCEL, isReauthRequired } from "../product/challenge-step-up";
+import { ChallengeStepUpSheet, useChallengeStepUp } from "./challenge-step-up";
 import { theme } from "../theme/theme";
 import {
   REVIEW_ACTIONS_COPY as COPY,
@@ -27,6 +31,9 @@ import {
 import { ProovraBadge, ProovraButton, ProovraCard, ProovraFormField, ProovraInput, ProovraSection, ProovraText } from "./index";
 import { ProovraSheet } from "./patterns";
 
+/** T-027 — closing the confirmation records nothing; the note is kept. */
+const COPY_STEP_UP_CLOSED = "Nothing was recorded. Confirm it's you when you're ready, then try again — your note is kept.";
+
 export function ReviewActionsPanel({
   evidenceId,
   workflow,
@@ -41,6 +48,14 @@ export function ReviewActionsPanel({
   const [noteFor, setNoteFor] = useState<ReviewDecision | null>(null);
   const [note, setNote] = useState("");
   const stage = reviewStageOf(workflow.status);
+  /**
+   * T-165 (stage B) — the Evidence-page decision door is step-up gated (the
+   * workspace checkbox, session risk) and age gated. Without the shared
+   * challenge a STEP_UP_REQUIRED here could not be satisfied on the phone; a
+   * reauth_required read as a generic failure. The note sheet keeps its text
+   * through either.
+   */
+  const stepUp = useChallengeStepUp(workflow.teamId ?? null);
 
   const claim = async () => {
     if (!workflow.teamId) return;
@@ -60,12 +75,26 @@ export function ReviewActionsPanel({
     setBusy(true);
     setError(null);
     try {
-      await apiFetch(buildReviewDecisionPath(evidenceId), { method: "POST", body: JSON.stringify(buildReviewDecisionBody(d, n)) });
+      await stepUp.run((headers) =>
+        apiFetch(buildReviewDecisionPath(evidenceId), {
+          method: "POST",
+          ...(headers ? { headers } : {}),
+          body: JSON.stringify(buildReviewDecisionBody(d, n)),
+        }),
+      );
       setNoteFor(null);
       setNote("");
       onChanged();
     } catch (err) {
-      setError(toSafeUserError(err, { message: COPY.decisionFailed }).message);
+      const e = err as { code?: string; details?: Record<string, unknown> };
+      if (e?.code === STEP_UP_CANCEL) {
+        setError(COPY_STEP_UP_CLOSED);
+      } else if (isReauthRequired(err)) {
+        // A fresher sign-in, not an ended session; nothing ran, the note stays.
+        setError(reauthRequiredSentence(e.details as { reason?: unknown; windowHours?: unknown } | undefined));
+      } else {
+        setError(toSafeUserError(err, { message: COPY.decisionFailed }).message);
+      }
     } finally {
       setBusy(false);
     }
@@ -119,6 +148,11 @@ export function ReviewActionsPanel({
       <ProovraSheet visible={noteFor !== null} title={noteFor ? REVIEW_DECISION_LABEL[noteFor] : ""} onClose={() => setNoteFor(null)}>
         {noteFor ? (
           <View style={{ gap: theme.space.s3 }}>
+            {error ? (
+              <ProovraText variant="label" color={theme.color.status.risk.fg} testID="review-actions-sheet-error">
+                {error}
+              </ProovraText>
+            ) : null}
             <ProovraFormField label={`${reviewNoteLabel(noteFor)} (required, internal only)`}>
               <ProovraInput value={note} onChangeText={setNote} multiline autoCapitalize="sentences" />
             </ProovraFormField>
@@ -131,6 +165,7 @@ export function ReviewActionsPanel({
           </View>
         ) : null}
       </ProovraSheet>
+      <ChallengeStepUpSheet stepUp={stepUp} />
     </ProovraSection>
   );
 }
