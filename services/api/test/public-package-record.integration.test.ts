@@ -133,7 +133,9 @@ describe("public package record (live PostgreSQL 16)", () => {
 
     const ext = (await get(`/public/verification-packages/${f.ext1.id}`)).json();
     expect(ext).toMatchObject({ packageId: f.ext1.id, disclosureProfile: "EXTERNAL_DISCLOSURE", supersededBy: null });
-    expect(ext.issuedWith).toEqual([{ packageId: f.full1.id, disclosureProfile: "FULL_FORENSIC" }]);
+    // T-131 (audit JRN-02) — the external disclosure's public record never
+    // names the FULL_FORENSIC package issued with it (it used to list it here).
+    expect(ext.issuedWith).toEqual([]);
 
     const v2 = (await get(`/public/verification-packages/${f.full2.id}`)).json();
     expect(v2.supersedes).toEqual({ packageId: f.full1.id, reportVersion: 1 });
@@ -141,6 +143,48 @@ describe("public package record (live PostgreSQL 16)", () => {
     const bySha = await get(`/public/verification-packages/by-sha256/${f.ext1.packageSha256}`);
     expect(bySha.statusCode).toBe(200);
     expect(bySha.json().packageId).toBe(f.ext1.id);
+  });
+
+  it("T-131: an EXTERNAL_DISCLOSURE package's public record (by id and by digest) reveals no full-forensic sibling or predecessor, and no internal id or e-mail; existing packages are untouched", async () => {
+    const f = await fixture();
+    // A historical external package whose row points at a full package as its
+    // predecessor (rows written before this filter are read as they are).
+    const ext2 = await prisma.verificationPackage.create({
+      data: {
+        id: randomUUID(), evidenceId: f.evidenceId, version: 3, reportVersion: 2, disclosureProfile: "EXTERNAL_DISCLOSURE", state: "PUBLISHED",
+        issuanceId: f.issuance1, storageBucket: "b", storageKey: `p/${f.evidenceId}/3-ext.zip`, generatedAtUtc: new Date(), completedAtUtc: new Date(),
+        packageSha256: hex(`p3ext${f.evidenceId}`), packageFormatVersion: 5, sealSha256: hex(`s3ext${f.evidenceId}`),
+        sealSigningKeySha256: sealFp, sealSigningKeyId: sealKeyId, sealSigningKeyVersion: 1, supersedesPackageId: f.full2.id,
+      } as never,
+      select: { id: true, packageSha256: true },
+    });
+    const before = await prisma.verificationPackage.findMany({ where: { evidenceId: f.evidenceId }, orderBy: { id: "asc" } });
+    const team = await prisma.team.findUniqueOrThrow({ where: { id: harness.fixtures.teamA.teamId }, select: { ownerUserId: true, organizationId: true } });
+    const owner = await prisma.user.findUniqueOrThrow({ where: { id: team.ownerUserId }, select: { email: true } });
+    for (const url of [
+      `/public/verification-packages/${f.ext1.id}`,
+      `/public/verification-packages/by-sha256/${f.ext1.packageSha256}`,
+      `/public/verification-packages/${ext2.id}`,
+    ]) {
+      const res = await get(url);
+      expect(res.statusCode, res.body).toBe(200);
+      const body = res.json() as { issuedWith: Array<{ disclosureProfile: string }>; supersedes: { packageId: string } | null };
+      expect(Array.isArray(body.issuedWith)).toBe(true);
+      expect(body.issuedWith.every((s) => s.disclosureProfile === "EXTERNAL_DISCLOSURE")).toBe(true);
+      for (const hidden of [f.full1.id, f.full2.id, f.full1.packageSha256!, f.evidenceId, harness.fixtures.teamA.teamId, team.ownerUserId, owner.email ?? "@"]) {
+        expect(res.body).not.toContain(hidden);
+      }
+    }
+    // The external v3 lists the external v1 of the same issuance, never the full one.
+    const r3 = (await get(`/public/verification-packages/${ext2.id}`)).json();
+    expect(r3.issuedWith).toEqual([{ packageId: f.ext1.id, disclosureProfile: "EXTERNAL_DISCLOSURE" }]);
+    expect(r3.supersedes).toBeNull();
+    // The full-forensic record still lists everything issued with it.
+    const full = (await get(`/public/verification-packages/${f.full1.id}`)).json();
+    expect(full.issuedWith.map((s: { packageId: string }) => s.packageId).sort()).toEqual([f.ext1.id, ext2.id].sort());
+    // Read-time filtering only: no package row was rewritten, re-sealed or withdrawn.
+    const after = await prisma.verificationPackage.findMany({ where: { evidenceId: f.evidenceId }, orderBy: { id: "asc" } });
+    expect(after).toEqual(before);
   });
 
   it("a RESERVED or FAILED row, an unknown id and a malformed id all answer the same 404", async () => {

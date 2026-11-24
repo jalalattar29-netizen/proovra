@@ -106,17 +106,37 @@ export async function packageRecordAccessStatus(
 /** Lifecycle states that carry deleted_at as part of their own lifecycle (not a legacy soft delete). */
 const LIFECYCLE_STATES_WITH_TRASH_TIMESTAMP: ReadonlySet<string> = new Set(["TRASHED", "PENDING_DESTRUCTION", "DESTROYED", "RETENTION_ARCHIVED"]);
 
+/**
+ * T-131 (audit JRN-02) — what a package's PUBLIC record may point at. A holder
+ * of an EXTERNAL_DISCLOSURE package was given the reduced disclosure only; its
+ * record must not name the FULL_FORENSIC package issued alongside it (its id,
+ * and through that id its digest, issue time and seal). The filter is applied
+ * when the record is READ: no package is regenerated, re-signed or
+ * invalidated, and a package already issued keeps its bytes and its seal. A
+ * FULL_FORENSIC (or legacy, profile-less = full) record keeps listing its
+ * siblings, which are never more than its holder already has.
+ */
+export function publicSiblingVisible(rowProfile: string | null, siblingProfile: string | null): boolean {
+  if (rowProfile !== "EXTERNAL_DISCLOSURE") return true;
+  return siblingProfile === "EXTERNAL_DISCLOSURE";
+}
+
 export async function projectPublicPackageRecord(row: Row): Promise<PublicPackageRecord> {
   const profile: PublicPackageProfile = packageProfileLabel(row.disclosureProfile);
   const sameProfile = (where: Record<string, unknown>) =>
     row.disclosureProfile === "FULL_FORENSIC" || row.disclosureProfile === "EXTERNAL_DISCLOSURE"
       ? publishedProfilePackageWhere(row.disclosureProfile, { evidenceId: row.evidenceId, ...where })
       : publishedProfilePackageWhere("FULL_FORENSIC", { evidenceId: row.evidenceId, ...where });
+  const external = row.disclosureProfile === "EXTERNAL_DISCLOSURE";
 
   const [previous, next, siblings, sealKey] = await Promise.all([
     row.supersedesPackageId
       ? prisma.verificationPackage.findFirst({
-          where: publishedPackageWhere({ id: row.supersedesPackageId }),
+          // T-131 — an external record's predecessor is named only when it is
+          // itself an external disclosure.
+          where: external
+            ? sameProfile({ id: row.supersedesPackageId })
+            : publishedPackageWhere({ id: row.supersedesPackageId }),
           select: { id: true, version: true, reportVersion: true },
         })
       : prisma.verificationPackage.findFirst({
@@ -170,7 +190,10 @@ export async function projectPublicPackageRecord(row: Row): Promise<PublicPackag
     packageIdRecordedInPackage: row.disclosureProfile != null,
     disclosureProfile: profile,
     issuanceId: row.issuanceId ?? null,
-    issuedWith: siblings.map((s) => ({ packageId: s.id, disclosureProfile: packageProfileLabel(s.disclosureProfile) })),
+    // T-131 — always an array (the web and mobile parsers require one).
+    issuedWith: siblings
+      .filter((s) => publicSiblingVisible(row.disclosureProfile, s.disclosureProfile))
+      .map((s) => ({ packageId: s.id, disclosureProfile: packageProfileLabel(s.disclosureProfile) })),
     // AUD-49 (2026-10-20) — the version of the REPORT this package certifies,
     // never the package row's own number; and an issue time that was not
     // recorded is stated as unknown (null), never as 1970-01-01.
