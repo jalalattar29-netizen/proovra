@@ -62,6 +62,7 @@ import {
 import { resolveEvidenceRecordAccess } from "../services/evidence/evidence-record-access.service.js";
 import {
   enforceReviewActionGate,
+  enforceReviewBulkDoorGate,
   gateForVerdict,
   holdsReviewBulkAuthority,
 } from "../services/reviewer-ops/review-action-gate.js";
@@ -486,13 +487,18 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
           reply,
         );
       }
+      // T-036 (stage B) — the shared bulk-door classification: ASSIGN is not
+      // a step-up action here either.
       if (
-        !(await enforceReviewActionGate(req, reply, {
-          teamId: body.teamId,
-          userId: ok.userId,
-          action: "bulk",
-          resource: { kind: "review_workflow_bulk", id: body.evidenceIds.slice(0, 8).join(",") },
-        }))
+        !(
+          await enforceReviewBulkDoorGate(req, reply, {
+            teamId: body.teamId,
+            userId: ok.userId,
+            action: body.action,
+            itemIds: body.evidenceIds,
+            resourceKind: "review_workflow_bulk",
+          })
+        ).allowed
       ) {
         return;
       }

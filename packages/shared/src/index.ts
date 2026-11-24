@@ -2903,3 +2903,26 @@ export * from "./public-verification-page.js";
 // F-P1-08 — the one storage-PUT retry rule (web legacy, web multipart, extension).
 export * from "./storage-put-retry.js";
 
+// -----------------------------------------------------------------------------
+// T-030/T-031/T-036 — the review step-up policy as data (one table for the API
+// gate and the Review-settings copy).
+// -----------------------------------------------------------------------------
+
+export {
+  REVIEW_ACTIONS_WITHOUT_STEP_UP,
+  REVIEW_GATE_TABLE,
+  REVIEW_GOVERNED_ACTIONS,
+  REVIEW_STEP_UP_ALWAYS_ON,
+  REVIEW_STEP_UP_FLAG_KEYS,
+  classifyReviewBulkRequest,
+  policyFlagReason,
+  reviewGateSessionWindowHours,
+  reviewStepUpFlagGoverns,
+} from "./review-step-up-policy.js";
+export type {
+  ReviewBulkClassification,
+  ReviewGateAction,
+  ReviewGateRow,
+  ReviewStepUpFlagKey,
+  StepUpRefusalReason,
+} from "./review-step-up-policy.js";

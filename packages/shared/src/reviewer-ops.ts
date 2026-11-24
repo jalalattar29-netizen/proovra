@@ -802,9 +802,22 @@ export const ReviewerOpsBulkInputSchema = z
     // Per-action optional payload.
     assignedToUserId: z.string().uuid().optional(),
     note: z.string().min(1).max(1000).optional(),
+    /**
+     * T-030 — "single" marks a CLOSE of exactly one review sent from the
+     * review itself (Archive): its own action class under the reject flag and
+     * the single-review session window, never labelled bulk. Absent = bulk.
+     */
+    scope: z.enum(["single", "bulk"]).optional(),
   })
   .strict()
   .superRefine((input, ctx) => {
+    if (input.scope === "single" && input.workflowIds.length !== 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "scope single names exactly one review",
+        path: ["scope"],
+      });
+    }
     if (input.action === "ASSIGN" || input.action === "REASSIGN") {
       if (!input.assignedToUserId) {
         ctx.addIssue({

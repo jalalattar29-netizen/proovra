@@ -69,7 +69,7 @@ import {
   evaluateAuthorizedWorkspace,
   type AuthorizedWorkspaceContext,
 } from "../middleware/authorize.js";
-import { requestWorkspaceCandidate } from "../services/access/request-workspace.js";
+import { requestWorkspaceCandidate, workspaceMismatchRefusal } from "../services/access/request-workspace.js";
 import {
   ReviewerOpsError,
   approveReview,
@@ -120,6 +120,7 @@ import {
 } from "../services/billing-enforcement.service.js";
 import {
   enforceReviewActionGate,
+  enforceReviewBulkDoorGate,
   gateForVerdict,
   holdsReviewBulkAuthority,
   workflowIdsInReach,
@@ -257,6 +258,13 @@ async function requireReviewerActor(
   teamId: string,
   surface: ReviewerOpsSurface,
 ): Promise<ReviewerActorContext | null> {
+  // T-042 (stage B) — a mutation whose body or query names a workspace other
+  // than the active-workspace header is refused before anything is read.
+  const mismatch = workspaceMismatchRefusal(req, teamId);
+  if (mismatch) {
+    reply.code(409).send(mismatch);
+    return null;
+  }
   const outcome = await evaluateAuthorizedWorkspace(req, {
     workspaceId: teamId,
     // Baseline: "you are an ACTIVE member of a live workspace". Held by
@@ -1880,16 +1888,17 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       // bulk-ASSIGN privilege-escalation bypass and aligns authority with
       // the single-assign route + the reviewer-workspace bulk surface.
       if (!requireReviewerBulkCapable(ctx, reply)) return;
-      if (
-        !(await enforceReviewActionGate(req, reply, {
-          teamId: body.teamId,
-          userId: ctx.actorUserId,
-          action: "bulk",
-          resource: { kind: "review_workflow_bulk", id: body.workflowIds.slice(0, 8).join(",") },
-        }))
-      ) {
-        return;
-      }
+      // T-030 / T-036 (stage B) — one classification for every bulk door:
+      // assignment is not a step-up action; a single archive is not bulk.
+      const bulkGate = await enforceReviewBulkDoorGate(req, reply, {
+        teamId: body.teamId,
+        userId: ctx.actorUserId,
+        action: body.action,
+        itemIds: body.workflowIds,
+        scope: body.scope ?? null,
+        resourceKind: "review_workflow_bulk",
+      });
+      if (!bulkGate.allowed) return;
       const result = await executeBulkTriage(ctx, body, prisma, {
         requestId: req.id,
         // An UNEXPECTED row failure keeps its full detail here — the request
@@ -2061,11 +2070,14 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const q = TeamIdQuery.parse(req.query ?? {});
       const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_TASKS_AND_QUEUES");
       if (!ctx) return;
-      const [policy, flags] = await Promise.all([
+      const [policy, flags, version] = await Promise.all([
         resolveEffectiveSlaPolicy({ teamId: q.teamId }, prisma),
         loadWorkspaceReviewerOpsFlags(q.teamId),
+        // T-041 (stage B) — the version a client sends back as expectedVersion,
+        // so a save over a newer policy answers 409 instead of overwriting it.
+        loadWorkspaceGovernancePolicyVersion(q.teamId),
       ]);
-      return reply.code(200).send({ policy, flags });
+      return reply.code(200).send({ policy, flags, version, teamId: q.teamId });
     },
   );
 
@@ -2115,6 +2127,8 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         purpose: "GOVERNANCE_POLICY_UPDATE",
         resourceKind: "workspace_reviewer_ops_policy",
         resourceId: body.teamId,
+        // T-028 / T-033 — saving always needs a second factor; say so.
+        reason: "save_policy_requires_mfa",
       });
       if (gate.sent) return;
       const patch = {
@@ -2148,7 +2162,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         resolveEffectiveSlaPolicy({ teamId: body.teamId }, prisma),
         loadWorkspaceReviewerOpsFlags(body.teamId),
       ]);
-      return reply.code(200).send({ policy, flags });
+      return reply.code(200).send({ policy, flags, version: written.newVersion, teamId: body.teamId });
     },
   );
 

@@ -262,7 +262,10 @@ describe("Phase 26.75 — trusted device decay", () => {
 
 describe("Phase 26.75 — gate applied to reviewer-ops", () => {
   const src = readSource("../src/routes/reviewer-ops.routes.ts");
-  const gate = readSource("../src/services/reviewer-ops/review-action-gate.ts");
+  // Stage B (T-031): the gate rows are DATA in the shared review step-up policy.
+  const gate =
+    readSource("../src/services/reviewer-ops/review-action-gate.ts") +
+    readSource("../../../packages/shared/src/review-step-up-policy.ts");
 
   it("approve / reject / bulk / escalation-resolve all reach runtimeAdaptiveGate through the one gate", () => {
     expect(gate).toMatch(/runtimeAdaptiveGate/);
@@ -270,9 +273,11 @@ describe("Phase 26.75 — gate applied to reviewer-ops", () => {
     expect(gate).toMatch(/adaptive: "REVIEWER_REJECT"/);
     expect(gate).toMatch(/adaptive: "REVIEWER_BULK"/);
     expect(gate).toMatch(/adaptive: "REVIEW_ESCALATION_RESOLVE"/);
-    for (const action of ["approve", "reject", "bulk", "escalationResolve"]) {
+    for (const action of ["approve", "reject", "escalationResolve"]) {
       expect(src).toContain(`action: "${action}"`);
     }
+    // Stage B (T-030/T-036): the bulk door classifies through the bulk-door gate.
+    expect(src).toMatch(/await enforceReviewBulkDoorGate\(/);
   });
 
   it("the gate stops when not allowed (never widens)", () => {
