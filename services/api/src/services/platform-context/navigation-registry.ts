@@ -30,6 +30,28 @@
  *   4. The registry shape is frozen by the navigationSchemaVersion
  *      constant in types.ts. Bumping the registry requires bumping
  *      that version.
+ *
+ * T-125 / PRD-01 — WHAT THIS PAYLOAD MAY ADVERTISE (2026-11-24).
+ *
+ *   The web does not render this payload (its sidebar, command palette and
+ *   All Tools read `apps/web/lib/navigation/routeRegistry.ts`); it is a
+ *   contract for API consumers. It advertised `/redaction`, `/workflows`,
+ *   `/intelligence`, `/investigation`, `/packaging` (404 for a Team context)
+ *   and `/evidence-lifecycle` (a redirect), because an item here was gated on a
+ *   ROLE capability only, while the web route it names is also gated on the
+ *   COMMERCIAL answer (Enterprise workspace, a plan feature) and on the
+ *   workspace kind.
+ *
+ *   Every item therefore mirrors the gate of the web registry entry it lands
+ *   on: `requiresCapability` (+ `alsoRequiresCapabilities`) for the role,
+ *   `requiresEnterpriseWorkspace` / `requiresPlanFeature` for the commercial
+ *   answer (platform admins bypass both, as on the web), and
+ *   `requiresOrganizationWorkspace` for the kind. An item may be STRICTER than
+ *   its web route, never looser. The builders take a `NavigationGateContext`
+ *   (server-projected booleans only, never a plan name) and fail closed
+ *   without one. The projected item shape is unchanged. Proven per context by
+ *   `apps/web/__tests__/navigation-contract-resolves.test.ts`: every item the
+ *   payload advertises names a real page that opens through both web gates.
  */
 
 import type { CapabilityKey } from "./types.js";
@@ -83,6 +105,45 @@ export type NavRegistryItem = {
    * user with an active workspace.
    */
   requiresCapability: CapabilityKey | null;
+  /** T-125 — further role capabilities the web route also requires (all must hold). */
+  alsoRequiresCapabilities?: ReadonlyArray<CapabilityKey>;
+  /**
+   * T-125 — the web route's plan-feature gate (`requiredPlanFeature` or the
+   * nav-only `navPlanFeature`): the item is advertised only when
+   * `planFeatures[key] === true`. Platform admins bypass.
+   */
+  requiresPlanFeature?: NavPlanFeatureKey;
+  /**
+   * T-125 — the web route is in `ENTERPRISE_ONLY_ROUTE_IDS`: advertised only
+   * when `flags.isEnterpriseWorkspace` is true. Platform admins bypass.
+   */
+  requiresEnterpriseWorkspace?: true;
+  /** T-125 — the web route is `ORGANIZATION_ONLY`: the active space must be an organization. */
+  requiresOrganizationWorkspace?: true;
+};
+
+/**
+ * T-125 — the `planFeatures` keys a navigation item may require. Each is a
+ * boolean of the envelope's `planFeatures` projection.
+ */
+export type NavPlanFeatureKey =
+  | "casesIncluded"
+  | "intakeIncluded"
+  | "teamCollaborationIncluded"
+  | "reviewerOperationsIncluded"
+  | "redactionIncluded";
+
+/**
+ * T-125 — what the builders need to know about the ACTIVE workspace besides
+ * the role capabilities. Server-projected values only: the same
+ * `flags.isEnterpriseWorkspace`, `planFeatures` and `activeSpace.type` the
+ * envelope carries to the web gates.
+ */
+export type NavigationGateContext = {
+  activeSpaceType: "PERSONAL" | "ORGANIZATION" | null;
+  isEnterpriseWorkspace: boolean;
+  isPlatformAdmin: boolean;
+  planFeatures: Partial<Record<NavPlanFeatureKey, boolean | null>> | null;
 };
 
 export type NavRegistryGroup = {
@@ -138,6 +199,8 @@ const WORKSPACE_GROUP: NavRegistryGroup = {
       domain: "WORKSPACE",
       badgeKey: null,
       requiresCapability: "CASES_VIEW",
+      // T-125 — web `navPlanFeature: "casesIncluded"` (FREE sells no cases).
+      requiresPlanFeature: "casesIncluded",
     },
     // Phase 2.6 §10.5 — Workspace governance discoverability.
     //
@@ -165,6 +228,8 @@ const WORKSPACE_GROUP: NavRegistryGroup = {
       domain: "WORKSPACE",
       badgeKey: null,
       requiresCapability: "TEAM_VIEW",
+      // T-125 — web `navPlanFeature: "teamCollaborationIncluded"`.
+      requiresPlanFeature: "teamCollaborationIncluded",
     },
     {
       id: "workspace.reports",
@@ -191,7 +256,12 @@ const WORKSPACE_GROUP: NavRegistryGroup = {
       iconKey: "packaging",
       domain: "WORKSPACE",
       badgeKey: null,
-      requiresCapability: "DASHBOARD_VIEW",
+      requiresCapability: "EXPORT_GOVERNANCE_MANAGE",
+      // T-125 / PRD-01 — the web route is Enterprise-only, organization-only and
+      // needs EXPORT_GOVERNANCE_MANAGE; DASHBOARD_VIEW advertised a 404 to every
+      // self-serve plan.
+      requiresEnterpriseWorkspace: true,
+      requiresOrganizationWorkspace: true,
     },
     {
       id: "workspace.evidence_lifecycle",
@@ -200,7 +270,11 @@ const WORKSPACE_GROUP: NavRegistryGroup = {
       iconKey: "lifecycle",
       domain: "WORKSPACE",
       badgeKey: null,
-      requiresCapability: "DASHBOARD_VIEW",
+      requiresCapability: "LIFECYCLE_VIEW",
+      // T-125 / PRD-01 — Enterprise-only, organization-only and LIFECYCLE_VIEW on
+      // the web; a self-serve plan was advertised a redirect to /evidence.
+      requiresEnterpriseWorkspace: true,
+      requiresOrganizationWorkspace: true,
     },
     // Trust nav removed (2026-07-15): the authenticated static Trust Hub
     // (`/trust-hub`, id `workspace.trust`) was deleted as redundant. The
@@ -235,6 +309,8 @@ const WORKSPACE_GROUP: NavRegistryGroup = {
       domain: "WORKSPACE",
       badgeKey: null,
       requiresCapability: "GOVERNANCE_VIEW",
+      requiresEnterpriseWorkspace: true,
+      requiresOrganizationWorkspace: true,
     },
   ],
 };
@@ -257,6 +333,8 @@ const REVIEW_GOVERNANCE_GROUP: NavRegistryGroup = {
       domain: "REVIEW_GOVERNANCE",
       badgeKey: null,
       requiresCapability: "REVIEWER_OPS_VIEW",
+      // T-125 — the web route's `requiredPlanFeature`.
+      requiresPlanFeature: "reviewerOperationsIncluded",
     },
     {
       id: "review.sla",
@@ -266,6 +344,7 @@ const REVIEW_GOVERNANCE_GROUP: NavRegistryGroup = {
       domain: "REVIEW_GOVERNANCE",
       badgeKey: null,
       requiresCapability: "SLA_VIEW",
+      requiresPlanFeature: "reviewerOperationsIncluded",
     },
     {
       id: "review.escalations",
@@ -275,6 +354,7 @@ const REVIEW_GOVERNANCE_GROUP: NavRegistryGroup = {
       domain: "REVIEW_GOVERNANCE",
       badgeKey: "escalations_open",
       requiresCapability: "ESCALATIONS_VIEW",
+      requiresPlanFeature: "reviewerOperationsIncluded",
     },
     // Phase 2.1 — discoverability promotion. These 4 surfaces were
     // fully wired to backend (Phase 18 Twilio, Phase 23 workflows,
@@ -297,7 +377,11 @@ const REVIEW_GOVERNANCE_GROUP: NavRegistryGroup = {
       // Use REVIEWER_OPS_VIEW: workflow instances are part of the
       // review/governance domain and any team member who can see
       // reviewer ops should be able to inspect workflow state.
-      requiresCapability: "REVIEWER_OPS_VIEW",
+      requiresCapability: "INTEGRATIONS_MANAGE",
+      // T-125 / PRD-01 — `/workflows` is the workflow TEMPLATE admin
+      // (`workspace.workflows`): Enterprise-only and INTEGRATIONS_MANAGE on the
+      // web. REVIEWER_OPS_VIEW advertised a 404 to every Team reviewer.
+      requiresEnterpriseWorkspace: true,
     },
     {
       id: "review.intelligence",
@@ -309,6 +393,8 @@ const REVIEW_GOVERNANCE_GROUP: NavRegistryGroup = {
       // OCR / transcript / entity jobs operate on evidence the user
       // can already view. Use EVIDENCE_VIEW.
       requiresCapability: "EVIDENCE_VIEW",
+      // T-125 / PRD-01 — `workspace.intelligence` is Enterprise-only on the web.
+      requiresEnterpriseWorkspace: true,
     },
     {
       id: "review.investigation",
@@ -319,7 +405,9 @@ const REVIEW_GOVERNANCE_GROUP: NavRegistryGroup = {
       badgeKey: null,
       // Investigation overview surfaces signal totals / graph activity
       // for cases the user has access to. Use CASES_VIEW.
-      requiresCapability: "CASES_VIEW",
+      requiresCapability: "EVIDENCE_VIEW",
+      // T-125 / PRD-01 — `investigation.hub`: Enterprise-only, EVIDENCE_VIEW.
+      requiresEnterpriseWorkspace: true,
     },
     {
       id: "governance.hub",
@@ -329,6 +417,8 @@ const REVIEW_GOVERNANCE_GROUP: NavRegistryGroup = {
       domain: "REVIEW_GOVERNANCE",
       badgeKey: "governance_incidents",
       requiresCapability: "GOVERNANCE_VIEW",
+      requiresEnterpriseWorkspace: true,
+      requiresOrganizationWorkspace: true,
     },
     // -------------------------------------------------------------------
     // Phase 3A — Redaction Platform nav binding. Canonical id
@@ -346,7 +436,12 @@ const REVIEW_GOVERNANCE_GROUP: NavRegistryGroup = {
       iconKey: "redaction",
       domain: "REVIEW_GOVERNANCE",
       badgeKey: null,
-      requiresCapability: "REVIEWER_OPS_VIEW",
+      requiresCapability: null,
+      // T-125 / ARCH-09 — ONE authority for redaction: FEATURE_REDACTION,
+      // projected as planFeatures.redactionIncluded (any workspace kind). It is
+      // not a reviewer-operations surface: REVIEWER_OPS_VIEW was the wrong gate
+      // and advertised a 404 to every Team reviewer without the grant.
+      requiresPlanFeature: "redactionIncluded",
     },
     // -------------------------------------------------------------------
     // Phase 3B — Intelligence Platform nav bindings. Canonical ids for
@@ -363,6 +458,8 @@ const REVIEW_GOVERNANCE_GROUP: NavRegistryGroup = {
       domain: "REVIEW_GOVERNANCE",
       badgeKey: null,
       requiresCapability: "GOVERNANCE_VIEW",
+      requiresEnterpriseWorkspace: true,
+      requiresOrganizationWorkspace: true,
     },
     {
       id: "workspace.audit_transparency",
@@ -372,6 +469,9 @@ const REVIEW_GOVERNANCE_GROUP: NavRegistryGroup = {
       domain: "REVIEW_GOVERNANCE",
       badgeKey: null,
       requiresCapability: "GOVERNANCE_VIEW",
+      alsoRequiresCapabilities: ["ANALYTICS_VIEW"],
+      requiresEnterpriseWorkspace: true,
+      requiresOrganizationWorkspace: true,
     },
     // -------------------------------------------------------------------
     // Phase 3B Closure — Intelligence Quality + Budget Center. Distinct
@@ -387,7 +487,11 @@ const REVIEW_GOVERNANCE_GROUP: NavRegistryGroup = {
       iconKey: "intelligence",
       domain: "REVIEW_GOVERNANCE",
       badgeKey: null,
-      requiresCapability: "EVIDENCE_VIEW",
+      requiresCapability: "GOVERNANCE_VIEW",
+      // T-125 / O-01 — Enterprise-only, organization-only and GOVERNANCE_VIEW on
+      // the web; EVIDENCE_VIEW advertised a 404 to every self-serve plan.
+      requiresEnterpriseWorkspace: true,
+      requiresOrganizationWorkspace: true,
     },
     {
       id: "workspace.budget_center",
@@ -397,6 +501,8 @@ const REVIEW_GOVERNANCE_GROUP: NavRegistryGroup = {
       domain: "REVIEW_GOVERNANCE",
       badgeKey: null,
       requiresCapability: "GOVERNANCE_VIEW",
+      requiresEnterpriseWorkspace: true,
+      requiresOrganizationWorkspace: true,
     },
     {
       id: "governance.lifecycle",
@@ -406,6 +512,8 @@ const REVIEW_GOVERNANCE_GROUP: NavRegistryGroup = {
       domain: "REVIEW_GOVERNANCE",
       badgeKey: null,
       requiresCapability: "LIFECYCLE_VIEW",
+      requiresEnterpriseWorkspace: true,
+      requiresOrganizationWorkspace: true,
     },
     {
       id: "governance.policy",
@@ -415,6 +523,8 @@ const REVIEW_GOVERNANCE_GROUP: NavRegistryGroup = {
       domain: "REVIEW_GOVERNANCE",
       badgeKey: null,
       requiresCapability: "GOVERNANCE_ACT",
+      requiresEnterpriseWorkspace: true,
+      requiresOrganizationWorkspace: true,
     },
     {
       id: "governance.retention",
@@ -424,6 +534,9 @@ const REVIEW_GOVERNANCE_GROUP: NavRegistryGroup = {
       domain: "REVIEW_GOVERNANCE",
       badgeKey: null,
       requiresCapability: "GOVERNANCE_ACT",
+      alsoRequiresCapabilities: ["RETENTION_MANAGE"],
+      requiresEnterpriseWorkspace: true,
+      requiresOrganizationWorkspace: true,
     },
     {
       id: "governance.destruction",
@@ -433,6 +546,9 @@ const REVIEW_GOVERNANCE_GROUP: NavRegistryGroup = {
       domain: "REVIEW_GOVERNANCE",
       badgeKey: null,
       requiresCapability: "GOVERNANCE_ACT",
+      alsoRequiresCapabilities: ["RETENTION_MANAGE"],
+      requiresEnterpriseWorkspace: true,
+      requiresOrganizationWorkspace: true,
     },
   ],
 };
@@ -484,6 +600,7 @@ const PLATFORM_HEALTH_GROUP: NavRegistryGroup = {
       domain: "PLATFORM_HEALTH",
       badgeKey: null,
       requiresCapability: "SECURITY_CENTER_VIEW",
+      requiresEnterpriseWorkspace: true,
     },
     // Phase 2.3 — Identity administration hub. The /admin/identity
     // landing page links to: providers (SSO), SCIM, sessions, access
@@ -503,6 +620,8 @@ const PLATFORM_HEALTH_GROUP: NavRegistryGroup = {
       domain: "PLATFORM_HEALTH",
       badgeKey: null,
       requiresCapability: "SECURITY_CENTER_VIEW",
+      requiresEnterpriseWorkspace: true,
+      requiresOrganizationWorkspace: true,
     },
   ],
 };
@@ -559,6 +678,7 @@ const ADMINISTRATION_GROUP: NavRegistryGroup = {
       domain: "ADMINISTRATION",
       badgeKey: null,
       requiresCapability: "INTEGRATIONS_MANAGE",
+      requiresEnterpriseWorkspace: true,
     },
     {
       id: "admin.intake_links",
@@ -568,6 +688,8 @@ const ADMINISTRATION_GROUP: NavRegistryGroup = {
       domain: "ADMINISTRATION",
       badgeKey: null,
       requiresCapability: "INTAKE_LINKS_MANAGE",
+      // T-125 — web `navPlanFeature: "intakeIncluded"`.
+      requiresPlanFeature: "intakeIncluded",
     },
     // Phase 2.1 — Communications surface (Twilio admin) was wired
     // (Phase 18) but absent from the sidebar. Gated by INTEGRATIONS_MANAGE
@@ -587,6 +709,8 @@ const ADMINISTRATION_GROUP: NavRegistryGroup = {
       domain: "ADMINISTRATION",
       badgeKey: null,
       requiresCapability: "INTEGRATIONS_MANAGE",
+      alsoRequiresCapabilities: ["INTAKE_LINKS_MANAGE"],
+      requiresEnterpriseWorkspace: true,
     },
     {
       id: "admin.settings",
@@ -695,8 +819,44 @@ function passesCapabilityGate(
   item: NavRegistryItem,
   caps: CapabilityMap,
 ): boolean {
-  if (item.requiresCapability === null) return true;
-  return caps[item.requiresCapability] === true;
+  if (item.requiresCapability !== null && caps[item.requiresCapability] !== true) {
+    return false;
+  }
+  for (const extra of item.alsoRequiresCapabilities ?? []) {
+    if (caps[extra] !== true) return false;
+  }
+  return true;
+}
+
+/**
+ * T-125 — the web route's commercial and kind gates, in the web resolver's
+ * order (`routeAccessResolver.ts`): the organization requirement applies to
+ * everyone; the Enterprise-workspace and plan-feature requirements are
+ * bypassed by platform admins. Unknown values fail closed.
+ */
+function passesWorkspaceGate(
+  item: NavRegistryItem,
+  gate: NavigationGateContext,
+): boolean {
+  if (item.requiresOrganizationWorkspace && gate.activeSpaceType !== "ORGANIZATION") {
+    return false;
+  }
+  if (gate.isPlatformAdmin) return true;
+  if (item.requiresEnterpriseWorkspace && gate.isEnterpriseWorkspace !== true) {
+    return false;
+  }
+  if (item.requiresPlanFeature && gate.planFeatures?.[item.requiresPlanFeature] !== true) {
+    return false;
+  }
+  return true;
+}
+
+function isAdvertised(
+  item: NavRegistryItem,
+  caps: CapabilityMap,
+  gate: NavigationGateContext,
+): boolean {
+  return passesCapabilityGate(item, caps) && passesWorkspaceGate(item, gate);
 }
 
 function projectItem(item: NavRegistryItem): PlatformContextNavItem {
@@ -721,11 +881,12 @@ function projectItem(item: NavRegistryItem): PlatformContextNavItem {
  */
 export function filterNavigationRegistry(
   caps: CapabilityMap,
+  gate: NavigationGateContext,
 ): ReadonlyArray<PlatformContextNavGroup> {
   return NAVIGATION_REGISTRY.map<PlatformContextNavGroup>((group) => {
     const items: PlatformContextNavItem[] = group.items
       .filter((item) => appearsOnSurface(item, "SIDEBAR"))
-      .filter((item) => passesCapabilityGate(item, caps))
+      .filter((item) => isAdvertised(item, caps, gate))
       .map(projectItem);
     return {
       id: group.id,
@@ -751,7 +912,10 @@ export function filterNavigationRegistry(
  * The same NavRegistryItem can appear on both surfaces when its
  * `surface` is `"BOTH"` (e.g. Settings, Billing, Teams).
  */
-export function buildNavigationProjection(caps: CapabilityMap): {
+export function buildNavigationProjection(
+  caps: CapabilityMap,
+  gate: NavigationGateContext,
+): {
   sidebar: {
     groups: ReadonlyArray<PlatformContextNavGroup>;
     pillars: ReadonlyArray<{
@@ -765,7 +929,7 @@ export function buildNavigationProjection(caps: CapabilityMap): {
     (group) => {
       const items: PlatformContextNavItem[] = group.items
         .filter((item) => appearsOnSurface(item, "SIDEBAR"))
-        .filter((item) => passesCapabilityGate(item, caps))
+        .filter((item) => isAdvertised(item, caps, gate))
         .map(projectItem);
       return {
         id: group.id,
@@ -785,7 +949,7 @@ export function buildNavigationProjection(caps: CapabilityMap): {
   // Phase 1A — also expose the canonical 8-pillar grouping so callers don't
   // have to call buildPillarProjection separately. Same capability gating,
   // single pass-through to the canonical pillar-builder for shape parity.
-  const pillars = buildPillarProjection(caps);
+  const pillars = buildPillarProjection(caps, gate);
 
   return {
     sidebar: { groups: sidebarGroups, pillars },
@@ -806,13 +970,14 @@ export function buildNavigationProjection(caps: CapabilityMap): {
  */
 export function buildPillarProjection(
   caps: CapabilityMap,
+  gate: NavigationGateContext,
 ): ReadonlyArray<{ pillar: ProovraPillar; items: ReadonlyArray<PlatformContextNavItem> }> {
   // Collect all sidebar-eligible items that pass the capability gate.
   const allItems: Array<{ pillar: ProovraPillar; item: PlatformContextNavItem }> = [];
   for (const group of NAVIGATION_REGISTRY) {
     for (const registryItem of group.items) {
       if (!appearsOnSurface(registryItem, "SIDEBAR")) continue;
-      if (!passesCapabilityGate(registryItem, caps)) continue;
+      if (!isAdvertised(registryItem, caps, gate)) continue;
       const pillar = DOMAIN_TO_PILLAR[registryItem.domain as NavDomain] ?? "ADMIN";
       allItems.push({ pillar, item: projectItem(registryItem) });
     }

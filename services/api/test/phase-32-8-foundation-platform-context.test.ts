@@ -34,7 +34,41 @@ import {
 import {
   NAVIGATION_REGISTRY,
   filterNavigationRegistry,
+  type NavigationGateContext,
 } from "../src/services/platform-context/navigation-registry.js";
+
+// T-125 / PRD-01 — the builders take the active workspace's server-projected
+// commercial answer and kind, as platform-context.service.ts passes them.
+const FEATURES_NONE = {
+  casesIncluded: false,
+  intakeIncluded: false,
+  teamCollaborationIncluded: false,
+  reviewerOperationsIncluded: false,
+  redactionIncluded: false,
+};
+const NO_WORKSPACE_GATE: NavigationGateContext = {
+  activeSpaceType: null,
+  isEnterpriseWorkspace: false,
+  isPlatformAdmin: false,
+  planFeatures: FEATURES_NONE,
+};
+const FREE_GATE: NavigationGateContext = { ...NO_WORKSPACE_GATE, activeSpaceType: "PERSONAL" };
+const PRO_GATE: NavigationGateContext = {
+  ...FREE_GATE,
+  planFeatures: { ...FEATURES_NONE, casesIncluded: true, intakeIncluded: true, teamCollaborationIncluded: true },
+};
+/** A legacy TEAM-scope (OWNED) workspace: Team features, not Enterprise. */
+const TEAM_ORG_GATE: NavigationGateContext = {
+  activeSpaceType: "ORGANIZATION",
+  isEnterpriseWorkspace: false,
+  isPlatformAdmin: false,
+  planFeatures: { ...PRO_GATE.planFeatures, reviewerOperationsIncluded: true },
+};
+const ENTERPRISE_GATE: NavigationGateContext = {
+  ...TEAM_ORG_GATE,
+  isEnterpriseWorkspace: true,
+  planFeatures: { ...TEAM_ORG_GATE.planFeatures, redactionIncluded: true },
+};
 
 function readApi(rel: string): string {
   return readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), "utf8");
@@ -375,6 +409,7 @@ describe("Phase 32.8 Foundation — navigation registry", () => {
         plan: "TEAM",
         isPlatformAdmin: false,
       }),
+      TEAM_ORG_GATE,
     );
     const adminGroup = teamMemberNav.find((g) => g.id === "administration");
     expect(adminGroup?.items.some((i) => i.id === "admin.teams")).toBe(true);
@@ -386,6 +421,7 @@ describe("Phase 32.8 Foundation — navigation registry", () => {
         plan: "PRO",
         isPlatformAdmin: false,
       }),
+      PRO_GATE,
     );
     const personalAdminGroup = personalNav.find(
       (g) => g.id === "administration",
@@ -402,7 +438,7 @@ describe("Phase 32.8 Foundation — navigation registry", () => {
       plan: null,
       isPlatformAdmin: false,
     });
-    const visible = filterNavigationRegistry(minimalCaps);
+    const visible = filterNavigationRegistry(minimalCaps, NO_WORKSPACE_GATE);
     // No active workspace ⇒ no workspace/review/platform groups; only
     // the administration → Settings entry survives because
     // SETTINGS_VIEW is granted to every authenticated user.
@@ -427,6 +463,7 @@ describe("Phase 32.8 Foundation — navigation registry", () => {
         plan: "PRO",
         isPlatformAdmin: false,
       }),
+      PRO_GATE,
     );
     const personalReview = personalNav.find(
       (g) => g.id === "review_governance",
@@ -442,6 +479,7 @@ describe("Phase 32.8 Foundation — navigation registry", () => {
         plan: "TEAM",
         isPlatformAdmin: false,
       }),
+      TEAM_ORG_GATE,
     );
     const review = teamNav.find((g) => g.id === "review_governance");
     expect(review?.items.some((i) => i.id === "review.queue")).toBe(true);
