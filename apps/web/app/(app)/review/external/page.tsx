@@ -9,8 +9,11 @@
  *   • Active / Pending / Accepted / Expired / Revoked tabs render
  *     grant lifecycle states filtered from the workspace-anchored
  *     listInvitationsForTeam projection.
- *   • Bulk Invite tab — multi-row paste (CSV or one-per-line), per-row
- *     validation, per-row outcome table, summary chips.
+ *   • "Invite reviewer" action (T-136) — one form for one or many
+ *     recipients: multi-row paste (CSV or one-per-line), per-row validation
+ *     (an invalid address blocks Issue, nothing is truncated), a validated
+ *     expiry (T-155), per-row outcome table, summary chips. The tabs hold
+ *     lifecycle statuses only.
  *   • Per-grant detail drawer:
  *       - Delivery status panel (most recent + history).
  *       - Activity timeline.
@@ -35,8 +38,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BULK_INVITATION_MAX_ROWS,
   EXTERNAL_REVIEWER_ROLES,
+  EXTERNAL_REVIEW_EXPIRY_HOURS_MAX,
+  EXTERNAL_REVIEW_EXPIRY_HOURS_MIN,
   WATERMARK_POLICIES,
   identifierLabel,
+  parseExternalReviewExpiryHours,
   type ExternalReviewerRole,
   type PortalAuthMethod,
 } from "@proovra/shared";
@@ -307,13 +313,13 @@ type BulkOutcomeRow = {
   denial: string | null;
 };
 
+// T-136 — the tabs are lifecycle statuses only; inviting is an action.
 type TabId =
   | "active"
   | "pending"
   | "accepted"
   | "expired"
-  | "revoked"
-  | "bulk";
+  | "revoked";
 
 const TAB_ORDER: ReadonlyArray<{ id: TabId; label: string }> = [
   { id: "active", label: "Active" },
@@ -321,7 +327,6 @@ const TAB_ORDER: ReadonlyArray<{ id: TabId; label: string }> = [
   { id: "accepted", label: "Accepted" },
   { id: "expired", label: "Expired" },
   { id: "revoked", label: "Revoked" },
-  { id: "bulk", label: "Bulk Invite" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -350,7 +355,16 @@ function ExternalReviewManagementConsole() {
   /** The list's `viewerCanIssue`; undefined = not projected (older API). */
   const [listCanIssue, setListCanIssue] = useState<boolean | undefined>(undefined);
   const caps = useExternalReviewCapabilities(listCanIssue, rows);
+  // T-114 (ARCH-15, stage E) — the console is READ-ONLY for a caller who may
+  // neither issue nor manage (MEMBER): no inert controls, and a plain note says
+  // why. T-136 (stage F) — inviting is an action, not a tab.
+  const readOnly = !caps.canInvite && !caps.canBulkRevoke;
+  const tabOrder = TAB_ORDER;
   const [tab, setTab] = useState<TabId>("active");
+  // T-136 — the invite form is opened by the "Invite reviewer" action.
+  const [inviting, setInviting] = useState(false);
+  // T-158 — a failed list read is an error with Retry, never an empty tab.
+  const [listError, setListError] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set());
   const { confirm: confirmBulk } = useConfirmAction();
@@ -369,6 +383,7 @@ function ExternalReviewManagementConsole() {
       setRows((res?.invitations ?? []) as InvitationRow[]);
       setListCanIssue(typeof res?.viewerCanIssue === "boolean" ? res.viewerCanIssue : undefined);
       setListDenied(false);
+      setListError(false);
       return true;
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -379,8 +394,11 @@ function ExternalReviewManagementConsole() {
         code: (err as any)?.code ?? "UNKNOWN",
       });
       const denial = denialFromError(err);
-      setRows([]);
       setListDenied(denial === "NOT_PERMITTED");
+      // T-158 — the rows already shown stay; a first read that failed leaves
+      // the list unknown (null), so no tab claims "No invitations".
+      setListError(denial !== "NOT_PERMITTED");
+      setRows((prev) => (denial === "NOT_PERMITTED" ? [] : prev));
       return false;
     }
   }, []);
@@ -479,6 +497,7 @@ function ExternalReviewManagementConsole() {
 
   const selectTab = useCallback((id: TabId) => {
     setTab(id);
+    setInviting(false);
     setSelected(null);
     // PRO-R2Z-07 — a bulk action applies to the rows you can see.
     setMultiSelected(new Set());
@@ -491,15 +510,33 @@ function ExternalReviewManagementConsole() {
         <ReviewPageHeader
           backToHub
           title="External review"
-          subtitle={`External reviewer invitations, delivery and audit for this workspace — included on Pro, Team and Enterprise. Every action you take here is recorded on the grant's audit timeline.${
-            caps.canInvite || caps.canRevoke ? "" : ` ${EXTERNAL_REVIEW_MANAGE_EXPLANATION}`
-          }`}
+          subtitle="External reviewer invitations, delivery and audit for this workspace. Every action you take here is recorded on the grant's audit timeline."
+          primaryAction={
+            // T-136 — one entry point for one or many invitations. While the
+            // form is open its Issue is the one primary.
+            inviting || readOnly ? null : (
+              <button
+                type="button"
+                className="app-primary-action"
+                data-invite-reviewer-action
+                data-capability-allowed={caps.canBulkInvite ? "true" : "false"}
+                disabled={!caps.canBulkInvite}
+                title={caps.canBulkInvite ? undefined : EXTERNAL_REVIEW_MANAGE_EXPLANATION}
+                onClick={() => {
+                  setSelected(null);
+                  setInviting(true);
+                }}
+              >
+                Invite reviewer
+              </button>
+            )
+          }
           secondaryActions={
             // TEAM-UI-SPEC §1 — revoking is irreversible: a `--danger` entry
             // point that opens the danger confirm, never a filled red button.
             // Bulk revoke applies to the rows of a lifecycle tab, so it is not
-            // offered on the Bulk Invite tab (whose one primary is Issue).
-            tab === "bulk" ? null : (
+            // offered while the invite form is open (whose one primary is Issue).
+            inviting || readOnly ? null : (
             <button
               type="button"
               className="app-secondary-action app-secondary-action--danger"
@@ -533,34 +570,34 @@ function ExternalReviewManagementConsole() {
         aria-label="Invitation lifecycle"
         style={{ overflowX: "auto", maxWidth: "100%" }}
       >
-        {TAB_ORDER.map((t, idx) => (
+        {tabOrder.map((t, idx) => (
           <button
             type="button"
             key={t.id}
             id={`external-review-tab-${t.id}`}
             role="tab"
-            aria-selected={tab === t.id}
+            aria-selected={!inviting && tab === t.id}
             aria-controls="external-review-tabpanel"
             tabIndex={tab === t.id ? 0 : -1}
-            className={tab === t.id ? "app-tab is-active" : "app-tab"}
+            className={!inviting && tab === t.id ? "app-tab is-active" : "app-tab"}
             data-tab={t.id}
-            data-tab-active={tab === t.id ? "true" : "false"}
+            data-tab-active={!inviting && tab === t.id ? "true" : "false"}
             onClick={() => selectTab(t.id)}
             onKeyDown={(event) => {
               let next: number | null = null;
-              if (event.key === "ArrowRight") next = (idx + 1) % TAB_ORDER.length;
-              else if (event.key === "ArrowLeft") next = (idx - 1 + TAB_ORDER.length) % TAB_ORDER.length;
+              if (event.key === "ArrowRight") next = (idx + 1) % tabOrder.length;
+              else if (event.key === "ArrowLeft") next = (idx - 1 + tabOrder.length) % tabOrder.length;
               else if (event.key === "Home") next = 0;
-              else if (event.key === "End") next = TAB_ORDER.length - 1;
+              else if (event.key === "End") next = tabOrder.length - 1;
               if (next === null) return;
               event.preventDefault();
-              const target = TAB_ORDER[next]!;
+              const target = tabOrder[next]!;
               selectTab(target.id);
               document.getElementById(`external-review-tab-${target.id}`)?.focus();
             }}
           >
             {t.label}
-            {t.id !== "bulk" ? (
+            {rows !== null ? (
               <span data-tab-count={t.id} className="app-tab__count">
                 {counts[t.id] ?? 0}
               </span>
@@ -568,6 +605,19 @@ function ExternalReviewManagementConsole() {
           </button>
         ))}
       </nav>
+
+      {readOnly && !listDenied ? (
+        <section
+          data-external-review-read-only
+          className="app-panel"
+          role="note"
+        >
+          <p className="app-panel__body" style={{ margin: 0 }}>
+            Read-only. You can see this workspace's external reviewer
+            invitations and their activity. {EXTERNAL_REVIEW_MANAGE_EXPLANATION}
+          </p>
+        </section>
+      ) : null}
 
       {listDenied ? (
         <section
@@ -578,6 +628,24 @@ function ExternalReviewManagementConsole() {
           <p className="app-panel__body" style={{ margin: 0 }}>
           You do not have permission to view external reviewer
           invitations. Ask a workspace administrator or supervisor.
+          </p>
+        </section>
+      ) : null}
+
+      {listError ? (
+        <section data-external-review-list-error className="app-panel" role="alert">
+          <p className="app-panel__body app-field-error" style={{ margin: 0 }}>
+            {rows === null
+              ? "The invitations could not be loaded."
+              : "The invitations could not be refreshed; the list below may be out of date."}{" "}
+            <button
+              type="button"
+              className="app-secondary-action"
+              data-external-review-list-retry
+              onClick={() => void refresh()}
+            >
+              Retry
+            </button>
           </p>
         </section>
       ) : null}
@@ -604,11 +672,12 @@ function ExternalReviewManagementConsole() {
         aria-labelledby={`external-review-tab-${tab}`}
         style={{ minWidth: 0 }}
       >
-      {tab === "bulk" ? (
+      {inviting ? (
         <BulkInvitePanel
           caps={caps}
           teamId={teamId}
           stepUp={stepUp}
+          onCancel={() => setInviting(false)}
           onCompleted={async (tally) => {
             // Reread the invitation list first; the banner counts only the
             // rows that were actually issued. Stay on this tab whenever a
@@ -620,7 +689,10 @@ function ExternalReviewManagementConsole() {
               tone: clean ? "ok" : "warn",
               text: bulkIssueBannerText(tally, reloaded),
             });
-            if (clean) setTab("active");
+            if (clean) {
+              setInviting(false);
+              setTab("active");
+            }
           }}
         />
       ) : (
@@ -629,13 +701,16 @@ function ExternalReviewManagementConsole() {
         <div
           className={selected ? "external-review-split has-drawer" : "external-review-split"}
         >
+          {rows === null && listError ? null : (
           <InvitationsTable
             rows={filtered}
+            selectable={!readOnly}
             multiSelected={multiSelected}
             onSelect={(id) => setSelected(id)}
             onToggleMulti={onToggleMulti}
             selectedId={selected}
           />
+          )}
           {selectedRow ? (
             <InvitationDetailDrawer
               row={selectedRow}
@@ -648,6 +723,7 @@ function ExternalReviewManagementConsole() {
               }
               stepUp={stepUp}
               teamId={teamId}
+              readOnly={readOnly}
               onClose={() => setSelected(null)}
               onChanged={(text) => {
                 setBanner({ tone: "ok", text });
@@ -697,8 +773,6 @@ function filterRowsForTab(rows: InvitationRow[], tab: TabId): InvitationRow[] {
       return rows.filter((r) => r.expired && r.grantState !== "REVOKED");
     case "revoked":
       return rows.filter((r) => r.grantState === "REVOKED");
-    case "bulk":
-      return [];
   }
 }
 
@@ -709,7 +783,6 @@ function deriveCounts(rows: InvitationRow[]): Record<TabId, number> {
     accepted: filterRowsForTab(rows, "accepted").length,
     expired: filterRowsForTab(rows, "expired").length,
     revoked: filterRowsForTab(rows, "revoked").length,
-    bulk: 0,
   };
 }
 
@@ -719,12 +792,15 @@ function deriveCounts(rows: InvitationRow[]): Record<TabId, number> {
 
 function InvitationsTable({
   rows,
+  selectable = true,
   multiSelected,
   selectedId,
   onSelect,
   onToggleMulti,
 }: {
   rows: InvitationRow[];
+  /** T-114 — false for a read-only caller: no bulk-selection column. */
+  selectable?: boolean;
   multiSelected: Set<string>;
   selectedId: string | null;
   onSelect: (grantId: string) => void;
@@ -752,7 +828,9 @@ function InvitationsTable({
       <table data-invitations-table className="app-table" data-responsive="">
         <thead>
           <tr>
-            <th scope="col"><span className="app-visually-hidden">Select</span></th>
+            {selectable ? (
+              <th scope="col"><span className="app-visually-hidden">Select</span></th>
+            ) : null}
             <th scope="col">Email</th>
             <th scope="col">Role</th>
             <th scope="col">Auth</th>
@@ -778,15 +856,17 @@ function InvitationsTable({
                 onClick={() => onSelect(r.grantId)}
                 style={{ cursor: "pointer" }}
               >
-                <td data-label="Select" onClick={(e) => e.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    data-row-multi={r.grantId}
-                    aria-label={`Select ${r.inviteEmail}`}
-                    checked={multiSelected.has(r.grantId)}
-                    onChange={() => onToggleMulti(r.grantId)}
-                  />
-                </td>
+                {selectable ? (
+                  <td data-label="Select" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      data-row-multi={r.grantId}
+                      aria-label={`Select ${r.inviteEmail}`}
+                      checked={multiSelected.has(r.grantId)}
+                      onChange={() => onToggleMulti(r.grantId)}
+                    />
+                  </td>
+                ) : null}
                 <td data-label="Email" style={{ overflowWrap: "anywhere" }}>
                   <span className="app-table__primary">{r.inviteEmail}</span>
                 </td>
@@ -855,6 +935,7 @@ function InvitationDetailDrawer({
   caps,
   stepUp,
   teamId,
+  readOnly = false,
   onClose,
   onChanged,
   onRefuse,
@@ -866,13 +947,16 @@ function InvitationDetailDrawer({
   stepUp: ReturnType<typeof useStepUpAction>;
   /** EP-0450 — the workspace the renew route is asked in. */
   teamId: string | null;
+  /** T-114 — a read-only caller sees the record, never manage controls. */
+  readOnly?: boolean;
   onClose: () => void;
   onChanged: (msg: string) => void;
   onRefuse: (msg: string) => void;
   onReread: () => Promise<boolean>;
   onNotice: (tone: "ok" | "warn", text: string) => void;
 }) {
-  const [activity, setActivity] = useState<ActivityRow[] | null>(null);
+  // T-158 — "error" is a failed read (shown with Retry), never "nothing yet".
+  const [activity, setActivity] = useState<ActivityRow[] | null | "error">(null);
   // PRO-R1-02 — the reviewer's verdicts, rationale and comments on this
   // invitation. "unavailable" when the API predates the feedback read.
   const [feedback, setFeedback] = useState<
@@ -883,7 +967,8 @@ function InvitationDetailDrawer({
     | "unavailable"
     | null
   >(null);
-  const [deliveries, setDeliveries] = useState<DeliveryRow[] | null>(null);
+  const [deliveries, setDeliveries] = useState<DeliveryRow[] | null | "error">(null);
+  const [drawerReload, setDrawerReload] = useState(0);
   const [revealed, setRevealed] = useState<{
     rawToken: string;
     issuedFor: "operator-break-glass";
@@ -902,7 +987,7 @@ function InvitationDetailDrawer({
       setActivity((a?.activity ?? []) as ActivityRow[]);
       return true;
     } catch {
-      setActivity([]);
+      setActivity("error");
       return false;
     }
   }, [row.grantId]);
@@ -926,10 +1011,25 @@ function InvitationDetailDrawer({
         );
         setDeliveries((d?.deliveries ?? []) as DeliveryRow[]);
       } catch {
-        setDeliveries([]);
+        setDeliveries("error");
       }
     })();
-  }, [row.grantId, loadActivity]);
+  }, [row.grantId, loadActivity, drawerReload]);
+
+  // T-157 — a revoked or expired invitation cannot be resent or revoked; the
+  // reason is stated beside the disabled controls (Renew stays for expiry).
+  const lifecycleBlock: string | null =
+    row.grantState === "REVOKED"
+      ? "This invitation was revoked. Issue a new invitation to give this reviewer access again."
+      : row.expired
+        ? "This invitation has expired. Renew access to extend it, or issue a new invitation."
+        : null;
+  const retryDrawer = () => {
+    setActivity(null);
+    setDeliveries(null);
+    setFeedback(null);
+    setDrawerReload((n) => n + 1);
+  };
 
   // Ends every live portal session of this invitation. The invitation stays
   // valid: the reviewer can sign in again with their link. Success is
@@ -1113,7 +1213,10 @@ function InvitationDetailDrawer({
 
       {/* TEAM-UI-SPEC §1 — Resend and Renew are ordinary (secondary);
           Revoke and End sessions are irreversible, so each is a `--danger`
-          entry point that opens a danger confirm. No primary here. */}
+          entry point that opens a danger confirm. No primary here.
+          T-114 — none of it (nor the break-glass reveal) renders for a
+          read-only caller; the page note says why. */}
+      {readOnly ? null : (<>
       <section
         data-drawer-actions
         style={{
@@ -1128,7 +1231,8 @@ function InvitationDetailDrawer({
           data-invitation-resend={row.grantId}
           data-capability-allowed={caps.canResend ? "true" : "false"}
           onClick={onResend}
-          disabled={!caps.canResend}
+          disabled={!caps.canResend || lifecycleBlock !== null}
+          aria-describedby={lifecycleBlock ? `invitation-lifecycle-reason-${row.grantId}` : undefined}
           title={
             !caps.canResend
               ? "You do not have permission to resend invitations"
@@ -1153,7 +1257,8 @@ function InvitationDetailDrawer({
           data-invitation-revoke={row.grantId}
           data-capability-allowed={caps.canRevoke ? "true" : "false"}
           onClick={onRevoke}
-          disabled={!caps.canRevoke}
+          disabled={!caps.canRevoke || lifecycleBlock !== null}
+          aria-describedby={lifecycleBlock ? `invitation-lifecycle-reason-${row.grantId}` : undefined}
           title={
             !caps.canRevoke
               ? "You do not have permission to revoke invitations"
@@ -1176,6 +1281,16 @@ function InvitationDetailDrawer({
         >
           {endingSessions ? "Ending sessions…" : "End sessions"}
         </button>
+        {lifecycleBlock ? (
+          <p
+            id={`invitation-lifecycle-reason-${row.grantId}`}
+            data-invitation-lifecycle-reason
+            className="app-field-help"
+            style={{ margin: 0, flexBasis: "100%" }}
+          >
+            {lifecycleBlock}
+          </p>
+        ) : null}
         {!caps.canEndSessions ? (
           <p
             id={`end-sessions-reason-${row.grantId}`}
@@ -1265,6 +1380,7 @@ function InvitationDetailDrawer({
           </div>
         ) : null}
       </section>
+      </>)}
 
       <section
         data-drawer-delivery-panel
@@ -1274,6 +1390,13 @@ function InvitationDetailDrawer({
         <h3 className="app-panel__title">Delivery status</h3>
         {deliveries === null ? (
           <p role="status" className="app-field-help" style={{ margin: 0 }}>Loading…</p>
+        ) : deliveries === "error" ? (
+          <p role="alert" data-drawer-delivery-error className="app-field-error" style={{ margin: 0 }}>
+            Delivery status could not be loaded.{" "}
+            <button type="button" className="app-secondary-action" data-drawer-retry onClick={retryDrawer}>
+              Retry
+            </button>
+          </p>
         ) : deliveries.length === 0 ? (
           <p className="app-field-help" style={{ margin: 0 }}>No invitation emails have been sent yet.</p>
         ) : (
@@ -1380,7 +1503,12 @@ function InvitationDetailDrawer({
         {feedback === null ? (
           <p role="status" className="app-field-help" style={{ margin: 0 }}>Loading…</p>
         ) : feedback === "unavailable" ? (
-          <p className="app-field-error" style={{ margin: 0 }}>Reviewer feedback could not be loaded.</p>
+          <p role="alert" className="app-field-error" style={{ margin: 0 }}>
+            Reviewer feedback could not be loaded.{" "}
+            <button type="button" className="app-secondary-action" data-drawer-retry onClick={retryDrawer}>
+              Retry
+            </button>
+          </p>
         ) : feedback.decisions.length === 0 && feedback.comments.length === 0 ? (
           <p className="app-field-help" style={{ margin: 0 }}>The reviewer has not commented or decided yet.</p>
         ) : (
@@ -1412,6 +1540,13 @@ function InvitationDetailDrawer({
         <h3 className="app-panel__title">Activity timeline</h3>
         {activity === null ? (
           <p role="status" className="app-field-help" style={{ margin: 0 }}>Loading…</p>
+        ) : activity === "error" ? (
+          <p role="alert" data-drawer-activity-error className="app-field-error" style={{ margin: 0 }}>
+            The activity timeline could not be loaded.{" "}
+            <button type="button" className="app-secondary-action" data-drawer-retry onClick={retryDrawer}>
+              Retry
+            </button>
+          </p>
         ) : activity.length === 0 ? (
           <p className="app-field-help" style={{ margin: 0 }}>No activity recorded yet.</p>
         ) : (
@@ -1565,11 +1700,13 @@ function BulkInvitePanel({
   teamId,
   stepUp,
   onCompleted,
+  onCancel,
 }: {
   caps: ExternalReviewCapabilities;
   teamId: string | null;
   stepUp: ReturnType<typeof useStepUpAction>;
   onCompleted: (tally: BulkIssueTally) => Promise<void>;
+  onCancel?: () => void;
 }) {
   const { addToast } = useToast();
   // D16 — every grant needs ONE target in this workspace. Without it the
@@ -1579,7 +1716,11 @@ function BulkInvitePanel({
     blockedReason: SCOPE_REQUIRED_REASON,
   });
   const [pasted, setPasted] = useState("");
-  const [hours, setHours] = useState(72);
+  // T-155 — the field's text; a whole number of hours within bounds or Issue
+  // stays disabled (empty used to issue an already-expired invitation, and a
+  // non-numeric value threw on toISOString).
+  const [hoursText, setHoursText] = useState("72");
+  const hours = parseExternalReviewExpiryHours(hoursText);
   const [defaultRole, setDefaultRole] = useState<ExternalReviewerRole>(
     "EXTERNAL_REVIEWER",
   );
@@ -1614,6 +1755,7 @@ function BulkInvitePanel({
     if (parsed.length > BULK_INVITATION_MAX_ROWS) return;
     const target = scope.target;
     if (!target || scope.blockedReason) return;
+    if (hours === null || parsed.some((p) => !p.valid)) return;
     setBusy(true);
     try {
       // Bulk issue grants multiple outside reviewers access to sensitive
@@ -1712,6 +1854,7 @@ function BulkInvitePanel({
     addToast,
   ]);
 
+  const invalidCount = parsed.filter((p) => !p.valid).length;
   // The first reason that applies, stated on the disabled control.
   const submitBlockedReason: string | null = !caps.canBulkInvite
     ? "You do not have permission to bulk issue invitations"
@@ -1722,8 +1865,12 @@ function BulkInvitePanel({
         : parsed.length === 0
           ? "Paste at least one reviewer email to issue invitations."
           : parsed.length > BULK_INVITATION_MAX_ROWS
-            ? `Issue at most ${BULK_INVITATION_MAX_ROWS} invitations at a time.`
-            : null;
+            ? `You entered ${parsed.length} reviewers; issue at most ${BULK_INVITATION_MAX_ROWS} at a time. Nothing is dropped silently — remove ${parsed.length - BULK_INVITATION_MAX_ROWS} to continue.`
+            : invalidCount > 0
+              ? `${invalidCount} of ${parsed.length} ${invalidCount === 1 ? "address is" : "addresses are"} not a valid e-mail address. Fix or remove ${invalidCount === 1 ? "it" : "them"} to issue; nothing was sent.`
+              : hours === null
+                ? `Enter a whole number of hours between ${EXTERNAL_REVIEW_EXPIRY_HOURS_MIN} and ${EXTERNAL_REVIEW_EXPIRY_HOURS_MAX} (30 days).`
+                : null;
 
   return (
     <section
@@ -1737,9 +1884,9 @@ function BulkInvitePanel({
       }}
     >
       <header>
-        <h2 className="app-panel__title">Bulk invite external reviewers</h2>
+        <h2 className="app-panel__title">Invite external reviewers</h2>
         <p className="app-field-help" style={{ margin: "4px 0 0" }}>
-          Paste one reviewer per line. Accepted formats:
+          One reviewer or many: enter one per line. Accepted formats:
         </p>
         <ul
           className="app-field-help"
@@ -1789,7 +1936,9 @@ function BulkInvitePanel({
             }}
           />
           <small data-bulk-paste-count className="app-field-help">
-            {parsed.length} rows parsed · invalid rows are flagged inline.
+            {parsed.length} {parsed.length === 1 ? "row" : "rows"} parsed
+            {invalidCount > 0 ? ` · ${invalidCount} invalid (flagged below)` : ""}
+            {parsed.length > BULK_INVITATION_MAX_ROWS ? ` · over the ${BULK_INVITATION_MAX_ROWS}-row limit` : ""}.
           </small>
           {parsed.length > 0 ? (
             <table data-bulk-paste-preview className="app-table" data-responsive="">
@@ -1850,12 +1999,21 @@ function BulkInvitePanel({
             <input
               data-bulk-default-hours
               type="number"
-              min={1}
-              max={720}
-              value={hours}
-              onChange={(e) => setHours(Number(e.target.value))}
+              inputMode="numeric"
+              min={EXTERNAL_REVIEW_EXPIRY_HOURS_MIN}
+              max={EXTERNAL_REVIEW_EXPIRY_HOURS_MAX}
+              step={1}
+              value={hoursText}
+              onChange={(e) => setHoursText(e.target.value)}
+              aria-invalid={hours === null ? true : undefined}
+              aria-describedby={hours === null ? "bulk-hours-error" : undefined}
               className="app-input"
             />
+            {hours === null ? (
+              <small id="bulk-hours-error" data-bulk-hours-error className="app-field-error">
+                Enter a whole number of hours between {EXTERNAL_REVIEW_EXPIRY_HOURS_MIN} and {EXTERNAL_REVIEW_EXPIRY_HOURS_MAX}.
+              </small>
+            ) : null}
           </Field>
           <label
             className="app-field-label"
@@ -1897,6 +2055,18 @@ function BulkInvitePanel({
             ? "Issuing…"
             : `Issue ${parsed.length} invitation${parsed.length === 1 ? "" : "s"}`}
         </CanonicalActionButton>
+        {onCancel ? (
+          <button
+            type="button"
+            className="app-ghost-action"
+            data-invite-cancel
+            style={{ marginLeft: 8 }}
+            onClick={onCancel}
+            disabled={busy}
+          >
+            Cancel
+          </button>
+        ) : null}
       </div>
 
       {outcomes ? (
@@ -1998,7 +2168,9 @@ function parseBulkPaste(text: string): ParsedBulkRow[] {
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter((l) => l.length > 0 && !l.startsWith("#"));
-  return lines.slice(0, BULK_INVITATION_MAX_ROWS).map((line) => {
+  // T-156 — every line is parsed and shown; a list over the row limit is
+  // refused with its count (it used to be cut to the limit silently).
+  return lines.map((line) => {
     const parts = line.split(",").map((p) => p.trim());
     const email = parts[0] ?? "";
     const displayName = parts[1] ? parts[1] : undefined;

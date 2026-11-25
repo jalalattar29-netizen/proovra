@@ -1,5 +1,7 @@
 "use client";
 
+import type { SlaDimensionWire } from "./sla-presentation";
+
 /**
  * PROOVRA Phase 2A — Reviewer Workspace API client.
  *
@@ -268,13 +270,14 @@ export async function renderQcVerdict(input: {
   }
 }
 
+/** T-056 (stage C) — rates are per review; null means "No data". */
 export async function fetchReviewerMetrics(teamId?: string | null): Promise<{
   throughput7d: number;
-  approvalRate7dPct: number;
-  escalationRate7dPct: number;
-  disagreementRate7dPct: number;
-  qcFailureRate7dPct: number;
-  avgReviewDurationMs7d: number;
+  approvalRate7dPct: number | null;
+  escalationRate7dPct: number | null;
+  disagreementRate7dPct: number | null;
+  qcFailureRate7dPct: number | null;
+  avgReviewDurationMs7d: number | null;
 }> {
   const res = await apiFetch(withTeamId("/v1/reviewer/metrics", teamId), {
     method: "GET",
@@ -307,12 +310,11 @@ export type ReviewerOpsWorkspaceSummary = {
     assignedAtUtc: string | null;
     priority: string;
     slaRollupState: string;
-    slaDimensions: Array<{
-      dimension: string;
-      dueAtUtc: string | null;
-      state: string;
-    }>;
+    slaDimensions: Array<SlaDimensionWire>;
   };
+  /** unit: escalations — active escalations on the review (T-049). */
+  activeEscalationCount?: number;
+  /** The governing (highest-severity) active escalation (T-049). */
   openEscalation: null | {
     id: string;
     reason: string;
@@ -377,27 +379,65 @@ export type EvidencePreviewMeta = {
   id: string;
   mimeType: string | null;
   previewUrl: string | null;
+  /**
+   * T-076 (stage D) — why there is no URL, when there is none:
+   *   not_previewable  the file type has no in-page preview
+   *   policy           the workspace download policy withholds original bytes
+   *   no_file          the record has no stored file yet
+   *   failed           the parts listing could not be read
+   */
+  unavailable?: "not_previewable" | "policy" | "no_file" | "failed" | null;
+  /** The file name the API projects for the previewed part. */
+  displayName?: string | null;
 };
 
+type PartsListingItem = {
+  mimeType?: string | null;
+  previewUrl?: string | null;
+  previewable?: boolean;
+  isPrimary?: boolean;
+  displayName?: string | null;
+};
+
+/**
+ * T-076 (stage D) — THE preview contract: `GET /v1/evidence/:id/parts`.
+ *
+ * The record read (`GET /v1/evidence/:id`) never carries a preview URL, so the
+ * viewer always said "Evidence bytes are not yet available". The parts
+ * listing does: each part carries `previewable` and, when the workspace's
+ * original-download decision allows it, a presigned `previewUrl` (the listing
+ * is custody-logged as `parts_listing`, unchanged). The primary part is
+ * previewed; otherwise the first previewable one. No new endpoint.
+ */
 export async function fetchEvidencePreview(
   evidenceId: string,
 ): Promise<EvidencePreviewMeta> {
-  // The existing evidence detail route returns the canonical fields
-  // including a presigned preview URL when authorised. Bounded to a
-  // single read for the workspace.
   try {
-    const res = await apiFetch(`/v1/evidence/${evidenceId}`, { method: "GET" });
-    return {
-      id: res?.evidence?.id ?? evidenceId,
-      mimeType: res?.evidence?.mimeType ?? null,
-      previewUrl:
-        res?.previewUrl ??
-        res?.evidence?.previewUrl ??
-        res?.evidence?.signedPreviewUrl ??
-        null,
-    };
+    const res = (await apiFetch(`/v1/evidence/${encodeURIComponent(evidenceId)}/parts`, { method: "GET" })) as {
+      parts?: ReadonlyArray<PartsListingItem>;
+    } | null;
+    const parts = Array.isArray(res?.parts) ? res!.parts! : [];
+    if (parts.length === 0) {
+      return { id: evidenceId, mimeType: null, previewUrl: null, unavailable: "no_file" };
+    }
+    const primary = parts.find((p) => p?.isPrimary) ?? null;
+    const target =
+      (primary && primary.previewable ? primary : null) ??
+      parts.find((p) => p?.previewable) ??
+      primary ??
+      parts[0]!;
+    const mimeType = typeof target.mimeType === "string" ? target.mimeType : null;
+    const displayName = typeof target.displayName === "string" ? target.displayName : null;
+    if (!target.previewable) {
+      return { id: evidenceId, mimeType, previewUrl: null, unavailable: "not_previewable", displayName };
+    }
+    const url = typeof target.previewUrl === "string" && target.previewUrl.length > 0 ? target.previewUrl : null;
+    if (!url) {
+      return { id: evidenceId, mimeType, previewUrl: null, unavailable: "policy", displayName };
+    }
+    return { id: evidenceId, mimeType, previewUrl: url, unavailable: null, displayName };
   } catch {
-    return { id: evidenceId, mimeType: null, previewUrl: null };
+    return { id: evidenceId, mimeType: null, previewUrl: null, unavailable: "failed" };
   }
 }
 
@@ -651,6 +691,23 @@ export type BulkOutcome = {
   denial?: string;
 };
 
+/**
+ * T-167 (stage B) — the bulk doors answer 401 STEP_UP_REQUIRED (bulk checkbox,
+ * session risk) and 401 reauth_required (4 h window). Folding those into a
+ * `{ denial }` left the Queues page unable to satisfy them. A caller that hosts
+ * the shared step-up dialog passes the challenge header and asks for those two
+ * refusals to be thrown, so `runStepUpAction` can handle them.
+ */
+export type BulkCallOptions = {
+  headers?: Record<string, string>;
+  rethrowChallenges?: boolean;
+};
+
+function isChallengeRefusal(err: unknown): boolean {
+  const e = err as { code?: unknown; statusCode?: unknown } | null;
+  return e?.statusCode === 401 && (e.code === "STEP_UP_REQUIRED" || e.code === "reauth_required");
+}
+
 export async function bulkAssign(input: {
   assigneeUserId: string;
   workflowIds: string[];
@@ -661,6 +718,7 @@ export async function bulkAssign(input: {
   outcomes: BulkOutcome[];
 } | { denial: string }> {
   try {
+    // T-036 — assignment is not a step-up action; no challenge header.
     return await apiFetch(
       withTeamId("/v1/reviewer/bulk/assign", input.teamId),
       {
@@ -679,7 +737,7 @@ export async function bulkDecide(input: {
   rationale?: string;
   workflowIds: string[];
   teamId?: string | null;
-}): Promise<{
+}, opts: BulkCallOptions = {}): Promise<{
   total: number;
   succeeded: number;
   outcomes: BulkOutcome[];
@@ -689,10 +747,12 @@ export async function bulkDecide(input: {
       withTeamId("/v1/reviewer/bulk/decide", input.teamId),
       {
         method: "POST",
+        ...(opts.headers ? { headers: opts.headers } : {}),
         body: JSON.stringify(input),
       },
     );
   } catch (err) {
+    if (opts.rethrowChallenges && isChallengeRefusal(err)) throw err;
     // PRO-R2Z-06 — the fields apiFetch actually sets.
     return { denial: reviewerDenialFromError(err) };
   }

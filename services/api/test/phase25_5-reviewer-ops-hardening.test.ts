@@ -217,7 +217,10 @@ describe("Phase 25.5 — reminder engine", () => {
 
 describe("Phase 25.5 — step-up wiring", () => {
   const src = readSource("../src/routes/reviewer-ops.routes.ts");
-  const gate = readSource("../src/services/reviewer-ops/review-action-gate.ts");
+  // Stage B (T-031): the gate rows are DATA in the shared review step-up policy.
+  const gate =
+    readSource("../src/services/reviewer-ops/review-action-gate.ts") +
+    readSource("../../../packages/shared/src/review-step-up-policy.ts");
 
   it("the one review gate exists and reads workspace flags", () => {
     expect(src).toMatch(/enforceReviewActionGate/);
@@ -227,8 +230,10 @@ describe("Phase 25.5 — step-up wiring", () => {
 
   it("approve / reject / escalation-resolve / escalation-suppress / bulk / decisions invoke the gate", () => {
     // Count distinct call sites in the routes file.
+    // Stage B (T-030/T-036): the bulk door asks the bulk-door gate, which
+    // classifies (assignment / single archive / bulk), then calls the gate.
     const matches =
-      src.match(/await enforceReviewActionGate\(/g) ?? [];
+      src.match(/await enforceReview(ActionGate|BulkDoorGate)\(/g) ?? [];
     expect(matches.length).toBeGreaterThanOrEqual(6);
   });
 

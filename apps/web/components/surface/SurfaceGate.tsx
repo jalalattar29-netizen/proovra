@@ -30,6 +30,7 @@ import { useEffect, type ReactNode } from "react";
 import {
   ANONYMOUS_SURFACE_CONTEXT,
   getDirectAccessDecision,
+  ruleEntitlement,
 } from "../../lib/surface/access";
 import { useSurfaceUserContext } from "../../lib/surface/useSurfaceUserContext";
 import { usePlatformContext } from "../../lib/platform-context/PlatformContextProvider";
@@ -242,9 +243,9 @@ export function SurfaceGate({
     // Space that is not the active one, and only when their own account plan
     // carries the rule's entitlement.
     const rule = envelopeMayDecide ? findSurfaceTierRule(effectivePath) : null;
-    const minRank = rule?.entitlementOverride
-      ? ENTITLEMENT_MIN_RANK[rule.entitlementOverride]
-      : undefined;
+    // T-125 — the rule's entitlement is the registry route's requiredPlanFeature.
+    const entitlementKey = ruleEntitlement(rule)?.key;
+    const minRank = entitlementKey ? ENTITLEMENT_MIN_RANK[entitlementKey] : undefined;
     const accountRank = rankOf(envelope?.account?.accountPlan);
     const personalWorkspaceId = envelope?.contextOptions?.personalSpace?.workspaceId ?? null;
     const active = envelope?.activeSpace ?? null;

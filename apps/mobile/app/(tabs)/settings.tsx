@@ -265,7 +265,7 @@ export default function SettingsScreen() {
             {!overview.isPersonal ? <ProovraBadge label="Active" tone="verified" /> : null}
           </View>
           {overview.roleLabel ? <Fact label="Role" value={overview.roleLabel} /> : null}
-          <Fact label="Type" value={overview.isPersonal ? "Personal space" : "Organization"} />
+          <Fact label="Type" value={overview.typeLabel} />
           {/* No action where there is nothing to open: a personal space has no
               membership administration, and a button that opens nothing is
               worse than no button. */}

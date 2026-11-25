@@ -57,7 +57,7 @@ import type {
  * truth; the client only reads the projected boolean.
  */
 export type PlanFeatureGateKey = {
-  [K in keyof PlatformContextPlanFeatures]-?: PlatformContextPlanFeatures[K] extends boolean
+  [K in keyof PlatformContextPlanFeatures]-?: NonNullable<PlatformContextPlanFeatures[K]> extends boolean
     ? K
     : never;
 }[keyof PlatformContextPlanFeatures];
@@ -138,12 +138,25 @@ export type RouteDefinition = {
    * Track 1A (surface-tier removal) — SERVER-projected commercial
    * entitlement gate. When set, the route additionally requires
    * `envelope.planFeatures[<key>] === true` (fail-closed while the
-   * envelope is loading/degraded). Platform admins bypass. This replaces
-   * the deleted `lib/surface/tiers.ts` `entitlementOverride` mechanism —
-   * the boolean is computed by the backend PLAN_CAPABILITIES projection;
-   * the client never derives it from a plan name.
+   * envelope is loading/degraded). Platform admins bypass. The boolean is
+   * computed by the backend PLAN_CAPABILITIES projection; the client never
+   * derives it from a plan name.
+   *
+   * T-125 — this is the ONE web entitlement key. `lib/surface/tiers.ts` is
+   * NOT deleted (it still presents direct-URL refusals for its path prefixes,
+   * mounted by `EnterpriseSurfaceLayout` / `SurfaceGate`), but its rules no
+   * longer carry an entitlement key of their own: a rule names the registry
+   * route whose `requiredPlanFeature` it follows (`entitlementRouteId`).
    */
   requiredPlanFeature?: PlanFeatureGateKey;
+  /**
+   * T-125 (PRO-R3-06 / DEC-10, folded from the tier table) — when
+   * `requiredPlanFeature` answers false but this server-projected key answers
+   * true, existing material stays readable: the page LOADS (read-only; the API
+   * refuses new work) and the route stays out of navigation. Only meaningful
+   * together with `requiredPlanFeature`.
+   */
+  readRetainedPlanFeature?: PlanFeatureGateKey;
   /**
    * WCR-12 (2026-09-07) — NAV-ONLY plan gate.
    *
@@ -173,10 +186,11 @@ export type RouteDefinition = {
  * backend derives it from ENTERPRISE_PLAN_KEYS = {"ENTERPRISE"} for the
  * ACTIVE workspace) or platform-admin elevation.
  *
- * This is the capability-era replacement for the deleted ENTERPRISE tier
- * in `lib/surface/tiers.ts`: the decision input is a server-projected
- * boolean, never a raw plan string, and the rule lives inside the ONE
- * canonical route registry instead of a parallel path table. The
+ * This is the capability-era Enterprise decision for registry routes: the
+ * input is a server-projected boolean, never a raw plan string. (T-125: the
+ * ENTERPRISE tier in `lib/surface/tiers.ts` still exists for direct-URL
+ * presentation of its path prefixes; `navigation-contract-resolves.test.ts`
+ * proves the two give one answer wherever both gate a page.) The
  * `resolveRouteAccess` resolver consults this set; membership yields
  * `NEEDS_UPGRADE` (hidden from nav, bounded denial panel on direct URL)
  * for non-enterprise, non-platform-admin actors.
@@ -276,7 +290,9 @@ export const ENTERPRISE_ONLY_ROUTE_IDS: ReadonlySet<string> = new Set([
   //     serves them by), and External Review is Pro and above
   //     (`externalReviewIncluded`). Enterprise-only workflow capabilities stay
   //     individually gated inside those pages and on the API.
-  "workspace.review_redaction",
+  //   * T-125 / ARCH-09 — `workspace.review_redaction` is not here either: its
+  //     ONE authority is `requiredPlanFeature: "redactionIncluded"`
+  //     (FEATURE_REDACTION, any workspace kind) on the entry itself.
   // Governance / compliance.
   "governance.hub",
   "governance.policy",
@@ -761,7 +777,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     href: "/workflows",
     label: "Workflow Templates",
     description:
-      "Administer workflow templates used at capture time. Reviewer workflow execution lives in Reviewer Operations.",
+      "Administer workflow templates used at capture time. Reviews themselves happen in Review.",
     domain: "PERSONAL_WORKSPACE",
     requiredCapabilities: ["INTEGRATIONS_MANAGE"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
@@ -1053,8 +1069,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "review.escalations",
     href: "/reviewer-ops/escalations",
-    label: "Escalations",
-    description: "Escalation lifecycle: acknowledge, reassign, resolve, suppress.",
+    label: "Escalations (moved)",
+    description: "Retired — redirects to Monitoring → Escalations.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["ESCALATIONS_VIEW"],
     // AUD-0049 — the plan's reviewer-operations entitlement, as the API decides it.
@@ -1063,8 +1079,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "CREATE_ORG",
 
     advancedByDefault: true,
-    commandPaletteVisible: true,
-    allToolsVisible: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
     // TEAM-SPEC §3 — reached from the Review hub (Monitoring → Escalations)
     // and the command palette, not from its own sidebar row.
     sidebarEligible: false,
@@ -1627,7 +1643,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     id: "workspace.review",
     href: "/review",
     label: "Review",
-    description: "Review hub — my reviews, queues, monitoring and review settings.",
+    description: "The review Inbox, Monitoring and Review settings.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     // TEAM-SPEC §3 — the ONE sidebar entry for review, shown wherever the
@@ -1670,12 +1686,15 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     allToolsVisible: false,
     sidebarEligible: false,
   },
-  // Phase B — Phase 13 per-evidence review operations queue.
+  // RETIRED DESTINATION (Team remediation T-007). The Phase 13 per-evidence
+  // review-stage queue was a fourth queue and decision door; the route only
+  // redirects to the review Inbox now (preserving a stage filter as the
+  // matching queue). Kept out of every discovery surface below.
   {
     id: "review.operations",
     href: "/review/operations",
-    label: "Review operations",
-    description: "Per-evidence review stage queue (Phase 13).",
+    label: "Review operations (moved)",
+    description: "Retired — redirects to the review inbox.",
     domain: "REVIEW_OPERATIONS",
     // TEAM-SPEC §1 defaults — GET /v1/review/queue requires
     // `evidence_request.review` (OWNER / ADMIN / MEMBER, never VIEWER). The web
@@ -1688,8 +1707,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
 
     advancedByDefault: true,
-    commandPaletteVisible: true,
-    allToolsVisible: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
     sidebarEligible: false,
   },
   // Phase B — Phase C3 intake inspector.
@@ -1710,10 +1729,9 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "REQUEST_ACCESS",
 
     advancedByDefault: true,
-    // PHASE 4 — root list page does not exist (only the [id] detail page
-    // ships). Constitutional rule 11: no visible route may lead to Page
-    // Not Found. Detail page remains reachable from MatterWorkspace.
-    // Re-enable in Phase 5 when the root list page ships.
+    // Team remediation T-066 (stage D) — the root page now lists the evidence
+    // requests awaiting review (moved out of the review Inbox); it is reached
+    // from the Inbox tools row and Home, not from the palette (T-087).
     commandPaletteVisible: false,
     allToolsVisible: false,
     sidebarEligible: false,
@@ -1721,8 +1739,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "review.sla",
     href: "/reviewer-ops/sla",
-    label: "SLA tracking",
-    description: "SLA windows + breach signals.",
+    label: "Monitoring",
+    description: "Review deadlines, escalations, workload, quality and metrics.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["SLA_VIEW"],
     // AUD-0049 — the plan's reviewer-operations entitlement, as the API decides it.
@@ -2481,9 +2499,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "workspace.review_workspace",
     href: "/review/workspace",
-    label: "Reviewer workspace",
-    description:
-      "Reviewer operational surface — coding panel, hotkeys, evidence + coding side-by-side.",
+    label: "Reviewer workspace (moved)",
+    description: "Retired — opens the next assigned review in focus mode.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     // TEAM-SPEC R1/R2/R4 — the active workspace's effective plan decides,
@@ -2493,8 +2510,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "REQUEST_ACCESS",
 
     advancedByDefault: false,
-    commandPaletteVisible: true,
-    allToolsVisible: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
     // TEAM-SPEC §3 — one sidebar entry ("Review" → /review); this page is
     // reached from the Review hub tabs, the command palette and All Tools.
     sidebarEligible: false,
@@ -2503,7 +2520,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     id: "workspace.coding_schemas",
     href: "/review/schemas",
     label: "Coding schemas",
-    description: "Coding schema admin — fields, versioning, workflow binding.",
+    description: "The fields reviewers record on each review (a Review settings section).",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     // TEAM-SPEC R1/R2/R4 — the active workspace's effective plan decides,
@@ -2513,15 +2530,15 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "REQUEST_ACCESS",
 
     advancedByDefault: true,
-    commandPaletteVisible: true,
-    allToolsVisible: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
     sidebarEligible: false,
   },
   {
     id: "workspace.review_qc",
     href: "/review/qc",
-    label: "Reviewer QC",
-    description: "QC sample queue + verdict capture + accuracy metrics.",
+    label: "Quality control (moved)",
+    description: "Retired — redirects to Monitoring → Quality.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     // TEAM-SPEC R1/R2/R4 — the active workspace's effective plan decides,
@@ -2531,15 +2548,15 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "REQUEST_ACCESS",
 
     advancedByDefault: true,
-    commandPaletteVisible: true,
-    allToolsVisible: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
     sidebarEligible: false,
   },
   {
     id: "workspace.review_disagreements",
     href: "/review/disagreements",
-    label: "Reviewer disagreements",
-    description: "Challenge → second review → supervisor → resolution queue.",
+    label: "Challenged decisions",
+    description: "Decisions a reviewer formally challenged, and their resolution.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     // TEAM-SPEC R1/R2/R4 — the active workspace's effective plan decides,
@@ -2549,16 +2566,15 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "REQUEST_ACCESS",
 
     advancedByDefault: true,
-    commandPaletteVisible: true,
+    commandPaletteVisible: false,
     allToolsVisible: true,
     sidebarEligible: false,
   },
   {
     id: "workspace.review_metrics",
     href: "/review/metrics",
-    label: "Reviewer metrics",
-    description:
-      "Reviewer throughput, approval/escalation rates, QC accuracy, rework.",
+    label: "Reviewer metrics (moved)",
+    description: "Retired — redirects to Monitoring → Metrics.",
     domain: "REVIEW_OPERATIONS",
     // GET /v1/reviewer/metrics requires the reviewer capability
     // `review.assign` (workspace OWNER / ADMIN): REVIEW_ASSIGN on the web.
@@ -2570,8 +2586,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
 
     advancedByDefault: true,
-    commandPaletteVisible: true,
-    allToolsVisible: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
     sidebarEligible: false,
   },
 
@@ -2582,8 +2598,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "workspace.review_queues",
     href: "/review/queues",
-    label: "Reviewer queues",
-    description: "Multi-select reviewer queues + bulk action bar.",
+    label: "Review queues (moved)",
+    description: "Retired — redirects to the review Inbox.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     // AUD-0049 — the plan's shared-queue entitlement (REVIEW_TASKS_AND_QUEUES), as the API decides it.
@@ -2592,8 +2608,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "REQUEST_ACCESS",
 
     advancedByDefault: false,
-    commandPaletteVisible: true,
-    allToolsVisible: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
     // TEAM-SPEC §3 — one sidebar entry ("Review" → /review); this page is
     // reached from the Review hub tabs, the command palette and All Tools.
     sidebarEligible: false,
@@ -2607,7 +2623,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     id: "review.settings",
     href: "/review/settings",
     label: "Review settings",
-    description: "Reviewer SLA policy, step-up rules, reviewer criteria and coding schemas.",
+    description: "The review policy, reviewer criteria and coding schemas.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     requiredPlanFeature: "reviewerOperationsIncluded",
@@ -2628,9 +2644,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "workspace.review_external",
     href: "/review/external",
-    label: "External reviewer management",
-    description:
-      "Issue, resend, revoke external reviewer invitations + monitor portal sessions.",
+    label: "External review",
+    description: "Invite reviewers from outside the workspace and manage their access.",
     domain: "REVIEW_OPERATIONS",
     // TEAM-SPEC R4 — External Review is Pro and above, so it cannot ride on
     // REVIEWER_OPS_VIEW (a Team key). GET /v1/external-review/grants requires
@@ -2921,6 +2936,12 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     // personal-workspace owner it "works inside an organization workspace",
     // and REVIEWER_OPS_VIEW (TEAM reviewer operations) is not the redaction
     // rule. Writes stay OWNER/ADMIN on the server (resolveRedactionRoles).
+    // T-125 — that authority now lives HERE (it was in the tier table while
+    // this id also sat in ENTERPRISE_ONLY_ROUTE_IDS, so a FEATURE_REDACTION
+    // grant passed SurfaceGate and was refused by PageRouteGate). A lapsed
+    // workspace that still holds projects keeps them readable (DEC-10).
+    requiredPlanFeature: "redactionIncluded",
+    readRetainedPlanFeature: "redactionReadRetained",
     requiredCapabilities: [],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "REQUEST_ACCESS",

@@ -56,7 +56,7 @@ import {
 } from "../middleware/authorize.js";
 import { workspaceIncludesReviewCapability } from "../services/billing-enforcement.service.js";
 import { reviewCapabilityRefusalBody } from "../services/billing/review-capability-refusal.js";
-import { enforceReviewActionGate, workflowIdsInReach } from "../services/reviewer-ops/review-action-gate.js";
+import { enforceReviewBulkDoorGate, workflowIdsInReach } from "../services/reviewer-ops/review-action-gate.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 
 import {
@@ -254,18 +254,22 @@ async function itemWorkflowOpen(
  * routes have their own capability vocabulary; WF-R04 is that the controls on
  * the action are the same whichever door it comes through.
  */
-function bulkGate(
+async function bulkGate(
   req: FastifyRequest,
   reply: FastifyReply,
   ctx: { teamId: string; userId: string },
   workflowIds: readonly string[],
+  /** T-036 (stage B) — the shared classification: ASSIGN is not step-up. */
+  action: "ASSIGN" | "DECIDE" | "CODE",
 ): Promise<boolean> {
-  return enforceReviewActionGate(req, reply, {
+  const gate = await enforceReviewBulkDoorGate(req, reply, {
     teamId: ctx.teamId,
     userId: ctx.userId,
-    action: "bulk",
-    resource: { kind: "review_workflow_bulk", id: workflowIds.slice(0, 8).join(",") },
+    action,
+    itemIds: workflowIds,
+    resourceKind: "review_workflow_bulk",
   });
+  return gate.allowed;
 }
 
 function denyWith(
@@ -1061,7 +1065,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
           workflowIds: z.array(z.string().uuid()).min(1).max(100),
         })
         .parse(req.body);
-      if (!(await bulkGate(req, reply, ctx, body.workflowIds))) return reply;
+      if (!(await bulkGate(req, reply, ctx, body.workflowIds, "ASSIGN"))) return reply;
       const res = await bulkAssign({
         teamId: ctx.teamId,
         actorUserId: ctx.userId,
@@ -1096,7 +1100,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
           workflowIds: z.array(z.string().uuid()).min(1).max(100),
         })
         .parse(req.body);
-      if (!(await bulkGate(req, reply, ctx, body.workflowIds))) return reply;
+      if (!(await bulkGate(req, reply, ctx, body.workflowIds, "DECIDE"))) return reply;
       const res = await bulkDecide({
         teamId: ctx.teamId,
         actorUserId: ctx.userId,
@@ -1134,7 +1138,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
           workflowIds: z.array(z.string().uuid()).min(1).max(100),
         })
         .parse(req.body);
-      if (!(await bulkGate(req, reply, ctx, body.workflowIds))) return reply;
+      if (!(await bulkGate(req, reply, ctx, body.workflowIds, "CODE"))) return reply;
       const res = await bulkCode({
         teamId: ctx.teamId,
         actorUserId: ctx.userId,

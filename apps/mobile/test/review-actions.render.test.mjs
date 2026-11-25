@@ -62,14 +62,22 @@ test("an unassigned review can be claimed for the record's workspace, and the pa
   await r.press("Claim review");
   await settle();
   assert.deepEqual(posts()[0], { path: "/v1/review-operations/evidence/ev-1/claim", method: "POST", body: { teamId: "t-1" } });
-  assert.ok(r.hasText("assigned to u-me-123…"), "the claim was not re-read");
+  // T-084 / T-086 — named, never an id fragment (the stub projects no name or e-mail).
+  assert.ok(r.hasText("assigned to a workspace member"), "the claim was not re-read");
+  assert.ok(!r.hasText("u-me-123"), "the assignee is shown as an id fragment");
 });
 
-test("from IN_REVIEW: approve posts directly; reject requires an internal note first", async () => {
+// Team remediation T-010 — every verdict carries a written rationale (the
+// decision authority refuses an empty one on every door), an approval included.
+test("from IN_REVIEW: approve and reject each require an internal note first", async () => {
   const r = await openReview();
   await r.press("Approve (internal review)");
   await settle();
-  assert.deepEqual(posts()[0].body, { decision: "APPROVE_INTERNAL", note: null });
+  assert.equal(posts().length, 0, "approved without the required note");
+  await r.type("Reason for approval (required, internal only)", "Hashes and custody reconcile.");
+  await r.press("Submit: Approve (internal review)");
+  await settle();
+  assert.deepEqual(posts()[0].body, { decision: "APPROVE_INTERNAL", note: "Hashes and custody reconcile." });
   await r.press("Reject as insufficient");
   assert.equal(posts().length, 1, "rejected without the required note");
   await r.type("Reason for rejection (required, internal only)", "Timestamp contradicts the metadata.");
@@ -93,4 +101,29 @@ test("decisions the stage does not allow stay visible but disabled, and say why"
   assert.equal(r.byLabel("Approve (internal review), not available from APPROVED_INTERNAL").length, 1);
   assert.ok(!r.byLabel("Reopen")[0].props.accessibilityState?.disabled);
   assert.equal(r.byLabel("Claim review").length, 0, "an assigned review offered Claim");
+});
+
+// Team remediation T-165 — what this viewer may decide is the SERVER's answer
+// (availableActions), and the result is the shared outcome copy.
+test("verdicts follow the server's availableActions and a first-of-two decision says so", async () => {
+  wf = {
+    teamId: "t-1",
+    status: "IN_REVIEW",
+    assignedTo: { id: "u-other-9999" },
+    availableActions: [
+      { action: "APPROVE_INTERNAL", enabled: false, blockedBy: "OWNED_BY_SOMEONE_ELSE", requiresNote: true },
+      { action: "REJECT_INSUFFICIENT", enabled: true, blockedBy: null, requiresNote: true },
+    ],
+  };
+  routes["/v1/review-operations/evidence/ev-1/decision"] = () => ({
+    outcome: { stageRecorded: "FIRST", statusChanged: false, reviewState: "second_required", nextRequirement: "second_review", idempotent: false },
+  });
+  const r = await openReview();
+  // The local stage matrix would allow Approve from IN_REVIEW; the server does not.
+  assert.equal(r.byLabel("Approve (internal review)").length, 0);
+  await r.press("Reject as insufficient");
+  await r.type("Reason for rejection (required, internal only)", "Gap in custody.");
+  await r.press("Submit: Reject as insufficient");
+  await settle();
+  assert.ok(r.hasText("First review recorded. A second reviewer must confirm."));
 });

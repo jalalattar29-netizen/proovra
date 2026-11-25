@@ -116,7 +116,9 @@ export function SettingsOverview({
   if (roleLabel) workspaceFacts.push({ label: "Role", value: roleLabel });
   workspaceFacts.push({
     label: "Type",
-    value: ui.isPersonalWorkspace ? "Personal Workspace" : "Organization Workspace",
+    // T-116 — a Personal Workspace with members for a collaboration plan
+    // (Team is a plan, not a workspace kind).
+    value: ui.workspaceTypeLabel,
   });
 
   const planFacts: OverviewFact[] = [

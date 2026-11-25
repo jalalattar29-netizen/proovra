@@ -124,12 +124,12 @@ describe("CR1.5B Test 2 — dead-code `ShellNoWorkspace()` removed by CR1.6", ()
       ),
       "the unmounted ReviewerCommandConsole must stay removed",
     ).toBe(false);
-    const live = readWeb("components/reviewer-experience/ReviewerConsole.tsx");
+    const live = readWeb("components/reviewer-experience/ReviewInbox.tsx");
     expect(live).not.toMatch(/ShellNoWorkspace/);
     expect(live).not.toMatch(/["']no_workspace["']/);
-    // The console still distinguishes loading from failure honestly.
-    expect(live).toMatch(/setLoading\(/);
-    expect(live).toMatch(/setError\(/);
+    // The Inbox still distinguishes loading from failure honestly.
+    expect(live).toContain('setLoad({ kind: "loading" })');
+    expect(live).toContain('setLoad({ kind: "error", message })');
   });
 });
 

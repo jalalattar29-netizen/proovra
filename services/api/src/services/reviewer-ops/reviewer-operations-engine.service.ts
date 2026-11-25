@@ -19,11 +19,15 @@
 
 import { recordReviewActivityTx } from "../evidence-review/reviewer-audit.service.js";
 import type { PrismaClient, EvidenceReviewWorkflow as DbWorkflow } from "@prisma/client";
+import { REVIEW_AUTO_ESCALATION_SUMMARY } from "@proovra/shared";
+import { loadReviewerIdentities, withReviewerIdentity, type ReviewerIdentityProjection } from "./reviewer-identity.service.js";
 import {
   REVIEWER_OPS_DEFAULT_SLA_POLICY,
   REVIEW_FINISHED_DB_STATUSES,
   computeReviewerOpsSlaSnapshot,
   deriveLifecycleState,
+  escalationForcesIndependentReview,
+  isAllowedReviewStageTransition,
   isAllowedLifecycleTransition,
   isReviewOpenDbStatus,
   mapDbStatusToReviewStage,
@@ -80,12 +84,21 @@ import {
   scanReviewDecisionProjections,
   loadCurrentRoundDecisionState,
   type CurrentRoundDecisionState,
+  type ReviewDecisionOutcome,
 } from "./review-decision.service.js";
 import {
   createEscalation,
+  findActiveEscalationSummaryForWorkflow,
   findOpenEscalationForWorkflow,
   type EscalationProjection,
 } from "./escalation-engine.service.js";
+import {
+  activeEscalationWhere,
+  escalatedReviewWhere,
+  hasActiveEscalationWhere,
+} from "./review-count-definitions.js";
+import { withReadTimeSlaFacts } from "./review-sla-read-facts.js";
+import { REVIEW_ESCALATION_ACTIVE_STATUSES, selectGoverningEscalation } from "@proovra/shared";
 import {
   snapshotWorkspaceWorkload,
   suggestReviewers,
@@ -105,6 +118,7 @@ import {
 import { notifyReviewResponseReceived } from "../review-operations/review-notifications.service.js";
 import { workspaceIncludesReviewCapability } from "../billing-enforcement.service.js";
 import { warn as logWarn } from "../../utils/logger.js";
+import { sampleClosedWorkflow } from "../reviewer-workspace/qc-sample.service.js";
 import { resolveReviewPolicyForEvidence } from "./review-sla-stamp.service.js";
 import { advanceSweepCursor, afterCursor, readSweepCursor } from "./sweep-cursor.js";
 import {
@@ -115,7 +129,6 @@ import {
 // Phase 3 — QC sampling at workflow close. Single chokepoint so every
 // approve / reject (route, bulk, future programmatic) is sampled
 // exactly once. The service itself is idempotent per (workflowId, teamId).
-import { sampleClosedWorkflow } from "../reviewer-workspace/qc-sample.service.js";
 import {
   detectStuckWorkflow,
   stuckStatusFromDbStatus,
@@ -229,6 +242,25 @@ export function buildWorkflowProjection(
   };
 }
 
+/**
+ * Stage C follow-up — THE async projection for one row read after a write:
+ * read-time SLA facts (first decision, sweep-stamped-after deadlines) and,
+ * unless the caller states it, whether an escalation is active (by query).
+ */
+export async function projectWorkflow(
+  row: DbWorkflow,
+  client: PrismaClient,
+  opts?: { hasOpenEscalation?: boolean; nowUtc?: Date },
+): Promise<ReviewerOpsWorkflowProjection> {
+  const [facts] = await withReadTimeSlaFacts([row], client);
+  const hasOpenEscalation =
+    opts?.hasOpenEscalation ??
+    (row.teamId
+      ? !!(await findOpenEscalationForWorkflow({ teamId: row.teamId, workflowId: row.id }, client))
+      : false);
+  return buildWorkflowProjection(facts!, { ...opts, hasOpenEscalation });
+}
+
 // -----------------------------------------------------------------------------
 // Lifecycle transition gate
 // -----------------------------------------------------------------------------
@@ -241,6 +273,20 @@ function assertLifecycleTransition(
   if (!isAllowedLifecycleTransition(from, to)) {
     bump("reviewer_invalid_transition_blocked_total");
     throw new ReviewerOpsError("REVIEW_INVALID_TRANSITION", { reason, from, to });
+  }
+}
+
+/**
+ * T-010 — the legacy verdict doors refuse input exactly as THE decision
+ * authority does: it applies the non-empty / 4000-character rule (answered as
+ * REVIEW_NOTE_REQUIRED, details.reason the authority code, status 400).
+ */
+function assertDecisionInput(note: string | null | undefined): void {
+  // Emptiness and length are the authority's (checked after who may decide);
+  // the overclaim screen stays first, as it always was on these doors.
+  const trimmed = (note ?? "").trim();
+  if (stringContainsForbiddenOverclaim(trimmed)) {
+    throw new ReviewerOpsError("REVIEW_PERMISSION_DENIED", { reason: "forbidden_wording" });
   }
 }
 
@@ -263,7 +309,23 @@ function assertNoteIfRequired(note: string | null | undefined): void {
 // we build the filter here.
 // -----------------------------------------------------------------------------
 
-export type ReviewerOpsQueueRow = ReviewerOpsWorkflowProjection;
+/** T-086 (stage D) — a queue row names its assignee (display name / masked e-mail). */
+/**
+ * T-096 (stage D) — THE Inbox order: the deadline first (an overdue review
+ * comes before one that is on track, whatever their priorities), then
+ * priority, then the most recently touched; `id` keeps the order total for the
+ * cursor. A review with no deadline comes after every dated one. (Before: the
+ * priority came first, so an on-track HIGH review sorted above an overdue
+ * NORMAL one.)
+ */
+export const REVIEW_QUEUE_ORDER = [
+  { dueAt: { sort: "asc" as const, nulls: "last" as const } },
+  { priority: "desc" as const },
+  { updatedAt: "desc" as const },
+  { id: "desc" as const },
+];
+
+export type ReviewerOpsQueueRow = ReviewerOpsWorkflowProjection & { assignee?: ReviewerIdentityProjection | null };
 
 /**
  * The shared queue catalog plus the TEAM-SPEC R3 handoff slices
@@ -337,10 +399,10 @@ async function listReviewerOpsQueueInner(
       baseWhere.slaStatus = "DUE_SOON";
       break;
     case "ESCALATED":
-      baseWhere.OR = [
-        { status: "ESCALATED" },
-        { activeEscalationId: { not: null } },
-      ];
+      // T-050 / T-052 (stage C) — "escalated" is decided by query (EXISTS an
+      // active escalation), never by the denormalised pointer, which drifted
+      // when escalations were resolved out of order.
+      Object.assign(baseWhere, escalatedReviewWhere());
       break;
     case "HIGH_PRIORITY":
       baseWhere.priority = { in: ["HIGH", "URGENT"] };
@@ -353,21 +415,14 @@ async function listReviewerOpsQueueInner(
       // through the included filter shape.
       baseWhere.evidence = { legalHolds: { some: { status: "ACTIVE" } } };
       break;
-    case "INTEGRITY_RISK": {
+    case "INTEGRITY_RISK":
       // An ordinary SLA escalation is not an integrity risk (WORKFLOW-013).
-      const escalations = await client.reviewEscalation.findMany({
-        where: {
-          teamId: input.teamId,
-          status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
-          reason: { in: ["INTEGRITY_RISK", "VERIFICATION_MISMATCH"] },
-        },
-        select: { id: true },
-        orderBy: { createdAt: "desc" },
-        take: 1000,
-      });
-      baseWhere.activeEscalationId = { in: escalations.map((e) => e.id) };
+      // Any active integrity escalation counts, whichever the pointer names (T-050).
+      Object.assign(
+        baseWhere,
+        hasActiveEscalationWhere({ reason: { in: ["INTEGRITY_RISK", "VERIFICATION_MISMATCH"] } }),
+      );
       break;
-    }
     case "EXTERNAL_INTAKE":
       baseWhere.workspaceType = "EXTERNAL_INTAKE";
       break;
@@ -411,12 +466,7 @@ async function listReviewerOpsQueueInner(
   };
   const rows = await client.evidenceReviewWorkflow.findMany({
     where: scopedWhere as never,
-    orderBy: [
-      { priority: "desc" },
-      { dueAt: "asc" },
-      { updatedAt: "desc" },
-      { id: "desc" },
-    ],
+    orderBy: REVIEW_QUEUE_ORDER,
     take: limit + 1,
     ...(cursorId
       ? { cursor: { id: cursorId }, skip: 1 }
@@ -434,18 +484,25 @@ async function listReviewerOpsQueueInner(
           where: {
             teamId: input.teamId,
             workflowId: { in: workflowIds },
-            status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
+            status: { in: [...REVIEW_ESCALATION_ACTIVE_STATUSES] },
           },
           select: { workflowId: true },
         });
   const escSet = new Set(openEsc.map((e) => e.workflowId));
 
   const now = new Date();
-  const projected = rows.map((r) =>
-    buildWorkflowProjection(r, {
-      hasOpenEscalation: escSet.has(r.id),
-      nowUtc: now,
-    }),
+  // Stage C follow-up — read-time SLA facts for rows the repair has not touched.
+  const factRows = await withReadTimeSlaFacts(rows, client);
+  // T-086 (stage D) — the assignee as the server names them, in the row.
+  const assigneeIdentities = await loadReviewerIdentities(factRows.map((r) => r.assignedToUserId), client);
+  const projected = factRows.map((r) =>
+    withAssigneeIdentity(
+      buildWorkflowProjection(r, {
+        hasOpenEscalation: escSet.has(r.id),
+        nowUtc: now,
+      }),
+      assigneeIdentities,
+    ),
   );
 
   bump("reviewer_queue_viewed_total");
@@ -463,6 +520,22 @@ async function listReviewerOpsQueueInner(
   return {
     rows: projected,
     nextCursor: hasMore && rows.length > 0 ? rows[rows.length - 1].id : null,
+  };
+}
+
+/**
+ * T-086 (stage D) — `assignee` beside `assignedToUserId`: the display name or
+ * the masked e-mail, so the Inbox names the assignee the same way the picker
+ * and the lineage do. Null when unassigned.
+ */
+export function withAssigneeIdentity<T extends { assignedToUserId: string | null }>(
+  projection: T,
+  identities: ReadonlyMap<string, ReviewerIdentityProjection>,
+): T & { assignee: ReviewerIdentityProjection | null } {
+  const id = projection.assignedToUserId;
+  return {
+    ...projection,
+    assignee: id ? identities.get(id) ?? { displayName: null, maskedEmail: null } : null,
   };
 }
 
@@ -545,7 +618,7 @@ async function listHandoffQueue(
     const take = Math.min(HANDOFF_SCAN_BATCH, scanMax - scanned);
     const batch: DbWorkflow[] = await client.evidenceReviewWorkflow.findMany({
       where: where as never,
-      orderBy: [{ priority: "desc" }, { dueAt: "asc" }, { updatedAt: "desc" }, { id: "desc" }],
+      orderBy: REVIEW_QUEUE_ORDER,
       take,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
@@ -590,7 +663,7 @@ async function listHandoffQueue(
           where: {
             teamId: input.teamId,
             workflowId: { in: ids },
-            status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
+            status: { in: [...REVIEW_ESCALATION_ACTIVE_STATUSES] },
           },
           select: { workflowId: true },
         });
@@ -603,8 +676,12 @@ async function listHandoffQueue(
     severity: "INFO",
     details: { queue: input.queue, returned: kept.length, actorUserId: input.meUserId },
   });
+  const keptWithFacts = await withReadTimeSlaFacts(kept, client);
+  const assigneeIdentities = await loadReviewerIdentities(keptWithFacts.map((r) => r.assignedToUserId), client);
   return {
-    rows: kept.map((r) => buildWorkflowProjection(r, { hasOpenEscalation: escSet.has(r.id), nowUtc: now })),
+    rows: keptWithFacts.map((r) =>
+      withAssigneeIdentity(buildWorkflowProjection(r, { hasOpenEscalation: escSet.has(r.id), nowUtc: now }), assigneeIdentities),
+    ),
     nextCursor,
   };
 }
@@ -614,12 +691,20 @@ async function listHandoffQueue(
 // -----------------------------------------------------------------------------
 
 export type ReviewerOpsDashboard = {
+  /** unit: reviews (T-052). */
   counts: Awaited<ReturnType<typeof legacyGetReviewQueueCounts>>;
+  /** unit: escalations — active escalation rows, not reviews (COR-A). */
   openEscalations: number;
+  /** unit: escalations */
   criticalEscalationsOpen: number;
-  workloadTop: ReadonlyArray<WorkloadDashboardRow>;
-  suggestions: ReadonlyArray<ReviewerSuggestion>;
+  /** T-052 (stage C) — the unit of every figure, so no surface guesses. */
+  units: { counts: "reviews"; openEscalations: "escalations"; criticalEscalationsOpen: "escalations" };
+  /** T-085 (stage D) — each row carries the reviewer's display name / masked e-mail. */
+  workloadTop: ReadonlyArray<WorkloadDashboardRow & ReviewerIdentityColumns>;
+  suggestions: ReadonlyArray<ReviewerSuggestion & ReviewerIdentityColumns>;
 };
+
+type ReviewerIdentityColumns = { reviewerDisplayName: string | null; reviewerMaskedEmail: string | null };
 
 export async function buildDashboard(
   input: { teamId: string; meUserId: string },
@@ -645,7 +730,7 @@ async function buildDashboardInner(
       client.reviewEscalation.count({
         where: {
           teamId: input.teamId,
-          status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
+          status: { in: [...REVIEW_ESCALATION_ACTIVE_STATUSES] },
           // PRO-R2-12 — WORKFLOW-003: an escalation on a closed record moves no count.
           workflow: { evidence: evidenceVisibleThroughCasesWhere(input.meUserId) },
         },
@@ -653,7 +738,7 @@ async function buildDashboardInner(
       client.reviewEscalation.count({
         where: {
           teamId: input.teamId,
-          status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
+          status: { in: [...REVIEW_ESCALATION_ACTIVE_STATUSES] },
           severity: "CRITICAL",
           workflow: { evidence: evidenceVisibleThroughCasesWhere(input.meUserId) },
         },
@@ -671,12 +756,18 @@ async function buildDashboardInner(
   setGauge("reviewer_queue_due_soon", counts.dueSoon);
   setGauge("reviewer_escalations_open", openEsc);
   setGauge("reviewer_escalations_critical_open", critEsc);
+  // T-085 (stage D) — names, never id fragments, in Monitoring → Workload.
+  const identities = await loadReviewerIdentities(
+    [...workloadTop.map((w) => w.reviewerUserId), ...suggestions.map((x) => x.reviewerUserId)],
+    client,
+  );
   return {
     counts,
     openEscalations: openEsc,
     criticalEscalationsOpen: critEsc,
-    workloadTop,
-    suggestions,
+    units: { counts: "reviews", openEscalations: "escalations", criticalEscalationsOpen: "escalations" },
+    workloadTop: workloadTop.map((w) => withReviewerIdentity(w, identities)),
+    suggestions: suggestions.map((x) => withReviewerIdentity(x, identities)),
   };
 }
 
@@ -695,6 +786,10 @@ export const REVIEWER_VIEWER_ACTIONS = [
   "reassign",
   "adjudicate",
   "archive",
+  // Team remediation — T-009 (Reopen on the Review page) and T-019 (Escalate
+  // availability computed by the server, like every other action).
+  "reopen",
+  "escalate",
 ] as const;
 export type ReviewerViewerAction = (typeof REVIEWER_VIEWER_ACTIONS)[number];
 
@@ -702,11 +797,23 @@ export type ReviewerViewerProjection = {
   userId: string;
   isAssignee: boolean;
   actions: ReadonlyArray<{ action: ReviewerViewerAction; allowed: boolean; reason?: string }>;
+  /**
+   * T-019 — whether an escalation this viewer raises will require an
+   * independent second review (escalationForcesIndependentReview: every
+   * escalation a person raises does). The Escalate dialog states it.
+   */
+  escalationForcesIndependentReview: boolean;
 };
 
 export type ReviewerOpsWorkspaceProjection = {
   projection: ReviewerOpsWorkflowProjection;
+  /**
+   * The GOVERNING active escalation (T-049): highest severity, then newest.
+   * Acknowledged and reassigned escalations are active.
+   */
   openEscalation: EscalationProjection | null;
+  /** unit: escalations — how many are active on this review (T-049). */
+  activeEscalationCount: number;
   allowedLifecycleTransitions: ReadonlyArray<ReviewerOpsLifecycleState>;
   /** TEAM-SPEC §2.5 — present when the caller states who is viewing. */
   viewer?: ReviewerViewerProjection;
@@ -740,6 +847,8 @@ export function computeViewerActions(input: {
   facts: ReviewerViewerFacts;
   decision: CurrentRoundDecisionState;
   assignmentsIncluded: boolean;
+  /** REVIEW_ESCALATION in the effective plan (escalate is a Team capability). Absent = included. */
+  escalationIncluded?: boolean;
 }): ReviewerViewerProjection {
   const { row, lifecycle, viewerUserId, facts, decision } = input;
   const isAssignee = !!row.assignedToUserId && row.assignedToUserId === viewerUserId;
@@ -769,18 +878,25 @@ export function computeViewerActions(input: {
     if (!facts.isReviewerCapable) return "reviewer_required";
     if (finished) return "review_finished";
     if (row.assignedToUserId && !isAssignee && !facts.mayAssign) return "not_assignee";
+    // T-021 — only an assignment manager stops an unassigned review's clock.
+    if (!row.assignedToUserId && !facts.mayAssign) return "review_assign_required";
     if (wantPaused && !row.slaPausedAtUtc) return "not_paused";
     if (!wantPaused && row.slaPausedAtUtc) return "already_paused";
     return null;
   };
   const reasons: Record<ReviewerViewerAction, string | null> = {
+    // T-020 — Start is offered only for a review that has not started: the
+    // PERSISTED stage, not the lifecycle an open escalation derives (an
+    // in-review review with an escalation offered a no-op "Start review").
     start: !facts.isReviewerCapable
       ? "reviewer_required"
-      : !isAllowedLifecycleTransition(lifecycle, "IN_REVIEW")
-        ? "invalid_transition"
-        : !isAssignee
-          ? "not_assignee"
-          : null,
+      : stage === "IN_REVIEW" || stage === "ESCALATED" || stage === "RESPONSE_RECEIVED" || stage === "NEEDS_MORE_INFO"
+        ? "already_started"
+        : !isAllowedLifecycleTransition(lifecycle, "IN_REVIEW")
+          ? "invalid_transition"
+          : !isAssignee
+            ? "not_assignee"
+            : null,
     pause: clock(false),
     resume: clock(true),
     request_info: verdict("NEEDS_INFORMATION"),
@@ -819,10 +935,28 @@ export function computeViewerActions(input: {
         : decision.state === "second_required" || decision.state === "conflict_detected"
           ? "second_review_pending"
           : null,
+    // T-009 — a finished review is reopened by the same people and the same
+    // transition the Evidence page uses (REJECTED/APPROVED/CLOSED → REOPENED).
+    reopen: !facts.isReviewerCapable
+      ? "reviewer_required"
+      : !isAllowedReviewStageTransition(stage, "REOPENED")
+        ? "review_not_finished"
+        : null,
+    // T-019 — raising an escalation stays open to every reviewer-capable
+    // member (ADDENDUM §4.2) on an open review, with no step-up.
+    escalate:
+      input.escalationIncluded === false
+        ? "review_escalation_not_included"
+        : !facts.isReviewerCapable
+          ? "reviewer_required"
+          : finished
+            ? "review_finished"
+            : null,
   };
   return {
     userId: viewerUserId,
     isAssignee,
+    escalationForcesIndependentReview: escalationForcesIndependentReview({ reason: "REVIEWER_ESCALATED", createdByUserId: viewerUserId }),
     actions: REVIEWER_VIEWER_ACTIONS.map((action) => {
       const reason = reasons[action];
       return reason ? { action, allowed: false, reason } : { action, allowed: true };
@@ -842,11 +976,11 @@ export async function getReviewerOpsWorkspace(
     },
   });
   if (!row) throw new ReviewerOpsError("REVIEW_WORKFLOW_NOT_FOUND");
-  const open = await findOpenEscalationForWorkflow(
+  const { top: open, activeCount } = await findActiveEscalationSummaryForWorkflow(
     { teamId: input.teamId, workflowId: row.id },
     client,
   );
-  const projection = buildWorkflowProjection(row, {
+  const projection = buildWorkflowProjection((await withReadTimeSlaFacts([row], client))[0]!, {
     hasOpenEscalation: !!open,
   });
   // Allowed transitions = the shared lifecycle matrix for the current
@@ -856,7 +990,7 @@ export async function getReviewerOpsWorkspace(
   let viewer: ReviewerViewerProjection | undefined;
   let handoff: ReviewHandoff | undefined;
   if (input.viewerFacts && row.teamId) {
-    const [decision, assignmentsIncluded] = await Promise.all([
+    const [decision, assignmentsIncluded, escalationIncluded] = await Promise.all([
       loadCurrentRoundDecisionState(
         {
           id: row.id,
@@ -868,6 +1002,7 @@ export async function getReviewerOpsWorkspace(
         client,
       ),
       workspaceIncludesReviewCapability(input.teamId, "REVIEW_ASSIGNMENTS"),
+      workspaceIncludesReviewCapability(input.teamId, "REVIEW_ESCALATION"),
     ]);
     viewer = computeViewerActions({
       row,
@@ -876,12 +1011,14 @@ export async function getReviewerOpsWorkspace(
       facts: input.viewerFacts,
       decision,
       assignmentsIncluded,
+      escalationIncluded,
     });
     handoff = await computeReviewHandoff(row, decision, client);
   }
   return {
     projection,
     openEscalation: open,
+    activeEscalationCount: activeCount,
     allowedLifecycleTransitions: allowed,
     ...(viewer ? { viewer } : {}),
     ...(handoff ? { handoff } : {}),
@@ -950,14 +1087,19 @@ async function recordDecisionViaAuthority(
   client: PrismaClient,
 ): Promise<Awaited<ReturnType<typeof recordCanonicalReviewDecision>>> {
   try {
-    return await recordCanonicalReviewDecision(input, client);
+    return await recordCanonicalReviewDecision({ source: "legacy_reviewer_ops", ...input }, client);
   } catch (err) {
     if (err instanceof ReviewDecisionAuthorityError) {
       switch (err.code) {
         case "workflow_not_found":
           throw new ReviewerOpsError("REVIEW_WORKFLOW_NOT_FOUND");
+        // T-010 — the same input refusals as the canonical door, with the
+        // authority code as details.reason (status 400 at the route).
         case "rationale_required":
-          throw new ReviewerOpsError("REVIEW_NOTE_REQUIRED");
+        case "rationale_too_long":
+          throw new ReviewerOpsError("REVIEW_NOTE_REQUIRED", { ...(err.details ?? {}), reason: err.code });
+        case "forbidden_wording":
+          throw new ReviewerOpsError("REVIEW_PERMISSION_DENIED", { reason: "forbidden_wording" });
         // TEAM-SPEC R3 — the decision belongs to the assignee
         // (not_assignee, second_stage_needs_reassignment).
         case "adjudicator_role_required":
@@ -1156,7 +1298,7 @@ async function assignReviewerToWorkflowInner(
     },
     client,
   );
-  return buildWorkflowProjection(updated, {
+  return projectWorkflow(updated, client, {
     hasOpenEscalation: await findOpenEscalationForWorkflow(
       { teamId: ctx.teamId, workflowId: row.id },
       client,
@@ -1228,9 +1370,7 @@ export async function startReview(
     severity: "INFO",
     details: { workflowId: row.id, actorUserId: ctx.actorUserId },
   });
-  return buildWorkflowProjection(updated, {
-    hasOpenEscalation: false,
-  });
+  return projectWorkflow(updated, client);
 }
 
 // ----- pauseReview ------------------------------------------------------------
@@ -1296,7 +1436,7 @@ export async function pauseReview(
     severity: "INFO",
     details: { workflowId: row.id, actorUserId: ctx.actorUserId },
   });
-  return buildWorkflowProjection(updated);
+  return projectWorkflow(updated, client);
 }
 
 /**
@@ -1314,6 +1454,11 @@ function assertMayChangeSlaClock(ctx: LifecycleActorContext, row: DbWorkflow): v
     !ctx.mayActOnOthersReviews
   ) {
     throw new ReviewerOpsError("REVIEW_PERMISSION_DENIED", { reason: "actor_not_assignee" });
+  }
+  // T-021 — an UNASSIGNED review clock is the assignment managers' to stop:
+  // any reviewer could pause one and stop its SLA clock.
+  if (!row.assignedToUserId && !ctx.mayActOnOthersReviews) {
+    throw new ReviewerOpsError("REVIEW_PERMISSION_DENIED", { reason: "review_assign_required" });
   }
 }
 
@@ -1399,7 +1544,7 @@ export async function resumeReview(
     severity: "INFO",
     details: { workflowId: row.id, actorUserId: ctx.actorUserId },
   });
-  return buildWorkflowProjection(updated);
+  return projectWorkflow(updated, client);
 }
 
 // ----- Decision outcome (TEAM-SPEC §2.3) --------------------------------------
@@ -1410,6 +1555,8 @@ export type ReviewerOpsDecisionOutcome = {
   reviewState: string;
   nextRequirement: "second_review" | "adjudication" | null;
   idempotent: boolean;
+  /** T-015 — the second-review cause and staffing, when the round waits for one. */
+  secondReview?: ReviewDecisionOutcome["secondReview"];
 };
 
 export type ReviewerOpsDecisionResult = {
@@ -1449,79 +1596,11 @@ function outcomeOf(
 }
 
 /**
- * The signals a recorded decision emits, by what it DID (TEAM-SPEC §2.3):
- *   - approved / rejected / completed only when the status reached that
- *     terminal stage in this submission;
- *   - information_requested only when the status moved to NEEDS_MORE_INFO;
- *   - a decision that recorded a stage and moved nothing is
- *     `reviewer_first_decision_recorded` (a tenant audit row: the security
- *     event catalog lives in @proovra/shared and has no such member yet);
- *   - an idempotent replay emits nothing.
+ * The outcome signals now live in ./decision-outcome-signals.ts and are
+ * emitted ONCE by the decision authority for every door (T-171). Re-exported
+ * for existing importers.
  */
-export async function emitDecisionOutcomeSignals(
-  input: {
-    teamId: string;
-    actorUserId: string;
-    workflowId: string;
-    decision: string;
-    workflowStatusAfter: string;
-    outcome: ReviewerOpsDecisionOutcome;
-  },
-  client: PrismaClient = defaultPrisma,
-): Promise<void> {
-  const { outcome } = input;
-  if (outcome.idempotent) return;
-  const stageAfter = mapDbStatusToReviewStage(input.workflowStatusAfter);
-  const details = {
-    workflowId: input.workflowId,
-    actorUserId: input.actorUserId,
-    stageRecorded: outcome.stageRecorded,
-  };
-  if (outcome.statusChanged && stageAfter === "APPROVED_INTERNAL") {
-    bump("reviewer_review_approved_total");
-    bump("reviewer_review_completed_total");
-    safeEmitSecurityEvent({ teamId: input.teamId, eventType: "reviewer_review_approved", severity: "INFO", details });
-    return;
-  }
-  if (outcome.statusChanged && stageAfter === "REJECTED_INSUFFICIENT") {
-    bump("reviewer_review_rejected_total");
-    bump("reviewer_review_completed_total");
-    safeEmitSecurityEvent({ teamId: input.teamId, eventType: "reviewer_review_rejected", severity: "INFO", details });
-    return;
-  }
-  if (outcome.statusChanged && stageAfter === "NEEDS_MORE_INFO") {
-    bump("reviewer_information_requested_total");
-    safeEmitSecurityEvent({ teamId: input.teamId, eventType: "reviewer_information_requested", severity: "INFO", details });
-    return;
-  }
-  if (outcome.stageRecorded === "FIRST" && !outcome.statusChanged) {
-    try {
-      await emitTenantAudit(
-        {
-          action: "reviewer.first_decision_recorded",
-          outcome: "success",
-          sourceApp: "API",
-          actorUserId: input.actorUserId,
-          workspaceId: input.teamId,
-          resourceType: "review_workflow",
-          resourceId: input.workflowId,
-          metadata: {
-            eventType: "reviewer_first_decision_recorded",
-            decision: input.decision,
-            reviewState: outcome.reviewState,
-            nextRequirement: outcome.nextRequirement,
-          },
-        },
-        client,
-      );
-    } catch (err) {
-      logWarn("reviewer_ops.first_decision_audit_failed", {
-        workflowId: input.workflowId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
-}
+export { emitDecisionOutcomeSignals } from "./decision-outcome-signals.js";
 
 // ----- requestInformation -----------------------------------------------------
 
@@ -1531,7 +1610,7 @@ export async function requestInformation(
   client: PrismaClient = defaultPrisma,
 ): Promise<ReviewerOpsDecisionResult> {
   requireHuman(ctx);
-  assertNoteIfRequired(input.note);
+  assertDecisionInput(input.note);
   const row = await loadWorkflowOrThrow(ctx, input.workflowId, client);
   const fromLc = await currentLifecycle(ctx, row, client);
   assertLifecycleTransition(fromLc, "NEEDS_INFORMATION", "decision_not_from_stage");
@@ -1547,18 +1626,8 @@ export async function requestInformation(
   );
   const updated = result.workflow;
   const outcome = outcomeOf(result, String(row.status));
-  await emitDecisionOutcomeSignals(
-    {
-      teamId: ctx.teamId,
-      actorUserId: ctx.actorUserId,
-      workflowId: row.id,
-      decision: "REQUEST_INFO",
-      workflowStatusAfter: String(updated.status),
-      outcome,
-    },
-    client,
-  );
-  return { projection: buildWorkflowProjection(updated), outcome };
+  // The authority emitted the outcome signals (T-171).
+  return { projection: await projectWorkflow(updated, client), outcome };
 }
 
 // ----- recordResponseReceived (TEAM-SPEC §2.4) --------------------------------
@@ -1626,7 +1695,7 @@ export async function recordResponseReceived(
   // Best effort, never undoes the move.
   await notifyReviewResponseReceived({ workflow: updated, actorUserId: ctx.actorUserId }, client).catch(() => null);
   const open = await findOpenEscalationForWorkflow({ teamId: ctx.teamId, workflowId: row.id }, client);
-  return buildWorkflowProjection(updated, { hasOpenEscalation: !!open });
+  return projectWorkflow(updated, client, { hasOpenEscalation: !!open });
 }
 
 // ----- approveReview ----------------------------------------------------------
@@ -1653,11 +1722,7 @@ async function approveReviewInner(
   client: PrismaClient,
 ): Promise<ReviewerOpsDecisionResult> {
   requireHuman(ctx);
-  if (input.note && stringContainsForbiddenOverclaim(input.note)) {
-    throw new ReviewerOpsError("REVIEW_PERMISSION_DENIED", {
-      reason: "forbidden_wording",
-    });
-  }
+  assertDecisionInput(input.note);
   const row = await loadWorkflowOrThrow(ctx, input.workflowId, client);
   const fromLc = await currentLifecycle(ctx, row, client);
   // NEEDS_INFORMATION → APPROVED is not a move the matrix allows: record the
@@ -1675,18 +1740,7 @@ async function approveReviewInner(
   );
   const updated = result.workflow;
   const outcome = outcomeOf(result, String(row.status));
-  // TEAM-SPEC §2.3 — "approved" only when the status reached that stage.
-  await emitDecisionOutcomeSignals(
-    {
-      teamId: ctx.teamId,
-      actorUserId: ctx.actorUserId,
-      workflowId: row.id,
-      decision: "APPROVE",
-      workflowStatusAfter: String(updated.status),
-      outcome,
-    },
-    client,
-  );
+  // The authority emitted the outcome signals (T-171).
   // Phase 3 — opportunistic QC sampling at workflow close. Idempotent
   // per (workflowId, teamId). MUST NOT roll back the close transaction:
   // any failure here is logged and swallowed so the operator's approve
@@ -1715,7 +1769,7 @@ async function approveReviewInner(
       });
     }
   }
-  return { projection: buildWorkflowProjection(updated), outcome };
+  return { projection: await projectWorkflow(updated, client), outcome };
 }
 
 // ----- rejectReview -----------------------------------------------------------
@@ -1726,7 +1780,7 @@ export async function rejectReview(
   client: PrismaClient = defaultPrisma,
 ): Promise<ReviewerOpsDecisionResult> {
   requireHuman(ctx);
-  assertNoteIfRequired(input.note);
+  assertDecisionInput(input.note);
   const row = await loadWorkflowOrThrow(ctx, input.workflowId, client);
   const fromLc = await currentLifecycle(ctx, row, client);
   assertLifecycleTransition(fromLc, "REJECTED", "decision_not_from_stage");
@@ -1742,18 +1796,7 @@ export async function rejectReview(
   );
   const updated = result.workflow;
   const outcome = outcomeOf(result, String(row.status));
-  // TEAM-SPEC §2.3 — "rejected" only when the status reached that stage.
-  await emitDecisionOutcomeSignals(
-    {
-      teamId: ctx.teamId,
-      actorUserId: ctx.actorUserId,
-      workflowId: row.id,
-      decision: "REJECT",
-      workflowStatusAfter: String(updated.status),
-      outcome,
-    },
-    client,
-  );
+  // The authority emitted the outcome signals (T-171).
   // Phase 3 — opportunistic QC sampling at workflow close. Idempotent
   // per (workflowId, teamId). MUST NOT roll back the close transaction:
   // any failure here is logged and swallowed so the operator's reject
@@ -1781,7 +1824,7 @@ export async function rejectReview(
       });
     }
   }
-  return { projection: buildWorkflowProjection(updated), outcome };
+  return { projection: await projectWorkflow(updated, client), outcome };
 }
 
 // -----------------------------------------------------------------------------
@@ -1882,7 +1925,9 @@ async function runReconcileInner(
             closedAt: null,
           },
         ],
-        activeEscalationId: null,
+        // Stage C follow-up — "already escalated" by query, never the pointer
+        // (a drifted pointer either re-escalated or never escalated again).
+        escalations: { none: activeEscalationWhere() },
         status: { notIn: [...REVIEW_FINISHED_DB_STATUSES] },
       },
       orderBy: { escalationDueAtUtc: "asc" },
@@ -1894,7 +1939,8 @@ async function runReconcileInner(
           teamId: input.teamId,
           workflowId: wf.id,
           reason: "REVIEW_OVERDUE",
-          safeSummary: "Review past due — automatic escalation by reviewer ops reconcile.",
+          // T-083 (stage D) — catalog copy, never engine wording.
+          safeSummary: REVIEW_AUTO_ESCALATION_SUMMARY.overdue,
           conditionMessage: { code: "ops.review.escalation.overdue_auto" },
           severity: "HIGH",
           evidenceId: wf.evidenceId,
@@ -2071,7 +2117,11 @@ async function runReconcileInner(
           assignedAtUtc: true,
           lastReviewedAt: true,
           slaStatus: true,
-          activeEscalationId: true,
+          // Stage C follow-up — the governing active escalation by query.
+          escalations: {
+            where: activeEscalationWhere(),
+            select: { id: true, status: true, severity: true, createdAt: true },
+          },
           dueAt: true,
         },
       });
@@ -2080,18 +2130,9 @@ async function runReconcileInner(
         pageSize: nonTerminal.length,
         limit: stuckLimit,
       });
-      const activeIds = nonTerminal.flatMap((w) => (w.activeEscalationId ? [w.activeEscalationId] : []));
-      const active = new Map(
-        (activeIds.length === 0
-          ? []
-          : await client.reviewEscalation.findMany({
-              where: { id: { in: activeIds } },
-              select: { id: true, status: true, createdAt: true },
-            })
-        ).map((e) => [e.id, e] as const),
-      );
       const nowMs = Date.now();
       for (const wf of nonTerminal) {
+        const governing = selectGoverningEscalation(wf.escalations).top;
         // A row still stored OVERDUE predates "a missed deadline is a breach".
         const slaStatus: WorkflowSlaStatus =
           wf.slaStatus === "OVERDUE"
@@ -2112,13 +2153,9 @@ async function runReconcileInner(
           // RESPONSE_RECEIVED, so a row still waiting has none on record.
           lastContributorResponseAtEpochMs: null,
           slaStatus,
-          hasOpenEscalation: !!wf.activeEscalationId,
-          escalationAcknowledged: wf.activeEscalationId
-            ? active.get(wf.activeEscalationId)?.status === "ACKNOWLEDGED"
-            : false,
-          escalationRaisedAtEpochMs: wf.activeEscalationId
-            ? (active.get(wf.activeEscalationId)?.createdAt.getTime() ?? null)
-            : null,
+          hasOpenEscalation: !!governing,
+          escalationAcknowledged: governing?.status === "ACKNOWLEDGED",
+          escalationRaisedAtEpochMs: governing ? governing.createdAt.getTime() : null,
           // This sweep reads open reviews, and an approved review is finished,
           // so the export-blocked rule does not apply here.
           approvedButExportBlocked: false,
@@ -2133,7 +2170,7 @@ async function runReconcileInner(
         // escalation storm the engine explicitly guards against.
         if (
           classification.topSeverity === "CRITICAL" &&
-          !wf.activeEscalationId
+          !governing
         ) {
           const top = classification.reasons[0]!;
           // A person already dealt with this breach (WORKFLOW-005). Resolve
@@ -2166,7 +2203,7 @@ async function runReconcileInner(
               // route it through WORKFLOW_STALLED so the existing
               // fingerprint dedup keeps escalation storms bounded.
               reason: "WORKFLOW_STALLED",
-              safeSummary: `Workflow stuck — ${top.label}. Automatic escalation by reviewer ops reconcile.`,
+              safeSummary: REVIEW_AUTO_ESCALATION_SUMMARY.stuck(top.label),
               conditionMessage: { code: "ops.review.escalation.stuck_auto", stuck: top.code },
               severity: "HIGH",
               evidenceId: wf.evidenceId ?? null,

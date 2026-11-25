@@ -227,13 +227,23 @@ describe("Public intake file picker — multi-select", () => {
     // Without this, every file in a multi-select sent partIndex=0
     // and the backend's (evidenceId, partIndex) unique constraint
     // rejected all but the first.
+    //
+    // T-128 (stage F) — picker and drop share ONE selection path `addFiles`.
+    // The counter is seeded ONCE from `nextPartIndex(parts)` (one past the
+    // highest index held; `parts.length` re-targeted an occupied index after
+    // a middle file was removed), every selected file goes through it, and
+    // the index advances ONLY when the file was actually staged (a refused
+    // file consumes no index). Behaviour: render `team-f-public-intake`, node
+    // `intake-multi-file-partindex`.
     const src = read(PAGE);
-    assert.match(
-      src,
-      /const files = Array\.from\(e\.target\.files \?\? \[\]\);[\s\S]{0,800}let nextIndex = parts\.length;/,
-    );
-    assert.match(src, /await stageFile\(f, nextIndex\);/);
-    assert.match(src, /nextIndex \+= 1;/);
+    assert.match(src, /addFiles\(Array\.from\(e\.target\.files \?\? \[\]\)\)/);
+    assert.match(src, /addFiles\(Array\.from\(e\.dataTransfer\?\.files \?\? \[\]\)\)/);
+    const body = src.slice(src.indexOf("async function addFiles("));
+    assert.match(body, /^async function addFiles\(files: File\[\]\) \{[\s\S]{0,600}let nextIndex = nextPartIndex\(parts\);/);
+    assert.match(body, /for \(const f of files\) \{/);
+    assert.match(body, /if \(await stageFile\(f, nextIndex\)\) \{\s*nextIndex \+= 1;/);
+    // The old seed must not come back.
+    assert.doesNotMatch(src, /let nextIndex = parts\.length;/);
   });
 
   it("'Add files' button + multi-select hint are present (discoverability)", () => {

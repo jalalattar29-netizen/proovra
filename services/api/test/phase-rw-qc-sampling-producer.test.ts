@@ -164,11 +164,19 @@ const prismaStub: {
     findFirst: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
   };
+  workflowReviewDecision: { groupBy: ReturnType<typeof vi.fn> };
+  evidenceReviewWorkflowEvent: { findMany: ReturnType<typeof vi.fn> };
+  reviewEscalation: { findMany: ReturnType<typeof vi.fn> };
 } = {
   evidenceReviewWorkflow: {
     findFirst: vi.fn(),
     update: vi.fn(),
   },
+  // Stage C follow-up — the projection reads read-time SLA facts and the
+  // active escalations.
+  workflowReviewDecision: { groupBy: vi.fn(async () => []) },
+  evidenceReviewWorkflowEvent: { findMany: vi.fn(async () => []) },
+  reviewEscalation: { findMany: vi.fn(async () => []) },
 };
 
 vi.mock("../src/db.js", () => ({

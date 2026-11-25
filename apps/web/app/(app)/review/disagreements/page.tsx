@@ -53,7 +53,7 @@ import {
   DISAGREEMENT_STATES,
   REVIEWER_VERDICTS,
   type DisagreementState,
-  type ReviewerVerdict, identifierLabel } from "@proovra/shared";
+  type ReviewerVerdict } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalEmptyState } from "../../../../components/operational";
@@ -61,6 +61,9 @@ import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import { useActiveSpaceId, useOptionalPlatformContext } from "../../../../lib/platform-context";
 import { transitionDisagreement } from "../../../../lib/reviewer-workspace/reviewer-api";
+import { reviewerIdentityLabel } from "../../../../lib/reviewer-workspace/reviewer-identity";
+import { recordReference } from "../../../../lib/short-id";
+import { AppStatusText } from "../../../../components/app-primitives/AppStatusText";
 
 /**
  * Row shape intentionally keeps the list compact. The backend tracks
@@ -80,7 +83,15 @@ type DisagreementRow = {
   resolvedAtUtc: string | null;
   resolution?: ReviewerVerdict | null;
   resolvedByUserId?: string | null;
+  /** T-085 / T-086 — names the API may project beside the ids. */
+  people?: Record<string, { displayName?: string | null; maskedEmail?: string | null }> | null;
 };
+
+/** T-086 — a person on a challenge, named the one way (never an id fragment). */
+function personLabel(row: DisagreementRow, userId: string): string {
+  const p = row.people?.[userId] ?? null;
+  return reviewerIdentityLabel({ userId, displayName: p?.displayName ?? null, maskedEmail: p?.maskedEmail ?? null });
+}
 
 /** Verdicts the picker actually offers — PENDING filtered out as
  *  semantically meaningless on a RESOLVED_* end-state transition. */
@@ -226,7 +237,7 @@ function DisagreementsShell() {
       <PageShell data-disagreements-page>
         <OperationalEmptyState
           title="Select a workspace"
-          reason="Choose an active workspace before loading disagreements."
+          reason="Choose an active workspace before loading challenged decisions."
         />
       </PageShell>
     );
@@ -239,8 +250,8 @@ function DisagreementsShell() {
       header={
         <ReviewPageHeader
           back={REVIEW_HUB_BACK}
-          title="Disagreements"
-          subtitle="Reviewers may challenge a recorded decision. Disagreements progress through second review and supervisor adjudication."
+          title="Challenged decisions"
+          subtitle="Decisions a reviewer formally challenged. A challenge moves through second review and supervisor adjudication. Reviews whose first and second reviews differ are a different thing: they wait in the Inbox under Conflicts."
         />
       }
     >
@@ -270,8 +281,8 @@ function DisagreementsShell() {
             {loadFailure === "plan"
               ? PLAN_REFUSAL_COPY
               : loadFailure === "denied"
-                ? "You do not have access to this workspace's disagreements."
-                : "Disagreements could not be loaded. This is not the same as having none."}
+                ? "You do not have access to this workspace's challenged decisions."
+                : "Challenged decisions could not be loaded. This is not the same as having none."}
           </p>
           {loadFailure === "failed" ? (
             <CanonicalActionButton variant="secondary" onClick={() => void refresh()}>
@@ -285,8 +296,8 @@ function DisagreementsShell() {
       ) : rows.length === 0 ? (
         <OperationalEmptyState
           kicker="Disagreement lifecycle"
-          title="No disagreements are on file in this workspace."
-          reason="Disagreements appear when a reviewer challenges a recorded decision. The lifecycle still matters here: filed disagreements move into second review, then supervisor adjudication, before they are resolved or withdrawn."
+          title="No decision has been challenged in this workspace."
+          reason="A challenge appears here when a reviewer formally challenges a recorded decision from the review page. It moves into second review, then supervisor adjudication, before it is resolved or withdrawn."
           actions={[
             { label: "Open reviewer queues", href: "/review/queues?queue=MY_REVIEWS" },
             { label: "Open escalation operations", href: "/reviewer-ops/escalations" },
@@ -335,7 +346,7 @@ function DisagreementsTable({
       <thead>
         <tr>
           <th scope="col">State</th>
-          <th scope="col">Workflow</th>
+          <th scope="col">Review</th>
           <th scope="col">Owner</th>
           <th scope="col">Challenger</th>
           <th scope="col">Age</th>
@@ -392,19 +403,19 @@ function DisagreementRowGroup({
     <>
       <tr data-disagreement-row={row.id}>
         <td data-label="State">
-          <span className="app-chip" title={identifierLabel(row.state)}>
-            {STATE_LABELS[row.state] ?? identifierLabel(row.state)}
-          </span>
+          <AppStatusText tone="slate">{STATE_LABELS[row.state] ?? "Unknown state"}</AppStatusText>
         </td>
-        <td data-label="Workflow">
-          <code data-identifier>{row.workflowId.slice(0, 8)}…</code>
+        <td data-label="Review">
+          <a href={`/reviewer-ops/${encodeURIComponent(row.workflowId)}`} className="review-rows__ref">
+            {recordReference("Review", row.workflowId)}
+          </a>
         </td>
         <td data-label="Owner">
           <OwnerCell row={row} />
         </td>
         <td data-label="Challenger">
           {row.challengerUserId ? (
-            <code data-identifier>{row.challengerUserId.slice(0, 8)}…</code>
+            <span>{personLabel(row, row.challengerUserId)}</span>
           ) : (
             <span className="app-table__muted">not recorded</span>
           )}
@@ -700,7 +711,7 @@ function OwnerCell({ row }: { row: DisagreementRow }) {
   if (!owner) {
     return <span className="app-table__muted">awaiting assignment</span>;
   }
-  return <code data-identifier>{owner.slice(0, 8)}…</code>;
+  return <span>{personLabel(row, owner)}</span>;
 }
 
 function ResolutionCell({ row }: { row: DisagreementRow }) {

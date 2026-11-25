@@ -1778,7 +1778,7 @@ export function StorageUsageCard({ usage }: { usage: StorageUsage | null }) {
 }
 
 // ============================================================================
-// 10. TEAM WORK (org workspaces only) — work-centric, not a roster.
+// 10. TEAM WORK (collaboration plans with members — T-109) — work-centric, not a roster.
 // ============================================================================
 
 export function TeamWorkCard({ team }: { team: TeamWork | null }) {
@@ -1797,7 +1797,9 @@ export function TeamWorkCard({ team }: { team: TeamWork | null }) {
         <Stat label={t("homeAwaitingReview")} value={team.submissionsAwaitingReview} />
         <Stat label={t("homeReportsToday")} value={team.reportsToday} />
         <Stat label={t("homeMembers")} value={team.members} />
-        <Stat label={t("homePendingInvites")} value={team.pendingInvites} />
+        {team.pendingInvites !== null ? (
+          <Stat label={t("homePendingInvites")} value={team.pendingInvites} />
+        ) : null}
       </div>
     </SectionCard>
   );

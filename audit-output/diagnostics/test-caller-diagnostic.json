@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "82cc966200a6882a84f98a9182c5b3b228bd8f817647fce2c30662979af215e5",
+  "capabilityRouteInventoryHash": "0a2e3e98c1494063e4995a43225d318a0795de3cfaf144ba2b586f1fdd57ed99",
   "totals": {
-    "routes": 1274,
+    "routes": 1277,
     "routesWithAnyTestCaller": 59,
     "testOnlyRoutes": 8,
     "testCallSites": 156,
@@ -3409,6 +3409,12 @@
     },
     {
       "routeId": "GET /v1/teams/:id/members/:memberId/removal-impact",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/teams/:id/members/:memberId/role-change-impact",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -7115,6 +7121,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/reviewer-ops/maintenance/second-review-reevaluation",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/reviewer-ops/queue-intelligence",
       "testCallerCount": 0,
       "testOnly": false,
@@ -7133,6 +7145,12 @@
       "testCallerFiles": [
         "services/api/test/phase-37-98-reviewer-workflow-lifecycle.integration.test.ts"
       ]
+    },
+    {
+      "routeId": "POST /v1/reviewer-ops/reviews/:workflowId/archive",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
     },
     {
       "routeId": "POST /v1/reviewer-ops/reviews/:workflowId/assign",
@@ -7791,5 +7809,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "5ea8f8a3c2f228d879c5ec9fb804b017e3701ed53f51c61229471fce5f8d4445"
+  "contentHash": "a610c66b13f2a080ef2257f1b37d4b3246e55c64eac17c2d7b0fc07f17e96ad1"
 }

@@ -54,11 +54,17 @@ const SIDE_PANE = readSource(
 const ANNO_PANEL = readSource(
   "../../../apps/web/components/reviewer-workspace/AnnotationPanel.tsx",
 );
-const WS_PAGE = readSource(
-  "../../../apps/web/app/(app)/review/workspace/page.tsx",
+// Stage D (T-065 / T-077) — the Queues page and the Reviewer Workspace were
+// retired: the Inbox holds the bulk bar, and focus mode is the Review page's
+// layout (the shared MediaViewer preview through /parts).
+const REVIEW_PAGE = readSource(
+  "../../../apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
 );
-const QUEUES_PAGE = readSource(
-  "../../../apps/web/app/(app)/review/queues/page.tsx",
+const PREVIEW = readSource(
+  "../../../apps/web/components/reviewer-experience/ReviewEvidencePreview.tsx",
+);
+const INBOX = readSource(
+  "../../../apps/web/components/reviewer-experience/ReviewInbox.tsx",
 );
 const REVIEWER_API = readSource(
   "../../../apps/web/lib/reviewer-workspace/reviewer-api.ts",
@@ -177,42 +183,20 @@ describe("Phase 2A Closure — side-pane switcher + annotation panel", () => {
   });
 });
 
-describe("Phase 2A Closure — workspace page wiring", () => {
-  it("page imports MediaViewer + AnnotationPanel + SidePaneSwitcher", () => {
-    expect(WS_PAGE).toMatch(/from\s+"\.\.\/\.\.\/\.\.\/\.\.\/components\/reviewer-workspace\/viewers\/MediaViewer"/);
-    expect(WS_PAGE).toMatch(/from\s+"\.\.\/\.\.\/\.\.\/\.\.\/components\/reviewer-workspace\/AnnotationPanel"/);
-    expect(WS_PAGE).toMatch(/SidePaneSwitcher/);
+describe("Stage D — focus mode and Inbox wiring (replacing the workspace and queues pins)", () => {
+  it("the Review page previews the evidence through the shared MediaViewer", () => {
+    expect(REVIEW_PAGE).toMatch(/ReviewEvidencePreview/);
+    expect(PREVIEW).toContain('from "../reviewer-workspace/viewers/MediaViewer"');
   });
-  it("workspace auto-advances after a decision (NEXT_ITEM hotkey + advanceToNext)", () => {
-    expect(WS_PAGE).toMatch(/advanceToNext/);
-    expect(WS_PAGE).toMatch(/NEXT_ITEM/);
+  it("focus mode moves to the next item of the Inbox view and lists its keys", () => {
+    expect(REVIEW_PAGE).toMatch(/moveInView/);
+    expect(REVIEW_PAGE).toMatch(/REVIEW_PAGE_KEYMAP/);
   });
-  it("workspace renders help overlay on ? key", () => {
-    expect(WS_PAGE).toMatch(/data-reviewer-help-overlay/);
-  });
-  it("legacy iframe-based EvidenceViewer is removed", () => {
-    expect(WS_PAGE).not.toMatch(/<iframe[^>]*data-reviewer-viewer/);
-    expect(WS_PAGE).toMatch(/EvidenceViewerColumn/);
-  });
-});
-
-describe("Phase 2A Closure — queues + bulk UI", () => {
-  it("queues page provides multi-select + bulk action bar + confirmation", () => {
-    expect(QUEUES_PAGE).toMatch(/data-reviewer-queue-table/);
-    expect(QUEUES_PAGE).toMatch(/data-reviewer-queue-select-all/);
-    expect(QUEUES_PAGE).toMatch(/data-bulk-bar/);
-    expect(QUEUES_PAGE).toMatch(/data-bulk-confirm/);
-  });
-  it("queues page exposes bulk action attributes for every bounded action", () => {
-    // Action attrs are emitted via {v} for verdicts (REVIEWER_VERDICTS
-    // filter excluding PENDING) and the literal "ASSIGN" for the
-    // assign button. Bounded vocabulary lives on the source page.
-    expect(QUEUES_PAGE).toMatch(/data-bulk-action="ASSIGN"/);
-    // TEAM-UI-SPEC (queues round) — the four per-verdict buttons became ONE
-    // "Code verdict" AppListbox over the same bounded vocabulary + ONE Apply.
-    expect(QUEUES_PAGE).toMatch(/data-bulk-action="CODE_VERDICT"/);
-    expect(QUEUES_PAGE).toMatch(/data-bulk-code-verdict=\{verdict/);
-    expect(QUEUES_PAGE).toMatch(/REVIEWER_VERDICTS\.filter/);
+  it("the Inbox offers multi-select, the bulk bar and a confirmation", () => {
+    expect(INBOX).toMatch(/data-inbox-select-all/);
+    expect(INBOX).toMatch(/ReviewerBulkOpsBar/);
+    expect(INBOX).toMatch(/data-inbox-bulk-confirm/);
+    expect(INBOX).toMatch(/REVIEWER_VERDICTS.filter/);
   });
   it("queues route registered + mapped to the REVIEW pillar", () => {
     expect(ROUTE_REGISTRY).toMatch(/id:\s*"workspace\.review_queues"/);

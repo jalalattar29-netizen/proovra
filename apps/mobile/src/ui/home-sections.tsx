@@ -61,7 +61,7 @@ export function HomeActiveMattersSection({
       ].filter((c): c is NonNullable<typeof c> => c !== null)
     : [];
   return (
-    <ProovraSection title="Active matters">
+    <ProovraSection title="Active cases">
       {chips.length > 0 ? (
         <View testID="home-case-health-summary" style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s1, marginBottom: theme.space.s2 }}>
           {chips.map((c) => (
@@ -179,17 +179,19 @@ export function HomeVerificationHealthSection({ health }: { health: Verification
 
 export function HomeTeamWorkSection({ team }: { team: TeamWork }) {
   const router = useRouter();
+  // T-121 — "Team" names the plan only; the action opens the Collaboration Teams screen.
   return (
     <ProovraSection
       title="Team work"
-      action={<ProovraButton label="Manage team" variant="ghost" fullWidth={false} onPress={() => router.push("/teams" as never)} />}
+      action={<ProovraButton label="Collaboration Teams" variant="ghost" fullWidth={false} onPress={() => router.push("/teams" as never)} />}
     >
       <ProovraKpiGrid
         items={[
           { key: "review", label: "Awaiting review", value: String(team.submissionsAwaitingReview) },
           { key: "today", label: "Reports today", value: String(team.reportsToday) },
           { key: "members", label: "Members", value: String(team.members) },
-          { key: "invites", label: "Pending invites", value: String(team.pendingInvites) },
+          // An invitation count the envelope does not carry is not zero.
+          ...(team.pendingInvites === null ? [] : [{ key: "invites", label: "Pending invites", value: String(team.pendingInvites) }]),
         ]}
       />
     </ProovraSection>

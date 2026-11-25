@@ -131,7 +131,9 @@ describe("fresh-enterprise repairs (live PostgreSQL 16)", () => {
         action: "REVIEWER_APPROVE",
         callerEnforcesStepUp: true,
       });
-      expect(result).toEqual({ allow: true, stepUpRequired: true });
+      // Stage B (direction 6): the step-up carries its reason so the client can
+      // say why it is asked.
+      expect(result).toEqual({ allow: true, stepUpRequired: true, stepUpReason: "elevated_session_risk" });
       expect(sent.status).toBeUndefined();
     });
 

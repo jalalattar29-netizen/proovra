@@ -65,6 +65,7 @@
     "ops:verify-historical-billing-attempts": "tsx src/scripts/verify-historical-billing-attempts.ts",
     "ops:verify-billing-offers": "tsx src/scripts/verify-billing-offers.ts",
     "ops:repair-legacy-record-cap-override": "tsx src/scripts/repair-legacy-record-cap-override.ts",
+    "ops:repair-review-sla-truth": "tsx src/scripts/repair-review-sla-truth.ts",
     "ops:internal-plan-grant": "tsx src/scripts/internal-plan-grant.ts",
     "ops:internal-grant-rollout": "tsx src/scripts/internal-grant-rollout.ts",
     "ops:recover-evidence-outputs": "tsx src/scripts/recover-evidence-outputs.ts",

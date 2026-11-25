@@ -141,17 +141,21 @@ test("decisionTargetStage maps each decision to its target stage", () => {
   assert.equal(decisionTargetStage("CLOSE"), "CLOSED");
 });
 
-test("note-requiring decisions: REJECT/ESCALATE/REOPEN", () => {
+// Team remediation T-010 — every verdict carries a written rationale (the
+// decision authority refuses an empty one on every door), approval included.
+test("note-requiring decisions: every verdict, ESCALATE and REOPEN", () => {
   assert.equal(decisionRequiresNote("REJECT_INSUFFICIENT"), true);
   assert.equal(decisionRequiresNote("ESCALATE"), true);
   assert.equal(decisionRequiresNote("REOPEN"), true);
-  assert.equal(decisionRequiresNote("APPROVE_INTERNAL"), false);
-  assert.equal(decisionRequiresNote("REQUEST_MORE_INFO"), false);
+  assert.equal(decisionRequiresNote("APPROVE_INTERNAL"), true);
+  assert.equal(decisionRequiresNote("REQUEST_MORE_INFO"), true);
   assert.equal(decisionRequiresNote("CLOSE"), false);
   assert.deepEqual([...REVIEW_DECISIONS_REQUIRING_NOTE].sort(), [
+    "APPROVE_INTERNAL",
     "ESCALATE",
     "REJECT_INSUFFICIENT",
     "REOPEN",
+    "REQUEST_MORE_INFO",
   ]);
 });
 

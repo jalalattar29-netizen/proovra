@@ -69,7 +69,7 @@ function stripComments(source: string): string {
 }
 
 const REVIEWER_CONSOLE = readSource(
-  "../../../apps/web/components/reviewer-experience/ReviewerConsole.tsx",
+  "../../../apps/web/components/reviewer-experience/ReviewInbox.tsx",
 );
 const QUEUE_ROW = readSource(
   "../../../apps/web/components/reviewer-experience/queueRow.ts",
@@ -103,12 +103,11 @@ describe("Phase G3.2 — inline reviewer action UI (Reviewer Console)", () => {
   // Escalate moved to the inspector's secondary actions; requesting
   // information is part of the inspector's decision flow.
   it("Queue/Mine rows expose Open + Assign only (no Escalate / Request info)", () => {
-    expect(REVIEWER_CONSOLE).toContain('data-reviewer-action="assign"');
-    expect(REVIEWER_CONSOLE).not.toContain('data-reviewer-action="escalate"');
-    expect(REVIEWER_CONSOLE).not.toContain('data-reviewer-action="request-info"');
-    expect(REVIEWER_CONSOLE).toContain(
-      'data-reviewer-action="open-inspector"',
-    );
+    // Stage D (T-065) — the Inbox rows: Open + Assign, nothing else.
+    expect(REVIEWER_CONSOLE).toContain('data-row-action="assign"');
+    expect(REVIEWER_CONSOLE).toContain('data-row-action="open"');
+    expect(REVIEWER_CONSOLE).not.toContain('data-row-action="escalate"');
+    expect(REVIEWER_CONSOLE).not.toContain('data-row-action="request-info"');
   });
 
   it("Escalations rows (Acknowledge) live on the Escalations page, not the console", () => {
@@ -144,10 +143,10 @@ describe("Phase G3.2 — inline reviewer action UI (Reviewer Console)", () => {
 
   // TEAM-UI-SPEC §4 (round 3) — only 'a' remains; e / m left with their row
   // actions.
-  it("keyboard shortcut wires a (e / m removed with their row actions)", () => {
-    expect(REVIEWER_CONSOLE).toMatch(/toLowerCase\(\)\s*===\s*"a"/);
-    expect(REVIEWER_CONSOLE).not.toMatch(/===\s*"e"/);
-    expect(REVIEWER_CONSOLE).not.toMatch(/===\s*"m"/);
+  it("keyboard shortcuts come from the Inbox keymap (a assigns; no e / m)", () => {
+    expect(REVIEWER_CONSOLE).toContain("useKeymap(INBOX_KEYMAP");
+    expect(REVIEWER_CONSOLE).toContain("assign: () =>");
+    expect(REVIEWER_CONSOLE).not.toContain("escalate: () =>");
   });
 
   it("terminal rows (approved/rejected/cancelled/destroyed/tombstoned) disable inline actions", () => {
@@ -162,9 +161,9 @@ describe("Phase G3.2 — inline reviewer action UI (Reviewer Console)", () => {
   });
 
   it("visible loading/error/flash states for every mutation", () => {
-    expect(REVIEWER_CONSOLE).toContain("actionBusyKey");
-    expect(REVIEWER_CONSOLE).toContain("actionError");
-    expect(REVIEWER_CONSOLE).toContain("actionFlash");
+    expect(REVIEWER_CONSOLE).toContain("rowAssignBusy");
+    expect(REVIEWER_CONSOLE).toContain("data-inbox-banner");
+    expect(REVIEWER_CONSOLE).toContain("data-inbox-load-error");
   });
 });
 
@@ -200,9 +199,9 @@ describe("Phase G3.2 — saved-view CRUD UI", () => {
 
 describe("Phase G3.2 — Reviewer Console pagination", () => {
   it("renders a PaginationFooter with Load more + View all", () => {
-    expect(REVIEWER_CONSOLE).toContain("PaginationFooter");
-    expect(REVIEWER_CONSOLE).toContain("data-reviewer-pagination-load-more");
-    expect(REVIEWER_CONSOLE).toContain("data-reviewer-pagination-view-all");
+    // Stage D — cursor pagination: one Load more per view.
+    expect(REVIEWER_CONSOLE).toContain("data-inbox-load-more");
+    expect(REVIEWER_CONSOLE).toContain('params.set("cursor", cursor)');
   });
 
   it("hits the per-tab paginated endpoints", () => {
@@ -213,8 +212,8 @@ describe("Phase G3.2 — Reviewer Console pagination", () => {
   });
 
   it("respects the backend's bounded per-endpoint maxima", () => {
-    expect(REVIEWER_CONSOLE).toMatch(/queue:\s*100/);
-    expect(REVIEWER_CONSOLE).toMatch(/mine:\s*100/);
+    expect(REVIEWER_CONSOLE).toContain("const INBOX_PAGE_SIZE = 50;");
+    expect(REVIEWER_CONSOLE).toContain("const BULK_ACTION_CAP = 100;");
   });
 });
 

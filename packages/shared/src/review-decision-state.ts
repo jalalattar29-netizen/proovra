@@ -193,3 +193,95 @@ export function legacyReviewDecisionFromStatus(dbStatus: string | null | undefin
       return "NO_DECISION";
   }
 }
+
+// -----------------------------------------------------------------------------
+// SECOND-REVIEW TRIGGER POLICY (Team remediation T-013, 2026-11-24).
+// -----------------------------------------------------------------------------
+
+/**
+ * Escalation reasons the AUTOMATIC overdue / SLA / stuck-workflow sweeps raise.
+ * An escalation of one of these reasons that no person raised
+ * (`createdByUserId` null) says only that a clock ran out — nothing about the
+ * quality of the decision — so it does NOT force an independent second review.
+ */
+export const AUTOMATIC_SWEEP_ESCALATION_REASONS = [
+  "REVIEW_OVERDUE",
+  "FIRST_REVIEW_OVERDUE",
+  "COMPLETION_OVERDUE",
+  "WORKFLOW_STALLED",
+] as const;
+const AUTOMATIC_SWEEP_REASON_SET: ReadonlySet<string> = new Set(AUTOMATIC_SWEEP_ESCALATION_REASONS);
+
+/**
+ * THE ONE forcing predicate (coordinator decision T-013): only an escalation
+ * the overdue/SLA sweep raised on its own stops forcing independent review.
+ * Every other active escalation — any reason, any severity, raised by a person
+ * — keeps forcing it, as do a legal hold, a redaction-required decision and an
+ * ESCALATED review (conflict, unresolved adjudication, a reviewer's Escalate).
+ */
+export function escalationForcesIndependentReview(escalation: {
+  reason: string;
+  createdByUserId?: string | null;
+}): boolean {
+  return !(escalation.createdByUserId == null && AUTOMATIC_SWEEP_REASON_SET.has(String(escalation.reason)));
+}
+
+/** Why the current round needs an independent second review. */
+export type SecondReviewCause =
+  | "workflow_escalated"
+  | "open_escalation"
+  | "active_legal_hold"
+  | "redaction_required"
+  | "unresolved_adjudication";
+
+/**
+ * Causes whose requirement STAYS with a round once its FIRST decision was
+ * recorded under it (binding direction 4: resolving an escalation never
+ * invents or finalises a decision). The FIRST verdict then waits for its
+ * SECOND reviewer even after the escalation is resolved. A legal hold or a
+ * redaction requirement keeps the earlier rule (P2-1): once lifted, the first
+ * verdict stands.
+ */
+export const STICKY_SECOND_REVIEW_CAUSES: ReadonlyArray<SecondReviewCause> = [
+  "workflow_escalated",
+  "open_escalation",
+  "unresolved_adjudication",
+];
+
+/**
+ * Whether a DECISION_LOGGED event's `nextValue` pins its round to a second
+ * review: the FIRST decision was recorded as `second_required` for a sticky
+ * cause. A legacy event (recorded before causes were written) counts as
+ * sticky: the system never silently finalises a decision it cannot explain —
+ * the explicit re-evaluation job (T-014) handles those rounds.
+ */
+export function decisionEventPinsSecondReview(nextValue: unknown): boolean {
+  const v = (nextValue ?? {}) as { state?: unknown; decisionStage?: unknown; secondReviewCause?: unknown };
+  if (v.state !== "second_required") return false;
+  if (v.decisionStage !== undefined && v.decisionStage !== "FIRST") return false;
+  if (v.secondReviewCause === undefined) return true;
+  return (STICKY_SECOND_REVIEW_CAUSES as ReadonlyArray<unknown>).includes(v.secondReviewCause);
+}
+
+/** The marker the explicit re-evaluation job (T-014) writes on a round it re-derived. */
+export const SECOND_REVIEW_REEVALUATION_SOURCE = "second_review_policy_reevaluation" as const;
+
+/**
+ * T-018 — the round is FINISHED and the next submission opens a new round:
+ *   - a request for information settled it and the review has since moved on
+ *     (not terminal, no longer waiting for that information); or
+ *   - an adjudicator recorded UNRESOLVED: the disagreement stands, so a fresh
+ *     round (first decision by the assignee, then an independent second
+ *     review) is the defined next step — never a dead end.
+ */
+export function roundContinuesInNewRound(
+  decisions: ReadonlyArray<DecisionLogRow>,
+  projection: DecisionProjection,
+  stageNow: ReviewStage,
+): "request_info" | "unresolved_adjudication" | null {
+  const terminal = stageNow === "APPROVED_INTERNAL" || stageNow === "REJECTED_INSUFFICIENT" || stageNow === "CLOSED";
+  if (terminal || projection.state !== "resolved") return null;
+  if (projection.projectedStage === "NEEDS_MORE_INFO" && stageNow !== "NEEDS_MORE_INFO") return "request_info";
+  if (decisions.some((d) => d.stage === "ADJUDICATION" && d.decision === "UNRESOLVED")) return "unresolved_adjudication";
+  return null;
+}

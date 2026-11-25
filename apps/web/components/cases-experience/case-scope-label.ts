@@ -1,4 +1,5 @@
 import type { PlatformContextEnvelope } from "../../lib/platform-context/types";
+import { describeActiveWorkspace } from "../../lib/platform-context/workspaceLabel";
 
 /**
  * The leading breadcrumb crumb names the workspace that OWNS the case.
@@ -24,6 +25,12 @@ export function resolveCaseScopeLabel(
     options?.personalSpace?.workspaceId === teamId ||
     context.personalSpace?.id === teamId
   ) {
+    // T-115 — the own workspace on a collaboration plan with members is a
+    // Team workspace; it is named as the header names it.
+    if (context.activeSpace?.id === teamId) {
+      const d = describeActiveWorkspace(context);
+      if (d.kind === "TEAM_OWNER") return d.name ?? d.kindLabel;
+    }
     return "Personal Space";
   }
   const owned = options?.ownedWorkspaces.find((w) => w.workspaceId === teamId);

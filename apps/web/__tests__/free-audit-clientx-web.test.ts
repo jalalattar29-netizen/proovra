@@ -7,7 +7,7 @@ import { strict as assert } from "node:assert";
 import { test } from "node:test";
 
 import { classifyAssistantError } from "../lib/ai/assistant-state";
-import { canAccessSurface, getDirectAccessDecision, type SurfaceUserContext } from "../lib/surface/access";
+import { canAccessSurface, getDirectAccessDecision, ruleEntitlement, type SurfaceUserContext } from "../lib/surface/access";
 import { findSurfaceTierRule } from "../lib/surface/tiers";
 
 test("B6-F-29: the COST_GUARD copy says the allowance resets at the next UTC calendar month, not a billing period", () => {
@@ -27,7 +27,8 @@ const BASE = { intakeIncluded: false, professionalSurfacesIncluded: false, revie
 
 test("B5B-F-205: /redaction follows planFeatures.redactionIncluded when the API projects it", () => {
   const rule = findSurfaceTierRule("/redaction/abc");
-  assert.equal(rule?.entitlementOverride, "redactionIncluded");
+  // T-125 — the tier rule follows the registry route redaction is gated by.
+  assert.equal(ruleEntitlement(rule ?? null)?.key, "redactionIncluded");
   // Entitled non-enterprise workspace: allowed.
   assert.equal(getDirectAccessDecision(ctx({ ...BASE, redactionIncluded: true }), "/redaction").kind, "allow");
   assert.equal(canAccessSurface(ctx({ ...BASE, redactionIncluded: true }), "/redaction/p1"), true);
@@ -38,7 +39,7 @@ test("B5B-F-205: /redaction follows planFeatures.redactionIncluded when the API 
 
 test("PRO-R3-06 / DEC-10: a lapsed entitlement keeps /redaction reachable (read-only) only while existing material is retained", () => {
   const rule = findSurfaceTierRule("/redaction/p1");
-  assert.equal(rule?.readRetainedOverride, "redactionReadRetained");
+  assert.equal(ruleEntitlement(rule ?? null)?.readRetainedKey, "redactionReadRetained");
   const lapsedWithProjects = ctx({ ...BASE, redactionIncluded: false, redactionReadRetained: true });
   assert.equal(canAccessSurface(lapsedWithProjects, "/redaction"), true);
   assert.equal(getDirectAccessDecision(lapsedWithProjects, "/redaction/p1").kind, "allow");

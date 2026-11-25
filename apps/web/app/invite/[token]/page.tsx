@@ -506,6 +506,30 @@ export default function InviteAcceptPage() {
   );
 
   /**
+   * Team remediation T-122 (MEM-12) — ACCEPTING LANDS THE INVITEE IN THE
+   * WORKSPACE THEY JOINED.
+   *
+   * Acceptance used to leave the active-workspace pointer where it was until
+   * the reader also pressed Open workspace; anyone who closed the tab or used
+   * the navigation instead stayed in their previous space (usually their own),
+   * and their next capture was filed there. The switch now follows a
+   * successful accept at once, through the same platform-context switch
+   * request (the server re-authorizes the new membership), and only then
+   * navigates. A refused switch is shown exactly as before (F-07): nothing
+   * navigates under "you now have access". Runs once per accept.
+   */
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (accept.kind !== "accepted") {
+      autoOpened.current = false;
+      return;
+    }
+    if (autoOpened.current || !acceptedWorkspaceId.current) return;
+    autoOpened.current = true;
+    onOpenWorkspace(accept.destination);
+  }, [accept, onOpenWorkspace]);
+
+  /**
    * F-26e — EMAIL_NOT_VERIFIED. The verification email is requested for the
    * signed-in address with this invitation as its internal return path
    * (`/invite/<token>`, the same continuation sign-in uses), so verifying

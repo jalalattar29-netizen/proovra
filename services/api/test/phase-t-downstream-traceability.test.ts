@@ -115,8 +115,12 @@ vi.mock("../src/db.js", () => {
     evidenceReviewWorkflow: {
       findFirst: reviewWorkflowFindFirstMock,
       update: workflowUpdateMock,
+      // Stage C (T-050) — the pointer is re-derived after create.
+      updateMany: vi.fn(async () => ({ count: 1 })),
     },
     reviewEscalation: {
+      // Stage C (T-049/T-050) — the governing-escalation read behind the pointer.
+      findMany: vi.fn(async () => []),
       findUnique: reviewEscalationFindUniqueMock,
       create: reviewEscalationCreateMock,
       update: reviewEscalationUpdateMock,

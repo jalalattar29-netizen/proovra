@@ -24,6 +24,7 @@ import {
   createGuestSession,
   disposeSession,
   authorizeOriginalPart,
+  personalWorkspaceId,
 } from "./helpers/api-client";
 
 test.beforeEach(async () => {
@@ -43,11 +44,12 @@ test.describe("Phase 2.1 — workflow completion @critical", () => {
     // for a plan that includes it.
     const session = await createGuestSession({ plan: "PRO" });
     try {
-      // Guest sessions land in a personal Team workspace. POST
-      // /v1/cases accepts an optional teamId. We do not pass one —
-      // server creates the case in the user's personal scope.
+      // Team remediation T-118: a create names its workspace (the web and
+      // mobile send the workspace header); one that names none is refused
+      // with WORKSPACE_REQUIRED rather than landing in the personal space.
+      const teamId = await personalWorkspaceId(session.api);
       const res = await session.api.post("/v1/cases", {
-        data: { name: "Phase 2.1 test case" },
+        data: { name: "Phase 2.1 test case", teamId },
       });
       expect(res.status(), `create body: ${await res.text()}`).toBeLessThan(
         300,

@@ -25,7 +25,41 @@ import {
   NAVIGATION_REGISTRY,
   buildNavigationProjection,
   filterNavigationRegistry,
+  type NavigationGateContext,
 } from "../src/services/platform-context/navigation-registry.js";
+
+// T-125 / PRD-01 — the builders take the active workspace's server-projected
+// commercial answer and kind, as platform-context.service.ts passes them.
+const FEATURES_NONE = {
+  casesIncluded: false,
+  intakeIncluded: false,
+  teamCollaborationIncluded: false,
+  reviewerOperationsIncluded: false,
+  redactionIncluded: false,
+};
+const NO_WORKSPACE_GATE: NavigationGateContext = {
+  activeSpaceType: null,
+  isEnterpriseWorkspace: false,
+  isPlatformAdmin: false,
+  planFeatures: FEATURES_NONE,
+};
+const FREE_GATE: NavigationGateContext = { ...NO_WORKSPACE_GATE, activeSpaceType: "PERSONAL" };
+const PRO_GATE: NavigationGateContext = {
+  ...FREE_GATE,
+  planFeatures: { ...FEATURES_NONE, casesIncluded: true, intakeIncluded: true, teamCollaborationIncluded: true },
+};
+/** A legacy TEAM-scope (OWNED) workspace: Team features, not Enterprise. */
+const TEAM_ORG_GATE: NavigationGateContext = {
+  activeSpaceType: "ORGANIZATION",
+  isEnterpriseWorkspace: false,
+  isPlatformAdmin: false,
+  planFeatures: { ...PRO_GATE.planFeatures, reviewerOperationsIncluded: true },
+};
+const ENTERPRISE_GATE: NavigationGateContext = {
+  ...TEAM_ORG_GATE,
+  isEnterpriseWorkspace: true,
+  planFeatures: { ...TEAM_ORG_GATE.planFeatures, redactionIncluded: true },
+};
 
 // account-menu refactor 2026-07-21 — the account menu is now resolved entirely
 // on the client by the single canonical resolver
@@ -132,7 +166,7 @@ describe("Phase ROUTE-FIX — navigation registry inventory", () => {
       plan: "FREE",
       isPlatformAdmin: false,
     });
-    expect(buildNavigationProjection(caps).accountMenu.items).toEqual([]);
+    expect(buildNavigationProjection(caps, FREE_GATE).accountMenu.items).toEqual([]);
   });
 
   it("Pricing is fully deleted (Phase 7) — no account.pricing anywhere and no /pricing in the client resolver", () => {
@@ -171,52 +205,57 @@ describe("Phase ROUTE-FIX — navigation registry inventory", () => {
 // ===========================================================================
 
 describe("Phase ROUTE-FIX — sidebar / account-menu projection", () => {
-  it("PERSONAL FREE user gets a usable sidebar with Home / Capture / Evidence / Cases / Reports / Search / Settings", () => {
+  it("PERSONAL FREE user gets a usable sidebar with Home / Capture / Evidence / Reports / Search / Settings (no Cases: FREE sells none)", () => {
     const caps = resolveCapabilities({
       scope: "PERSONAL",
       role: "OWNER",
       plan: "FREE",
       isPlatformAdmin: false,
     });
-    const { sidebar } = buildNavigationProjection(caps);
+    const { sidebar } = buildNavigationProjection(caps, FREE_GATE);
     const sidebarIds = sidebar.groups.flatMap((g) => g.items.map((i) => i.id));
     for (const id of [
       "workspace.home",
       "workspace.capture",
       "workspace.evidence",
-      "workspace.cases",
       "workspace.reports",
       "workspace.search",
       "admin.settings",
     ]) {
       expect(sidebarIds, `missing ${id}`).toContain(id);
     }
+    // T-125 — the web hides Cases from a plan without casesIncluded
+    // (navPlanFeature); the payload no longer advertises it either.
+    expect(sidebarIds).not.toContain("workspace.cases");
   });
 
-  it("PERSONAL FREE user sees Billing + Teams in the sidebar (account-level surfaces)", () => {
+  // T-125 (team remediation): /workspaces is an Enterprise-only web surface
+  // (lib/surface/tiers.ts), so the server no longer advertises it to a
+  // personal or Team context; it would open a "not found" page.
+  it("PERSONAL FREE user sees Billing in the sidebar, and never the Enterprise-only Workspaces list", () => {
     const caps = resolveCapabilities({
       scope: "PERSONAL",
       role: "OWNER",
       plan: "FREE",
       isPlatformAdmin: false,
     });
-    const { sidebar } = buildNavigationProjection(caps);
+    const { sidebar } = buildNavigationProjection(caps, FREE_GATE);
     const sidebarIds = sidebar.groups.flatMap((g) => g.items.map((i) => i.id));
     expect(sidebarIds).toContain("admin.billing");
-    expect(sidebarIds).toContain("admin.teams");
+    expect(sidebarIds).not.toContain("admin.teams");
   });
 
-  it("PERSONAL PRO user sees the same usable sidebar (no plan-level hide of Billing/Teams)", () => {
+  it("PERSONAL PRO user sees the same usable sidebar (Billing, Settings; no Enterprise-only Workspaces list)", () => {
     const caps = resolveCapabilities({
       scope: "PERSONAL",
       role: "OWNER",
       plan: "PRO",
       isPlatformAdmin: false,
     });
-    const { sidebar } = buildNavigationProjection(caps);
+    const { sidebar } = buildNavigationProjection(caps, PRO_GATE);
     const sidebarIds = sidebar.groups.flatMap((g) => g.items.map((i) => i.id));
     expect(sidebarIds).toContain("admin.billing");
-    expect(sidebarIds).toContain("admin.teams");
+    expect(sidebarIds).not.toContain("admin.teams");
     expect(sidebarIds).toContain("admin.settings");
   });
 
@@ -246,7 +285,7 @@ describe("Phase ROUTE-FIX — sidebar / account-menu projection", () => {
       plan: "FREE",
       isPlatformAdmin: false,
     });
-    expect(buildNavigationProjection(caps).accountMenu.items).toEqual([]);
+    expect(buildNavigationProjection(caps, FREE_GATE).accountMenu.items).toEqual([]);
   });
 
   it("PERSONAL user does NOT see team-only sidebar surfaces (Reviewer Ops, Governance act, etc.)", () => {
@@ -256,7 +295,7 @@ describe("Phase ROUTE-FIX — sidebar / account-menu projection", () => {
       plan: "PRO",
       isPlatformAdmin: false,
     });
-    const { sidebar } = buildNavigationProjection(caps);
+    const { sidebar } = buildNavigationProjection(caps, PRO_GATE);
     const sidebarIds = sidebar.groups.flatMap((g) => g.items.map((i) => i.id));
     // Reviewer Ops + Governance are team-only — must not appear.
     expect(sidebarIds).not.toContain("review.queue");
@@ -265,14 +304,14 @@ describe("Phase ROUTE-FIX — sidebar / account-menu projection", () => {
     expect(sidebarIds).not.toContain("governance.retention");
   });
 
-  it("TEAM MEMBER user sees the full operator sidebar; account menu is client-resolved (account-menu refactor 2026-07-21)", () => {
+  it("ENTERPRISE org MEMBER sees the full operator sidebar; account menu is client-resolved (account-menu refactor 2026-07-21)", () => {
     const caps = resolveCapabilities({
       scope: "TEAM",
       role: "MEMBER",
       plan: "TEAM",
       isPlatformAdmin: false,
     });
-    const { sidebar, accountMenu } = buildNavigationProjection(caps);
+    const { sidebar, accountMenu } = buildNavigationProjection(caps, ENTERPRISE_GATE);
     const sidebarIds = sidebar.groups.flatMap((g) => g.items.map((i) => i.id));
     expect(sidebarIds).toContain("review.queue");
     expect(sidebarIds).toContain("governance.hub");
@@ -281,6 +320,14 @@ describe("Phase ROUTE-FIX — sidebar / account-menu projection", () => {
     // The account menu is no longer server-projected — it is resolved on the
     // client. The server emits an empty list.
     expect(accountMenu.items).toEqual([]);
+    // T-125 / PRD-01 — the same role on a non-Enterprise (legacy TEAM-scope)
+    // workspace keeps Review but is not advertised the Enterprise-only
+    // governance pages the web refuses it.
+    const teamIds = buildNavigationProjection(caps, TEAM_ORG_GATE).sidebar.groups.flatMap((g) =>
+      g.items.map((i) => i.id),
+    );
+    expect(teamIds).toContain("review.queue");
+    expect(teamIds).not.toContain("governance.hub");
   });
 
   it("account menu items appear at most once (dedupe BOTH-surface items)", () => {
@@ -290,7 +337,7 @@ describe("Phase ROUTE-FIX — sidebar / account-menu projection", () => {
       plan: "TEAM",
       isPlatformAdmin: false,
     });
-    const { accountMenu } = buildNavigationProjection(caps);
+    const { accountMenu } = buildNavigationProjection(caps, TEAM_ORG_GATE);
     const ids = accountMenu.items.map((i) => i.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
@@ -308,7 +355,7 @@ describe("Phase ROUTE-FIX — sidebar / account-menu projection", () => {
       { scope: "TEAM" as const, role: "VIEWER" as const, plan: "TEAM" as const },
     ]) {
       const caps = resolveCapabilities({ ...input, isPlatformAdmin: false });
-      const { accountMenu } = buildNavigationProjection(caps);
+      const { accountMenu } = buildNavigationProjection(caps, input.scope === "TEAM" ? TEAM_ORG_GATE : input.plan === "FREE" ? FREE_GATE : PRO_GATE);
       expect(
         accountMenu.items,
         `account menu should be empty for ${JSON.stringify(input)}`,
@@ -329,7 +376,7 @@ describe("Phase ROUTE-FIX — backwards compatibility", () => {
       plan: "TEAM",
       isPlatformAdmin: false,
     });
-    const legacy = filterNavigationRegistry(caps);
+    const legacy = filterNavigationRegistry(caps, TEAM_ORG_GATE);
     const groupIds = legacy.map((g) => g.id);
     expect(groupIds).toContain("workspace");
     expect(groupIds).toContain("administration");
@@ -346,10 +393,10 @@ describe("Phase ROUTE-FIX — backwards compatibility", () => {
       plan: "TEAM",
       isPlatformAdmin: false,
     });
-    const legacyIds = filterNavigationRegistry(caps)
+    const legacyIds = filterNavigationRegistry(caps, TEAM_ORG_GATE)
       .flatMap((g) => g.items.map((i) => i.id))
       .sort();
-    const sidebarIds = buildNavigationProjection(caps)
+    const sidebarIds = buildNavigationProjection(caps, TEAM_ORG_GATE)
       .sidebar.groups.flatMap((g) => g.items.map((i) => i.id))
       .sort();
     expect(sidebarIds).toEqual(legacyIds);

@@ -329,7 +329,12 @@ test("J1 v1 — capture-time identity, upload wording and timestamp truth; both 
       fingerprintSha256: sig.signingKeyFingerprint,
       ...(newer ? { status: "SUPERSEDED", supersededByVersion: Number(newer.version) } : { status: "ACTIVE" }),
     });
-    expect((byId.body.issuedWith as Array<Record<string, unknown>>).map((x) => x.packageId)).toEqual([id === v1.packageId ? v1.extPackageId : v1.packageId]);
+    // Team remediation T-131: the FULL_FORENSIC record names its external
+    // sibling; the EXTERNAL_DISCLOSURE record names no full-forensic package
+    // (its holder was given the reduced disclosure only).
+    expect((byId.body.issuedWith as Array<Record<string, unknown>>).map((x) => x.packageId)).toEqual(
+      id === v1.packageId ? [v1.extPackageId] : [],
+    );
     expect(JSON.stringify(byId.body)).not.toMatch(/@example\.test|storageKey|proovra-rga/);
     expect(JSON.stringify(byId.body)).not.toContain(evidenceId);
     const bySha = await publicRecord(`/public/verification-packages/by-sha256/${sha}`);

@@ -154,8 +154,9 @@ describe("Phase Final-Hidden-Feature-Surfacing — host pages mount each panel",
     expect(f).toMatch(/OrgHealthSnapshotCard/);
     expect(f).toMatch(/<OrgHealthSnapshotCard\s+teamId/);
   });
-  it("ReviewerConsole mounts ReviewerRoutingRecommendationsPane", () => {
-    const f = read("apps/web/components/reviewer-experience/ReviewerConsole.tsx");
+  // Stage D (T-078) — routing recommendations are Monitoring → Workload.
+  it("Monitoring (Workload) mounts ReviewerRoutingRecommendationsPane", () => {
+    const f = read("apps/web/app/(app)/reviewer-ops/sla/_sections.tsx");
     expect(f).toMatch(/ReviewerRoutingRecommendationsPane/);
     expect(f).toMatch(/<ReviewerRoutingRecommendationsPane\s+teamId/);
   });

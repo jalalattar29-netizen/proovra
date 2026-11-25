@@ -29,6 +29,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import type { PrismaClient } from "@prisma/client";
 import {
   type StepUpPurpose,
+  type StepUpRefusalReason,
   riskBlocksAction,
 } from "@proovra/shared";
 
@@ -51,6 +52,12 @@ export type RequireStepUpInput = {
   purpose: StepUpPurpose;
   resourceKind?: string | null;
   resourceId?: string | null;
+  /**
+   * T-028 — WHY this action needs a step-up, carried to the client as
+   * `error.details.reason` (policy flag, elevated session risk, save policy).
+   * Optional and additive: a caller that names none sends no reason.
+   */
+  reason?: StepUpRefusalReason | null;
 };
 
 export type RequireStepUpFailure = {
@@ -193,6 +200,7 @@ export async function requireStepUpForSensitiveAction(
           // PRO-A1Z-02 / PRO-O1Z-04 — the workspace this action's challenge is
           // consumed against (additive), so a client mints it there.
           teamId: input.teamId ?? null,
+          ...(input.reason ? { reason: input.reason } : {}),
         },
         // Retained at the top level for pre-existing consumers.
         purpose: input.purpose,
@@ -307,6 +315,8 @@ export async function requireStepUpForSensitiveAction(
             purpose: input.purpose,
             resourceKind: input.resourceKind ?? null,
             resourceId: input.resourceId ?? null,
+            teamId: input.teamId ?? null,
+            ...(input.reason ? { reason: input.reason } : {}),
           },
           purpose: input.purpose,
           resourceKind: input.resourceKind ?? null,

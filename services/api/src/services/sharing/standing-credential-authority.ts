@@ -40,6 +40,8 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { revokeCreatorShareGrantsTx } from "./creator-share-grants.js";
+import { releaseWorkBeyondRoleTx } from "../identity/standing-reach.js";
+import type { ReleasedWork } from "../assignment/release-held-work.js";
 
 /** The permission that let a member create each kind of standing credential. */
 export const STANDING_CREDENTIAL_PERMISSION = {
@@ -132,14 +134,28 @@ export const CREATOR_GRANT_PERMISSION = {
  *     that still carries the permission keeps them, and the access window is
  *     set aside under A2-26), they no longer hold the permission that created
  *     them;
- *   - their standing credentials, through `endStandingCredentialsOnLostAuthorityTx`.
+ *   - their standing credentials, through `endStandingCredentialsOnLostAuthorityTx`;
+ *   - (Team remediation T-099) the WORK they can no longer act on: below the
+ *     reviewer floor their held reviews, escalations and other held work are
+ *     released, and case assignments the new role cannot exercise are ended
+ *     (`releaseWorkBeyondRoleTx`), so a demotion — by an administrator, a
+ *     directory (SCIM / IdP group) or an ownership transfer — never leaves
+ *     work assigned to someone who cannot act.
  *
  * An indeterminate read revokes nothing (the use-time checks fail closed).
  */
 export async function endCreatorAuthorityOnRoleChangeTx(
   tx: RoleChangeTx,
   input: { teamId: string; userId: string; actorUserId: string | null },
-): Promise<{ ownerShares: number; externalReview: number; apiKeys: number; intakeLinks: number; webhooks: number }> {
+): Promise<{
+  ownerShares: number;
+  externalReview: number;
+  apiKeys: number;
+  intakeLinks: number;
+  webhooks: number;
+  releasedWork: ReleasedWork | null;
+  caseAssignmentsEnded: number;
+}> {
   const lost = async (permission: Permission) =>
     (await evaluateCreatorAuthority({ teamId: input.teamId, userId: input.userId, permission }, tx as unknown as PrismaClient))
       .verdict === "LOST";
@@ -158,7 +174,8 @@ export async function endCreatorAuthorityOnRoleChangeTx(
     externalReview = r.externalReview;
   }
   const standing = await endStandingCredentialsOnLostAuthorityTx(tx, input);
-  return { ownerShares, externalReview, ...standing };
+  const work = await releaseWorkBeyondRoleTx(tx as never, input);
+  return { ownerShares, externalReview, ...standing, ...work };
 }
 
 /**

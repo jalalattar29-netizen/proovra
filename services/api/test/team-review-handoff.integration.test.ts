@@ -113,7 +113,7 @@ const ops = (teamId: string) => ({
   reassign: (a: Actor, wf: string, to: string) =>
     call(a.token, "POST", `/v1/reviewer-ops/reviews/${wf}/reassign`, { teamId, newAssigneeUserId: to }),
   start: (a: Actor, wf: string) => call(a.token, "POST", `/v1/reviewer-ops/reviews/${wf}/start`, { teamId }),
-  approve: (a: Actor, wf: string) => call(a.token, "POST", `/v1/reviewer-ops/reviews/${wf}/approve`, { teamId, note: null }),
+  approve: (a: Actor, wf: string) => call(a.token, "POST", `/v1/reviewer-ops/reviews/${wf}/approve`, { teamId, note: "Looks complete" }),
   reject: (a: Actor, wf: string) =>
     call(a.token, "POST", `/v1/reviewer-ops/reviews/${wf}/reject`, { teamId, note: "custody gap" }),
   decide: (a: Actor, wf: string, decision: string) =>
@@ -258,6 +258,8 @@ describe("second-review handoff — queue slice, handoff block, notification", (
       requirement: "second_review",
       firstReviewerUserId: T.member.userId,
       firstReviewerDisplayName: "TRH member",
+      // T-086 / E2E-08 — masked, never the full address.
+      firstReviewerMaskedEmail: expect.stringMatching(/^[^@]\*\*\*@[^@]+$/),
       secondReviewerUserId: null,
       awaitingAssignment: true,
       eligibleReviewerCount: 3,
@@ -346,7 +348,7 @@ describe("single-occupant TEAM personal workspace", () => {
 
     const first = await o.approve(S.owner, w.workflowId);
     expect(first.status, first.raw).toBe(200);
-    expect(first.body.outcome).toEqual({
+    expect(first.body.outcome).toMatchObject({
       stageRecorded: "FIRST",
       statusChanged: false,
       reviewState: "second_required",
@@ -360,6 +362,8 @@ describe("single-occupant TEAM personal workspace", () => {
       requirement: "second_review",
       firstReviewerUserId: S.owner.userId,
       firstReviewerDisplayName: "TRH solo",
+      // T-086 / E2E-08 — masked, never the full address.
+      firstReviewerMaskedEmail: expect.stringMatching(/^[^@]\*\*\*@[^@]+$/),
       secondReviewerUserId: null,
       awaitingAssignment: true,
       eligibleReviewerCount: 0,

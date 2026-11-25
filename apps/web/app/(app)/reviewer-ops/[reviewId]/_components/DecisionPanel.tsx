@@ -15,8 +15,13 @@
  *   adjudication mode  the adjudication kinds, for an independent owner or
  *                      admin while the two reviews disagree. Same layout.
  *
- * Then a reason (AppListbox), a rationale (counter), the one-line consequence
- * from the lineage state, and ONE primary submit labelled by the choice.
+ * Then ONE rationale field (required, counter) with an optional category inside
+ * the same field group (Team remediation T-012: there used to be a separate
+ * "Reason (optional but recommended)" control beside the rationale), the
+ * one-line consequence from the lineage state, and ONE primary submit labelled
+ * by the choice. A refusal keeps the choice and the typed text and shows an
+ * inline alert beside the controls (T-002); `blockedReason` disables submit
+ * with its reason before anything is sent (T-015).
  */
 
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
@@ -59,6 +64,7 @@ export function DecisionForm({
   secondRequired,
   onSubmit,
   focusRequest,
+  blockedReason = null,
 }: {
   mode: "decision" | "adjudication";
   /** FIRST or SECOND in decision mode; ignored for adjudication. */
@@ -70,6 +76,8 @@ export function DecisionForm({
   /** The page's decisions POST. Resolves to an error message, or null on success. */
   onSubmit: (body: DecisionSubmitBody) => Promise<string | null>;
   focusRequest?: DecisionFocusRequest | null;
+  /** T-015 — when set, submission is closed for this reason (shown beside the controls). */
+  blockedReason?: string | null;
 }) {
   const id = useId();
   const choices: string[] = mode === "adjudication" ? ADJUDICATION_KINDS : VERDICT_CHOICES;
@@ -134,7 +142,17 @@ export function DecisionForm({
   };
 
   const trimmed = rationale.trim();
-  const ready = choice !== "" && trimmed.length > 0 && !submitting;
+  const ready = choice !== "" && trimmed.length > 0 && !submitting && !blockedReason;
+  // T-090 (stage D) — a disabled submit always says why.
+  const submitDisabledReason = submitting
+    ? "Recording the decision…"
+    : blockedReason
+      ? blockedReason
+      : choice === ""
+        ? "Choose a decision first."
+        : trimmed.length === 0
+          ? "Write a rationale first."
+          : null;
   const consequence = decisionConsequence({ state: reviewState, secondRequired, choice });
   const closedReasons = choices
     .filter((c) => !isOpen(c))
@@ -147,6 +165,10 @@ export function DecisionForm({
   const distinctReasons = Array.from(new Set(closedReasons.map((r) => r.reason as string)));
 
   const submit = async () => {
+    if (blockedReason) {
+      setError(blockedReason);
+      return;
+    }
     if (!choice) {
       setError("Choose a decision.");
       return;
@@ -238,25 +260,10 @@ export function DecisionForm({
         ) : null}
       </div>
 
-      <div style={{ display: "grid", gap: 4, minWidth: 0 }}>
-        <label className="app-field-label" htmlFor={`${id}-reason`}>
-          Reason <span className="app-field-optional">(optional but recommended)</span>
-        </label>
-        <AppListbox
-          id={`${id}-reason`}
-          value={reason}
-          options={[
-            { value: "", label: "No reason" },
-            ...REASON_CODES.map((r) => ({ value: r, label: REASON_CODE_LABELS[r] ?? r })),
-          ]}
-          onChange={(next) => setReason(next)}
-          disabled={submitting}
-          style={{ maxWidth: "100%" }}
-          triggerProps={{ "data-decision-form-reason": "" }}
-        />
-      </div>
-
-      <div style={{ display: "grid", gap: 4, minWidth: 0 }}>
+      <fieldset
+        data-decision-rationale-group
+        style={{ display: "grid", gap: 4, minWidth: 0, border: 0, padding: 0, margin: 0 }}
+      >
         <label className="app-field-label" htmlFor={`${id}-rationale`}>
           Rationale
         </label>
@@ -271,7 +278,7 @@ export function DecisionForm({
           required
           aria-describedby={`${id}-rationale-help${error ? ` ${id}-error` : ""}`}
           aria-invalid={error ? true : undefined}
-          placeholder="Recorded in the audit log and visible to later reviewers."
+          placeholder="Explain the decision. Recorded in the audit log and visible to later reviewers."
           data-decision-form-rationale
           {...(mode === "adjudication" ? { "data-adjudication-rationale": "" } : {})}
           style={{ boxSizing: "border-box" }}
@@ -279,11 +286,42 @@ export function DecisionForm({
         <p id={`${id}-rationale-help`} className="app-field-help" style={{ margin: 0 }}>
           {rationale.length}/{MAX} characters. Required.
         </p>
-      </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
+          <span id={`${id}-category`} className="app-field-help" style={{ margin: 0 }}>
+            Category
+          </span>
+          <AppListbox
+            id={`${id}-reason`}
+            value={reason}
+            options={[
+              { value: "", label: "None" },
+              ...REASON_CODES.map((r) => ({ value: r, label: REASON_CODE_LABELS[r] ?? r })),
+            ]}
+            onChange={(next) => setReason(next)}
+            disabled={submitting}
+            style={{ maxWidth: "100%" }}
+            triggerProps={{ "data-decision-form-reason": "", "aria-labelledby": `${id}-category` }}
+          />
+        </div>
+      </fieldset>
+
+      {/* T-093 (stage D) — ONE line says what a decision here is; the verbs
+          carry no "(internal)" suffix. */}
+      <p className="app-field-help" data-decision-internal-note style={{ margin: 0 }}>
+        {mode === "adjudication"
+          ? "An adjudication is an internal review outcome, not a public statement about the evidence's authenticity."
+          : "A decision here is an internal review outcome, not a public statement about the evidence's authenticity."}
+      </p>
 
       {consequence ? (
         <p className="app-field-help" data-decision-consequence style={{ margin: 0, overflowWrap: "anywhere" }}>
           {consequence}
+        </p>
+      ) : null}
+
+      {blockedReason && !error ? (
+        <p role="note" className="app-field-help" data-decision-form-blocked style={{ margin: 0, overflowWrap: "anywhere" }}>
+          {blockedReason}
         </p>
       ) : null}
 
@@ -300,12 +338,19 @@ export function DecisionForm({
         </p>
       ) : null}
 
-      <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+        {!ready && submitDisabledReason ? (
+          <span id={`${id}-submit-reason`} className="app-field-help" data-decision-submit-reason style={{ margin: 0 }}>
+            {submitDisabledReason}
+          </span>
+        ) : null}
         <button
           type="submit"
           className="app-primary-action"
           disabled={!ready}
           aria-busy={submitting || undefined}
+          aria-describedby={!ready && submitDisabledReason ? `${id}-submit-reason` : undefined}
+          title={!ready && submitDisabledReason ? submitDisabledReason : undefined}
           data-decision-form-submit
           {...(mode === "adjudication" ? { "data-adjudication-submit": "" } : {})}
         >

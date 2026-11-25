@@ -58,7 +58,7 @@ vi.mock("next/navigation", () => ({
 
 type Action = { action: string; allowed: boolean; reason?: string };
 
-const ALL = ["start", "pause", "resume", "request_info", "record_response", "approve", "reject", "reassign", "adjudicate", "archive"];
+const ALL = ["start", "pause", "resume", "request_info", "record_response", "approve", "reject", "reassign", "adjudicate", "archive", "reopen", "escalate"];
 
 function viewerWith(allowed: string[], reasons: Record<string, string> = {}, isAssignee = true) {
   const actions: Action[] = ALL.map((a) =>
@@ -135,7 +135,8 @@ const notesPath = `/v1/reviewer-ops/workspace/${workflowId}/notes?teamId=${teamI
 const actionPath = (a: string) => `/v1/reviewer-ops/reviews/${workflowId}/${a}`;
 const decisionsPostPath = `/v1/reviewer-ops/workspace/${workflowId}/decisions`;
 const escalationsPath = "/v1/reviewer-ops/escalations";
-const bulkPath = "/v1/reviewer-ops/reviews/bulk";
+// Team remediation T-161 — a single Archive has its own route (never the bulk door).
+const archivePath = `/v1/reviewer-ops/reviews/${workflowId}/archive`;
 const stepUpStartPath = "/v1/identity-security/step-up/start";
 
 const gets = (path: string) => calls.filter((c) => c.method === "GET" && c.path === path).length;
@@ -144,7 +145,8 @@ const posts = (path: string) => calls.filter((c) => c.method === "POST" && c.pat
 beforeEach(() => {
   mocks.canEscalate = true;
   mocks.canBulk = true;
-  workspace = workspaceBody({ viewer: viewerWith(["approve", "reject", "request_info", "pause"], { "*": "not_started" }) });
+  // T-019 — Escalate is offered where the server's viewer.actions says so.
+  workspace = workspaceBody({ viewer: viewerWith(["approve", "reject", "request_info", "pause", "escalate"], { "*": "not_started" }) });
   decisions = decisionsBody("first_required", "submit_first");
   postResponses = {};
   calls.length = 0;
@@ -227,8 +229,13 @@ describe("one decision-entry flow", () => {
     const group = form()!.querySelector('[role="radiogroup"]') as HTMLElement;
     expect(group.classList.contains("app-tabs")).toBe(true);
     const radios = within(group).getAllByRole("radio");
-    expect(radios.map((r) => r.textContent)).toEqual(["Approve (internal)", "Reject (internal)", "Request information"]);
+    // T-093 (stage D) — the verbs carry no "(internal)"; ONE line explains it.
+    expect(radios.map((r) => r.textContent)).toEqual(["Approve", "Reject", "Request information"]);
     radios.forEach((r) => expect(r.classList.contains("app-tab")).toBe(true));
+    const notes = document.querySelectorAll("[data-decision-internal-note]");
+    expect(notes).toHaveLength(1);
+    expect(notes[0]!.textContent).toMatch(/internal review outcome, not a public statement/);
+    expect(form()!.textContent).not.toContain("(internal)");
   });
 
   it.each([
@@ -278,7 +285,7 @@ describe("one decision-entry flow", () => {
     await renderPage();
     fireEvent.click(choice("APPROVE")!);
     expect(document.querySelector("[data-decision-consequence]")?.textContent).toBe(
-      "Final decision — approved (internal), not a public authenticity statement.",
+      "Final decision — approved.",
     );
   });
 
@@ -385,7 +392,7 @@ describe("adjudication is the same panel", () => {
     expect(document.querySelectorAll("[data-decision-form]")).toHaveLength(1);
     expect(choice("APPROVE")).toBeNull();
     expect(form()!.getAttribute("data-decision-mode")).toBe("adjudication");
-    expect(within(panel).getByText(/Approved \(internal\)/)).toBeTruthy();
+    expect(within(panel).getAllByText(/Approved/).length).toBeGreaterThan(0);
     // Next step points at it.
     expect(action("go_to_decision")?.textContent).toBe("Go to adjudication");
     await decide("UPHOLD_FIRST", "First review is better supported.");
@@ -434,12 +441,14 @@ describe("Next step panel", () => {
     await waitFor(() => expect(document.activeElement).toBe(choice("APPROVE")));
   });
 
-  it("M focuses the decision panel with Request information preselected; C does nothing", async () => {
+  it("I focuses the decision panel with Request information preselected; C and M do nothing (T-094 keymap)", async () => {
     await renderPage();
     fireEvent.keyDown(window, { key: "c" });
-    expect(choice("APPROVE")!.getAttribute("aria-checked")).toBe("false");
-    expect(posts(decisionsPostPath)).toHaveLength(0);
     fireEvent.keyDown(window, { key: "m" });
+    expect(choice("APPROVE")!.getAttribute("aria-checked")).toBe("false");
+    expect(choice("REQUEST_INFO")!.getAttribute("aria-checked")).toBe("false");
+    expect(posts(decisionsPostPath)).toHaveLength(0);
+    fireEvent.keyDown(window, { key: "i" });
     await waitFor(() => expect(choice("REQUEST_INFO")!.getAttribute("aria-checked")).toBe("true"));
     expect(document.activeElement).toBe(choice("REQUEST_INFO"));
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -512,26 +521,35 @@ describe("Next step panel", () => {
   });
 
   it("secondary actions appear only where allowed: Pause, Reassign, Escalate, Archive", async () => {
-    workspace = workspaceBody({ viewer: viewerWith(["pause", "reassign", "archive"], { "*": "not_assignee" }, false) });
+    workspace = workspaceBody({ viewer: viewerWith(["pause", "reassign", "archive", "escalate"], { "*": "not_assignee" }, false) });
     await renderPage();
     const secondary = document.querySelector("[data-reviewer-next-step-secondary]") as HTMLElement;
     const names = Array.from(secondary.querySelectorAll("[data-reviewer-action]")).map((b) => b.getAttribute("data-reviewer-action"));
-    expect(names).toEqual(["pause", "reassign", "escalate", "archive"]);
-    expect(action("archive")!.className).toBe("app-secondary-action app-secondary-action--danger");
+    // T-075 (stage D) — Pause and Reassign are secondary; Archive is never a
+    // top-level button: it sits in the "More actions" overflow as a danger item.
+    expect(names).toEqual(["pause", "reassign", "escalate"]);
+    expect(action("archive")).toBeNull();
+    const trigger = document.querySelector("[data-reviewer-overflow-row-menu-trigger]") as HTMLButtonElement;
+    expect(trigger).toBeTruthy();
+    fireEvent.click(trigger);
+    const item = document.querySelector('[data-reviewer-overflow-row-action="archive"]') as HTMLButtonElement;
+    expect(item.getAttribute("role")).toBe("menuitem");
+    expect(item.classList.contains("app-menu__item--danger")).toBe(true);
+    fireEvent.keyDown(item, { key: "Escape" });
     cleanup();
     mocks.canEscalate = false;
     workspace = workspaceBody({ viewer: viewerWith([], { "*": "not_assignee" }, false) });
     await renderPage();
     expect(document.querySelector("[data-reviewer-next-step-secondary]")).toBeNull();
     expect(action("escalate")).toBeNull();
-    expect(action("archive")).toBeNull();
+    expect(document.querySelector("[data-reviewer-overflow-row-menu-trigger]")).toBeNull();
     // A Member allowed "archive" by the lifecycle but without bulk authority
     // (BULK_ACTIONS) is not offered a control the bulk CLOSE door refuses.
     cleanup();
     mocks.canBulk = false;
     workspace = workspaceBody({ viewer: viewerWith(["archive"], { "*": "not_assignee" }, false) });
     await renderPage();
-    expect(action("archive")).toBeNull();
+    expect(document.querySelector("[data-reviewer-overflow-row-menu-trigger]")).toBeNull();
   });
 
   it("Escalate posts the escalations route with the console's body", async () => {
@@ -555,27 +573,31 @@ describe("Next step panel", () => {
 
   it("Archive opens a confirm whose confirm button is app-danger-action", async () => {
     workspace = workspaceBody({ viewer: viewerWith(["archive"], { "*": "not_assignee" }, false) });
-    postResponses[bulkPath] = () => json(200, { succeeded: 1, failed: 0, items: [{ workflowId, ok: true }] });
+    postResponses[archivePath] = () => json(200, { projection: {} });
     await renderPage();
-    fireEvent.click(action("archive")!);
+    fireEvent.click(document.querySelector("[data-reviewer-overflow-row-menu-trigger]")!);
+    fireEvent.click(document.querySelector('[data-reviewer-overflow-row-action="archive"]')!);
     const dialog = await screen.findByRole("dialog", { name: "Archive this review?" });
     const confirm = within(dialog).getByRole("button", { name: "Archive review" });
     expect(confirm.className).toBe("app-danger-action");
     expect(within(dialog).queryAllByRole("button").filter((b) => b.classList.contains("app-primary-action"))).toHaveLength(0);
     fireEvent.click(confirm);
     await screen.findByText("Review archived.");
-    expect(posts(bulkPath)[0]!.body).toEqual({ teamId, workflowIds: [workflowId], action: "CLOSE" });
+    expect(posts(archivePath)[0]!.body).toEqual({ teamId });
   });
 
   it("an archive refused row stays in the dialog", async () => {
     workspace = workspaceBody({ viewer: viewerWith(["archive"], { "*": "not_assignee" }, false) });
-    postResponses[bulkPath] = () =>
-      json(207, { succeeded: 0, failed: 1, items: [{ workflowId, ok: false, errorCode: "REVIEW_TRANSITION_INVALID", message: "This review cannot be closed now." }] });
+    postResponses[archivePath] = () =>
+      json(409, { error: { code: "REVIEW_INVALID_TRANSITION", details: { reason: "second_review_pending" } } });
     await renderPage();
-    fireEvent.click(action("archive")!);
+    fireEvent.click(document.querySelector("[data-reviewer-overflow-row-menu-trigger]")!);
+    fireEvent.click(document.querySelector('[data-reviewer-overflow-row-action="archive"]')!);
     const dialog = await screen.findByRole("dialog", { name: "Archive this review?" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Archive review" }));
-    expect((await within(dialog).findByRole("alert")).textContent).toBe("This review cannot be closed now.");
+    expect((await within(dialog).findByRole("alert")).textContent).toBe(
+      "A second review or adjudication is still pending, so this review cannot be closed yet.",
+    );
   });
 
   it("an older API without viewer falls back to the lifecycle rule", async () => {
@@ -596,22 +618,28 @@ describe("header, links and canonical controls", () => {
     expect(lifecycle).toHaveLength(1);
     expect(sla).toHaveLength(1);
     expect(lifecycle[0]!.textContent).toContain("Escalated");
-    expect(sla[0]!.textContent).toContain("SLA overdue");
+    // Stage C (T-045): an open escalation never makes the deadline read
+    // "SLA overdue"; the badge names the governing deadline (none here).
+    expect(sla[0]!.textContent).not.toContain("overdue");
+    expect(sla[0]!.textContent).toBe("No deadline");
     expect(sla[0]!.textContent).not.toMatch(/escalated/i);
     // TEAM-UI-SPEC (structure) — the evidence display reference IS the page
     // title; "Back to queue" became the "← My reviews" back link above it.
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Evidence ref 0000C1");
     expect(screen.getByRole("button", { name: "Copy full Evidence ID" }).classList.contains("app-ghost-action")).toBe(true);
-    const back = screen.getByRole("link", { name: "My reviews" });
+    // T-074 — opened without an Inbox view, Back returns to the Inbox.
+    const back = screen.getByRole("link", { name: "Inbox" });
     expect(back.className).toBe("app-ghost-action");
     expect(back.getAttribute("href")).toBe("/review");
+    // T-071 — header statuses are plain text, never a Badge capsule.
+    expect(lifecycle[0]!.classList.contains("app-status-text")).toBe(true);
+    expect(sla[0]!.classList.contains("app-status-text")).toBe(true);
   });
 
-  // TEAM-UI-SPEC (structure) — Evidence Detail's order: back link above the
-  // title, the Next step strip FULL WIDTH (not a half-width card beside
-  // Assignment), then decision (wider, left) | Assignment & SLA + Linked
-  // evidence (right).
-  it("renders ReviewPageHeader with a back link, the Next step strip full width, then decision | assignment + linked evidence", async () => {
+  // Stage D (T-072 / T-073 / T-076) — back link above the title, the Next
+  // step strip FULL WIDTH, then decision (wider, left) | inline evidence
+  // preview (right). No "Assignment & SLA" card, no "Linked evidence" card.
+  it("renders ReviewPageHeader with a back link, the Next step strip full width, then decision | evidence preview", async () => {
     await renderPage();
     const header = document.querySelector("[data-review-page-header]") as HTMLElement;
     expect(header).not.toBeNull();
@@ -632,20 +660,22 @@ describe("header, links and canonical controls", () => {
     const main = grid.querySelector(".review-inspector-columns__main") as HTMLElement;
     const side = grid.querySelector(".review-inspector-columns__side") as HTMLElement;
     expect(main.querySelector('[data-section="reviewer-decision-lineage"]')).not.toBeNull();
-    expect(within(side).getByRole("heading", { name: "Assignment & SLA" })).toBeTruthy();
-    expect(within(side).getByRole("heading", { name: "Linked evidence" })).toBeTruthy();
+    expect(within(side).getByRole("heading", { name: "Evidence" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Assignment & SLA" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Linked evidence" })).toBeNull();
+    expect(document.querySelector("[data-assignment-sla-card]")).toBeNull();
     // The decision panel stays the single verdict entry.
     expect(document.querySelectorAll('[data-section="reviewer-decision-lineage"]')).toHaveLength(1);
   });
 
-  it("linked artifacts: Open evidence detail and downloads secondary, Reports queue / Escalations ghost", async () => {
+  it("T-073: no duplicate downloads and no 'Go to' block; Open evidence is in the header", async () => {
     await renderPage();
-    const evidence = document.querySelector('[data-reviewer-links-group="evidence"]') as HTMLElement;
-    const goto = document.querySelector('[data-reviewer-links-group="goto"]') as HTMLElement;
-    expect(evidence.querySelectorAll(".app-primary-action")).toHaveLength(0);
-    expect(within(evidence).getByText("Open evidence detail").className).toBe("app-secondary-action");
-    expect(within(goto).getByText("Reports queue").className).toBe("app-ghost-action");
-    expect(within(goto).getByText("Escalations").className).toBe("app-ghost-action");
+    expect(document.querySelector("[data-reviewer-links-group]")).toBeNull();
+    expect(document.querySelector('a[href="/reports"]')).toBeNull();
+    expect(screen.queryByRole("button", { name: /Download latest report|Download verification package/ })).toBeNull();
+    const open = document.querySelector("[data-review-header-open-evidence]") as HTMLAnchorElement;
+    expect(open.getAttribute("href")).toBe(`/evidence/${evidenceId}`);
+    expect(document.querySelector("[data-review-header]")!.contains(open)).toBe(true);
     expect(screen.getByRole("button", { name: "Add note" }).className).toBe("app-secondary-action app-secondary-action--filled");
   });
 

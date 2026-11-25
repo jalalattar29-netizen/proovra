@@ -368,7 +368,7 @@ describe("Phase 37.98 — reviewer workflow lifecycle proof", () => {
       {
         method: "POST",
         headers: memberHeaders,
-        body: { teamId: teamA.teamId },
+        body: { teamId: teamA.teamId, note: "Looks complete" },
       },
     );
     expect(response.status).toBe(200);

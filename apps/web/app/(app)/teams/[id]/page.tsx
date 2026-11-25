@@ -65,6 +65,12 @@ import { OwnershipOffers } from "./components/OwnershipOffers";
 // `admin.teams`, capability TEAM_VIEW).
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { workspaceLifecycleDestination } from "../../../../lib/members/workspaceLifecycleDestination";
+import { COLLABORATION_TEAMS_HREF, INVITE_PLACEMENT_NOTE } from "../../../../lib/members/placement";
+import {
+  MEMBER_ACCESS_AFTER_DOWNGRADE_HELP,
+  NO_WORKSPACE_MEMBER_CEILING,
+  RESTRICTED_CASE_OWNER_VISIBILITY,
+} from "../../../../lib/members/membership-disclosures";
 
 type TeamMemberUser = {
   id?: string;
@@ -722,6 +728,15 @@ function TeamDetailPageBody() {
       ? normalizePlanLabel(resolved)
       : null;
   }, [team?.effectivePlan]);
+
+  /**
+   * Team remediation T-097 — the placement prerequisite applies on every plan
+   * that sells collaboration except Enterprise, where the contract decides
+   * (placement-policy.ts). An unknown plan says it too: the server fails
+   * closed the same way.
+   */
+  const placementRequiredForWork =
+    String(team?.effectivePlan ?? "").trim().toUpperCase() !== "ENTERPRISE";
 
   /**
    * The owner's name for the Workspace overview, RESOLVED rather than assumed.
@@ -1909,6 +1924,22 @@ function TeamDetailPageBody() {
                     ) : null}
                   </div>
                 ) : null}
+                {canManageTeam && !isEditingName && nameShowsEmail(team?.name) ? (
+                  <div className="app-inner-surface" role="note" data-testid="workspace-name-shows-email" style={{ marginBottom: 12 }}>
+                    <p className="app-field__help" style={{ margin: "0 0 8px" }}>
+                      This workspace's name includes an email address, and members and
+                      invited people see it. Give it a name instead.
+                    </p>
+                    <button
+                      type="button"
+                      className="app-secondary-action"
+                      onClick={handleStartEditName}
+                      data-testid="workspace-name-email-rename"
+                    >
+                      Rename workspace
+                    </button>
+                  </div>
+                ) : null}
                 <dl className="app-kv-list">
                   <div className="app-kv-row">
                     <dt className="app-kv-key">Name</dt>
@@ -2047,6 +2078,29 @@ function TeamDetailPageBody() {
         {teamId && canManageTeam ? <TeamAccessReviewCard teamId={teamId} /> : null}
 
         {/*
+          Team remediation T-105 — three facts about access an owner should
+          know while the decision on them is pending. Each describes TODAY's
+          behaviour (lib/members/membership-disclosures.ts); nothing here
+          changes it.
+        */}
+        <div className="app-panel" data-testid="people-access-disclosures">
+          <div className="app-panel__head">
+            <h2 className="app-panel__title">How access works here</h2>
+          </div>
+          <div className="app-panel__body">
+            <ul className="app-table__muted" style={{ margin: 0, paddingInlineStart: 18, fontSize: 12.5, display: "grid", gap: 6 }}>
+              {placementRequiredForWork ? (
+                <li data-testid="people-disclosure-downgrade">{MEMBER_ACCESS_AFTER_DOWNGRADE_HELP}</li>
+              ) : null}
+              {seatLimit === null ? (
+                <li data-testid="people-disclosure-ceiling">{NO_WORKSPACE_MEMBER_CEILING}</li>
+              ) : null}
+              <li data-testid="people-disclosure-restricted">{RESTRICTED_CASE_OWNER_VISIBILITY}</li>
+            </ul>
+          </div>
+        </div>
+
+        {/*
           CASE LINK MANAGEMENT WAS REMOVED FROM THIS PAGE (members audit MEM-05,
           IA decision 2026-10-25). It offered only the first page of the
           caller's cases, hid MEMBER links the server accepted, and is not
@@ -2141,6 +2195,20 @@ function TeamDetailPageBody() {
                 moves by transfer.
               </p>
             </div>
+            {placementRequiredForWork ? (
+              <div className="app-inner-surface" role="note" data-testid="people-invite-placement">
+                <p className="app-field__help" style={{ margin: "0 0 8px" }}>
+                  {INVITE_PLACEMENT_NOTE}
+                </p>
+                <Link
+                  href={COLLABORATION_TEAMS_HREF}
+                  className="app-secondary-action"
+                  data-testid="people-invite-place-action"
+                >
+                  Add to a review team now
+                </Link>
+              </div>
+            ) : null}
           </form>
         </Modal>
       ) : null}
@@ -2211,6 +2279,15 @@ function TeamDetailPageBody() {
       ) : null}
     </div>
   );
+}
+
+/**
+ * T-117 — a workspace name that shows an e-mail address (the old personal
+ * workspace default "<email>'s personal workspace"). Only the owner's rename
+ * changes it; nothing is migrated silently.
+ */
+function nameShowsEmail(name: string | null | undefined): boolean {
+  return typeof name === "string" && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(name);
 }
 
 // Closure verification Part C — canonical PageRouteGate wrapper.

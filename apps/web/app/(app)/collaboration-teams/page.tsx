@@ -31,6 +31,7 @@
 "use client";
 
 import Link from "next/link";
+import { COLLABORATION_TEAM_WORKLOAD_COPY } from "@proovra/shared";
 // The canonical Members & Access path. Imported rather than written inline so
 // the route has exactly one definition — the locator is what makes renaming it
 // a one-file change if that ever becomes worth doing.
@@ -252,7 +253,7 @@ function TeamsOverview() {
       : restricted
         ? "This workspace's billing needs attention before new Collaboration Teams can be created."
         : atCapacity
-          ? `Your ${planForCapacity} plan allows up to ${maxTeams} active Team${
+          ? `Your ${planForCapacity} plan allows up to ${maxTeams} active Collaboration Team${
               maxTeams === 1 ? "" : "s"
             }. Upgrade to add more.`
           : null;
@@ -337,7 +338,7 @@ function TeamsOverview() {
        * including this one, and keeps the request id off the sentence and on
        * the copyable support reference.
        */
-      const safe = toSafeUserError(err, { message: "Couldn't load Teams. Try again." });
+      const safe = toSafeUserError(err, { message: "Couldn't load Collaboration Teams. Try again." });
       setError({ message: safe.message, requestId: safe.supportReference });
     } finally {
       if (!opts?.isStale?.()) setLoading(false);
@@ -472,15 +473,15 @@ function TeamsOverview() {
               aria-disabled={atCapacity || undefined}
               aria-label={
                 createDisabledReason
-                  ? `Create Team — ${createDisabledReason}`
-                  : "Create Team"
+                  ? `Create Collaboration Team — ${createDisabledReason}`
+                  : "Create Collaboration Team"
               }
               title={createDisabledReason ?? undefined}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
-              <span>Create team</span>
+              <span>Create Collaboration Team</span>
             </button>
           </>
         )}
@@ -567,7 +568,7 @@ function TeamsOverview() {
                   <div className="app-metric-card__label">Open work</div>
                   <div className="app-metric-card__meta">
                     across {rollup.groups.withOpenWork} of {rollup.groups.active}{" "}
-                    {rollup.groups.active === 1 ? "Team" : "Teams"}
+                    {rollup.groups.active === 1 ? "Collaboration Team" : "Collaboration Teams"}
                   </div>
                 </div>
               </li>
@@ -585,7 +586,7 @@ function TeamsOverview() {
                   </div>
                   <div className="app-metric-card__label">Unassigned</div>
                   <div className="app-metric-card__meta">
-                    held by a Team, not by a person
+                    held by a Collaboration Team, not by a person
                   </div>
                 </div>
               </li>
@@ -611,13 +612,14 @@ function TeamsOverview() {
                   <div className="app-metric-card__value">
                     {rollup.workload.people}
                   </div>
+                  {/* T-059 (stage C) — these are team tasks, not reviews. */}
                   <div className="app-metric-card__label">
-                    People carrying work
+                    {COLLABORATION_TEAM_WORKLOAD_COPY.peopleLabel}
                   </div>
-                  <div className="app-metric-card__meta">
+                  <div className="app-metric-card__meta" data-collaboration-workload-meta>
                     {rollup.workload.busiest
-                      ? `heaviest load ${rollup.workload.busiest.open} open`
-                      : "nothing assigned to an individual"}
+                      ? COLLABORATION_TEAM_WORKLOAD_COPY.busiestMeta(rollup.workload.busiest.open)
+                      : COLLABORATION_TEAM_WORKLOAD_COPY.noneMeta}
                   </div>
                 </div>
               </li>
@@ -629,7 +631,7 @@ function TeamsOverview() {
               data-testid="teams-governance-notice"
               style={{ margin: "0 0 0.75rem", fontSize: "0.85rem" }}
             >
-              Showing every Team in this workspace. You can see them because you
+              Showing every Collaboration Team in this workspace. You can see them because you
               administer this workspace; you are not a member of the ones
               without a role below, and opening one does not join it.
             </p>
@@ -705,7 +707,7 @@ function TeamsOverview() {
           onClose={() => setCreateOpen(false)}
           onCreated={(id) => {
             setCreateOpen(false);
-            addToast("Team created.", "success");
+            addToast("Collaboration Team created.", "success");
             router.push(`/collaboration-teams/${id}`);
           }}
         />
@@ -785,7 +787,7 @@ function TeamsToolbar({
       className="app-list-toolbar app-list-toolbar--many"
       data-testid="teams-toolbar"
       role="search"
-      aria-label="Filter teams"
+      aria-label="Filter Collaboration Teams"
     >
       <div className="app-list-toolbar__row">
         <div className="app-search-field">
@@ -798,10 +800,10 @@ function TeamsToolbar({
           <input
             type="search"
             className="app-search-input"
-            placeholder="Search teams…"
+            placeholder="Search Collaboration Teams…"
             value={search}
             onChange={(e) => onSearch(e.target.value)}
-            aria-label="Search teams by name or description"
+            aria-label="Search Collaboration Teams by name or description"
             data-testid="teams-search-input"
           />
         </div>
@@ -819,11 +821,11 @@ function TeamsToolbar({
             <AppListbox<"PARTICIPATING" | "ALL">
               value={scope}
               options={[
-                { value: "ALL", label: "All workspace teams" },
-                { value: "PARTICIPATING", label: "My teams" },
+                { value: "ALL", label: "All Collaboration Teams" },
+                { value: "PARTICIPATING", label: "My Collaboration Teams" },
               ]}
               onChange={onScope}
-              ariaLabel="Which teams to show"
+              ariaLabel="Which Collaboration Teams to show"
             />
           </div>
         ) : null}
@@ -848,7 +850,7 @@ function TeamsToolbar({
             value={typeFilter}
             options={typeOptions}
             onChange={onTypeFilter}
-            ariaLabel="Filter by team type"
+            ariaLabel="Filter by Collaboration Team type"
           />
         </div>
         <div
@@ -860,7 +862,7 @@ function TeamsToolbar({
             value={sortKey}
             options={sortOptions.map((o) => ({ ...o }))}
             onChange={onSort}
-            ariaLabel="Sort teams"
+            ariaLabel="Sort Collaboration Teams"
           />
         </div>
         {filtersActive ? (
@@ -892,7 +894,7 @@ function TeamsTable({
       <table className="app-table" data-responsive>
         <thead>
           <tr>
-            <th scope="col">Team</th>
+            <th scope="col">Collaboration Team</th>
             {/* LIFECYCLE IS A COLUMN (§9A). The filter defaults to All, so
                 active and archived teams interleave — and until now nothing in
                 a row said which was which. */}
@@ -937,7 +939,7 @@ function TeamRow({ team }: { team: CollaborationTeamSummary }) {
 
   return (
     <tr data-testid={`team-card-${team.id}`}>
-      <td data-label="Team">
+      <td data-label="Collaboration Team">
         <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
           <Link
             href={href}
@@ -1170,7 +1172,7 @@ function RowOverflowMenu({
                 className="app-ghost-action"
                 style={{ justifyContent: "flex-start", width: "100%" }}
               >
-                Open team
+                Open Collaboration Team
               </Link>
               {/*
                 "Invite member" → "Add people", `?tab=invites` → `?tab=members`.
@@ -1243,7 +1245,7 @@ function UpgradeCTA({
     <WorkspaceUpgradeLink
       className="app-secondary-action"
       testId="collaboration-teams-upgrade-cta"
-      ariaLabel={`Upgrade — this workspace's ${plan} plan allows up to ${maxTeams} Teams (currently using ${ownedTeamCount})`}
+      ariaLabel={`Upgrade — this workspace's ${plan} plan allows up to ${maxTeams} Collaboration Teams (currently using ${ownedTeamCount})`}
     >
       Upgrade plan
     </WorkspaceUpgradeLink>
@@ -1278,7 +1280,7 @@ function PlanRestrictedNotice() {
         </span>
       </AppStatusBadge>
       <span style={{ color: "#667085", fontSize: 13 }}>
-        {PLAN_LOCKED_COPY} Existing Teams and their data remain accessible.
+        {PLAN_LOCKED_COPY} Existing Collaboration Teams and their data remain accessible.
       </span>
       <WorkspaceUpgradeLink className="app-secondary-action" testId="teams-plan-restricted-upgrade-cta">
         Upgrade plan
@@ -1314,12 +1316,13 @@ function TeamsEmptyState({
         </span>
         <strong>{PLAN_LOCKED_COPY}</strong>
         <p>
-          {plan ? `This workspace's ${plan} plan doesn't include Teams. ` : ""}
+          {plan ? `This workspace's ${plan} plan doesn't include Collaboration Teams. ` : ""}
           {/* PRO-K2-10 (WS-ENT) — Team tasks (shared assignments) are the Team
               plan and above, not every plan that includes Teams. */}
-          Teams group the people in this workspace for discussion and member
-          access. Shared assignments need a plan that includes them; not
-          every plan with Teams does. Upgrade to create one.
+          Collaboration Teams group the people in this workspace for
+          discussion and member access. Shared assignments need a plan that
+          includes them; not every plan with Collaboration Teams does. Upgrade
+          to create one.
         </p>
         <div
           style={{
@@ -1347,10 +1350,10 @@ function TeamsEmptyState({
       <span className="app-empty__icon" aria-hidden="true">
         <TeamsGlyph />
       </span>
-      <strong>No teams yet</strong>
+      <strong>No Collaboration Teams yet</strong>
       <p>
-        A team is worth creating once more than one person is working the same
-        cases: it gives that work one place to be assigned and discussed.
+        A Collaboration Team is worth creating once more than one person is
+        working the same cases: it gives that work one place to be assigned and discussed.
       </p>
       <button
         type="button"
@@ -1361,7 +1364,7 @@ function TeamsEmptyState({
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
-        <span>Create team</span>
+        <span>Create Collaboration Team</span>
       </button>
     </div>
   );
@@ -1393,10 +1396,10 @@ function NoMatchesState({
         <span className="app-empty__icon" aria-hidden="true">
           <TeamsGlyph />
         </span>
-        <strong>No teams yet</strong>
+        <strong>No Collaboration Teams yet</strong>
         <p>
-          A team is worth creating once more than one person is working the same
-          cases: it gives that work one place to be assigned and discussed.
+          A Collaboration Team is worth creating once more than one person is
+          working the same cases: it gives that work one place to be assigned and discussed.
         </p>
         <button
           type="button"
@@ -1404,7 +1407,7 @@ function NoMatchesState({
           onClick={onCreate}
           style={{ marginTop: 4 }}
         >
-          Create team
+          Create Collaboration Team
         </button>
       </div>
     );
@@ -1414,10 +1417,10 @@ function NoMatchesState({
       <span className="app-empty__icon" aria-hidden="true">
         <TeamsGlyph />
       </span>
-      <strong>No teams match the current filters</strong>
+      <strong>No Collaboration Teams match the current filters</strong>
       <p>
-        Archived teams are excluded unless the status filter includes them — an
-        archived team still exists, and still holds its history.
+        Archived Collaboration Teams are excluded unless the status filter
+        includes them — an archived one still exists, and still holds its history.
       </p>
       <button
         type="button"
@@ -1425,7 +1428,7 @@ function NoMatchesState({
         onClick={onReset}
         style={{ marginTop: 4 }}
       >
-        Show all teams
+        Show all Collaboration Teams
       </button>
     </div>
   );
@@ -1484,7 +1487,7 @@ function ErrorState({
   return (
     <div className="app-panel" data-testid="teams-error">
       <div className="app-panel__head">
-        <h2 className="app-panel__title">Couldn&apos;t load Teams</h2>
+        <h2 className="app-panel__title">Couldn&apos;t load Collaboration Teams</h2>
         <AppStatusBadge tone="red" dot>
           Error
         </AppStatusBadge>
@@ -1598,7 +1601,7 @@ function CreateTeamModal({
       <form onSubmit={onSubmit} className="app-dialog">
         <header className="app-dialog__head">
           <h2 id="create-team-title" className="app-dialog__title">
-            Create a team
+            Create a Collaboration Team
           </h2>
           <p className="app-dialog__subtitle">
             {teamTasksIncluded === true
@@ -1652,7 +1655,7 @@ function CreateTeamModal({
                 description: teamTypeHint(t),
               }))}
               onChange={setTeamType}
-              ariaLabel="Team template"
+              ariaLabel="Collaboration Team template"
             />
             <span className="app-field-help">
               A label for what this team works on. It changes nothing about
@@ -1702,7 +1705,7 @@ function CreateTeamModal({
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
-            <span>{submitting ? "Creating…" : "Create team"}</span>
+            <span>{submitting ? "Creating…" : "Create Collaboration Team"}</span>
           </button>
         </footer>
       </form>
@@ -1713,7 +1716,7 @@ function CreateTeamModal({
 function teamTypeHint(t: CollaborationTeamType): string {
   switch (t) {
     case "GENERAL":
-      return "Flexible team for any work";
+      return "Flexible Collaboration Team for any work";
     case "INVESTIGATION":
       return "Reconstruction & timeline work";
     case "LEGAL":

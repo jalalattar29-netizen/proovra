@@ -65,6 +65,13 @@ import {
   activityTone,
   buildRenameBody,
   buildRoleChangeBody,
+  buildRoleChangeImpactPath,
+  describeRoleChangeImpact,
+  parseRoleChangeImpact,
+  placementPrerequisiteApplies,
+  PLACEMENT_PREREQUISITE_ACTION,
+  PLACEMENT_PREREQUISITE_NOTE,
+  type RoleChangeImpact,
   buildWorkspaceActivityPath,
   buildWorkspaceMemberPath,
   canChangeRole,
@@ -114,7 +121,9 @@ type RosterState = "loading" | "ready" | "failed";
 export default function WorkspacePeopleScreen() {
   const router = useRouter();
   const { addToast } = useToast();
-  const { context, refresh: refreshContext } = usePlatformContext();
+  const { context, envelope, refresh: refreshContext } = usePlatformContext();
+  // T-097 — outside Enterprise, a member needs a Collaboration Team before work.
+  const placementApplies = placementPrerequisiteApplies(envelope);
   const teamId = context?.activeTeamId ?? null;
   const stepUp = useChallengeStepUp(teamId);
 
@@ -147,6 +156,13 @@ export default function WorkspacePeopleScreen() {
 
   const [activity, setActivity] = useState<WorkspaceActivity[] | null>(null);
   const [roleFor, setRoleFor] = useState<WorkspaceMember | null>(null);
+  // T-099 — a picked role is confirmed with what it does to held work first.
+  const [roleConfirm, setRoleConfirm] = useState<{
+    member: WorkspaceMember;
+    role: string;
+    impact: RoleChangeImpact | null;
+    loading: boolean;
+  } | null>(null);
   // T-14 — member removal (web MemberRemovalDialog) and the roster total.
   const [removing, setRemoving] = useState<WorkspaceMember | null>(null);
   // PRO-T1-02 — the caller ends their own membership (step-up, server checks).
@@ -379,6 +395,29 @@ export default function WorkspacePeopleScreen() {
       setBusy(false);
     },
     [teamId, addToast, reloadRoster, stepUp],
+  );
+
+  /**
+   * T-099 — before a role change, the server says what it would do to the
+   * person's held work (GET …/role-change-impact). A failed or older-server
+   * read is said in the confirmation, never treated as "nothing".
+   */
+  const pickRole = useCallback(
+    async (member: WorkspaceMember, nextRole: string) => {
+      setRoleFor(null);
+      if (!teamId || nextRole.toUpperCase() === member.role.toUpperCase()) return;
+      setRoleConfirm({ member, role: nextRole, impact: null, loading: true });
+      let impact: RoleChangeImpact | null = null;
+      try {
+        impact = parseRoleChangeImpact(await apiFetch(buildRoleChangeImpactPath(teamId, member.id, nextRole)));
+      } catch {
+        impact = null;
+      }
+      setRoleConfirm((prev) =>
+        prev && prev.member.id === member.id && prev.role === nextRole ? { ...prev, impact, loading: false } : prev,
+      );
+    },
+    [teamId],
   );
 
   const leaveWorkspace = useCallback(async () => {
@@ -909,6 +948,22 @@ export default function WorkspacePeopleScreen() {
           Access across this whole workspace. Roles inside a Collaboration Team are separate. Ownership is not granted by
           invitation — it moves by transfer.
         </ProovraText>
+        {placementApplies ? (
+          <View style={{ gap: theme.space.s1 }} testID="invite-placement-note">
+            <ProovraText variant="label" color={theme.color.ink.secondary}>
+              {PLACEMENT_PREREQUISITE_NOTE}
+            </ProovraText>
+            <ProovraButton
+              label={PLACEMENT_PREREQUISITE_ACTION}
+              variant="ghost"
+              fullWidth={false}
+              onPress={() => {
+                setInviteOpen(false);
+                router.push("/(tabs)/teams" as never);
+              }}
+            />
+          </View>
+        ) : null}
         <View style={{ flexDirection: "row", gap: theme.space.s2, flexWrap: "wrap" }}>
           <ProovraButton label="Cancel" variant="ghost" fullWidth={false} onPress={() => setInviteOpen(false)} />
           <ProovraButton
@@ -959,11 +1014,31 @@ export default function WorkspacePeopleScreen() {
             title={roleLabel(r)}
             subtitle={roleFor && r.toUpperCase() === roleFor.role.toUpperCase() ? "Their current role" : undefined}
             onPress={() => {
-              if (roleFor) void changeRole(roleFor, r);
+              if (roleFor) void pickRole(roleFor, r);
             }}
           />
         ))}
       </ProovraSheet>
+
+      <ProovraConfirmSheet
+        visible={roleConfirm !== null}
+        title={roleConfirm ? `Change ${roleConfirm.member.displayName}'s role?` : ""}
+        consequence={
+          roleConfirm
+            ? roleConfirm.loading
+              ? "Checking what this changes for the work they hold…"
+              : describeRoleChangeImpact(roleConfirm.member.displayName, roleConfirm.role, roleConfirm.impact)
+            : ""
+        }
+        confirmLabel={roleConfirm ? `Make ${roleLabel(roleConfirm.role.toUpperCase())}` : "Change role"}
+        busy={busy || roleConfirm?.loading === true}
+        onConfirm={() => {
+          const pending = roleConfirm;
+          setRoleConfirm(null);
+          if (pending) void changeRole(pending.member, pending.role);
+        }}
+        onCancel={() => setRoleConfirm(null)}
+      />
 
       <ProovraSheet visible={renaming} title="Rename this workspace" onClose={() => setRenaming(false)}>
         <ProovraFormField label="Workspace name">

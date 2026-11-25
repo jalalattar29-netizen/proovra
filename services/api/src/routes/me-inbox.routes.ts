@@ -125,9 +125,11 @@ import {
   parseOtsChainFailureCode,
   formatTimestampForReportUtc,
   OTS_FAILURE_LABELS,
+  REVIEW_ESCALATION_ACTIVE_STATUSES,
   type OtsFailureCode, TSA_NOT_OBTAINED_SUPPORT_STATEMENT, tsaFailureNote } from "@proovra/shared";
 import { evidenceScopeForMany } from "@proovra/shared-runtime";
 import { conditionMessageFor, conditionTextFor } from "../services/operations/condition-presentation.service.js";
+import { presentReviewEscalationSummary } from "@proovra/shared";
 import type { Prisma } from "@prisma/client";
 import {
   NOTIFICATION_HISTORY_SOURCE,
@@ -2526,7 +2528,10 @@ export async function buildInboxAggregation(
                   // in workspaces the caller owns or administers — where a
                   // reviewer escalation goes (2026-10-23).
                   where: {
-                    status: "OPEN",
+                    // T-060 / T-169 (stage C) — active means OPEN, ACKNOWLEDGED
+                    // or REASSIGNED (the shared set). Acknowledging an
+                    // escalation never makes it "no longer active".
+                    status: { in: [...REVIEW_ESCALATION_ACTIVE_STATUSES] },
                     // N1 sweep — the review queue's own reach: an escalation
                     // (its summary and record id) on a record linked to a
                     // restricted case the caller cannot see is not offered.
@@ -3487,9 +3492,14 @@ export async function buildInboxAggregation(
               : `Escalation for your workspace's admins: ${humanizeEscalationReason(esc.reason)}`,
           message: {
             key: "escalation.assigned",
-            params: { reason: esc.reason, summary: esc.safeSummary, ...(esc.assignedToUserId ? {} : { toWorkspace: 1 }) },
+            params: {
+              reason: esc.reason,
+              // T-083 (stage D) — catalog words, never the engine's.
+              summary: presentReviewEscalationSummary(esc.safeSummary),
+              ...(esc.assignedToUserId ? {} : { toWorkspace: 1 }),
+            },
           },
-          body: esc.safeSummary,
+          body: presentReviewEscalationSummary(esc.safeSummary),
           // A reviewer escalation opens the record's Review tab, where it is
           // decided or closed; other escalations keep the console.
           href:

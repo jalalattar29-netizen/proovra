@@ -507,6 +507,13 @@ describe("free-user audit round 3 (TENB): A2-19, A2-20, A2-22 (live PostgreSQL)"
     });
 
     it("a suspended organization hides its workspace's team views", async () => {
+      // T-038 (stage B): every token has a session-inventory row, as a real
+      // sign-in records one. A session bound to the suspended workspace is
+      // refused outright (401); the listing below is the member's session
+      // started in their personal context, which must still list personal
+      // views and hide the suspended workspace's.
+      await call("GET", "/v1/users/me", viewer);
+      await prisma.authenticatedSession.updateMany({ where: { userId: viewer.id }, data: { teamId: null } });
       await prisma.organization.update({ where: { id: S.orgId }, data: { status: "SUSPENDED" } as never });
       try {
         const ids = await listed(viewer);

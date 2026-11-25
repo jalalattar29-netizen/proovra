@@ -1128,7 +1128,10 @@ export async function changeMemberRole(
   // intake links, webhooks). PRO-R1-05: one leg, shared with every directory
   // role writer, asked through the canonical decision (capability grants
   // honoured) rather than the bare role table.
-  await endCreatorAuthorityOnRoleChangeTx(tx as never, {
+  // Team remediation T-099 — the same leg releases the work a role below the
+  // reviewer floor can no longer act on and ends the case assignments it
+  // cannot exercise; what it did is recorded on the role-change audit below.
+  const roleLeg = await endCreatorAuthorityOnRoleChangeTx(tx as never, {
     teamId: input.teamId,
     userId: target.userId,
     actorUserId: input.actorUserId,
@@ -1149,7 +1152,12 @@ export async function changeMemberRole(
     subjectUserId: target.userId,
     eventType: "member_role_changed" as SecurityEventType,
     reason: input.reason,
-    metadata: { fromRole: target.role, toRole: input.newRole },
+    metadata: {
+      fromRole: target.role,
+      toRole: input.newRole,
+      releasedWork: roleLeg.releasedWork,
+      caseAssignmentsEnded: roleLeg.caseAssignmentsEnded,
+    },
     ipAddress: input.ipAddress,
     userAgent: input.userAgent,
     previousState: target.role,

@@ -38,7 +38,9 @@
 import type { PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import {
+  REVIEW_ESCALATION_ACTIVE_STATUSES,
   canonicalCanEnterPendingDestruction,
+  selectGoverningEscalation,
   canonicalEvaluateExportEligibility,
   canonicalEvaluatePackageEligibility,
   exportEligibilityLabel,
@@ -417,7 +419,13 @@ export async function buildGovernanceSnapshot(
         status: true,
         assignedToUserId: true,
         slaStatus: true,
-        activeEscalationId: true,
+        // Stage C follow-up — the governing active escalation by query, never
+        // the denormalised pointer (which drifted when escalations were
+        // resolved out of order).
+        escalations: {
+          where: { status: { in: [...REVIEW_ESCALATION_ACTIVE_STATUSES] } },
+          select: { id: true, severity: true, status: true, createdAt: true },
+        },
       },
     }),
     client.operationalIncident.findMany({
@@ -446,13 +454,8 @@ export async function buildGovernanceSnapshot(
   ]);
 
   let escalation: { id: string; severity: string } | null = null;
-  if (workflow?.activeEscalationId) {
-    const row = await client.reviewEscalation.findUnique({
-      where: { id: workflow.activeEscalationId },
-      select: { id: true, severity: true },
-    });
-    if (row) escalation = { id: row.id, severity: row.severity };
-  }
+  const governing = workflow ? selectGoverningEscalation(workflow.escalations).top : null;
+  if (governing) escalation = { id: governing.id, severity: governing.severity };
   // `activeEscalation` placeholder kept so the parallel-load pattern
   // stays uniform if a future revision moves the lookup back into the
   // Promise.all.
@@ -512,7 +515,7 @@ export async function buildGovernanceSnapshot(
       stage: workflow?.status ?? null,
       assignedReviewerUserId: workflow?.assignedToUserId ?? null,
       slaStatus: workflow?.slaStatus ?? null,
-      activeEscalationId: workflow?.activeEscalationId ?? null,
+      activeEscalationId: escalation?.id ?? null,
       activeEscalationSeverity: escalation?.severity ?? null,
     },
     legalHold: {

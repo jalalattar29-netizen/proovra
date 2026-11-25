@@ -34,7 +34,41 @@ import {
 import {
   NAVIGATION_REGISTRY,
   filterNavigationRegistry,
+  type NavigationGateContext,
 } from "../src/services/platform-context/navigation-registry.js";
+
+// T-125 / PRD-01 — the builders take the active workspace's server-projected
+// commercial answer and kind, as platform-context.service.ts passes them.
+const FEATURES_NONE = {
+  casesIncluded: false,
+  intakeIncluded: false,
+  teamCollaborationIncluded: false,
+  reviewerOperationsIncluded: false,
+  redactionIncluded: false,
+};
+const NO_WORKSPACE_GATE: NavigationGateContext = {
+  activeSpaceType: null,
+  isEnterpriseWorkspace: false,
+  isPlatformAdmin: false,
+  planFeatures: FEATURES_NONE,
+};
+const FREE_GATE: NavigationGateContext = { ...NO_WORKSPACE_GATE, activeSpaceType: "PERSONAL" };
+const PRO_GATE: NavigationGateContext = {
+  ...FREE_GATE,
+  planFeatures: { ...FEATURES_NONE, casesIncluded: true, intakeIncluded: true, teamCollaborationIncluded: true },
+};
+/** A legacy TEAM-scope (OWNED) workspace: Team features, not Enterprise. */
+const TEAM_ORG_GATE: NavigationGateContext = {
+  activeSpaceType: "ORGANIZATION",
+  isEnterpriseWorkspace: false,
+  isPlatformAdmin: false,
+  planFeatures: { ...PRO_GATE.planFeatures, reviewerOperationsIncluded: true },
+};
+const ENTERPRISE_GATE: NavigationGateContext = {
+  ...TEAM_ORG_GATE,
+  isEnterpriseWorkspace: true,
+  planFeatures: { ...TEAM_ORG_GATE.planFeatures, redactionIncluded: true },
+};
 
 function readApi(rel: string): string {
   return readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), "utf8");
@@ -363,7 +397,17 @@ describe("Phase 32.8 Foundation — navigation registry", () => {
     expect(teams!.href).toBe("/workspaces");
   });
 
-  it("Teams nav visible to every team member AND to personal users (as create-team entry)", () => {
+  // T-125 (team remediation): the Workspaces list (/workspaces) is an
+  // Enterprise-only web surface, so it is advertised only where it loads.
+  it("Workspaces nav is advertised to Enterprise members only (never to Team or personal contexts)", () => {
+    const enterpriseNav = filterNavigationRegistry(
+      resolveCapabilities({ scope: "TEAM", role: "MEMBER", plan: "ENTERPRISE", isPlatformAdmin: false }),
+      ENTERPRISE_GATE,
+    );
+    expect(
+      enterpriseNav.find((g) => g.id === "administration")?.items.some((i) => i.id === "admin.teams") ?? false,
+    ).toBe(true);
+
     // Phase ROUTE-FIX — Teams is now an ACCOUNT-tier entry point.
     // Personal users see it in the sidebar as a "create your first
     // team workspace" CTA. Team management (TEAM_MANAGE) remains
@@ -375,9 +419,10 @@ describe("Phase 32.8 Foundation — navigation registry", () => {
         plan: "TEAM",
         isPlatformAdmin: false,
       }),
+      TEAM_ORG_GATE,
     );
     const adminGroup = teamMemberNav.find((g) => g.id === "administration");
-    expect(adminGroup?.items.some((i) => i.id === "admin.teams")).toBe(true);
+    expect(adminGroup?.items.some((i) => i.id === "admin.teams") ?? false).toBe(false);
 
     const personalNav = filterNavigationRegistry(
       resolveCapabilities({
@@ -386,13 +431,14 @@ describe("Phase 32.8 Foundation — navigation registry", () => {
         plan: "PRO",
         isPlatformAdmin: false,
       }),
+      PRO_GATE,
     );
     const personalAdminGroup = personalNav.find(
       (g) => g.id === "administration",
     );
     expect(
       personalAdminGroup?.items.some((i) => i.id === "admin.teams") ?? false,
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("filterNavigationRegistry hides empty groups", () => {
@@ -402,7 +448,7 @@ describe("Phase 32.8 Foundation — navigation registry", () => {
       plan: null,
       isPlatformAdmin: false,
     });
-    const visible = filterNavigationRegistry(minimalCaps);
+    const visible = filterNavigationRegistry(minimalCaps, NO_WORKSPACE_GATE);
     // No active workspace ⇒ no workspace/review/platform groups; only
     // the administration → Settings entry survives because
     // SETTINGS_VIEW is granted to every authenticated user.
@@ -427,6 +473,7 @@ describe("Phase 32.8 Foundation — navigation registry", () => {
         plan: "PRO",
         isPlatformAdmin: false,
       }),
+      PRO_GATE,
     );
     const personalReview = personalNav.find(
       (g) => g.id === "review_governance",
@@ -442,6 +489,7 @@ describe("Phase 32.8 Foundation — navigation registry", () => {
         plan: "TEAM",
         isPlatformAdmin: false,
       }),
+      TEAM_ORG_GATE,
     );
     const review = teamNav.find((g) => g.id === "review_governance");
     expect(review?.items.some((i) => i.id === "review.queue")).toBe(true);
@@ -876,7 +924,7 @@ describe("Phase 32.8 Foundation — ReviewerOps + Governance repair (F-5)", () =
     // The route gate decides before the console renders, so there is no
     // second, later no-workspace branch that could win the race.
     const console_ = readWeb(
-      "components/reviewer-experience/ReviewerConsole.tsx",
+      "components/reviewer-experience/ReviewInbox.tsx",
     );
     expect(console_).not.toMatch(/ShellNoWorkspace/);
     expect(REVIEWER_PAGE).not.toMatch(/ShellNoWorkspace/);

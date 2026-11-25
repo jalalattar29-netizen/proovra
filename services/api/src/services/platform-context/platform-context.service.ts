@@ -60,6 +60,7 @@ import { resolveEnterpriseAuthority } from "./enterprise-authority.js";
 import {
   buildNavigationProjection,
   filterNavigationRegistry,
+  type NavigationGateContext,
 } from "./navigation-registry.js";
 import {
   CAPABILITY_SCHEMA_VERSION,
@@ -1055,6 +1056,7 @@ export async function buildPlatformContext(
   const resolvedPersona = resolvePersona({
     scope: workspace.scope,
     role: workspace.membership.role,
+    collaborationIncluded: collaborationLimits.maxCollaborationTeamsPerWorkspace > 0,
   });
 
   // -------------------------------------------------------------------------
@@ -1063,9 +1065,23 @@ export async function buildPlatformContext(
   let navigationStatus: SectionStatus = "ok";
   let navigationGroups;
   let navigationProjection: ReturnType<typeof buildNavigationProjection>;
+  // T-125 / PRD-01 — the payload advertises only what the web gates open: the
+  // same server-projected commercial answer and active-space kind they read
+  // (`activeSpace.type` is derived below by this same TEAM-scope-with-id rule).
+  const navigationGate: NavigationGateContext = {
+    activeSpaceType:
+      workspace.scope === "TEAM" && typeof workspace.id === "string" && workspace.id.length > 0
+        ? "ORGANIZATION"
+        : workspace.scope
+          ? "PERSONAL"
+          : null,
+    isEnterpriseWorkspace,
+    isPlatformAdmin,
+    planFeatures,
+  };
   try {
-    navigationGroups = filterNavigationRegistry(capabilities);
-    navigationProjection = buildNavigationProjection(capabilities);
+    navigationGroups = filterNavigationRegistry(capabilities, navigationGate);
+    navigationProjection = buildNavigationProjection(capabilities, navigationGate);
   } catch {
     navigationStatus = "degraded";
     navigationGroups = [];

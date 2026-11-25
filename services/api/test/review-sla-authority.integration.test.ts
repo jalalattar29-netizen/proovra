@@ -200,7 +200,8 @@ describe("Review SLA authority (live PostgreSQL)", () => {
 
     const queue = await engine.listReviewerOpsQueue({ teamId: org.workspaceId, meUserId: org.owner.userId, queue: "OVERDUE" });
     expect(queue.rows.map((r) => r.workflowId)).toEqual([row.id]);
-    expect(queue.rows[0]!.slaRollupState).toBe("ESCALATED");
+    // Stage C (T-045): an escalation is not a deadline state; past due reads BREACHED.
+    expect(queue.rows[0]!.slaRollupState).toBe("BREACHED");
     const counts = await ops.getReviewQueueCounts({ teamId: org.workspaceId, meUserId: org.owner.userId });
     expect(counts.overdue).toBe(1);
 

@@ -43,6 +43,7 @@ import { PageShell, PageSection } from "../ui";
 import "./home.css";
 
 import { useHomeData } from "./useHomeData";
+import { TwoFactorPrompt } from "../identity-security/TwoFactorPrompt";
 import {
   ActiveMatters,
   ActivityFeed,
@@ -110,6 +111,13 @@ export function SelfServeHomeDashboard() {
           (hero-aware: capture-first onboarding vs. "All evidence").
           Search / inbox live in the global app header, not duplicated. */}
       <HomeHeader hero={vm.heroAction} />
+
+      {/* T-034 (stage B) — review step-up needs a second factor; say so
+          before the first verdict, not in the middle of one. Gated on the
+          server-projected reviewer-operations capability
+          (planFeatures.reviewQueuesIncluded, fail-closed), never on a plan
+          name (Phase 12 point 7: ClientPlanNameAuthorities = 0). */}
+      <TwoFactorPrompt enabled={vm.features.reviewQueuesIncluded === true} />
 
       {/* F-21 — a transient read failure is said, with a retry, instead of
           rendering as an empty workspace. */}
@@ -299,7 +307,7 @@ export function SelfServeHomeDashboard() {
             </div>
           </PageSection>
 
-          {/* Team Work — organization workspaces only (null in Personal). */}
+          {/* Team Work — a collaboration plan with other members (T-109). */}
           {vm.teamWork ? <TeamWorkCard team={vm.teamWork} /> : null}
         </div>
       ) : null}

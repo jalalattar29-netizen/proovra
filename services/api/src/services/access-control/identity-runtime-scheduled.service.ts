@@ -49,7 +49,7 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { advanceSweepCursor, readSweepCursor } from "../reviewer-ops/sweep-cursor.js";
 import { sweepGeoCache } from "./geo-intelligence.service.js";
-import { runtimeRiskRecomputeSweep } from "./runtime-risk.service.js";
+import { recalibrateConcurrencyOnlySessionScores, runtimeRiskRecomputeSweep } from "./runtime-risk.service.js";
 import {
   governedMemberIds,
   refreshHighRiskSessionGauge,
@@ -96,6 +96,8 @@ export type ScheduledIdentityRuntimeSweepResult = {
   platform: {
     geo: { swept: number; remaining: number } | { error: string };
     callbackAttempts: unknown;
+    /** T-026 — scores lowered because only the old concurrency rule raised them. */
+    concurrencyRecalibration: unknown;
   };
 };
 
@@ -281,6 +283,11 @@ export async function runScheduledIdentityRuntimeSweep(
   // The platform legs: tenant-agnostic retention, the scheduler's alone.
   const geo = await sweepGeoCache(client).catch(() => ({ error: "geo_cache_sweep_failed" }));
   const callbackAttempts = await sweepStaleCallbackAttempts({}).catch(() => ({ error: "callback_sweep_failed" }));
+  // T-026 — bounded, idempotent: lowers only scores the old concurrency rule
+  // alone raised. Runs every pass until nothing older than the epoch is left.
+  const concurrencyRecalibration = await recalibrateConcurrencyOnlySessionScores({}, client).catch(() => ({
+    error: "concurrency_recalibration_failed",
+  }));
 
   return {
     enforcement,
@@ -290,7 +297,7 @@ export async function runScheduledIdentityRuntimeSweep(
     stoppedOnBudget,
     wrapped: position.wrapped,
     totals,
-    platform: { geo, callbackAttempts },
+    platform: { geo, callbackAttempts, concurrencyRecalibration },
   };
 }
 

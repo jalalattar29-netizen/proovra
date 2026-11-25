@@ -52,7 +52,7 @@ const WORKSPACE_ADMIN = readWeb(
 // its unique capabilities folded into the canonical console). The
 // reviewer entry in this contract now reads the surface that ships.
 const REVIEWER_CC = readWeb(
-  "components/reviewer-experience/ReviewerConsole.tsx",
+  "components/reviewer-experience/ReviewInbox.tsx",
 );
 const GOV_CP = readWeb(
   "components/governance-experience/GovernanceControlPlane.tsx",

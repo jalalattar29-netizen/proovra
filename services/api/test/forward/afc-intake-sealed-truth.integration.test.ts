@@ -119,7 +119,9 @@ describe("F-01 / F-04 / F-21 — intake acquisition truth (live PostgreSQL 16)",
     const r = await h.app.inject({ remoteAddress: ip, method: "POST", url: `/v1/external-intake/${t}/sessions/${sid}/parts`, payload: { partIndex: 0, mimeType: "text/plain", originalFileName: "f0.txt", sizeBytes: 1, checksumSha256Base64: createHash("sha256").update("x").digest("base64"), webkitRelativePath: null } });
     expect(r.statusCode, r.body).toBe(201);
     const p = await prisma.evidencePart.findUniqueOrThrow({ where: { id: (r.json() as { part: { id: string } }).part.id }, select: { storageBucket: true, storageKey: true, evidenceId: true } });
-    objects.set(`${p.storageBucket}/${p.storageKey}`, Buffer.from(`bytes-${randomUUID()}`));
+    // T-129: the bytes the presign declared (a real store enforces the signed
+    // checksum, and the seal re-checks the bound digest).
+    objects.set(`${p.storageBucket}/${p.storageKey}`, Buffer.from("x"));
     return p.evidenceId;
   }
   const submit = (t: string, sid: string, payload: unknown) =>

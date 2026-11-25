@@ -21,14 +21,24 @@
  * alike, so the two cannot disagree about what "ended" means.
  */
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { COLLABORATION_TEAM_ROLES } from "@proovra/shared";
+import { COLLABORATION_TEAM_ROLES, type Permission } from "@proovra/shared";
+import { decideMemberPermission, loadMemberPermissionFacts } from "@proovra/shared-runtime";
 
 import { revokeCreatorShareGrantsTx } from "../sharing/creator-share-grants.js";
 import {
+  countWorkHeldBy,
   releaseWorkHeldByTx,
+  type HeldWorkCounts,
+  type ReleasedWork,
   type ReleaseReason,
   type ReleaseTx,
 } from "../assignment/release-held-work.js";
+import {
+  evaluateCaseMutationPermission,
+  type CaseAccessRole,
+  type CaseAssignmentRole,
+  type CaseMutation,
+} from "../cases/case-permission.service.js";
 
 type ReachTx = Pick<
   PrismaClient,
@@ -159,4 +169,165 @@ export async function releaseWorkOnSuspension(
     actorUserId: input.actorUserId,
     reason: "member_suspended",
   });
+}
+
+// -----------------------------------------------------------------------------
+// ROLE CHANGE — the work a lowered role can no longer act on (Team
+// remediation T-099, members audit MEM-02).
+// -----------------------------------------------------------------------------
+
+/**
+ * THE reviewer floor: the permission the decision authority asks of whoever
+ * decides a review (`recordReviewDecision` → `evidence_request.review`). A
+ * role below it can hold no review work.
+ */
+export const REVIEWER_FLOOR_PERMISSION: Permission = "evidence_request.review";
+
+/**
+ * The case mutation each case-assignment role exists to exercise. A case
+ * assignment whose mutation the workspace role refuses (a VIEWER never
+ * mutates a case) is an assignment its holder can no longer act on.
+ */
+const CASE_ASSIGNMENT_ROLE_MUTATION: Record<CaseAssignmentRole, CaseMutation | null> = {
+  OWNER: "ASSIGN",
+  INVESTIGATOR: "STATUS_CHANGE",
+  REVIEWER: "COMMENT",
+  GOVERNANCE: "COMMENT",
+  // An observer only reads, which every workspace role may: never ended.
+  OBSERVER: null,
+};
+
+/** May a member with workspace role `workspaceRole` exercise a case assignment of role `assignmentRole`? */
+export function caseAssignmentExercisableBy(workspaceRole: string, assignmentRole: string): boolean {
+  const mutation = CASE_ASSIGNMENT_ROLE_MUTATION[assignmentRole as CaseAssignmentRole];
+  // A read-only role (OBSERVER) or an unknown legacy role is never ended silently.
+  if (!mutation) return true;
+  return evaluateCaseMutationPermission({
+    mutation,
+    accessRole: workspaceRole as CaseAccessRole,
+    assignmentRoles: [assignmentRole as CaseAssignmentRole],
+  }).allowed;
+}
+
+/**
+ * Does the member hold `permission` — with `role` in place of their stored
+ * role when given (a PREVIEW of a role change) — by THE canonical member
+ * decision (capability grants and delegated scopes honoured; the access
+ * window set aside, as for creator authority)? `null`: the facts could not be
+ * read, so nothing is released.
+ */
+async function memberHoldsPermission(
+  client: Pick<PrismaClient, "teamMember">,
+  input: { teamId: string; userId: string; permission: Permission; role?: string },
+): Promise<boolean | null> {
+  let facts;
+  try {
+    facts = await loadMemberPermissionFacts(client, { teamId: input.teamId, userId: input.userId });
+  } catch {
+    return null;
+  }
+  if (!facts) return false;
+  const decision = decideMemberPermission(
+    { ...facts, ...(input.role ? { role: input.role as typeof facts.role } : {}), accessExpiresAtUtc: null },
+    input.permission,
+    new Date(),
+  );
+  return decision.allowed;
+}
+
+type RoleWorkClient = ReleaseTx & Pick<PrismaClient, "teamMember" | "caseAssignment">;
+
+export type RoleChangeWorkImpact = {
+  /** The new role is below the reviewer floor: held work is released. */
+  releasesHeldWork: boolean;
+  /** What the release would touch (zeros when `releasesHeldWork` is false). */
+  heldWork: HeldWorkCounts;
+  /** ACTIVE case assignments the new role cannot exercise: ended. */
+  caseAssignmentsEnded: number;
+};
+
+async function caseAssignmentsBeyondRole(
+  client: Pick<PrismaClient, "caseAssignment">,
+  input: { teamId: string; userId: string; role: string },
+): Promise<Array<{ id: string; role: string }>> {
+  const rows = await client.caseAssignment.findMany({
+    where: { teamId: input.teamId, assignedToUserId: input.userId, status: "ACTIVE" },
+    select: { id: true, role: true },
+  });
+  return rows.filter((r) => !caseAssignmentExercisableBy(input.role, String(r.role)));
+}
+
+/**
+ * PREVIEW of a role change, read-only, with the predicates the change itself
+ * applies (`releaseWorkBeyondRoleTx`): the role-change confirmation states
+ * these counts before the administrator confirms.
+ */
+export async function previewWorkBeyondRole(
+  client: RoleWorkClient,
+  input: { teamId: string; userId: string; newRole: string },
+): Promise<RoleChangeWorkImpact> {
+  const holds = await memberHoldsPermission(client, {
+    teamId: input.teamId,
+    userId: input.userId,
+    permission: REVIEWER_FLOOR_PERMISSION,
+    role: input.newRole,
+  });
+  const releasesHeldWork = holds === false;
+  const heldWork = releasesHeldWork
+    ? await countWorkHeldBy(client, { teamId: input.teamId, userIds: [input.userId] })
+    : await countWorkHeldBy(client, { teamId: input.teamId, userIds: [] });
+  const beyond = await caseAssignmentsBeyondRole(client, { teamId: input.teamId, userId: input.userId, role: input.newRole });
+  return { releasesHeldWork, heldWork, caseAssignmentsEnded: beyond.length };
+}
+
+/**
+ * At a ROLE CHANGE, inside the writer's transaction and AFTER the new role is
+ * written (every role writer reaches it through the one role-change leg,
+ * `endCreatorAuthorityOnRoleChangeTx`):
+ *
+ *   - below the reviewer floor, the work the person held is RELEASED exactly
+ *     as a departure releases it (`releaseWorkHeldByTx`, reason
+ *     `role_demoted`): reviews back to the queue with an UNASSIGNED event,
+ *     escalations to the owners and admins, decision history untouched, one
+ *     tenant audit row;
+ *   - every ACTIVE case assignment the new role cannot exercise is ENDED
+ *     (REMOVED, with who and when), as a departure ends it.
+ *
+ * A change that keeps the floor (reviewer → reviewer) releases nothing.
+ */
+export async function releaseWorkBeyondRoleTx(
+  tx: RoleWorkClient,
+  input: { teamId: string; userId: string; actorUserId: string | null },
+): Promise<{ releasedWork: ReleasedWork | null; caseAssignmentsEnded: number }> {
+  const holds = await memberHoldsPermission(tx, {
+    teamId: input.teamId,
+    userId: input.userId,
+    permission: REVIEWER_FLOOR_PERMISSION,
+  });
+  let releasedWork: ReleasedWork | null = null;
+  if (holds === false) {
+    const released = await releaseWorkHeldByTx(tx, {
+      teamId: input.teamId,
+      userIds: [input.userId],
+      actorUserId: input.actorUserId,
+      reason: "role_demoted",
+    });
+    releasedWork = released.get(input.userId) ?? null;
+  }
+  const member = await tx.teamMember.findUnique({
+    where: { teamId_userId: { teamId: input.teamId, userId: input.userId } },
+    select: { role: true },
+  });
+  let caseAssignmentsEnded = 0;
+  if (member) {
+    const beyond = await caseAssignmentsBeyondRole(tx, { teamId: input.teamId, userId: input.userId, role: String(member.role) });
+    if (beyond.length > 0) {
+      const ended = await tx.caseAssignment.updateMany({
+        where: { id: { in: beyond.map((b) => b.id) }, status: "ACTIVE" },
+        data: { status: "REMOVED", removedAtUtc: new Date(), removedByUserId: input.actorUserId },
+      });
+      caseAssignmentsEnded = ended.count;
+    }
+  }
+  return { releasedWork, caseAssignmentsEnded };
 }

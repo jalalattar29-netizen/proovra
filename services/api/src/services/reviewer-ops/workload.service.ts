@@ -17,6 +17,7 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
+import { maskEmail } from "@proovra/shared";
 import {
   computeReviewerCapacityScore,
   type ReviewerWorkloadCountsInput,
@@ -24,9 +25,11 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
+import { escalatedReviewWhere } from "./review-count-definitions.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { evaluateMemberAccess } from "../identity/access-policy.service.js";
+import { assignmentRequiresPlacement, placedUserIdsForWorkspace } from "../assignment/placement-policy.js";
 
 // -----------------------------------------------------------------------------
 // Workload computation
@@ -84,10 +87,9 @@ export async function computeReviewerWorkload(
         teamId: input.teamId,
         ...reach,
         assignedToUserId: input.reviewerUserId,
-        OR: [
-          { status: "ESCALATED" },
-          { activeEscalationId: { not: null } },
-        ],
+        // T-050 / T-052 (stage C) — the shared "escalated review" (EXISTS an
+        // active escalation), never the drift-prone pointer.
+        ...escalatedReviewWhere(),
       },
     }),
     client.evidenceReviewWorkflow.count({
@@ -333,10 +335,28 @@ export async function listLatestWorkloadSnapshots(
 export type AssignableReviewer = {
   userId: string;
   displayName: string | null;
+  /**
+   * Team remediation T-086 (stage D) — the e-mail, MASKED ("j***@example.com"),
+   * so a member without a display name is named the way the queue and the
+   * lineage name them, never "Reviewer ref …". Never the full address.
+   */
+  maskedEmail: string | null;
   role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
   status: "ACTIVE";
   /** Most recent ReviewerWorkloadSnapshot active count. Omitted when no snapshot. */
   currentWorkloadCount?: number;
+  /**
+   * Team remediation T-097 (JRN-01) — does this person meet the placement
+   * prerequisite (owner decision 2026-10-25: on PRO / TEAM a person must be in
+   * a Collaboration Team before they can be given work; on ENTERPRISE when the
+   * contract says so)? Read with THE rule the assignment writers enforce
+   * (`assignmentRequiresPlacement` + the placed set), so the picker can list
+   * an unplaced member as unavailable, with the reason, instead of letting the
+   * assignment fail with 422 REVIEW_ASSIGNEE_NOT_PLACED.
+   */
+  placed: boolean;
+  /** Why this person cannot be assigned now (`placed: false` → REVIEW_ASSIGNEE_NOT_PLACED), else null. */
+  notAssignableReason: "REVIEW_ASSIGNEE_NOT_PLACED" | null;
 };
 
 export async function listAssignableReviewers(
@@ -361,6 +381,7 @@ export async function listAssignableReviewers(
         select: {
           id: true,
           displayName: true,
+          email: true,
         },
       },
     },
@@ -412,12 +433,21 @@ export async function listAssignableReviewers(
     }
   }
 
+  const requiresPlacement = await assignmentRequiresPlacement(input.teamId, client);
+  const placed = requiresPlacement
+    ? await placedUserIdsForWorkspace(input.teamId, reviewerUserIds, client)
+    : new Set(reviewerUserIds);
+
   return reviewerCapable.map((m) => {
+    const isPlaced = placed.has(m.userId);
     const projected: AssignableReviewer = {
       userId: m.userId,
       displayName: m.user?.displayName ?? null,
+      maskedEmail: maskEmail(m.user?.email ?? null),
       role: m.role as AssignableReviewer["role"],
       status: "ACTIVE",
+      placed: isPlaced,
+      notAssignableReason: isPlaced ? null : "REVIEW_ASSIGNEE_NOT_PLACED",
     };
     const workload = latestByReviewer.get(m.userId);
     if (typeof workload === "number") {

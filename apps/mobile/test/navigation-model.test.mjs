@@ -151,6 +151,9 @@ function envelopes() {
     intake: { intakeIncluded: true },
     collab: { teamCollaborationIncluded: true },
     both: { intakeIncluded: true, teamCollaborationIncluded: true, reviewerOperationsIncluded: true },
+    // T-125 — the redaction gate: granted, and lapsed with material kept (read-only).
+    redaction: { redactionIncluded: true },
+    redactionRetained: { redactionIncluded: false, redactionReadRetained: true },
   };
   const out = [];
   for (const type of ["PERSONAL", "ORGANIZATION", null]) {
@@ -203,6 +206,7 @@ test("native registry fields are the web registry's, field for field", () => {
     assert.equal(n.fallbackBehavior, w.fallbackBehavior, `${n.id}: fallbackBehavior`);
     assert.equal(n.requiredPlanFeature, w.requiredPlanFeature, `${n.id}: requiredPlanFeature`);
     assert.equal(n.navPlanFeature, w.navPlanFeature, `${n.id}: navPlanFeature`);
+    assert.equal(n.readRetainedPlanFeature, w.readRetainedPlanFeature, `${n.id}: readRetainedPlanFeature`);
     assert.equal(n.enterpriseOnly === true, W.ENTERPRISE_ONLY_ROUTE_IDS.has(n.id), `${n.id}: enterprise-only`);
     assert.equal(w.sidebarEligible, true, `${n.id} is not sidebar-eligible on the web, so native must not offer it in navigation`);
   }

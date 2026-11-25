@@ -62,6 +62,7 @@ import {
 import { resolveEvidenceRecordAccess } from "../services/evidence/evidence-record-access.service.js";
 import {
   enforceReviewActionGate,
+  enforceReviewBulkDoorGate,
   gateForVerdict,
   holdsReviewBulkAuthority,
 } from "../services/reviewer-ops/review-action-gate.js";
@@ -154,9 +155,12 @@ function reviewErrorToReply(err: unknown, reply: FastifyReply): void {
     const status =
       err.code === "workflow_not_found"
         ? 404
-        : err.code === "reviewer_required"
+        : err.code === "reviewer_required" || err.code === "forbidden_wording"
           ? 403
-          : err.code === "rationale_required"
+          : // T-010 — the same input refusals as every other door (details.reason
+            // is the authority code); this door keeps its 422 because live
+            // mobile installs read it.
+            err.code === "rationale_required" || err.code === "rationale_too_long"
             ? 422
             : 409;
     // TEAM-SPEC §2.2 — every refusal carries details.reason (the 404 keeps
@@ -181,8 +185,13 @@ function reviewErrorToReply(err: unknown, reply: FastifyReply): void {
               : err.code === "already_assigned_elsewhere" || err.code === "already_in_stage"
                 ? 409
                 : 400;
+    // Team remediation T-098 (JRN-01b) — ONE code for the placement
+    // prerequisite on every door: the claim refusal said `assignee_not_placed`
+    // while assignment said REVIEW_ASSIGNEE_NOT_PLACED, and only the latter
+    // had user copy. The lowercase engine code stays as `details.reason`.
+    const code = err.code === "assignee_not_placed" ? "REVIEW_ASSIGNEE_NOT_PLACED" : err.code;
     reply.code(status).send({
-      error: { code: err.code, details: status === 404 ? (err.details ?? null) : withReason(err.code, err.details) },
+      error: { code, details: status === 404 ? (err.details ?? null) : withReason(err.code, err.details) },
     });
     return;
   }
@@ -304,7 +313,8 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
           // last reason for the review surfaces to hold a tenant id.
           teamId: z.string().uuid().optional(),
           decision: z.enum(REVIEW_DECISION_TYPES),
-          note: z.string().max(2000).nullable().optional(),
+          // T-010 — the authority applies the one input schema (<= 4000).
+          note: z.string().max(16000).nullable().optional(),
           escalationReason: z.string().max(400).nullable().optional(),
         })
         .parse(req.body ?? {});
@@ -364,6 +374,9 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
 
       try {
         let updated;
+        // T-171 / one outcome vocabulary — what the submission actually did
+        // (a first-of-two decision changes no status).
+        let outcome: unknown = null;
         if (
           body.decision === "APPROVE_INTERNAL" ||
           body.decision === "REJECT_INSUFFICIENT" ||
@@ -397,8 +410,10 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
                   : "REQUEST_INFO",
             rationale: body.note ?? body.escalationReason ?? null,
             actorIsAdjudicator: provenRole === "OWNER" || provenRole === "ADMIN",
+            source: "evidence_page",
           });
           updated = result.workflow;
+          outcome = result.outcome;
         } else {
           // TEAM-SPEC §2.2 — Close never skips a pending second review or an
           // unresolved disagreement: the required number of reviews is never
@@ -438,7 +453,10 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
         // after a commit.
         return reply
           .code(200)
-          .send({ workflow: projectReviewWorkflow(updated, await currentDecisionOf(updated)) });
+          .send({
+            workflow: projectReviewWorkflow(updated, await currentDecisionOf(updated)),
+            ...(outcome ? { outcome } : {}),
+          });
       } catch (err) {
         return reviewErrorToReply(err, reply);
       }
@@ -486,13 +504,18 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
           reply,
         );
       }
+      // T-036 (stage B) — the shared bulk-door classification: ASSIGN is not
+      // a step-up action here either.
       if (
-        !(await enforceReviewActionGate(req, reply, {
-          teamId: body.teamId,
-          userId: ok.userId,
-          action: "bulk",
-          resource: { kind: "review_workflow_bulk", id: body.evidenceIds.slice(0, 8).join(",") },
-        }))
+        !(
+          await enforceReviewBulkDoorGate(req, reply, {
+            teamId: body.teamId,
+            userId: ok.userId,
+            action: body.action,
+            itemIds: body.evidenceIds,
+            resourceKind: "review_workflow_bulk",
+          })
+        ).allowed
       ) {
         return;
       }

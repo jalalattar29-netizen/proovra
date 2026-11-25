@@ -538,6 +538,8 @@ export const ROUTINE_SECURITY_EVENTS: Readonly<Record<string, string>> =
       "Policy asked for a fresh sign-in. The policy working, not a fault.",
     forced_runtime_reauthentication:
       "The runtime gate asked for a fresh sign-in. Same policy, same outcome.",
+    legacy_session_adopted:
+      "A pre-inventory session token was recorded in the session inventory (T-038). Compatibility bookkeeping, not a fault.",
     session_revoked: "A session ended deliberately.",
     session_revoked_admin: "An admin ended a session deliberately.",
     step_up_approved: "The user completed step-up. The success case.",

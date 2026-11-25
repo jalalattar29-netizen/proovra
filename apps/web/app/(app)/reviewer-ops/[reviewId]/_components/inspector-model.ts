@@ -17,6 +17,15 @@
  * here may read as a public authenticity statement.
  */
 
+import {
+  ADJUDICATION_NEXT_MESSAGE,
+  FIRST_ONLY_MESSAGE,
+  SECOND_REVIEW_CAUSE_LABELS,
+  describeReviewOutcome,
+  describeReviewRefusal,
+  type ReviewDecisionOutcomeCopyInput,
+} from "@proovra/shared";
+
 export type LifecycleState =
   | "DRAFT"
   | "SUBMITTED"
@@ -48,7 +57,10 @@ export type ViewerActionName =
   | "reject"
   | "reassign"
   | "adjudicate"
-  | "archive";
+  | "archive"
+  // Team remediation — T-009 / T-019.
+  | "reopen"
+  | "escalate";
 
 export type ViewerAction = {
   action: ViewerActionName;
@@ -60,14 +72,13 @@ export type Viewer = {
   userId: string;
   isAssignee: boolean;
   actions: ViewerAction[];
+  /** T-019 — whether an escalation this viewer raises forces an independent second review. */
+  escalationForcesIndependentReview?: boolean;
 };
 
-export type DecisionOutcome = {
+export type DecisionOutcome = ReviewDecisionOutcomeCopyInput & {
   stageRecorded: "FIRST" | "SECOND" | "ADJUDICATION";
-  statusChanged: boolean;
   reviewState: string;
-  nextRequirement: "second_review" | "adjudication" | null;
-  idempotent: boolean;
 };
 
 export type ActionState = { allowed: boolean; reason: string | null };
@@ -79,11 +90,13 @@ export const ACTION_LABELS: Record<ViewerActionName, string> = {
   resume: "Resume",
   request_info: "Request information",
   record_response: "Record response",
-  approve: "Approve (internal)",
-  reject: "Reject (internal)",
+  approve: "Approve",
+  reject: "Reject",
   reassign: "Reassign",
   adjudicate: "Adjudicate the disagreement",
   archive: "Archive",
+  reopen: "Reopen review",
+  escalate: "Escalate",
 };
 
 const ALL_ACTIONS: ViewerActionName[] = [
@@ -97,6 +110,8 @@ const ALL_ACTIONS: ViewerActionName[] = [
   "reassign",
   "adjudicate",
   "archive",
+  "reopen",
+  "escalate",
 ];
 
 /**
@@ -155,6 +170,10 @@ const REASON_SENTENCES: Record<string, string> = {
   no_reach: "You do not have access to this evidence.",
   lifecycle: "Not available at this stage of the review.",
   invalid_transition: "Not available at this stage of the review.",
+  // Team remediation (T-009 / T-019 / T-020 / T-021).
+  already_started: "The review has already started.",
+  review_not_finished: "Only a finished review can be reopened.",
+  review_escalation_not_included: "Escalations are not included in this workspace's plan.",
 };
 
 const GENERIC_DISABLED = "Not available at this stage of the review.";
@@ -245,6 +264,8 @@ function fallbackActions(lifecycle: LifecycleState, paused: boolean): ActionMap 
     reassign: closed("Reassign from the review queue."),
     adjudicate: closed("There is no disagreement to adjudicate."),
     archive: closed(GENERIC_DISABLED),
+    reopen: TERMINAL.includes(lifecycle) ? { allowed: true, reason: null } : closed("Only a finished review can be reopened."),
+    escalate: terminal ? closed(terminalReason) : { allowed: true, reason: null },
   };
 }
 
@@ -364,16 +385,16 @@ export function decisionConsequence(input: {
     return "Asks for more information — the review waits until the response is recorded.";
   }
   if ((ADJUDICATION_KINDS as string[]).includes(choice)) {
-    return "Records the adjudication — the final internal decision for this round, not a public authenticity statement.";
+    return "Records the adjudication — the final decision for this round.";
   }
   if (state === "first_required" && secondRequired) {
     return "Records the first review; an independent second reviewer must confirm.";
   }
   if (state === "second_required") {
-    return "Records the second review. If it matches the first, the review is decided (internal); if it differs, it goes to adjudication.";
+    return "Records the second review. If it matches the first, the review is decided; if it differs, it goes to adjudication.";
   }
-  if (choice === "APPROVE") return "Final decision — approved (internal), not a public authenticity statement.";
-  if (choice === "REJECT") return "Final decision — rejected (internal), not a public authenticity statement.";
+  if (choice === "APPROVE") return "Final decision — approved.";
+  if (choice === "REJECT") return "Final decision — rejected.";
   return null;
 }
 
@@ -402,10 +423,13 @@ export function nextStepPrimary(input: {
   handoffAssign: boolean;
 }): NextStepPrimary {
   const { actions } = input;
-  if (actions.start.allowed) return "start";
-  if (actions.record_response.allowed) return "record_response";
+  // T-020 — the REAL next step first: a hand-off that needs an assignment,
+  // an adjudication, a waiting response, a decision; Start only for a review
+  // that has not started (the server no longer offers Start on one in review).
   if (input.handoffAssign && actions.reassign.allowed) return "assign_second_reviewer";
   if (input.mayAdjudicate) return "adjudicate";
+  if (actions.record_response.allowed) return "record_response";
+  if (actions.start.allowed) return "start";
   if (input.mayDecide) return "decide";
   return null;
 }
@@ -421,34 +445,15 @@ export type LifecycleActionKind =
   | "record_response"
   | "decision";
 
-export const FIRST_ONLY_MESSAGE = "First review recorded. A second reviewer must confirm.";
-export const ADJUDICATION_NEXT_MESSAGE =
-  "Decision recorded. The two reviews disagree, so an independent owner or admin must adjudicate.";
+// The one outcome copy lives in @proovra/shared (review-decision-copy), so focus
+// mode, the Evidence page and the mobile app say what the Review page says.
+export { FIRST_ONLY_MESSAGE, ADJUDICATION_NEXT_MESSAGE };
 
 export function describeOutcome(
   kind: LifecycleActionKind,
   outcome: DecisionOutcome | null | undefined,
 ): string {
-  if (outcome && typeof outcome === "object") {
-    if (outcome.idempotent) return "This decision was already recorded. Nothing changed.";
-    if (outcome.nextRequirement === "second_review") return FIRST_ONLY_MESSAGE;
-    if (outcome.nextRequirement === "adjudication") return ADJUDICATION_NEXT_MESSAGE;
-    if (outcome.statusChanged) {
-      if (kind === "approve") return "Review approved (internal).";
-      if (kind === "reject") return "Review rejected (internal).";
-      if (kind === "request_info") return "Information requested. The review waits for a response.";
-      if (kind === "record_response") return "Response recorded. The review can continue.";
-      if (outcome.stageRecorded === "ADJUDICATION") return "Adjudication recorded. The review is resolved.";
-      return "Decision recorded. The review is resolved.";
-    }
-    return "Decision recorded. The review status did not change.";
-  }
-  // An API that predates `outcome`: say only what is certain.
-  if (kind === "approve") return "Approval recorded (internal).";
-  if (kind === "reject") return "Rejection recorded (internal).";
-  if (kind === "request_info") return "Information requested.";
-  if (kind === "record_response") return "Response recorded.";
-  return "Decision recorded.";
+  return describeReviewOutcome(kind, outcome);
 }
 
 // ---------------------------------------------------------------------------
@@ -461,68 +466,12 @@ export type Refusal = {
   reason: string | null;
 };
 
-const REFUSAL_MESSAGES: Record<string, string> = {
-  not_assignee:
-    "Only the assigned reviewer can record this decision. Ask an assignment manager to assign the review to you.",
-  second_stage_needs_reassignment:
-    "This review needs its second decision from a different reviewer. Reassign it to another eligible reviewer.",
-  same_reviewer_blocked:
-    "You made the first decision, so you cannot make the second. A different reviewer must decide.",
-  use_adjudication:
-    "The two reviews disagree. Record the outcome as an adjudication — an approval or rejection cannot settle a disagreement.",
-  adjudicator_role_required: "Adjudication needs a workspace owner or admin.",
-  adjudicator_not_independent:
-    "You decided one of the two reviews, so you cannot adjudicate them. Another owner or admin must.",
-  second_review_pending:
-    "A second review or adjudication is still pending, so this review cannot be closed yet.",
-  second_reviewer_not_independent:
-    "The first reviewer cannot take the second review. Choose a different reviewer.",
-  decision_not_from_stage:
-    "That decision is not available at this stage of the review. Reload to see what is needed now.",
-  stale_decision:
-    "This review changed while you were working on it. Check the latest state before deciding again.",
-  review_already_resolved: "This review is already resolved; no further decisions are accepted.",
-  duplicate_stage_decision:
-    "A decision for this stage has already been recorded. Reload to see it.",
-  forbidden_wording:
-    "The note uses wording that cannot be recorded, such as a public authenticity claim. Rephrase it and try again.",
-  // Engine aliases for the reasons above.
-  actor_not_assignee:
-    "Only the assigned reviewer can record this decision. Ask an assignment manager to assign the review to you.",
-  concurrent_change:
-    "This review changed while you were working on it. Check the latest state before deciding again.",
-  review_finished: "This review is already resolved; no further actions are accepted.",
-  not_awaiting_information: "No information request is waiting for a response on this review.",
-  already_paused: "The review is already paused.",
-  not_paused: "The review is not paused.",
-};
-
 /**
- * One message per refusal. Reason first (the contract's `details.reason`),
- * then a code that is itself a reason (the lineage route sends some as the
- * code), then step-up, network and status fallbacks.
+ * One message per refusal — the shared catalog (@proovra/shared
+ * describeReviewRefusal), so every door's refusal reads the same everywhere.
  */
 export function describeRefusal(r: Refusal, fallback: string): string {
-  const reason = r.reason?.trim() || null;
-  if (reason && REFUSAL_MESSAGES[reason]) return REFUSAL_MESSAGES[reason];
-  const code = r.code?.trim() || null;
-  if (code && REFUSAL_MESSAGES[code]) return REFUSAL_MESSAGES[code];
-  const upper = code?.toUpperCase() ?? "";
-  if (upper.startsWith("STEP_UP") || (reason ?? "").toUpperCase().startsWith("STEP_UP")) {
-    return "This action needs you to confirm your identity again. Re-verify, then try again.";
-  }
-  if (upper === "NETWORK_ERROR") {
-    return "The connection dropped before the server answered. Reload to check whether the action was recorded before trying again.";
-  }
-  if (code === "decision_not_allowed" || upper === "DECISION_NOT_ALLOWED") {
-    return "That decision is not allowed at this stage of the review. Reload to see what is needed now.";
-  }
-  if (r.status === 403) return "You do not have permission to do this on this review.";
-  if (r.status === 404) return "This review no longer exists in this workspace.";
-  if (r.status === 409) {
-    return "The review's state does not allow this right now. Reload to see what is needed now.";
-  }
-  return fallback;
+  return describeReviewRefusal(r, fallback);
 }
 
 // ---------------------------------------------------------------------------
@@ -537,8 +486,8 @@ export const LIFECYCLE_LABELS: Record<LifecycleState, string> = {
   IN_REVIEW: "In review",
   NEEDS_INFORMATION: "Waiting for information",
   ESCALATED: "Escalated",
-  APPROVED: "Approved (internal)",
-  REJECTED: "Rejected (internal)",
+  APPROVED: "Approved",
+  REJECTED: "Rejected",
   ARCHIVED: "Archived",
 };
 
@@ -550,10 +499,13 @@ const SLA_STATE_LABELS: Record<SlaState, string> = {
   HEALTHY: "On track",
   DUE_SOON: "Due soon",
   BREACHED: "Overdue",
-  ESCALATED: "Overdue (escalated)",
+  // T-045 (stage C) — an escalation is not a deadline state; the server no
+  // longer sends ESCALATED here, and it never meant "overdue".
+  ESCALATED: "Escalation open",
   BLOCKED: "Blocked",
   PAUSED: "Paused",
-  COMPLETED: "Met",
+  // T-043 — completed is not "met": met means on time (see sla-presentation).
+  COMPLETED: "Completed",
 };
 
 export function slaStateLabel(state: string): string {
@@ -565,8 +517,8 @@ export function slaStateLabel(state: string): string {
  * the SLA badge does not repeat the word (the old header read
  * "escalated • escalated").
  */
-export function headerSlaLabel(sla: string, lifecycle: string): string {
-  if (sla === "ESCALATED" && lifecycle === "ESCALATED") return "SLA overdue";
+export function headerSlaLabel(sla: string, _lifecycle: string): string {
+  // T-045 (stage C) — never "SLA overdue" because an escalation is open.
   return `SLA ${slaStateLabel(sla).toLowerCase()}`;
 }
 
@@ -587,8 +539,8 @@ export function slaDimensionLabel(dimension: string): string {
 }
 
 export const DECISION_KIND_LABELS: Record<string, string> = {
-  APPROVE: "Approved (internal)",
-  REJECT: "Rejected (internal)",
+  APPROVE: "Approved",
+  REJECT: "Rejected",
   REQUEST_INFO: "Information requested",
   NEEDS_MORE_INFO: "Needs more information",
   UPHOLD_FIRST: "Upheld the first decision",
@@ -597,8 +549,8 @@ export const DECISION_KIND_LABELS: Record<string, string> = {
 };
 
 export const DECISION_OPTION_LABELS: Record<string, string> = {
-  APPROVE: "Approve (internal)",
-  REJECT: "Reject (internal)",
+  APPROVE: "Approve",
+  REJECT: "Reject",
   REQUEST_INFO: "Request information",
   NEEDS_MORE_INFO: "Needs more information",
   UPHOLD_FIRST: "Uphold the first decision",
@@ -624,12 +576,7 @@ export const REASON_CODE_LABELS: Record<string, string> = {
   OTHER: "Other",
 };
 
-export const SECOND_REVIEW_TRIGGER_LABELS: Record<string, string> = {
-  workflow_escalated: "the review was escalated",
-  open_escalation: "an escalation is open",
-  active_legal_hold: "the evidence is under legal hold",
-  redaction_required: "fields need redaction",
-};
+export const SECOND_REVIEW_TRIGGER_LABELS: Readonly<Record<string, string>> = SECOND_REVIEW_CAUSE_LABELS;
 
 export function teamRoleLabel(role: string | null | undefined): string {
   switch ((role ?? "").toUpperCase()) {

@@ -337,8 +337,12 @@ export function resolveSettingsNavigation(
       href: `/organizations/${input.orgAdminOrgId}/admin/members`,
     });
   }
-  // Roles are a property of a workspace with membership; a personal space has
-  // none, so the pane would describe roles nobody can hold.
+  // Roles are a property of a workspace with membership. Team is a
+  // personal-workspace tier (T-110 / ARCH-02): a Personal Workspace whose plan
+  // includes collaboration holds members with real roles, so the pane is
+  // offered there too — an Organization, or any workspace whose server-projected
+  // `planFeatures.teamCollaborationIncluded` is true. A plan without
+  // collaboration (FREE) has no other role holder, so it is not offered there.
   //
   // CONTEXT AUTHORITY (2026-09-03) — this was gated on `isOrg` ALONE, with no
   // capability at all: every member and viewer of an Enterprise organization
@@ -347,7 +351,8 @@ export function resolveSettingsNavigation(
   // capability-resolved. Being inside an organization is not authority over
   // it. It asks for the same settings visibility every other administration
   // destination here asks for.
-  if (isOrg && has(input, "SETTINGS_VIEW")) {
+  const collaborationIncluded = input.planFeatures?.teamCollaborationIncluded === true;
+  if ((isOrg || collaborationIncluded) && has(input, "SETTINGS_VIEW")) {
     workspace.push({ id: "roles", label: "Roles & permissions", href: null });
   }
   // WORKSPACE LIFECYCLE (members audit LIFE-01/02) — offered to everyone,

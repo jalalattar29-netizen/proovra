@@ -52,7 +52,18 @@ type RemovalImpactResponse = {
   impact: {
     ownedEvidence: number;
     ownedCases: number;
+    /** Older API name for ACTIVE case assignments (= `caseAssignments`). */
     openAssignments: number;
+    /**
+     * Team remediation T-101 — what the removal releases, counted with the
+     * release's own predicates. Absent on an older API.
+     */
+    caseAssignments?: number;
+    heldReviews?: number;
+    heldReviewsInProgress?: number;
+    heldEscalations?: number;
+    restrictedCaseGrants?: number;
+    heldWork?: Record<string, number>;
     requiresTransfer: boolean;
   };
   eligibleTransferTargets: Array<{
@@ -353,13 +364,51 @@ export function MemberRemovalDialog({
                 testid="member-removal-impact-cases"
                 tone={impact.impact.ownedCases > 0 ? "warn" : "neutral"}
               />
+              {typeof impact.impact.heldReviews === "number" ? (
+                <ImpactStat
+                  label="Reviews held"
+                  value={impact.impact.heldReviews}
+                  detail={
+                    (impact.impact.heldReviewsInProgress ?? 0) > 0
+                      ? `${impact.impact.heldReviewsInProgress} in progress`
+                      : undefined
+                  }
+                  testid="member-removal-impact-reviews"
+                  tone={impact.impact.heldReviews > 0 ? "warn" : "neutral"}
+                />
+              ) : null}
+              {typeof impact.impact.heldEscalations === "number" ? (
+                <ImpactStat
+                  label="Escalations held"
+                  value={impact.impact.heldEscalations}
+                  testid="member-removal-impact-escalations"
+                  tone={impact.impact.heldEscalations > 0 ? "warn" : "neutral"}
+                />
+              ) : null}
               <ImpactStat
-                label="Open assignments"
-                value={impact.impact.openAssignments}
+                label="Case assignments"
+                value={impact.impact.caseAssignments ?? impact.impact.openAssignments}
                 testid="member-removal-impact-assignments"
                 tone="neutral"
               />
+              {typeof impact.impact.restrictedCaseGrants === "number" ? (
+                <ImpactStat
+                  label="Restricted-case access"
+                  value={impact.impact.restrictedCaseGrants}
+                  testid="member-removal-impact-grants"
+                  tone="neutral"
+                />
+              ) : null}
             </div>
+
+            {typeof impact.impact.heldReviews === "number" ? (
+              <p
+                style={{ margin: "0 0 12px", fontSize: 13 }}
+                data-member-removal-release-summary
+              >
+                {describeRemovalRelease(impact.impact)}
+              </p>
+            ) : null}
 
             {requiresTransfer ? (
               hasEligibleTargets ? (
@@ -475,14 +524,47 @@ export function MemberRemovalDialog({
   );
 }
 
+function plural(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/**
+ * T-101 — what removing this person does to what they hold, in one sentence,
+ * from the extended removal-impact counts.
+ */
+export function describeRemovalRelease(impact: RemovalImpactResponse["impact"]): string {
+  const reviews = impact.heldReviews ?? 0;
+  const inProgress = impact.heldReviewsInProgress ?? 0;
+  const escalations = impact.heldEscalations ?? 0;
+  const cases = impact.caseAssignments ?? impact.openAssignments ?? 0;
+  const grants = impact.restrictedCaseGrants ?? 0;
+  const parts: string[] = [];
+  if (reviews > 0) {
+    parts.push(
+      `${plural(reviews, "review", "reviews")} they hold will go back to the queue (${inProgress} ${inProgress === 1 ? "was" : "were"} in progress)`,
+    );
+  }
+  if (escalations > 0) parts.push(`${plural(escalations, "escalation", "escalations")} will be unassigned`);
+  if (cases > 0) parts.push(`${plural(cases, "case assignment", "case assignments")} will end`);
+  if (grants > 0) parts.push(`their access to ${plural(grants, "restricted case", "restricted cases")} will end`);
+  if (parts.length === 0) {
+    return "They hold no reviews, escalations, case assignments or restricted-case access here.";
+  }
+  const sentence = `When they are removed, ${parts.join(", ")}.`;
+  return sentence;
+}
+
 function ImpactStat({
   label,
   value,
+  detail,
   testid,
   tone,
 }: {
   label: string;
   value: number;
+  /** A short qualifier under the figure (e.g. "2 in progress"). */
+  detail?: string;
   testid: string;
   tone: "neutral" | "warn";
 }) {
@@ -526,6 +608,11 @@ function ImpactStat({
       >
         {value}
       </div>
+      {detail ? (
+        <div style={{ fontSize: 12, opacity: 0.8 }} data-impact-detail>
+          {detail}
+        </div>
+      ) : null}
     </div>
   );
 }

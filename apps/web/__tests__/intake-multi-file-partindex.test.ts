@@ -1,30 +1,18 @@
 /**
- * Intake-link multi-file upload — partIndex assignment.
+ * Intake-link multi-file upload — partIndex assignment and the client rules
+ * the public intake page applies.
  *
- * Regression pins for the closure-stale `parts.length` bug.
+ * History: stageFile() once read `parts.length` from a stale closure, so a
+ * multi-select sent partIndex 0 for every file. The caller then seeded a local
+ * counter from `parts.length` — which still targeted an OCCUPIED index after a
+ * middle file was removed (Team audit JRN-05 / T-128), and files refused
+ * client-side advanced the counter anyway.
  *
- * Previously stageFile() read `const partIndex = parts.length` from
- * the React state captured in its closure. The onChange handler
- * looped `for (const f of files) await stageFile(f)`, but React
- * doesn't re-render between awaits — every iteration saw
- * `parts.length === 0`, every POST sent `partIndex=0`, and the
- * backend's `(evidenceId, partIndex)` unique constraint rejected all
- * but the first file as `part_index_taken`. Result: only one file
- * landed on multi-select, the rest were silently dropped.
- *
- * The fix:
- *   1. stageFile(file, partIndex) — partIndex is a REQUIRED parameter.
- *      The function no longer reads parts.length internally.
- *   2. onChange captures `let nextIndex = parts.length` ONCE, then
- *      increments locally as it iterates the File[] from the picker.
- *   3. The maxFileCountPerSession guard also runs against the local
- *      counter (not stale React state) before each stage call, and
- *      breaks the loop with a clear message when the cap is hit.
- *
- * These tests are source-contract pins (the rest of this codebase
- * uses the same approach for closure-fragile React handlers) so a
- * future refactor that reintroduces `parts.length` inside stageFile
- * fails this suite, not in production where contributors lose files.
+ * Now (stage F): the next index is one past the highest index the session
+ * holds (`nextPartIndex`), only a file the server reserved advances it, the
+ * file cap counts files, and the per-submission byte allowance is computed
+ * before anything is sent (T-127). These are behavioural tests of the rules
+ * (`intake-client-model.ts`), plus the page wiring that calls them.
  */
 
 import { strict as assert } from "node:assert";
@@ -34,62 +22,77 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 import { functionSource } from "../../../scripts/source-contract/index.mjs";
+import {
+  INTAKE_PUBLIC_FETCH,
+  acceptAttributeForKinds,
+  intakeLoadErrorClass,
+  intakeLoadErrorRetryable,
+  nextPartIndex,
+  remainingSessionBytes,
+} from "../app/intake/[token]/intake-client-model";
 
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(dirname(__filename), "..", "..", "..");
-const INTAKE_PAGE = resolve(
-  REPO_ROOT,
-  "apps/web/app/intake/[token]/page.tsx",
-);
+const INTAKE_PAGE = resolve(REPO_ROOT, "apps/web/app/intake/[token]/page.tsx");
 const SRC = readFileSync(INTAKE_PAGE, "utf8");
 
-test("stageFile takes partIndex as a REQUIRED parameter (no stale-closure read)", () => {
-  // Signature must accept partIndex explicitly. The whole point of
-  // the fix is the caller decides the index.
-  assert.match(SRC, /async function stageFile\(file: File, partIndex: number\)/);
+test("T-128: after removing the middle of three files the next index is 3, not 2 (an occupied index)", () => {
+  const afterRemoval = [{ partIndex: 0 }, { partIndex: 2 }];
+  assert.equal(afterRemoval.length, 2); // the old `parts.length` answer — index 2 is taken
+  assert.equal(nextPartIndex(afterRemoval), 3);
 });
 
-test("stageFile no longer reads `parts.length` to derive partIndex", () => {
-  // The smoking-gun line `const partIndex = parts.length;` must be
-  // gone. Any reintroduction recreates the multi-file bug.
-  assert.ok(
-    !/const partIndex = parts\.length/.test(SRC),
-    "stageFile must not derive partIndex from React state",
-  );
+test("T-128: a fresh session starts at 0; resumed parts out of order still give max+1", () => {
+  assert.equal(nextPartIndex([]), 0);
+  assert.equal(nextPartIndex([{ partIndex: 4 }, { partIndex: 1 }]), 5);
+  assert.equal(nextPartIndex([{ partIndex: undefined }, { partIndex: 0 }]), 1);
 });
 
-test("stageFile no longer enforces the max-files cap from parts.length", () => {
-  // The cap check moved to the caller (onChange) where the local
-  // counter is authoritative. The old in-function guard read stale
-  // state and so under-counted.
-  assert.ok(
-    !/parts\.length >= link\.maxFileCountPerSession/.test(SRC),
-    "stageFile must not gate on parts.length — the caller owns the cap check",
-  );
+test("T-127: the remaining allowance is the cap minus what is staged, never negative; no cap is null", () => {
+  assert.equal(remainingSessionBytes("200", [{ sizeBytes: 150 }]), 50);
+  assert.equal(remainingSessionBytes(200, [{ sizeBytes: 150 }, { sizeBytes: 100 }]), 0);
+  assert.equal(remainingSessionBytes(null, [{ sizeBytes: 1 }]), null);
+  assert.equal(remainingSessionBytes(undefined, []), null);
 });
 
-test("onChange seeds nextIndex from parts.length ONCE and increments per file", () => {
-  // The local counter pattern — exact source-contract pin. We accept
-  // any of: "let nextIndex = parts.length" + "nextIndex += 1".
-  assert.match(SRC, /let nextIndex = parts\.length;/);
-  assert.match(SRC, /await stageFile\(f, nextIndex\);/);
-  assert.match(SRC, /nextIndex \+= 1;/);
+test("T-130: the page's transport is anonymous (no bearer, no cookies, no workspace header)", () => {
+  assert.deepEqual(INTAKE_PUBLIC_FETCH, { auth: false, anonymous: true });
+  assert.doesNotMatch(SRC, /\{ auth: false \}/);
 });
 
-test("onChange max-files guard uses the LOCAL counter, not React state", () => {
-  // The cap check must consult `nextIndex`, not `parts.length`, so it
-  // remains correct across the await boundaries inside the loop.
-  assert.match(
-    SRC,
-    /if \(cap !== null && nextIndex >= cap\)/,
-  );
+test("T-151: the load error class comes from the code; LINK_REVOKED is expired-or-revoked", () => {
+  assert.equal(intakeLoadErrorClass("LINK_REVOKED"), "expired-or-revoked");
+  assert.equal(intakeLoadErrorClass("LINK_NO_LONGER_AVAILABLE"), "expired-or-revoked");
+  assert.equal(intakeLoadErrorClass("INVALID_OR_EXPIRED_LINK"), "invalid");
+  assert.equal(intakeLoadErrorClass("RATE_LIMITED"), "rate-limited");
+  assert.equal(intakeLoadErrorClass("NETWORK_ERROR"), "network");
+  assert.equal(intakeLoadErrorClass("FEATURE_DISABLED"), "feature-disabled");
+  assert.equal(intakeLoadErrorClass(undefined), "generic");
+  assert.equal(intakeLoadErrorRetryable("rate-limited"), true);
+  assert.equal(intakeLoadErrorRetryable("network"), true);
+  assert.equal(intakeLoadErrorRetryable("expired-or-revoked"), false);
+  assert.equal(intakeLoadErrorRetryable("invalid"), false);
+});
+
+test("T-154: a DOCUMENT-only link filters the picker to document types; no restriction means no filter", () => {
+  const accept = acceptAttributeForKinds(["DOCUMENT"]) ?? "";
+  assert.match(accept, /application\/pdf/);
+  assert.doesNotMatch(accept, /image\/\*/);
+  assert.equal(acceptAttributeForKinds([]), undefined);
+  assert.equal(acceptAttributeForKinds(["PHOTO", "VIDEO"]), "image/*,video/*");
+});
+
+test("the picker and the drop area share one selection path (addFiles), which seeds from nextPartIndex", () => {
+  const add = functionSource(SRC, "addFiles", "page.tsx");
+  assert.match(add, /let nextIndex = nextPartIndex\(parts\);/);
+  assert.match(add, /if \(await stageFile\(f, nextIndex\)\) \{\s*nextIndex \+= 1;/);
+  assert.match(add, /This link accepts up to \$\{cap\} files\./);
+  assert.match(SRC, /await addFiles\(Array\.from\(e\.target\.files \?\? \[\]\)\)/);
+  assert.match(SRC, /void addFiles\(Array\.from\(e\.dataTransfer\?\.files \?\? \[\]\)\)/);
+  assert.match(SRC, /<input[\s\S]{0,300}type="file"[\s\S]{0,200}multiple/);
 });
 
 test("intake part submission includes silent captureTimezone + captureLocale", () => {
-  // Enterprise Capture Environment — the intake client sends the
-  // contributor browser's timezone + language so the server can record
-  // the privacy-safe capture environment. Guarded (try/catch + navigator
-  // existence check) so a missing Intl/navigator never breaks upload.
   assert.match(
     SRC,
     /captureTimezone:[\s\S]{0,160}Intl\.DateTimeFormat\(\)\.resolvedOptions\(\)\.timeZone/,
@@ -100,98 +103,9 @@ test("intake part submission includes silent captureTimezone + captureLocale", (
     /captureLocale:[\s\S]{0,120}navigator\.language/,
     "intake POST body must send captureLocale from navigator.language",
   );
-  // Privacy: the client sends only tz/locale; raw IP + raw User-Agent are
-  // derived (and masked/hashed) server-side. The intake stageFile body
-  // must not include a rawIp / rawUserAgent field.
   const stageBody = functionSource(SRC, "stageFile", "page.tsx");
   assert.ok(
     !/rawIp\b|rawUserAgent\b/.test(stageBody),
     "intake stageFile must not send raw IP / raw User-Agent in the body",
   );
-});
-
-test("selecting 5 files sends partIndex 0..4 (deterministic local-counter walk)", () => {
-  // Sequence simulation: nextIndex starts at parts.length (0 on a
-  // fresh session), then the loop body increments by 1 for each
-  // file. With files.length === 5, the partIndex sent must be the
-  // sequence [0,1,2,3,4].
-  const code = SRC;
-  // Reconstruct the local-counter contract from the source itself,
-  // then run the same arithmetic to verify the sequence is what we
-  // claim. This is a static behaviour proof: if the source shape
-  // ever changes such that the local counter no longer monotonically
-  // increments by 1, this test fails.
-  const loopMatch = code.match(
-    /let nextIndex = parts\.length;[\s\S]{0,600}?for \(const f of files\)[\s\S]{0,800}?await stageFile\(f, nextIndex\);[\s\S]{0,200}?nextIndex \+= 1;/,
-  );
-  assert.ok(
-    loopMatch,
-    "the onChange local-counter loop shape must be present in source",
-  );
-  // Now simulate: starting from parts.length = 0, what indices does
-  // a 5-file selection produce?
-  const selected = 5;
-  const startedAt = 0;
-  const observed: number[] = [];
-  let nextIndex = startedAt;
-  for (let i = 0; i < selected; i++) {
-    observed.push(nextIndex);
-    nextIndex += 1;
-  }
-  assert.deepEqual(observed, [0, 1, 2, 3, 4]);
-});
-
-test("adding 3 files then 2 more files: second batch starts at partIndex 3", () => {
-  // Same simulator as above. After the first batch lands, parts.length
-  // is 3 (the state IS reflected in `parts.length` between user-input
-  // events — the stale-read problem only occurs within a single
-  // onChange invocation, never across them). So the second onChange
-  // seeds nextIndex from parts.length = 3 and produces [3, 4].
-  const batch1 = 3;
-  const observed1: number[] = [];
-  let nextIndex = 0;
-  for (let i = 0; i < batch1; i++) {
-    observed1.push(nextIndex);
-    nextIndex += 1;
-  }
-  assert.deepEqual(observed1, [0, 1, 2]);
-
-  // Simulate the React state catching up between the two onChange
-  // events. The next batch seeds from the new parts.length.
-  const partsLengthAfterBatch1 = batch1; // 3
-  const batch2 = 2;
-  const observed2: number[] = [];
-  nextIndex = partsLengthAfterBatch1;
-  for (let i = 0; i < batch2; i++) {
-    observed2.push(nextIndex);
-    nextIndex += 1;
-  }
-  assert.deepEqual(observed2, [3, 4]);
-});
-
-test("local cap-check stops the loop at the limit and surfaces a message", () => {
-  // The guard must break the loop and message the user, not silently
-  // skip — the contributor needs to know why their 11th-of-10 file
-  // wasn't added.
-  //
-  // WHERE it says so moved, and that is what this now asserts: reaching a
-  // link's file cap is the contributor's ordinary mistake, so it is answered
-  // beside the picker they just used, not in the page-level banner that also
-  // carries genuine server faults.
-  assert.match(SRC, /setFileError\(/);
-  assert.match(SRC, /This link accepts up to \$\{cap\} files\./);
-  assert.doesNotMatch(
-    SRC,
-    /if \(cap !== null && nextIndex >= cap\)[\s\S]{0,400}setErrorMessage\(/,
-  );
-  assert.match(SRC, /break;/);
-});
-
-test("file picker still has multiple={true} and reads every selected file", () => {
-  // Sanity guard against a future regression that drops `multiple`
-  // or replaces Array.from(e.target.files) with files[0]. The whole
-  // fix is moot if the picker only surfaces one file in the first
-  // place.
-  assert.match(SRC, /<input[\s\S]{0,300}type="file"[\s\S]{0,200}multiple/);
-  assert.match(SRC, /Array\.from\(e\.target\.files \?\? \[\]\)/);
 });

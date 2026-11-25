@@ -191,7 +191,9 @@ describe("Phase 25.7 — stuck workflow sweep wired into runReconcile", () => {
 
   it("only escalates CRITICAL-severity stuck rows (never WARNING/HIGH — guards against storm)", () => {
     expect(src).toMatch(
-      /classification\.topSeverity === "CRITICAL"[\s\S]*?!wf\.activeEscalationId/,
+      // Stage C follow-up: "already escalated" is the governing ACTIVE
+      // escalation by query, never the drift-prone pointer.
+      /classification\.topSeverity === "CRITICAL"[\s\S]*?!governing/,
     );
   });
 

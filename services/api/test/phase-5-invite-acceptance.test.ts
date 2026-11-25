@@ -413,7 +413,7 @@ describe("Phase 5 §8 — route + web token-preservation source contracts", () =
     expect(src).toContain("/org-invites/${encodeURIComponent(token)}/accept");
   });
 
-  it("collaboration invite accept page uses /login (there is NO /signin route)", () => {
+  it("collaboration invite accept page is retired: no sign-in hop, it points at the workspace invitation (T-121)", () => {
     const src = readFileSync(
       join(
         WEB,
@@ -427,8 +427,16 @@ describe("Phase 5 §8 — route + web token-preservation source contracts", () =
       ),
       "utf8",
     );
-    expect(src).toContain("/login?next=");
+    // T-121 (stage E) — the legacy Collaboration-Team link accepts nothing
+    // (every link expired long ago), so there is no token to preserve
+    // across sign-in. The page sends nobody to /login with the token and
+    // never to the non-existent /signin; it explains the workspace
+    // invitation and clears any old hand-off.
+    expect(src).toContain('data-status="retired"');
+    expect(src).toMatch(/replaced by workspace invitations/);
+    expect(src).not.toContain("/login?next=");
     expect(src).not.toContain("/signin?next=");
+    expect(src).toMatch(/sessionStorage\.removeItem\(LEGACY_HANDOFF_KEY\)/);
   });
 
   it("login honours next/returnUrl and hands it to the OAuth callback", () => {

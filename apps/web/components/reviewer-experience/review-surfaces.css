@@ -360,3 +360,193 @@
   background: var(--surface-translucent-selected);
   box-shadow: inset 3px 0 0 var(--accent-500);
 }
+
+/* ===========================================================================
+ * Stage D (team remediation) — Inbox, hub tabs, plain status text.
+ * ======================================================================== */
+
+/* T-088 — the hub tab row and the Inbox view row scroll sideways on a phone
+   instead of cutting "Review settings" (or a view) off. The scroll edge is
+   the overflow indicator; tabs never wrap into a second ragged row. */
+.review-hub-tabs,
+.review-view-tabs {
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  max-inline-size: 100%;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+}
+.review-hub-tabs > .app-tab,
+.review-view-tabs > .app-tab {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  scroll-snap-align: start;
+}
+.review-view-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+  min-inline-size: 0;
+}
+.review-view-bar > .review-view-tabs { flex: 1 1 320px; min-inline-size: 0; }
+.review-view-bar > .app-listbox { flex: 0 0 200px; }
+
+/* One-line hints (QC pending, Conflicts vs challenged decisions). */
+.review-inline-line { margin: 0; }
+
+/* T-069 — the attention sentence under the status word. */
+.review-status-cell { display: grid; gap: 2px; min-inline-size: 0; }
+.review-attention { font-size: 12.5px; color: var(--app-ink-secondary, var(--ink-secondary)); overflow-wrap: anywhere; }
+.review-attention .app-status-text { font-size: inherit; }
+
+.review-inbox__filter .app-input { max-inline-size: 360px; }
+
+/* T-088 — Inbox and Escalations switch to the card layout below ~900 px so
+   every row action stays visible at 768 px (the shared cutover is 720 px).
+   Additive: only tables that opt in with `.review-cards-900`. */
+@media (max-width: 900px) {
+  .app-table.review-cards-900 thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .app-table.review-cards-900 tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "ref due"
+      "status status"
+      "assignee assignee"
+      "actions actions";
+    gap: 6px 12px;
+    align-items: center;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .app-table.review-cards-900[data-review-selectable="true"] tbody tr {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "check ref due"
+      "check status status"
+      "check assignee assignee"
+      "check actions actions";
+  }
+  .app-table.review-cards-900 tbody td {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0;
+    border: none;
+    min-width: 0;
+  }
+  .app-table.review-cards-900 tbody td::before { content: none; }
+  .app-table.review-cards-900 tbody td[data-review-cell="check"] { grid-area: check; align-self: start; }
+  .app-table.review-cards-900 tbody td[data-review-cell="ref"] { grid-area: ref; }
+  .app-table.review-cards-900 tbody td[data-review-cell="status"] { grid-area: status; }
+  .app-table.review-cards-900 tbody td[data-review-cell="due"] { grid-area: due; justify-content: flex-end; }
+  .app-table.review-cards-900 tbody td[data-review-cell="assignee"] { grid-area: assignee; }
+  .app-table.review-cards-900 tbody td[data-review-cell="actions"] { grid-area: actions; }
+  .app-table.review-cards-900 .app-table__actions { justify-content: flex-start; flex-wrap: wrap; }
+  /* Escalations (Monitoring) — label/value cards, every action wraps in view. */
+  .app-table.review-cards-900[data-escalations-table] tbody tr {
+    display: block;
+  }
+  .app-table.review-cards-900[data-escalations-table] tbody td {
+    justify-content: space-between;
+    padding: 4px 0;
+  }
+  .app-table.review-cards-900[data-escalations-table] tbody td::before {
+    content: attr(data-label);
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--app-ink-label);
+  }
+  .app-table.review-cards-900[data-escalations-table] tbody td[data-label=""]::before { content: none; }
+}
+
+/* T-089 — the assistant launcher (position: fixed, bottom-right) never covers
+   the last action row of a Review page: the page reserves the launcher's
+   clearance at its end, as Capture does with --cf-launcher-clearance. */
+.review-launcher-clearance {
+  padding-block-end: var(--review-launcher-clearance, 88px);
+}
+
+/* ---- Review page: compact header (T-072) --------------------------------- */
+.review-header-facts { display: grid; gap: 6px; min-inline-size: 0; }
+.review-header-facts__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  min-inline-size: 0;
+  font-size: 13px;
+}
+.review-header-escalation { text-decoration: none; }
+.review-header-escalation:hover .app-status-text,
+.review-header-escalation:focus-visible .app-status-text { text-decoration: underline; }
+
+/* ---- Next item within the Inbox view (T-074 / T-077) --------------------- */
+.review-view-move { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; }
+
+/* ---- Focus mode (T-077): the evidence beside the work -------------------- */
+.review-focus__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 16px;
+  align-items: start;
+  min-inline-size: 0;
+}
+.review-focus__evidence,
+.review-focus__work { display: grid; gap: 12px; min-inline-size: 0; }
+.review-focus__evidence { position: sticky; top: 12px; }
+@media (max-width: 1100px) {
+  .review-focus__grid { grid-template-columns: minmax(0, 1fr); }
+  .review-focus__evidence { position: static; }
+}
+.review-inspector-columns__side { display: grid; gap: 12px; align-content: start; min-inline-size: 0; }
+.review-coding-section { display: grid; gap: 12px; min-inline-size: 0; }
+
+/* ---- Monitoring (T-078): one area, an in-page segmented control ---------- */
+.review-segmented {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  max-inline-size: 100%;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--surface-muted);
+  scrollbar-width: thin;
+}
+.review-segmented__item {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm, 6px);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--app-ink-secondary, var(--ink-secondary));
+  text-decoration: none;
+  white-space: nowrap;
+}
+.review-segmented__item:hover { color: var(--app-ink-heading, var(--ink-primary)); }
+.review-segmented__item.is-active {
+  background: var(--surface-elevated, #fff);
+  color: var(--app-ink-heading, var(--ink-primary));
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+.review-segmented__item:focus-visible { outline: 2px solid var(--accent-500); outline-offset: 1px; }
+.review-monitoring-section { display: grid; gap: 12px; min-inline-size: 0; }
+.review-monitoring-section__head { padding-inline: 0; }
+.review-header-deadlines { font-size: 13px; }
+.review-header-deadlines > summary { cursor: pointer; color: var(--app-ink-secondary, var(--ink-secondary)); }
+.review-header-deadlines ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }

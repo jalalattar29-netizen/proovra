@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, resolve } from "node:path";
 import ts from "typescript";
 
@@ -36,7 +36,9 @@ const src = readFileSync(resolve(HERE, "../src/product/collaboration.ts"), "utf8
     "function humanizeEnum(v){return v.charAt(0)+v.slice(1).toLowerCase();}",
   )
   .replace(/^import type \{ ProovraStatusTone \}.*$/m, "")
-  .replace(/from "\.\/domain-enums\.generated"/g, `from "${ENUMS_URL}"`);
+  .replace(/from "\.\/domain-enums\.generated"/g, `from "${ENUMS_URL}"`)
+  // Stage C (T-059) — the workload copy comes from the built shared entry.
+  .replace('"@proovra/shared"', JSON.stringify(pathToFileURL(resolve(HERE, "../../../packages/shared/dist/index.js")).href));
 
 const js = ts.transpileModule(src, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },

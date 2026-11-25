@@ -3,7 +3,7 @@ import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { buildEvidenceBulkRequest } from "@proovra/shared";
+import { EVIDENCE_LIBRARY_RECORD_FIGURE_COPY, buildEvidenceBulkRequest } from "@proovra/shared";
 import { X } from "lucide-react";
 import { PageShell, useToast } from "../../../components/ui";
 import { apiFetch } from "../../../lib/api";
@@ -11,7 +11,7 @@ import { listAllCases } from "../../../lib/cases/listAllCases";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import {
   useActiveSpaceId,
-  useEnterpriseSurfaceAccess,
+  usePlanFeatureGate,
   usePlatformContext,
 } from "../../../lib/platform-context";
 import { captureException } from "../../../lib/sentry";
@@ -900,24 +900,25 @@ function EvidenceLibraryPageInner() {
           detail: "Active batches",
         };
 
-    // Card 7 — Unassigned records (no case linkage).
+    // Card 7 — records with no case linkage. T-064 (stage C): these are
+    // RECORDS, not unassigned reviews, and the label says so.
     const unassignedCard = usingWorkspaceTotal
       ? {
-          label: "Unassigned records",
+          label: EVIDENCE_LIBRARY_RECORD_FIGURE_COPY.notInCase.label,
           value: String(workspaceSummary.unassignedCount),
-          detail: "Awaiting triage",
+          detail: EVIDENCE_LIBRARY_RECORD_FIGURE_COPY.notInCase.caption,
         }
       : {
-          label: "Unassigned records",
+          label: EVIDENCE_LIBRARY_RECORD_FIGURE_COPY.notInCase.label,
           value: String(pageUnassignedCount),
-          detail: "Awaiting triage",
+          detail: EVIDENCE_LIBRARY_RECORD_FIGURE_COPY.notInCase.caption,
         };
 
     // Card 8 — Review-ready markers (page only — no equivalent
     // workspace metric is needed for the operational view and the
     // existing list field is reliable per row).
     const reviewReadyCard = {
-      label: "Review-ready records",
+      label: EVIDENCE_LIBRARY_RECORD_FIGURE_COPY.reviewReadyMarker.label,
       value: String(pageReviewReadyCount),
       // The queue the operator acts on next — the target gives this value the
       // brand accent. Semantics unchanged: it is still the page-derived
@@ -1291,13 +1292,14 @@ function EvidenceLibraryPageInner() {
     setSelectedIds(new Set());
   };
 
-  // Phase EVIDENCE-LIBRARY-ENTERPRISE-GATE (FIX 6) / Track 1A — the
-  // QueueSelectionPreview's reviewer-assignment + due-date rows are
-  // enterprise-only — they assume an external reviewer is on the
-  // workflow. Personal Space / small-business workspaces hide those
-  // rows; the user IS the reviewer there. Server-projected boolean
-  // only; backend authorization is unchanged.
-  const canSeeReviewerOps = useEnterpriseSurfaceAccess();
+  // T-112 (ARCH-04) — the QueueSelectionPreview reviewer-assignment and
+  // due-date rows follow the plan that sells review assignments
+  // (`planFeatures.reviewerOperationsIncluded`: Team and Enterprise), not the
+  // Enterprise surface flag: Team runs on a Personal Workspace and assigns
+  // reviewers there. A plan without reviewer operations (Free, Pro) hides the
+  // rows — the owner IS the reviewer. Server-projected boolean only; backend
+  // authorization is unchanged.
+  const canSeeReviewerOps = usePlanFeatureGate("reviewerOperationsIncluded");
 
   return (
     <PageShell className="evidence-library-page" data-evidence-library-page>

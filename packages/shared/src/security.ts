@@ -302,6 +302,9 @@ export const SECURITY_EVENT_TYPES = [
   "suspicious_admin_runtime_activity",
   "suspicious_reviewer_runtime_activity",
   "forced_runtime_reauthentication",
+  // T-038 — a pre-inventory (row-less) session token was adopted into the
+  // session inventory on its next request.
+  "legacy_session_adopted",
   "emergency_org_session_revoke",
   "trusted_device_decayed",
   "trusted_device_auto_invalidated",

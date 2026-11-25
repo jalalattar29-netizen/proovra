@@ -17,6 +17,9 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { SURFACE_TIER_RULES } from "../lib/surface/tiers";
+import { getRouteDefinition } from "../lib/navigation/routeRegistry";
+
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SURFACE_DIR = join(APP_ROOT, "lib", "surface");
 
@@ -48,4 +51,25 @@ test("lib/surface never imports WorkspacePlan (no plan-name typing back-door)", 
 
 test("the orphaned lib/surface/resolveHomeSurface twin stays deleted", () => {
   assert.equal(existsSync(join(SURFACE_DIR, "resolveHomeSurface.ts")), false);
+});
+
+// T-125 / ARCH-09 — the tier table's own commercial-entitlement keys were the
+// second web authority (`/review/queues` read reviewerOperationsIncluded there
+// and reviewQueuesIncluded in the registry; `/redaction` read redactionIncluded
+// there while the registry kept it Enterprise-only). The rules now NAME the
+// registry route they follow; the key itself lives only in the registry.
+test("tier rules carry no plan-feature key of their own; each follows a registry route", () => {
+  for (const rule of SURFACE_TIER_RULES) {
+    const r = rule as Record<string, unknown>;
+    assert.equal(r.entitlementOverride, undefined, `${rule.pathPrefix} declares entitlementOverride`);
+    assert.equal(r.readRetainedOverride, undefined, `${rule.pathPrefix} declares readRetainedOverride`);
+    if (rule.entitlementRouteId) {
+      assert.ok(
+        getRouteDefinition(rule.entitlementRouteId)?.requiredPlanFeature,
+        `${rule.pathPrefix} follows ${rule.entitlementRouteId}, which declares no requiredPlanFeature`,
+      );
+    }
+  }
+  const access = readFileSync(join(SURFACE_DIR, "access.ts"), "utf8");
+  assert.ok(!/entitlementOverride|readRetainedOverride/.test(access), "access.ts reads a tier-local entitlement key");
 });

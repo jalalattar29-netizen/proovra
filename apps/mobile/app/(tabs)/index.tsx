@@ -444,7 +444,7 @@ export default function HomeScreen() {
             <ProovraText variant="label" color={theme.color.ink.secondary} style={{ marginBottom: theme.space.s2 }}>
               Workspace health and the priorities ranked by severity.
             </ProovraText>
-            <HomeWorkspaceHealthCard health={health} noWorkspace={noWorkspace} />
+            <HomeWorkspaceHealthCard health={health} noWorkspace={noWorkspace} priorities={priorities} />
             {showGettingStarted ? <HomeGettingStartedCard casesIncluded={casesIncluded} /> : <HomePrioritiesCard priorities={priorities} verdict={verdict} />}
           </ProovraSection>
 

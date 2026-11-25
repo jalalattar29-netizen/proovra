@@ -362,9 +362,11 @@ describe("closure phase 2 (ui) — caller-less routes with a control, tombstones
     const row = () =>
       prisma.evidenceRelationship.findUniqueOrThrow({ where: { id: relId }, select: { relationshipType: true, note: true } });
 
-    for (const token of [A().viewerToken, B().ownerToken]) {
+    // T-119/T-120 (team remediation stage E): a caller who can READ the record is
+    // refused with 403; another tenant still gets the concealed 404.
+    for (const [token, status] of [[A().viewerToken, 403], [B().ownerToken, 404]] as const) {
       const refused = await call("PATCH", url, token, { relationshipType: "CONTRADICTS", note: "overwritten" });
-      expect(refused.statusCode, refused.body).toBe(404);
+      expect(refused.statusCode, refused.body).toBe(status);
     }
     expect(await row()).toEqual({ relationshipType: "RELATED", note: "first" });
 

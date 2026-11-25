@@ -45,7 +45,7 @@
  * This hook does not duplicate either check; it reports what the server said.
  */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
 import { outputOperationError, resolveOutputOperationError } from "@proovra/shared";
@@ -143,6 +143,7 @@ export function useEvidenceArtifactActions(input: {
 }): EvidenceArtifactActions {
   const { evidenceId, addToast, reloadWorkspace, getOfferRevision } = input;
 
+  const inFlightRef = useRef<Set<string>>(new Set());
   const [missingStoredArtifacts, setMissingStoredArtifacts] = useState<MissingStoredArtifacts>({
     report: null,
     verificationPackage: null,
@@ -495,12 +496,32 @@ const downloadVerificationPackageVersion = async (version: number) => {
     }
   };
 
+  /*
+   * T-144 (audit JRN-08 h) — ONE download per artifact at a time. A second
+   * click while the first is still resolving its signed URL is ignored, so a
+   * double click never opens two tabs (or starts two transfers). The check is
+   * synchronous, before the click-time window is opened.
+   */
+  const inFlight = inFlightRef.current;
+  const once =
+    <A extends unknown[]>(key: (...args: A) => string, run: (...args: A) => Promise<void>) =>
+    async (...args: A): Promise<void> => {
+      const k = key(...args);
+      if (inFlight.has(k)) return;
+      inFlight.add(k);
+      try {
+        await run(...args);
+      } finally {
+        inFlight.delete(k);
+      }
+    };
+
   return {
-    downloadReport,
-    downloadVerificationPackage,
-    downloadReportVersion,
-    downloadVerificationPackageVersion,
-    downloadExternalDisclosurePackageVersion,
+    downloadReport: once(() => "report", downloadReport),
+    downloadVerificationPackage: once(() => "package", downloadVerificationPackage),
+    downloadReportVersion: once((v: number) => `report:${v}`, downloadReportVersion),
+    downloadVerificationPackageVersion: once((v: number) => `package:${v}`, downloadVerificationPackageVersion),
+    downloadExternalDisclosurePackageVersion: once((v: number) => `external:${v}`, downloadExternalDisclosurePackageVersion),
     generateOutputs,
     createNewVersion,
     generateOutputsBusy,

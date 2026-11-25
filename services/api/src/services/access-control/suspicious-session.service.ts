@@ -27,6 +27,8 @@ import {
   SUSPICIOUS_SESSION_SIGNAL_KINDS,
   SUSPICIOUS_SESSION_SIGNAL_WEIGHTS,
   computeSuspiciousSessionRisk,
+  countCorroboratedConcurrentSessions,
+  CONCURRENT_RISKY_SESSIONS_MIN_CORROBORATED,
   sessionRiskLevel,
   type SuspiciousSessionSignal,
   type SuspiciousSessionSignalKind,
@@ -188,8 +190,10 @@ export async function collectSessionRiskSignals(
   const now = input.nowMs;
   const signals: SuspiciousSessionSignal[] = [];
 
-  // (1) Concurrent risky sessions: count of other active sessions for
-  // the same user with a different IP preview.
+  // (1) Concurrent risky sessions: other active sessions of the same user that
+  // something CORROBORATES as being elsewhere (T-025): a different network,
+  // bound device or country. Several sessions of one person from one device or
+  // network are not a signal by their count alone.
   const concurrent = await client.authenticatedSession.findMany({
     where: {
       teamId: input.teamId,
@@ -202,15 +206,28 @@ export async function collectSessionRiskSignals(
       id: true,
       ipPreview: true,
       countryCode: true,
+      deviceIdHash: true,
       issuedAtUtc: true,
     },
   });
 
-  if (concurrent.length >= 3) {
+  const corroborated = countCorroboratedConcurrentSessions(
+    {
+      ipPreview: session.ipPreview ?? null,
+      deviceIdHash: session.deviceIdHash ?? null,
+      countryCode: session.countryCode ?? null,
+    },
+    concurrent.map((s) => ({
+      ipPreview: s.ipPreview ?? null,
+      deviceIdHash: s.deviceIdHash ?? null,
+      countryCode: s.countryCode ?? null,
+    })),
+  );
+  if (corroborated >= CONCURRENT_RISKY_SESSIONS_MIN_CORROBORATED) {
     signals.push(
       signal(
         "CONCURRENT_RISKY_SESSIONS",
-        `${concurrent.length} other active sessions`,
+        `${corroborated} other active sessions from a different network, device or country`,
       ),
     );
   }

@@ -115,13 +115,13 @@ const EN = {
   homeOpenDelivery: "Open delivery →",
 
   // Active matters
-  homeActiveMatters: "Active matters",
+  homeActiveMatters: "Active cases",
   homeWithGaps: "{count} with evidence gaps",
   homeBlocked: "{count} blocked",
   homeUnlinkedOne: "{count} unlinked record",
   homeUnlinkedOther: "{count} unlinked records",
   homeNotReviewed: "{count} not reviewed",
-  homeNoMatters: "No active matters yet. Group related evidence into a case to track a matter end-to-end.",
+  homeNoMatters: "No active cases yet. Group related evidence into a case to follow it end-to-end.",
   homeCreateCase: "Create case",
   homeVerdictActionRequired: "Action required",
   homeVerdictNeedsWork: "Needs work",

@@ -439,27 +439,28 @@ describe("Phase R15 — Stages 4-12: page content", () => {
     );
   });
 
-  it("accept page exposes all 8 bounded states for e2e + error reporting", () => {
-    const required = [
-      "checking",
-      "accepting",
-      "success",
-      "invalid",
-      "expired",
-      "revoked",
-      "auth_required",
-      "workspace_required",
-      "rate_limited",
-      "error",
-    ];
-    // The state union appears in the source as a type literal.
-    for (const s of required) {
-      expect(accept).toContain(`"${s}"`);
+  // T-121 (stage E) — the legacy Collaboration-Team invitation link is
+  // RETIRED: invitations stopped being created on 2026-09-06 and lived 7
+  // days, so every link has expired. The page accepts nothing; it explains
+  // the workspace-invitation path instead (render: coverage-page-denials).
+  it("retired accept page renders ONE bounded state that explains the replacement (T-121)", () => {
+    expect(accept).toContain('data-status="retired"');
+    expect(accept).toMatch(/kind="invitation-invalid"/);
+    expect(accept).toMatch(/replaced by workspace invitations/);
+    expect(accept).toMatch(/href: "\/home"/);
+    expect(accept).toMatch(/href: "\/collaboration-teams"/);
+    // None of the former accept-flow states survive.
+    for (const s of ["accepting", "auth_required", "workspace_required", "rate_limited"]) {
+      expect(accept).not.toContain(`"${s}"`);
     }
   });
 
-  it("accept page calls isWellFormedCollaborationTeamInviteToken for fast-fail", () => {
-    expect(accept).toMatch(/isWellFormedCollaborationTeamInviteToken/);
+  it("retired accept page never reads, validates or sends the token (T-121)", () => {
+    expect(accept).not.toMatch(/isWellFormedCollaborationTeamInviteToken/);
+    expect(accept).not.toMatch(/apiFetch|fetch\(/);
+    expect(accept).not.toMatch(/useParams/);
+    // The hand-off an older build may have left is cleared, not used.
+    expect(accept).toMatch(/sessionStorage\.removeItem\(LEGACY_HANDOFF_KEY\)/);
   });
 
   it("accept page never logs the raw token (no console.log of rawToken)", () => {
@@ -467,10 +468,9 @@ describe("Phase R15 — Stages 4-12: page content", () => {
     expect(consoleHits).toBeNull();
   });
 
-  it("accept page redirects to the team detail on success", () => {
-    expect(accept).toMatch(
-      /router\.replace\(`\/collaboration-teams\/\$\{result\.teamId\}`\)/,
-    );
+  it("retired accept page has no success redirect: it joins nobody to a team (T-121)", () => {
+    expect(accept).not.toMatch(/router\.(replace|push)\(/);
+    expect(accept).not.toMatch(/useRouter/);
   });
 });
 

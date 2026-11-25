@@ -38,7 +38,7 @@ const PAGE_PATH = resolve(
   "(app)",
   "review",
   "metrics",
-  "page.tsx",
+  "_section.tsx", // stage D (T-078): Monitoring → Metrics
 );
 const PAGE_SOURCE = readFileSync(PAGE_PATH, "utf8");
 
@@ -207,8 +207,9 @@ test("isMetricsEmpty checks every numeric field", () => {
   ]) {
     assert.match(
       PAGE_SOURCE,
-      new RegExp(`m\\.${field}\\s*===\\s*0`),
-      `isMetricsEmpty must require ${field} === 0.`,
+      // Stage C (T-056): a rate may be null ("No data"); null or 0 is empty.
+      new RegExp(`m\\.${field}\\s*===\\s*0|none\\(m\\.${field}\\)`),
+      `isMetricsEmpty must require ${field} to be 0 or null.`,
     );
   }
 });

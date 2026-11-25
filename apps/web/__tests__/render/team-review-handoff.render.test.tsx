@@ -52,7 +52,7 @@ vi.mock("../../components/presence/PresenceIndicator", () => ({ PresenceIndicato
 vi.mock("../../components/presence/CollisionWarning", () => ({ CollisionWarning: () => null }));
 vi.mock("../../components/ai-copilot/ReviewerCopilotPanel", () => ({ ReviewerCopilotPanel: () => null }));
 vi.mock("../../app/(app)/reviewer-ops/components/CodingSchemaBindingPanel", () => ({ CodingSchemaBindingPanel: () => null }));
-vi.mock("../../app/(app)/review/queues/_evidence-request-queue", () => ({ EvidenceRequestReviewQueue: () => null }));
+vi.mock("../../app/(app)/evidence-requests/_components/EvidenceRequestReviewQueue", () => ({ EvidenceRequestReviewQueue: () => null }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: () => {}, replace: mocks.replace, back: () => {} }),
   useSearchParams: () => new URLSearchParams(""),
@@ -61,7 +61,6 @@ vi.mock("next/navigation", () => ({
 }));
 
 import ReviewWorkspacePage from "../../app/(app)/reviewer-ops/[reviewId]/page";
-import QueuesPage from "../../app/(app)/review/queues/page";
 import { HANDOFF_COPY } from "../../app/(app)/reviewer-ops/[reviewId]/_components/HandoffBanner";
 
 const ALL = ["start", "pause", "resume", "request_info", "record_response", "approve", "reject", "reassign", "adjudicate", "archive"];
@@ -166,6 +165,26 @@ async function renderInspector() {
 const banner = () => document.querySelector("[data-review-handoff]");
 
 describe("inspector handoff banner", () => {
+  it("T-086 / E2E-08: without a display name the first reviewer is named by the masked e-mail, never an id reference", async () => {
+    workspace = workspaceBody(
+      secondReviewHandoff({ firstReviewerDisplayName: null, firstReviewerMaskedEmail: "d***@example.com" }),
+      viewer(["reassign"]),
+    );
+    await renderInspector();
+    await waitFor(() => expect(banner()?.getAttribute("data-review-handoff")).toBe("manager"));
+    expect(banner()?.textContent).toContain(HANDOFF_COPY.managerLead("d***@example.com"));
+    expect(banner()?.textContent).not.toMatch(/Reviewer ref|ref [0-9A-F]{6}/i);
+  });
+
+  it("T-086: with nothing projected the banner says 'another reviewer'", async () => {
+    workspace = workspaceBody(
+      secondReviewHandoff({ firstReviewerDisplayName: null, firstReviewerMaskedEmail: null }),
+      viewer(["reassign"]),
+    );
+    await renderInspector();
+    await waitFor(() => expect(banner()?.textContent).toContain(HANDOFF_COPY.managerLead("another reviewer")));
+  });
+
   it("an assignment manager is told who recorded the first review and assigns from the Next step primary — never to the first reviewer", async () => {
     await renderInspector();
     await waitFor(() => expect(banner()?.getAttribute("data-review-handoff")).toBe("manager"));
@@ -243,25 +262,6 @@ describe("inspector handoff banner", () => {
   });
 });
 
-describe("/review/queues handoff queue options", () => {
-  it("offers Awaiting second reviewer and Awaiting adjudication and loads the slice", async () => {
-    render(<QueuesPage />);
-    const trigger = await waitFor(() => {
-      const el = document.querySelector("[data-reviewer-queue-filter]");
-      if (!el) throw new Error("filter not ready");
-      return el;
-    });
-    const values = listboxValues(trigger);
-    expect(values).toContain("AWAITING_SECOND_REVIEW");
-    expect(values).toContain("AWAITING_ADJUDICATION");
-    const labels = listboxLabels(trigger);
-    expect(labels).toContain("Awaiting second reviewer");
-    expect(labels).toContain("Awaiting adjudication");
-    chooseListbox(trigger, "AWAITING_SECOND_REVIEW");
-    await waitFor(() =>
-      expect(calls.some((c) => c.path.includes("/v1/reviewer-ops/queue?") && c.path.includes("queue=AWAITING_SECOND_REVIEW"))).toBe(true),
-    );
-    expect(mocks.replace).toHaveBeenCalledWith("/review/queues?queue=AWAITING_SECOND_REVIEW", { scroll: false });
-    await screen.findByText("No reviews are waiting for an independent second reviewer.");
-  });
-});
+// Stage D (T-065) — the handoff slices are Inbox views now ("Awaiting second
+// review", "Conflicts"): proven in review-inbox-views.render.test.tsx.
+

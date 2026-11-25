@@ -50,7 +50,8 @@ export function surfaceUserContextFromEnvelope(
     isEnterpriseWorkspace: Boolean(envelope.flags?.isEnterpriseWorkspace),
     // OpsCenter visibility remediation (2026-07-18) — the canonical
     // commercial entitlement (backend PLAN_CAPABILITIES projection).
-    // Rules with an `entitlementOverride` follow this value; while the
+    // Rules naming a registry route (`entitlementRouteId`, T-125) follow
+    // that route's `requiredPlanFeature` key in this object; while the
     // envelope lacks it (older backend / degraded path) the value stays
     // null and those rules fall back to their tier (fail-closed).
     planFeatures: {

@@ -143,9 +143,10 @@ describe("Phase IA-cleanup — backend queries are wired to the right Prisma mod
 
   it("review_escalation queries prisma.reviewEscalation", () => {
     expect(ROUTES).toMatch(/prisma\.reviewEscalation\.findMany/);
-    // status OPEN + assignedToUserId = caller.
+    // Active (stage C T-060: OPEN, ACKNOWLEDGED or REASSIGNED, the shared set)
+    // + assignedToUserId = caller.
     expect(ROUTES).toMatch(/assignedToUserId:\s*userId/);
-    expect(ROUTES).toMatch(/status:\s*"OPEN"/);
+    expect(ROUTES).toMatch(/status:\s*\{\s*in:\s*\[\.\.\.REVIEW_ESCALATION_ACTIVE_STATUSES\]\s*\}/);
   });
 
   it("access_review_pending queries prisma.accessReview with subject-or-initiator scope", () => {

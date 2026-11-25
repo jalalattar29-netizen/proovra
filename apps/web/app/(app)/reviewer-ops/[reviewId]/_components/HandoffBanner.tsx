@@ -21,7 +21,7 @@
  * The server still decides every reassignment (independence, eligibility).
  */
 
-import { recordReference } from "../../../../../lib/short-id";
+import { reviewerIdentityLabel, UNNAMED_REVIEWER } from "../../../../../lib/reviewer-workspace/reviewer-identity";
 import { ReviewDestinationLink } from "../../../../../components/reviewer-experience/ReviewDestinationLink";
 import { useReviewDestination } from "../../../../../components/reviewer-experience/reviewDestination";
 
@@ -29,6 +29,8 @@ export type ReviewHandoff = {
   requirement: "second_review" | "adjudication" | null;
   firstReviewerUserId: string | null;
   firstReviewerDisplayName?: string | null;
+  /** T-086 / E2E-08 — masked e-mail ("j***@example.com"), from the API. */
+  firstReviewerMaskedEmail?: string | null;
   secondReviewerUserId?: string | null;
   awaitingAssignment: boolean;
   eligibleReviewerCount: number;
@@ -69,9 +71,15 @@ export function HandoffBanner({
   mayReassign: boolean;
 }) {
   if (!handoff || handoff.requirement !== "second_review" || !handoff.awaitingAssignment) return null;
-  const firstName =
-    handoff.firstReviewerDisplayName?.trim() ||
-    (handoff.firstReviewerUserId ? recordReference("Reviewer", handoff.firstReviewerUserId) : "another reviewer");
+  // T-086 / E2E-08 — the one way Review names a person (display name, else the
+  // masked e-mail); never an id reference such as "Reviewer ref 2C82A9".
+  const named = handoff.firstReviewerUserId
+    ? reviewerIdentityLabel({
+        displayName: handoff.firstReviewerDisplayName ?? null,
+        maskedEmail: handoff.firstReviewerMaskedEmail ?? null,
+      })
+    : UNNAMED_REVIEWER;
+  const firstName = named === UNNAMED_REVIEWER ? "another reviewer" : named;
   const noEligible = handoff.staffing === "no_eligible_reviewer";
   const variant = noEligible ? "no_eligible_reviewer" : mayReassign ? "manager" : "waiting";
   return (

@@ -26,6 +26,7 @@ import {
   EXTERNAL_DECISION_VERDICTS,
   EXTERNAL_REVIEWER_ROLES,
   WATERMARK_POLICIES,
+  externalReviewExpiryIsValid,
   type ExternalPortalCapability,
 } from "@proovra/shared";
 
@@ -717,6 +718,21 @@ export async function externalPortalRoutes(app: FastifyInstance) {
       // still grant outside reviewers access in bulk.
       if (!(await workspaceIncludesExternalReview(ctx.workspaceId))) {
         return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "EXTERNAL_REVIEW" });
+      }
+      // T-155 (audit JRN-08 s) — an expiry in the past, now, or outside the
+      // grant lifetime bounds is refused for the whole request, before any
+      // step-up is asked for and before any row is attempted (each row used
+      // to be attempted and fail on its own, under a 201).
+      {
+        const rawExpiry = (req.body as { expiresAtUtc?: unknown } | null | undefined)?.expiresAtUtc;
+        if (typeof rawExpiry !== "string" || !externalReviewExpiryIsValid(rawExpiry)) {
+          return reply.code(400).send({
+            error: {
+              code: "EXTERNAL_REVIEW_GRANT_LIFETIME_INVALID",
+              message: "Choose an expiry at least 15 minutes and at most 30 days from now. Nothing was issued.",
+            },
+          });
+        }
       }
       // STEP-UP: bulk issuance grants multiple outside reviewers access
       // to sensitive evidence — require a fresh step-up AFTER the RBAC

@@ -11,6 +11,8 @@
  * the reads.
  */
 
+import { resolveWorkspaceScope } from "./workspace-scope";
+
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
 const rows = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
@@ -222,14 +224,17 @@ export function middleTruncate(id: string, head = 18, tail = 8): string {
 }
 
 // ---------------------------------------------------------------------------
-// Team work (organization workspaces only)
+// Team work — any workspace whose plan sells collaboration and that has
+// members (T-109). Team is a PERSONAL-workspace tier: gating this on the
+// ORGANIZATION kind hid it from every Team customer.
 // ---------------------------------------------------------------------------
 
 export interface TeamWork {
   submissionsAwaitingReview: number;
   reportsToday: number;
   members: number;
-  pendingInvites: number;
+  /** Null where the envelope carries no invitation count for this workspace. */
+  pendingInvites: number | null;
 }
 
 export function buildTeamWork(args: {
@@ -240,15 +245,27 @@ export function buildTeamWork(args: {
   nowMs: number;
 }): TeamWork | null {
   const env = obj(args.envelope);
-  // Only inside an ORGANIZATION workspace whose plan includes team collaboration (fail-closed).
-  if (str(obj(env.activeSpace).type) !== "ORGANIZATION") return null;
-  if (obj(env.planFeatures).teamCollaborationIncluded !== true) return null;
-  const workspaceId = str(obj(env.activeSpace).id);
-  const orgs = rows(env.organizations).map(obj);
-  const active = orgs.filter((o) => o.membershipStatus === "ACTIVE");
-  const scoped = workspaceId ? active.filter((o) => o.id === workspaceId) : active;
-  const members = (scoped.length > 0 ? scoped : active).reduce((sum, o) => sum + num(o.memberCount), 0);
-  const pendingInvites = orgs.filter((o) => o.membershipStatus === "PENDING").length;
+  // Only where the plan includes team collaboration (fail-closed), on any kind.
+  const scope = resolveWorkspaceScope(args.envelope);
+  if (!scope.collaborationIncluded) return null;
+  let members: number;
+  let pendingInvites: number | null;
+  if (scope.kind === "ORGANIZATION") {
+    // Enterprise / organization workspaces: unchanged.
+    const workspaceId = str(obj(env.activeSpace).id);
+    const orgs = rows(env.organizations).map(obj);
+    const active = orgs.filter((o) => o.membershipStatus === "ACTIVE");
+    const scoped = workspaceId ? active.filter((o) => o.id === workspaceId) : active;
+    members = (scoped.length > 0 ? scoped : active).reduce((sum, o) => sum + num(o.memberCount), 0);
+    pendingInvites = orgs.filter((o) => o.membershipStatus === "PENDING").length;
+  } else {
+    // A personal workspace (own or shared with the viewer): the ACTIVE
+    // workspace's own member count, and only once someone besides the owner
+    // works in it — a solo owner has no team work to summarise.
+    if (scope.memberCount === null || scope.memberCount < 2) return null;
+    members = scope.memberCount;
+    pendingInvites = null;
+  }
   // "Today" is the UTC day, as the web counts it.
   const startOfToday = Math.floor(args.nowMs / 86_400_000) * 86_400_000;
   const reportsToday = rows(obj(args.reports).items)

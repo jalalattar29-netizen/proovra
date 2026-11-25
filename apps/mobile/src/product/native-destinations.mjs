@@ -199,6 +199,15 @@ export const NATIVE_DESTINATIONS = {
       "NOT A GAP, a platform difference: the web callback route exists because a browser OAuth flow has to land somewhere after the redirect. Native OAuth returns in-app through expo-auth-session, so there is no redirect to land, and a native screen for it would be a page nothing can reach.",
     ],
   },
+  "/auth/reauth-complete": {
+    routeFile: "(stack)/auth.tsx",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/auth/reauth-complete/page.tsx","apps/mobile/src/ui/review-actions-panel.tsx"],
+    gaps: [
+      "NOT A GAP, a platform difference (stage B, T-029): this page only ends the separate web sign-in window a privileged action opens for `reauth_required`, telling the person to return to the tab they were working in. The native app keeps one session in the auth gateway; its review panel states the re-sign-in requirement (reauthRequiredSentence) and keeps the typed note, and signing in again is the auth gateway itself.",
+    ],
+  },
   "/auth/extension/continue": {
     routeFile: "(stack)/auth.tsx",
     status: "CODE_PARITY",
@@ -442,6 +451,16 @@ export const NATIVE_DESTINATIONS = {
       "submissions render the server's MASKED previews and the projection has no un-masked field at all, so there is nothing for this surface to leak by accident",
       "SEND is deliberately not offered on an arbitrary row: a resend needs the link's rawToken, which the API never persists, so it can only be formed in the session that created the link. A Send control on a reloaded list would build a request that cannot be made.",
       "T-16 / RC-20 CORRECTION: creation was ALSO withheld \"for the same reason\" — it is not the same reason. The create response carries the raw token, so the creating session can show, share and send it. Native now creates links ((stack)/intake-link-create.tsx): the 4-step wizard, the shared message preview, and the one-time link view with send-by-email/SMS in that session.",
+    ],
+  },
+  "/evidence-requests": {
+    routeFile: "(stack)/evidence-requests.tsx",
+    status: "PARTIAL",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/(app)/evidence-requests/page.tsx"],
+    gaps: [
+      "Team remediation T-066 (stage D): the web list page is new - the evidence-request review queue moved here out of the review Inbox. The native list already exists ((stack)/evidence-requests.tsx, GET /v1/evidence-requests?teamId=) and each row opens the native request page.",
+      "the web page lists the requests AWAITING REVIEW (GET /v1/review/queue, the 'awaiting review' statuses by default); the native list shows every request the member participates in and has no awaiting-review filter. Named here rather than implied by CODE_PARITY.",
     ],
   },
   "/evidence-requests/[id]": {

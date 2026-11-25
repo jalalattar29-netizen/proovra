@@ -9,6 +9,7 @@
  * canonical human-authored flow — never pre-filled or auto-submitted here.
  * Renders only bounded schema-typed fields + server-validated citations.
  */
+import { AppStatusText } from "../app-primitives/AppStatusText";
 import { AppListbox } from "../app-primitives/AppListbox";
 import { useEffect, useState } from "react";
 
@@ -139,7 +140,13 @@ export function ReviewerCopilotPanel({
   /** D4 — bounded interaction callback (observationId, state, editedText). */
   onInteraction?: (observationId: string, state: ObservationState, editedText?: string) => void;
 }) {
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // T-091 (stage D) — one record is pre-selected (no Select all / Clear for a
+  // list of one); the panel is collapsed until the reviewer opens it.
+  const [selected, setSelected] = useState<Set<string>>(() => {
+    const only = evidence.length === 1 ? evidence[0] : undefined;
+    return only && !only.stale && only.analysisRevision !== undefined ? new Set([only.id]) : new Set();
+  });
+  const [expanded, setExpanded] = useState(false);
   const [state, setState] = useState<UiState>({ kind: "idle" });
   const [reviews, setReviews] = useState<Record<string, ObservationReview>>({});
   // PHASE 12 POINT 1 / B1 — the persisted run this panel's verdicts attach to.
@@ -281,7 +288,13 @@ export function ReviewerCopilotPanel({
         }),
       })) as { data?: RunResult; runId?: string | null };
       setRunId(typeof res?.runId === "string" ? res.runId : null);
-      setState({ kind: "result", result: res.data ?? (res as RunResult) });
+      const result = res.data ?? (res as RunResult);
+      // T-091 — an outage answered with HTTP 200 is an error, never an empty result.
+      if (result?.status === "provider_unavailable") {
+        setState({ kind: "error", code: "provider_unavailable", message: "The AI service is unavailable right now. Nothing was run; review workflows are unaffected." });
+        return;
+      }
+      setState({ kind: "result", result });
     } catch (err) {
       if (isApiResponseError(err)) {
         // PRO-AI1C-04 — the shared classifier, code first.
@@ -293,27 +306,44 @@ export function ReviewerCopilotPanel({
     }
   }
 
+  const selectedSet = criteriaSets.find((x) => x.id === criteriaSetId) ?? null;
+  const criteriaLabel = selectedSet
+    ? `${selectedSet.name} v${selectedSet.versions[0]?.version ?? 1}`
+    : "No criteria set";
+  const runBlockedReason =
+    state.kind === "loading"
+      ? null
+      : selected.size === 0
+        ? selectable.length === 0
+          ? "No record here can be analysed right now: its state is unavailable or out of date."
+          : "Select a record first."
+        : null;
+
   if (!aiEnabled) {
     return (
       <section className="app-panel app-panel__body" aria-label="Reviewer Copilot">
-        <Header criteriaVersion={criteriaVersion} />
+        <Header criteriaLabel={criteriaLabel} expanded onToggle={() => {}} />
         <p style={{ opacity: 0.7 }}>AI is turned off for this workspace by policy.</p>
       </section>
     );
   }
 
   return (
-    <section className="app-panel app-panel__body" aria-label="Reviewer Copilot">
-      <Header criteriaVersion={criteriaVersion} />
+    <section className="app-panel app-panel__body" aria-label="Reviewer Copilot" data-copilot-expanded={expanded ? "true" : "false"}>
+      <Header criteriaLabel={criteriaLabel} expanded={expanded} onToggle={() => setExpanded((x) => !x)} />
 
+      {expanded ? (
+      <>
       {/* Evidence scope (explicit selection) */}
       <div style={{ marginTop: 12 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           <strong>Evidence in scope</strong>
-          <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button type="button" className="app-ghost-action" onClick={() => setSelected(new Set(selectable.map((e) => e.id)))} disabled={selectable.length === 0}>Select all</button>
-            <button type="button" className="app-ghost-action" onClick={() => setSelected(new Set())} disabled={selected.size === 0}>Clear</button>
-          </span>
+          {evidence.length > 1 ? (
+            <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button type="button" className="app-ghost-action" onClick={() => setSelected(new Set(selectable.map((e) => e.id)))} disabled={selectable.length === 0} title={selectable.length === 0 ? "No record can be selected." : undefined}>Select all</button>
+              <button type="button" className="app-ghost-action" onClick={() => setSelected(new Set())} disabled={selected.size === 0} title={selected.size === 0 ? "Nothing is selected." : undefined}>Clear</button>
+            </span>
+          ) : null}
         </div>
         {evidence.length === 0 ? (
           <p style={{ opacity: 0.7 }}>No evidence is available to this review.</p>
@@ -332,16 +362,16 @@ export function ReviewerCopilotPanel({
                   aria-label={`Select ${e.title}`}
                 />
                 <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{e.title}</span>
-                <span className="app-chip">{identifierLabel(e.status)}</span>
+                <AppStatusText tone="slate">{identifierLabel(e.status)}</AppStatusText>
                 {/*
                   The revision itself is never shown: it is a digest, and an
                   operator cannot act on one. What they can act on is whether
                   this record is currently comparable.
                 */}
                 {e.analysisRevision === undefined ? (
-                  <span className="app-chip app-chip--warn">state unavailable</span>
+                  <AppStatusText tone="amber">state unavailable</AppStatusText>
                 ) : null}
-                {e.stale ? <span className="app-chip app-chip--warn">stale</span> : null}
+                {e.stale ? <AppStatusText tone="amber">out of date</AppStatusText> : null}
               </li>
             ))}
           </ul>
@@ -356,7 +386,7 @@ export function ReviewerCopilotPanel({
             <AppListbox
               value={criteriaSetId}
               options={[
-                { value: "", label: `Default (${criteriaVersion})` },
+                { value: "", label: "No criteria set" },
                 ...criteriaSets.map((s) => ({ value: s.id, label: `${s.name} (v${s.versions[0]?.version ?? 1})` })),
               ]}
               onChange={(next) => setCriteriaSetId(next)}
@@ -372,7 +402,7 @@ export function ReviewerCopilotPanel({
         <div className="app-inner-surface app-panel__body" style={{ marginTop: 12 }}>
           <strong>Before you run</strong>
           <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13 }}>
-            <li>{selected.size} {selected.size === 1 ? "record" : "records"} · criteria {criteriaVersion} · metadata only · external AI provider (advisory) · 1 operation</li>
+            <li>{selected.size} {selected.size === 1 ? "record" : "records"} · {criteriaLabel} · metadata only · external AI provider (advisory) · 1 operation</li>
             <li>The Copilot prepares your review. It never makes or pre-fills the review decision.</li>
             <li>Advisory results are retained as bounded metadata per workspace retention policy.</li>
           </ul>
@@ -382,9 +412,22 @@ export function ReviewerCopilotPanel({
       {/* TEAM-UI-SPEC §2 — secondary: the inspector's one primary is the
           decision panel's submit; the Copilot never competes with it. */}
       <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button type="button" className="app-secondary-action" onClick={run} disabled={selected.size === 0 || state.kind === "loading"} aria-busy={state.kind === "loading"}>
+        <button
+          type="button"
+          className="app-secondary-action"
+          onClick={run}
+          disabled={selected.size === 0 || state.kind === "loading"}
+          aria-busy={state.kind === "loading"}
+          aria-describedby={runBlockedReason ? "reviewer-copilot-run-reason" : undefined}
+          data-copilot-run
+        >
           {state.kind === "loading" ? "Preparing brief…" : state.kind === "result" ? "Re-run" : "Run Reviewer Copilot"}
         </button>
+        {runBlockedReason ? (
+          <span id="reviewer-copilot-run-reason" className="app-field-help" style={{ margin: 0 }} data-copilot-run-reason>
+            {runBlockedReason}
+          </span>
+        ) : null}
         <span aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
           {state.kind === "loading" ? "Preparing reviewer brief" : state.kind === "result" ? "Reviewer Copilot result ready" : ""}
         </span>
@@ -392,7 +435,7 @@ export function ReviewerCopilotPanel({
 
       {state.kind === "error" ? (
         <div className="app-alert app-alert--warn" style={{ marginTop: 12 }} role="alert">
-          {state.message} <span style={{ opacity: 0.6 }}>({identifierLabel(state.code)})</span>
+          {state.message}
           {state.settingsHref ? (
             <>
               {" "}
@@ -477,21 +520,28 @@ export function ReviewerCopilotPanel({
           ) : null}
         </div>
       ) : null}
+      </>
+      ) : null}
     </section>
   );
 }
 
-function Header({ criteriaVersion }: { criteriaVersion: string }) {
+/**
+ * T-091 (stage D) — the header says what is true before a run: advisory,
+ * metadata only, and WHICH criteria (the selected set and version, or "No
+ * criteria set"). "AI-generated" labels results only. Plain status text.
+ */
+function Header({ criteriaLabel, expanded, onToggle }: { criteriaLabel: string; expanded: boolean; onToggle: () => void }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-      <h3 className="app-panel__title" style={{ margin: 0 }}>Reviewer Copilot</h3>
-      {/* Wraps: at 390px the four chips were wider than the panel and the
-          last one was clipped (review-layout gate, 2026-11-23). */}
-      <span style={{ display: "flex", flexWrap: "wrap", gap: 6, minWidth: 0 }}>
-        <span className="app-chip app-chip--ai">AI-generated</span>
-        <span className="app-chip">Advisory only</span>
-        <span className="app-chip">Metadata only</span>
-        <span className="app-chip">Criteria {criteriaVersion}</span>
+      <h2 className="app-panel__title" style={{ margin: 0 }}>Reviewer Copilot</h2>
+      <span className="app-status-text-row" style={{ minWidth: 0 }}>
+        <AppStatusText tone="slate">Advisory only</AppStatusText>
+        <AppStatusText tone="slate">Metadata only</AppStatusText>
+        <AppStatusText tone="slate" data-copilot-criteria-label>{criteriaLabel}</AppStatusText>
+        <button type="button" className="app-ghost-action" aria-expanded={expanded} onClick={onToggle} data-copilot-toggle>
+          {expanded ? "Hide" : "Open Copilot"}
+        </button>
       </span>
     </div>
   );
@@ -526,7 +576,8 @@ function ResultView(props: {
     return <div className="app-alert app-alert--warn" style={{ marginTop: 12 }}>The AI output contained language PROOVRA cannot present and was blocked. AI cannot determine truth, authenticity, or admissibility.</div>;
   }
   return (
-    <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
+    <div style={{ marginTop: 12, display: "grid", gap: 12 }} data-copilot-result>
+      <AppStatusText tone="purple" data-copilot-ai-generated>AI-generated</AppStatusText>
       <div>
         <strong>Review brief</strong>
         <p style={{ margin: "4px 0 0" }}>{data.reviewBrief}</p>
@@ -555,7 +606,7 @@ function ResultView(props: {
                     {review?.state === "EDITED" ? (
                       <>
                         <span>{review.editedText}</span>{" "}
-                        <span className="app-chip">edited</span>{" "}
+                        <AppStatusText tone="slate">edited</AppStatusText>{" "}
                         <details style={{ display: "inline" }}>
                           <summary style={{ display: "inline", cursor: "pointer", fontSize: 12, opacity: 0.6 }}>original AI text</summary>
                           <span style={{ fontSize: 12, opacity: 0.7 }}> {text}</span>
@@ -566,14 +617,14 @@ function ResultView(props: {
                         {text}
                       </span>
                     )}
-                    {review?.state === "ACCEPTED" ? <span className="app-chip" style={{ marginLeft: 6 }}>accepted</span> : null}
+                    {review?.state === "ACCEPTED" ? <AppStatusText tone="green">accepted</AppStatusText> : null}
                     {/* PHASE 12 POINT 1 / B1 — honest persistence state. */}
                     {review?.sync === "SAVING" ? (
-                      <span className="app-chip" style={{ marginLeft: 6 }} data-copilot-observation-sync="SAVING">recording…</span>
+                      <AppStatusText tone="slate" data-copilot-observation-sync="SAVING">recording…</AppStatusText>
                     ) : review?.sync === "SAVED" ? (
-                      <span className="app-chip" style={{ marginLeft: 6 }} data-copilot-observation-sync="SAVED">recorded</span>
+                      <AppStatusText tone="green" data-copilot-observation-sync="SAVED">recorded</AppStatusText>
                     ) : review?.sync === "FAILED" ? (
-                      <span className="app-chip app-chip--warn" style={{ marginLeft: 6 }} data-copilot-observation-sync="FAILED">not recorded</span>
+                      <AppStatusText tone="amber" data-copilot-observation-sync="FAILED">not recorded</AppStatusText>
                     ) : null}
                     {isEditing ? (
                       <span style={{ display: "block", marginTop: 4 }}>

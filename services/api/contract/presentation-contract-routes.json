@@ -1,6 +1,6 @@
 {
   "contractVersion": 1,
-  "routeEpoch": 5,
+  "routeEpoch": 6,
   "routes": [
     "DELETE /v1/admin/identity/scim/groups/projections/:id",
     "DELETE /v1/auth/saml/:connectionId/certificate-next",
@@ -535,6 +535,7 @@
     "GET /v1/teams/:id/members",
     "GET /v1/teams/:id/members/:memberId/access",
     "GET /v1/teams/:id/members/:memberId/removal-impact",
+    "GET /v1/teams/:id/members/:memberId/role-change-impact",
     "GET /v1/teams/:id/ownership-offer",
     "GET /v1/teams/:workspaceId/operations/alerts",
     "GET /v1/teams/:workspaceId/operations/health",
@@ -1095,9 +1096,11 @@
     "POST /v1/reviewer-ops/escalations/:id/reassign",
     "POST /v1/reviewer-ops/escalations/:id/resolve",
     "POST /v1/reviewer-ops/escalations/:id/suppress",
+    "POST /v1/reviewer-ops/maintenance/second-review-reevaluation",
     "POST /v1/reviewer-ops/queue-intelligence",
     "POST /v1/reviewer-ops/reconcile",
     "POST /v1/reviewer-ops/reviews/:workflowId/approve",
+    "POST /v1/reviewer-ops/reviews/:workflowId/archive",
     "POST /v1/reviewer-ops/reviews/:workflowId/assign",
     "POST /v1/reviewer-ops/reviews/:workflowId/pause",
     "POST /v1/reviewer-ops/reviews/:workflowId/reassign",

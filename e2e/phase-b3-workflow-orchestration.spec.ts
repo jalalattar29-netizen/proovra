@@ -156,10 +156,12 @@ test.describe("Phase B.3 — workflow orchestration @critical", () => {
 
     // And it is MOUNTED. The predecessor shipped these markers inside a
     // component nothing rendered, which is the failure mode this line closes.
-    const console_ = await read(
-      "apps/web/components/reviewer-experience/ReviewerConsole.tsx",
+    // Team remediation T-078 (stage D): the card is mounted in the one
+    // Monitoring area, beside the review metrics.
+    const monitoring = await read(
+      "apps/web/app/(app)/reviewer-ops/sla/_sections.tsx",
     );
-    expect(console_).toContain("MultiStageReviewSummaryCard");
+    expect(monitoring).toContain("MultiStageReviewSummaryCard");
   });
 
   // ---------------------------------------------------------------------------
@@ -193,8 +195,14 @@ test.describe("Phase B.3 — workflow orchestration @critical", () => {
 
     let subjects = 0;
     for (const rel of [
-      "apps/web/components/reviewer-experience/ReviewerConsole.tsx",
+      // Team remediation T-065 (stage D): the console became the one Inbox.
+      "apps/web/components/reviewer-experience/ReviewInbox.tsx",
       "apps/web/components/reviewer-experience/ReviewerBulkOpsBar.tsx",
+      // Stage D: the Review page and its banners carry component-level early
+      // returns now that the console is gone, so the rule keeps a subject.
+      "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
+      "apps/web/app/(app)/reviewer-ops/[reviewId]/_components/HandoffBanner.tsx",
+      "apps/web/app/(app)/reviewer-ops/[reviewId]/_components/DecisionPanel.tsx",
       "apps/web/components/reviewer-experience/MultiStageReviewSummaryCard.tsx",
     ]) {
       const lines = (
@@ -225,7 +233,7 @@ test.describe("Phase B.3 — workflow orchestration @critical", () => {
       }
     }
 
-    // If no component in any of the three has an early return, the rule above
+    // If no component in any of these files has an early return, the rule above
     // asserted nothing and the test would be green for the wrong reason.
     expect(subjects, "no component-level early return found to guard").toBeGreaterThan(0);
   });

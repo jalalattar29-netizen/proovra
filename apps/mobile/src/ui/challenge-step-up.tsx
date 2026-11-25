@@ -18,11 +18,14 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
+import { useRouter } from "expo-router";
+import { stepUpEnrollmentSentence, stepUpReasonSentence } from "@proovra/shared";
 
 import { apiFetch } from "../api";
 import { toSafeUserError } from "../errors/safe-error";
 import {
   CHALLENGE_COPY,
+  SECURITY_SETTINGS_ROUTE,
   STEP_UP_CANCEL,
   STEP_UP_CHALLENGE_HEADER,
   STEP_UP_CHECK_PATH,
@@ -298,6 +301,7 @@ function MethodSwitches({
 
 export function ChallengeStepUpSheet({ stepUp }: { stepUp: ChallengeStepUp }) {
   const { state } = stepUp;
+  const router = useRouter();
   const [code, setCode] = useState("");
   useEffect(() => {
     if (state.kind !== "verifying") setCode("");
@@ -313,12 +317,29 @@ export function ChallengeStepUpSheet({ stepUp }: { stepUp: ChallengeStepUp }) {
           {CHALLENGE_COPY.intro}
         </ProovraText>
 
+        {(state.kind === "starting" || state.kind === "verifying") && stepUpReasonSentence(state.details.reason) ? (
+          <ProovraText variant="bodySm" testID="challenge-step-up-reason">
+            {stepUpReasonSentence(state.details.reason)}
+          </ProovraText>
+        ) : null}
+
         {state.kind === "starting" ? <ProovraText variant="bodySm">{CHALLENGE_COPY.preparing}</ProovraText> : null}
 
         {state.kind === "enrollment_required" ? (
           <>
+            {/* T-027 (stage B) — why, and an actionable path: never only Close. */}
+            <ProovraText variant="bodySm" testID="challenge-step-up-enrollment-reason">
+              {stepUpEnrollmentSentence(state.details.reason)}
+            </ProovraText>
             <ProovraText variant="bodySm">{CHALLENGE_COPY.enrollment}</ProovraText>
-            <ProovraButton label="Close" variant="secondary" onPress={stepUp.close} />
+            <ProovraButton
+              label="Open Security settings"
+              onPress={() => {
+                stepUp.close();
+                router.push(SECURITY_SETTINGS_ROUTE as never);
+              }}
+            />
+            <ProovraButton label="Not now" variant="secondary" onPress={stepUp.close} />
           </>
         ) : null}
 

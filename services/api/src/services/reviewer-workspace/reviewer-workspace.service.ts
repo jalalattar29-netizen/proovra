@@ -28,6 +28,13 @@ import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import { resolveReviewerRole } from "./reviewer-roles.js";
 import { getQcAccuracy7d } from "./qc-sample.service.js";
 import { getReviewerMetrics7d } from "./reviewer-metrics.service.js";
+import {
+  countQcSamplesAwaitingVerdict,
+  countReviewFigures,
+} from "../reviewer-ops/review-count-definitions.js";
+
+/** How many assigned reviews are considered when picking the caller's next one (T-003). */
+const ACTIVE_REVIEW_CANDIDATES = 25;
 
 export type ProjectReviewerWorkspaceInput = {
   prisma?: PrismaClient;
@@ -56,38 +63,19 @@ export async function projectReviewerWorkspace(
   const closedWorkflowIds = await hiddenWorkflowIdsInWorkspace(input.teamId, input.userId, prisma);
   const notClosed = closedWorkflowIds.length > 0 ? { workflowId: { notIn: closedWorkflowIds } } : {};
 
+  // T-053 (stage C) — the rail's figures are the shared count definitions, so
+  // each one equals the Inbox slice it links to (MY_REVIEWS, UNASSIGNED,
+  // ESCALATED, COMPLETED_RECENTLY) for the same reader.
   const [
-    assigned,
-    unassigned,
-    inProgress,
-    escalated,
-    completed,
+    figures,
     qcRow,
     challengerActive,
     awaitingAdj,
     resolvedWeek,
     metrics,
-    activeReview,
+    activeCandidates,
   ] = await Promise.all([
-    prisma.evidenceReviewWorkflow.count({
-      where: { teamId: input.teamId, evidence, assignedToUserId: input.userId, status: { in: ["ASSIGNED", "QUEUED"] } },
-    }),
-    prisma.evidenceReviewWorkflow.count({
-      where: { teamId: input.teamId, evidence, assignedToUserId: null, status: "QUEUED" },
-    }),
-    prisma.evidenceReviewWorkflow.count({
-      where: { teamId: input.teamId, evidence, status: "IN_REVIEW" },
-    }),
-    prisma.evidenceReviewWorkflow.count({
-      where: { teamId: input.teamId, evidence, status: "ESCALATED" },
-    }),
-    prisma.evidenceReviewWorkflow.count({
-      where: {
-        teamId: input.teamId,
-        evidence,
-        status: { in: ["APPROVED_INTERNAL", "REJECTED_INSUFFICIENT", "CLOSED"] },
-      },
-    }),
+    countReviewFigures({ teamId: input.teamId, viewerUserId: input.userId }, prisma),
     getQcAccuracy7d({ prisma, teamId: input.teamId }),
     prisma.reviewerDisagreement.count({
       where: {
@@ -112,7 +100,7 @@ export async function projectReviewerWorkspace(
       },
     }),
     getReviewerMetrics7d({ prisma, teamId: input.teamId, userId: input.userId }),
-    prisma.evidenceReviewWorkflow.findFirst({
+    prisma.evidenceReviewWorkflow.findMany({
       where: {
         teamId: input.teamId,
         evidence,
@@ -120,19 +108,44 @@ export async function projectReviewerWorkspace(
         status: { in: ["ASSIGNED", "IN_REVIEW"] },
       },
       orderBy: [{ priority: "desc" }, { dueAt: "asc" }],
+      take: ACTIVE_REVIEW_CANDIDATES,
       select: {
         id: true,
         evidenceId: true,
         codingSchemaId: true,
         codingSchemaVersion: true,
+        decisionRound: true,
       },
     }),
   ]);
+  // T-003 (Team remediation) — the caller's NEXT item is never a review whose
+  // current round already holds the caller's own FIRST decision: it waits for
+  // an independent second reviewer, and focus mode used to re-select it after
+  // every first-of-two decision.
+  const decidedByMe = activeCandidates.length
+    ? await prisma.workflowReviewDecision.findMany({
+        where: { workflowId: { in: activeCandidates.map((w) => w.id) }, reviewerUserId: input.userId, stage: "FIRST" },
+        select: { workflowId: true, round: true },
+      })
+    : [];
+  const activeRow =
+    activeCandidates.find(
+      (w) => !decidedByMe.some((d) => d.workflowId === w.id && d.round === w.decisionRound),
+    ) ?? null;
+  const activeReview = activeRow
+    ? {
+        id: activeRow.id,
+        evidenceId: activeRow.evidenceId,
+        codingSchemaId: activeRow.codingSchemaId,
+        codingSchemaVersion: activeRow.codingSchemaVersion,
+      }
+    : null;
 
-  // Pending QC samples — visible to QC reviewers + supervisors.
-  const pendingSamples = await prisma.qcSample.count({
-    where: { teamId: input.teamId, ...notClosed, state: { in: ["SAMPLED", "ASSIGNED", "IN_PROGRESS"] } },
-  });
+  // Pending QC samples — the ONE "awaiting verdict" definition (T-054).
+  const pendingSamples = await countQcSamplesAwaitingVerdict(
+    { teamId: input.teamId, viewerUserId: input.userId },
+    prisma,
+  );
 
   return {
     schemaVersion: REVIEWER_WORKSPACE_SCHEMA_VERSION,
@@ -140,12 +153,12 @@ export async function projectReviewerWorkspace(
     role: roleResolution.role,
     capabilities: roleResolution.capabilities,
     queues: {
-      assigned,
-      unassigned,
-      in_progress: inProgress,
-      escalated,
+      assigned: figures.myReviews,
+      unassigned: figures.unassignedReviews,
+      in_progress: figures.inProgressReviews,
+      escalated: figures.escalatedReviews,
       qc: pendingSamples,
-      completed,
+      completed: figures.completedReviews7d,
     },
     disagreements: {
       asChallenger: challengerActive,

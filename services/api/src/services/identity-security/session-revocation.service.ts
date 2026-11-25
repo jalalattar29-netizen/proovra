@@ -349,8 +349,22 @@ export async function revokeOtherSessionsForUserTx(
     userId: string;
     currentSessionIdHash: string | null;
     reason: SessionRevocationReason;
+    /**
+     * T-039 — the acting token's `iat`. When given, every token issued
+     * BEFORE it ends too, inventoried or not (see
+     * `revokeTokensIssuedBeforeCaller`).
+     */
+    currentIat?: number | null;
   },
 ): Promise<{ revoked: number }> {
+  if (typeof input.currentIat === "number" && input.currentIat > 0) {
+    await revokeTokensIssuedBeforeCaller(tx, {
+      userId: input.userId,
+      callerIat: input.currentIat,
+      reason: input.reason,
+      actorUserId: input.userId,
+    });
+  }
   const where = {
     userId: input.userId,
     revokedAtUtc: null,
@@ -380,6 +394,43 @@ export async function revokeOtherSessionsForUserTx(
     },
   });
   return { revoked: others.length };
+}
+
+/**
+ * T-039 (SEC-01) — "SIGN OUT OTHER SESSIONS" ENDS EVERY OTHER TOKEN.
+ *
+ * Revoking each inventory row by its own hash misses a token that has no row
+ * (pre-2026-11-22 residue that has not made a request since adoption, T-038).
+ * This writes an ALL_FOR_USER cut-off at the ACTING token's own `iat`:
+ * `isSessionRevoked` ends every token issued strictly before it, and, in the
+ * same second, every token without an inventory row. The acting token itself
+ * (same `iat`, inventoried — adoption guarantees the row) and every session
+ * signed in after it stay valid, so the caller is not signed out.
+ *
+ * Callers still revoke the other inventory rows by hash, which covers sessions
+ * issued after the caller's.
+ */
+export async function revokeTokensIssuedBeforeCaller(
+  client: PrismaClient,
+  input: {
+    userId: string;
+    callerIat: number;
+    reason: SessionRevocationReason;
+    actorUserId: string | null;
+    teamId?: string | null;
+  },
+): Promise<void> {
+  await client.revokedSession.create({
+    data: {
+      teamId: input.teamId ?? null,
+      userId: input.userId,
+      scope: prismaPkg.RevokedSessionScope.ALL_FOR_USER,
+      sessionIdHash: null,
+      revokedBeforeIat: BigInt(Math.floor(input.callerIat)),
+      reason: input.reason.slice(0, 64),
+      revokedByUserId: input.actorUserId,
+    },
+  });
 }
 
 // -----------------------------------------------------------------------------

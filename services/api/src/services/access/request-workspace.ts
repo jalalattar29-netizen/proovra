@@ -82,3 +82,38 @@ export function rememberProvenRequestWorkspace(
 export function provenRequestWorkspace(req: FastifyRequest): ProvenRequestWorkspace | null {
   return provenRequestWorkspaces.get(req) ?? null;
 }
+
+/**
+ * T-042 (MEM-05, stage B) — THE WORKSPACE A MUTATION NAMES MUST BE THE ONE ON
+ * THE CALLER'S SCREEN.
+ *
+ * Routes in the reviewer-ops family authorize the workspace named in the body
+ * or query. A client that also sends the active-workspace header and names a
+ * DIFFERENT workspace in the body is acting on a workspace its screen does not
+ * show (a stale panel after a switch, a stale non-web client): the write is
+ * refused with 409 `WORKSPACE_MISMATCH` instead of landing elsewhere. A request
+ * with no header, or with a header naming the same workspace, is unchanged.
+ *
+ * Returns the refusal body to send, or null when the request may proceed.
+ * Mirrors external review's `refuseWorkspaceMismatch` (the first door that
+ * compared), hoisted here so every family shares one rule.
+ */
+export const WORKSPACE_MISMATCH_BODY = {
+  error: {
+    code: "WORKSPACE_MISMATCH",
+    message:
+      "This change names a different workspace than the one you are working in. Reload the page and try again. Nothing was changed.",
+  },
+} as const;
+
+export function workspaceMismatchRefusal(
+  req: FastifyRequest,
+  namedWorkspaceId: string | null | undefined,
+): typeof WORKSPACE_MISMATCH_BODY | null {
+  const method = (req.method ?? "GET").toUpperCase();
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return null;
+  if (typeof namedWorkspaceId !== "string" || namedWorkspaceId.length === 0) return null;
+  const header = readWorkspaceHeader(req);
+  if (!header) return null;
+  return header.toLowerCase() === namedWorkspaceId.toLowerCase() ? null : WORKSPACE_MISMATCH_BODY;
+}

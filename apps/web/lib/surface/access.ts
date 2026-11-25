@@ -16,6 +16,30 @@ import {
   type SurfaceTier,
   type SurfaceTierRule,
 } from "./tiers";
+import {
+  getRouteDefinition,
+  type PlanFeatureGateKey,
+} from "../navigation/routeRegistry";
+
+/**
+ * T-125 — the entitlement a tier rule follows, read from the ONE web
+ * entitlement authority: the registry route the rule names
+ * (`entitlementRouteId`). `null` = the rule has no entitlement (its tier
+ * decides). An `entitlementRouteId` naming a route without
+ * `requiredPlanFeature` also yields null, so the tier fails closed; the
+ * pairing is pinned by `navigation-contract-resolves.test.ts`.
+ */
+export function ruleEntitlement(
+  rule: SurfaceTierRule | null,
+): { key: PlanFeatureGateKey; readRetainedKey: PlanFeatureGateKey | null } | null {
+  if (!rule?.entitlementRouteId) return null;
+  const route = getRouteDefinition(rule.entitlementRouteId);
+  if (!route?.requiredPlanFeature) return null;
+  return {
+    key: route.requiredPlanFeature,
+    readRetainedKey: route.readRetainedPlanFeature ?? null,
+  };
+}
 
 /**
  * Minimal user context the access decision needs. Built from
@@ -150,8 +174,8 @@ function isUserInTier(
  */
 /**
  * OpsCenter visibility remediation (2026-07-18) — the ONE rule-level
- * decision. Platform admins always pass. When the rule carries an
- * `entitlementOverride` and the canonical entitlement value is KNOWN
+ * decision. Platform admins always pass. When the rule follows a registry
+ * entitlement (T-125: `entitlementRouteId`) and its value is KNOWN
  * (boolean), the entitlement decides; otherwise the tier decides
  * (fail-closed fallback while the envelope is loading).
  */
@@ -163,15 +187,17 @@ function isRuleAccessible(
   // Platform admins pass every tier (incl. INTERNAL) exactly as before;
   // an entitlement override must never hide a surface from them.
   if (ctx.isPlatformAdmin) return true;
-  const overrideKey = rule?.entitlementOverride;
-  if (overrideKey) {
-    const value = ctx.planFeatures?.[overrideKey];
+  const entitlement = ruleEntitlement(rule);
+  if (entitlement) {
+    const features = ctx.planFeatures as Partial<Record<PlanFeatureGateKey, boolean | null>> | null | undefined;
+    const value = features?.[entitlement.key];
     if (typeof value === "boolean") {
       if (value) return true;
       // PRO-R3-06 / DEC-10 — a lapsed entitlement keeps existing material
       // readable: the surface opens (read-only) while the server says so.
-      const retainedKey = rule?.readRetainedOverride;
-      return retainedKey ? ctx.planFeatures?.[retainedKey] === true : false;
+      return entitlement.readRetainedKey
+        ? features?.[entitlement.readRetainedKey] === true
+        : false;
     }
   }
   return isUserInTier(ctx, tier);

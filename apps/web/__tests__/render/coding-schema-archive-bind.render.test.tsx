@@ -16,7 +16,7 @@ vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
 }));
 
-import CodingSchemasPage from "../../app/(app)/review/schemas/page";
+import { CodingSchemasSection as CodingSchemasPage } from "../../app/(app)/review/schemas/_section";
 import { CodingSchemaBindingPanel } from "../../app/(app)/reviewer-ops/components/CodingSchemaBindingPanel";
 
 const teamId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -81,10 +81,10 @@ describe("coding schema archive", () => {
     expect(writes(archiveUrl)).toHaveLength(1);
     const calls = mocks.fetch.mock.calls.map((c) => c[0] as string);
     expect(calls.lastIndexOf(listUrl)).toBeGreaterThan(calls.indexOf(archiveUrl));
-    const row = screen.getByRole("button", { name: "Archive Privilege review" });
-    expect(row.hasAttribute("disabled")).toBe(true);
-    expect(row.getAttribute("data-disabled-reason")).toBe("This schema is already archived.");
-    expect(screen.getByText("Archived")).toBeTruthy();
+    // T-134 (stage F) — an archived schema offers no Archive at all.
+    expect(screen.queryByRole("button", { name: "Archive Privilege review" })).toBeNull();
+    expect(document.querySelector(`[data-coding-schema-archived="${schemaId}"]`)).not.toBeNull();
+    expect(screen.getAllByText("Archived").length).toBeGreaterThan(0);
     expect(screen.queryByText("PUBLISHED")).toBeNull();
   });
 
@@ -251,8 +251,10 @@ describe("coding schema binding on a review", () => {
     expect(within(empty).getByRole("link", { name: "Coding schemas" }).getAttribute("href")).toBe("/review/schemas");
   });
 
-  it("the review page mounts the binding panel", () => {
+  it("the review page mounts the binding panel (inside the shared coding section, T-082)", () => {
     const src = readFileSync(join(__dirname, "../../app/(app)/reviewer-ops/[reviewId]/page.tsx"), "utf8");
-    expect(src).toMatch(/<CodingSchemaBindingPanel teamId=\{teamId\} workflowId=\{workflowId\} \/>/);
+    expect(src).toMatch(/<ReviewCodingSection teamId=\{teamId\} workflowId=\{workflowId\}/);
+    const section = readFileSync(join(__dirname, "../../components/reviewer-experience/ReviewCodingSection.tsx"), "utf8");
+    expect(section).toMatch(/<CodingSchemaBindingPanel teamId=\{teamId\} workflowId=\{workflowId\} \/>/);
   });
 });

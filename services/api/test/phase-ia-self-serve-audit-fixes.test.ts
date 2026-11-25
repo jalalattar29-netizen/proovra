@@ -488,6 +488,9 @@ describe("Phase IA-self-serve-audit-fixes — Evidence Detail gates", () => {
     "app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx",
     "app/(app)/evidence/[id]/_tabs/EvidenceDiscussionTab.tsx",
     "app/(app)/evidence/[id]/_tabs/EvidenceTechnicalAppendixTab.tsx",
+    // T-145 (stage F) — the load-failure card (and its "Evidence record"
+    // kicker) moved out of page.tsx into this component (page size guard).
+    "app/(app)/evidence/[id]/components/EvidenceLoadStates.tsx",
   ].map(readWeb).join("\n\n");
 
   it("consumes the SERVER-projection gate hooks (no client tier computation)", () => {

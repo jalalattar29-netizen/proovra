@@ -26,6 +26,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { REVIEW_GATE_TABLE } from "@proovra/shared";
 import { describe, expect, it } from "vitest";
 
 function readSource(rel: string): string {
@@ -39,8 +40,11 @@ const REVIEW_OPS_ROUTES = readSource(
   "../src/routes/review-operations.routes.ts",
 );
 const REVIEW_GATE = readSource("../src/services/reviewer-ops/review-action-gate.ts");
-const CONSOLE_UI = readSource(
-  "../../../apps/web/components/reviewer-experience/ReviewerConsole.tsx",
+// Stage D (T-065) — the console UI was retired: /review is the one Inbox
+// (apps/web/components/reviewer-experience/ReviewInbox.tsx), proven behaviourally
+// in apps/web/__tests__/render/review-inbox-views.render.test.tsx.
+const INBOX_UI = readSource(
+  "../../../apps/web/components/reviewer-experience/ReviewInbox.tsx",
 );
 const REVIEW_PAGE = readSource(
   "../../../apps/web/app/(app)/review/page.tsx",
@@ -117,14 +121,17 @@ describe("Phase C0 — sensitive review decision step-up enforcement", () => {
   it("APPROVE_INTERNAL answers to requireStepUpForApprove", () => {
     expect(REVIEW_OPS_ROUTES).toMatch(/gateForVerdict\(body\.decision\)/);
     expect(REVIEW_GATE).toContain('"APPROVE_INTERNAL"');
-    expect(REVIEW_GATE).toContain('"requireStepUpForApprove"');
-    expect(REVIEW_GATE).toContain('"REVIEW_APPROVAL_HIGH_RISK"');
+    // Stage B (T-021): flag and purpose live in the ONE shared table that the
+    // gate, the settings page and the step-up copy all read.
+    expect(REVIEW_GATE).toContain("REVIEW_GATE_TABLE");
+    expect(REVIEW_GATE_TABLE.approve.flag).toBe("requireStepUpForApprove");
+    expect(REVIEW_GATE_TABLE.approve.purpose).toBe("REVIEW_APPROVAL_HIGH_RISK");
   });
 
   it("REJECT_INSUFFICIENT answers to requireStepUpForReject", () => {
     expect(REVIEW_GATE).toContain('"REJECT_INSUFFICIENT"');
-    expect(REVIEW_GATE).toContain('"requireStepUpForReject"');
-    expect(REVIEW_GATE).toContain('"REVIEWER_OPS_REJECT"');
+    expect(REVIEW_GATE_TABLE.reject.flag).toBe("requireStepUpForReject");
+    expect(REVIEW_GATE_TABLE.reject.purpose).toBe("REVIEWER_OPS_REJECT");
   });
 
   it("step-up flag-off proceeds without a step-up unless adaptive auth asks for one", () => {
@@ -132,145 +139,20 @@ describe("Phase C0 — sensitive review decision step-up enforcement", () => {
     // `requireStepUpForSensitiveAction` when the flag is set, or when the
     // runtime adaptive gate has decided this session must step up
     // (20ef15600): the adaptive decision is answered here, not ignored.
-    expect(REVIEW_GATE).toMatch(/if \(!flags\[gate\.flag\] && !adaptive\.stepUpRequired\) return true/);
+    expect(REVIEW_GATE).toMatch(/const flagOn = flags\[gate\.flag\] === true;/);
+    expect(REVIEW_GATE).toMatch(/if \(!flagOn && !adaptive\.stepUpRequired\) return true/);
   });
 });
 
-describe("Phase C0 — reviewer console UI (source contract)", () => {
-  // TEAM-SPEC §3 (2026-11-23) — five tabs became two. Escalations, SLA and
-  // Workload duplicated the Monitoring pages (/reviewer-ops/escalations,
-  // /reviewer-ops/sla), which the Review hub tabs lead to.
-  it("React component declares the two review slices (Queue / Mine); Monitoring tabs removed", () => {
-    expect(CONSOLE_UI).toMatch(/TABS:[\s\S]*?\{\s*id:\s*"queue"/);
-    expect(CONSOLE_UI).toMatch(/id:\s*"mine"/);
-    expect(CONSOLE_UI).not.toMatch(/id:\s*"escalations"/);
-    expect(CONSOLE_UI).not.toMatch(/id:\s*"sla"/);
-    expect(CONSOLE_UI).not.toMatch(/id:\s*"workload"/);
+describe("Stage D — the Inbox replaced the reviewer console UI (source contract)", () => {
+  it("/review mounts the one Inbox behind review.queue", () => {
+    expect(REVIEW_PAGE).toContain('routeId="review.queue"');
+    expect(REVIEW_PAGE).toContain("<ReviewInbox />");
   });
-
-  it("no operational-density mode system remains in the reviewer console", () => {
-    // (2026-07-20) The compact / comfortable / spacious density modes
-    // were removed with the workspace-persona / operational-density
-    // feature. The "comfortable" spacing was folded into the base
-    // styling; the console renders one canonical density for everyone.
-    expect(CONSOLE_UI).not.toMatch(/const DENSITY_VALUES\b/);
-    expect(CONSOLE_UI).not.toMatch(/operationalDensity/i);
-    expect(CONSOLE_UI).not.toMatch(/data-density=/);
-  });
-
-  it("keyboard navigation handles j / k / Enter / /, and leaves chords to the app", () => {
-    // Each key has an explicit branch in `handleKeyDown`.
-    expect(CONSOLE_UI).toMatch(/e\.key\s*===\s*"j"/);
-    expect(CONSOLE_UI).toMatch(/e\.key\s*===\s*"k"/);
-    expect(CONSOLE_UI).toMatch(/e\.key\s*===\s*"Enter"/);
-    expect(CONSOLE_UI).toMatch(/e\.key\s*===\s*"\/"/);
-    // TEAM-SPEC §3 (D12) — Ctrl/Cmd+K is the app-wide "Jump to a page"
-    // palette only; the console returns early on any chord.
-    expect(CONSOLE_UI).toMatch(/if \(e\.metaKey \|\| e\.ctrlKey \|\| e\.altKey\) return;/);
-  });
-
-  // TEAM-SPEC §3 (2026-11-23) — INVERTED. The reviewer command palette bound
-  // Ctrl/Cmd+K on window alongside the global palette and both opened at once.
-  it("the reviewer command palette is removed (trigger, overlay, handler, CSS)", () => {
-    expect(CONSOLE_UI).not.toContain("setPaletteOpen");
-    expect(CONSOLE_UI).not.toContain("paletteOpen");
-    expect(CONSOLE_UI).not.toMatch(/function CommandPalette\(/);
-    expect(CONSOLE_UI).not.toContain("reviewer-console__palette");
-    expect(CONSOLE_UI).not.toContain("data-reviewer-command-palette-open");
-  });
-
-  it("opens the focused row via the existing inspector", () => {
-    // Console delegates row-open to `onOpenRow`. G3.2 adds inline
-    // mutations but the inspector remains the canonical detail view.
-    expect(CONSOLE_UI).toContain("onOpenRow");
-  });
-
-  it("Phase G3.2 — inline mutations route through the audited reviewer-ops endpoints only", () => {
-    // The bounded mutation set: assign and saved-view create/delete. No
-    // other write methods may appear in the console. TEAM-UI-SPEC §4
-    // (round 3) — request-info and raise-escalation left the console rows
-    // (inspector only).
-    expect(CONSOLE_UI).toContain("/v1/reviewer-ops/reviews/");
-    expect(CONSOLE_UI).toContain("/assign");
-    expect(CONSOLE_UI).not.toContain("/request-info");
-    expect(CONSOLE_UI).not.toContain("/v1/reviewer-ops/escalations");
-    // TEAM-SPEC §3 — acknowledging an escalation lives on the Escalations
-    // page with the escalation tab gone from the console.
-    expect(CONSOLE_UI).not.toContain("/acknowledge");
-    expect(CONSOLE_UI).toContain("/v1/reviewer-ops/saved-views");
-
-    // Approve / Reject MUST NOT live inline — they remain in the
-    // inspector where the full risk + adaptive gate context renders.
-    expect(CONSOLE_UI).not.toMatch(/\/reviews\/[^"]*\/approve/);
-    expect(CONSOLE_UI).not.toMatch(/\/reviews\/[^"]*\/reject/);
-  });
-
-  it("Phase G3.2 — every inline mutation flows through useStepUpAction", () => {
-    expect(CONSOLE_UI).toContain("useStepUpAction");
-    expect(CONSOLE_UI).toContain("runStepUpAction");
-    expect(CONSOLE_UI).toContain("StepUpModal");
-  });
-
-  // TEAM-UI-SPEC §4 (round 3) — only `a` (assign) remains; `e` / `m` left
-  // with the row's Escalate / Request info.
-  it("Phase G3.2 — inline-action keyboard shortcut wires a (e / m removed)", () => {
-    expect(CONSOLE_UI).toMatch(/toLowerCase\(\)\s*===\s*"a"/);
-    expect(CONSOLE_UI).not.toMatch(/===\s*"e"/);
-    expect(CONSOLE_UI).not.toMatch(/===\s*"m"/);
-  });
-
-  it("Phase G3.2 — terminal rows do not expose inline mutation buttons", () => {
-    // TEAM-SPEC §3 — the shared queueRow guard (TERMINAL_QUEUE_STATES over the
-    // real lifecycleState) replaces the console's own set, which compared the
-    // `status` field the API never sent.
-    expect(CONSOLE_UI).toContain("isQueueRowActionable");
-  });
-
-  it("Phase G3.2 — visible loading / error / flash states for every mutation", () => {
-    expect(CONSOLE_UI).toContain("actionBusyKey");
-    expect(CONSOLE_UI).toContain("actionError");
-    expect(CONSOLE_UI).toContain("actionFlash");
-  });
-
-  it("Phase G3.2 — bounded pagination (Load more / View all) per tab", () => {
-    expect(CONSOLE_UI).toContain("PaginationFooter");
-    expect(CONSOLE_UI).toContain("TAB_LIMIT_CAPS");
-    expect(CONSOLE_UI).toContain("data-reviewer-pagination-load-more");
-    expect(CONSOLE_UI).toContain("data-reviewer-pagination-view-all");
-    // Pagination must call the per-tab endpoints, not invent a new one.
-    expect(CONSOLE_UI).toContain("/v1/reviewer-ops/queue?");
-    // TEAM-SPEC §3 — only the queue slices remain on the console.
-    expect(CONSOLE_UI).not.toContain("/v1/reviewer-ops/escalations?");
-    expect(CONSOLE_UI).not.toContain("/v1/reviewer-ops/workload?");
-  });
-
-  it("Phase G3.2 — pagination caps respect the backend's bounded maxima", () => {
-    // Queue endpoint allows ≤100; workload + escalations allow ≤200.
-    expect(CONSOLE_UI).toMatch(/queue:\s*100/);
-    expect(CONSOLE_UI).toMatch(/mine:\s*100/);
-  });
-
-  it("consumes the /v1/reviewer-ops/console aggregator", () => {
-    expect(CONSOLE_UI).toContain('/v1/reviewer-ops/console?teamId=');
-  });
-
-  it("renders an operator-safe no-workspace panel when teamId is null", () => {
-    expect(CONSOLE_UI).toContain("Reviewer Console is workspace-scoped");
-  });
-
-  it("vocabulary discipline — no overclaiming phrases", () => {
-    const banned = [
-      /\btampered?\b/i,
-      /\btamper-?proof\b/i,
-      /\bauthentic\b/i,
-      /\badmissible\b/i,
-      /\bverified\s+report\b/i,
-      /\bcourt-?ready\b/i,
-      /\bforensic\s+proof\b/i,
-    ];
-    for (const re of banned) {
-      expect(CONSOLE_UI).not.toMatch(re);
-    }
+  it("the Inbox reads the reviewer-ops queue slice and opens rows on the Review page", () => {
+    expect(INBOX_UI).toContain("/v1/reviewer-ops/queue?");
+    expect(INBOX_UI).toContain("reviewHrefFromInbox(");
+    expect(INBOX_UI).not.toContain("/v1/reviewer-ops/console");
   });
 });
 
@@ -280,8 +162,8 @@ describe("Phase C0 — /review canonical page", () => {
     expect(REVIEW_PAGE).toContain('routeId="review.queue"');
   });
 
-  it("/review delegates row opens to the existing /reviewer-ops/[reviewId] inspector", () => {
-    expect(REVIEW_PAGE).toContain('router.push(`/reviewer-ops/${candidate}`)');
+  it("/review rows open the Review page (/reviewer-ops/[reviewId]) carrying the Inbox view", () => {
+    expect(INBOX_UI).toContain("router.push(reviewHrefFromInbox(row.id, view, { focus }))");
   });
 
   it("/review does not read a persona-profile density preference", () => {
@@ -292,8 +174,7 @@ describe("Phase C0 — /review canonical page", () => {
     expect(REVIEW_PAGE).not.toContain("personaProfile");
   });
 
-  it("/review resolves the workspace teamId from activeSpace (not legacy ctx.workspace alone)", () => {
-    expect(REVIEW_PAGE).toContain('activeSpace?.type === "ORGANIZATION"');
-    expect(REVIEW_PAGE).toContain('activeSpace?.type === "PERSONAL"');
+  it("/review resolves the workspace from the active space (useActiveSpaceId)", () => {
+    expect(INBOX_UI).toContain("const teamId = useActiveSpaceId();");
   });
 });

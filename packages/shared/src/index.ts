@@ -1654,6 +1654,35 @@ export {
   rollupReviewerOpsSlaState,
 } from "./reviewer-ops.js";
 
+// Stage C (team remediation) — SLA truth, escalation selector, count units.
+export type {
+  GoverningReviewDeadline,
+  ReviewCountKey,
+  ReviewCountUnit,
+  ReviewSlaDimensionOutcome,
+  ReviewSlaRowFacts,
+} from "./reviewer-ops.js";
+
+export {
+  COLLABORATION_TEAM_WORKLOAD_COPY,
+  EVIDENCE_LIBRARY_RECORD_FIGURE_COPY,
+  QC_SAMPLE_PENDING_STATES,
+  REVIEW_COUNT_DEFINITIONS,
+  REVIEW_COUNT_UNITS,
+  REVIEW_DEADLINE_DIMENSIONS,
+  REVIEW_ESCALATED_STATUS_LABEL,
+  REVIEW_ESCALATION_ACTIVE_STATUSES,
+  REVIEW_ESCALATION_SEVERITY_RANK,
+  compareReviewEscalationsBySeverity,
+  formatReviewCount,
+  governingReviewDeadline,
+  isActiveReviewEscalationStatus,
+  presentReviewSlaDimensions,
+  reviewEscalationSeverityRank,
+  reviewSlaDimensionOutcome,
+  selectGoverningEscalation,
+} from "./reviewer-ops.js";
+
 // -----------------------------------------------------------------------------
 // Phase 26 — Enterprise RBAC engine
 // -----------------------------------------------------------------------------
@@ -1857,6 +1886,7 @@ export type {
   AdaptiveAuthDecision,
   AdaptiveAuthInput,
   AdaptiveAuthResult,
+  ConcurrentSessionFingerprint,
   IdentityTimelineEvent,
   IdentityTimelineEventKind,
   ScimGroupInput,
@@ -1895,6 +1925,9 @@ export {
   ScimGroupSchema,
   SuspiciousSessionSignalKindSchema,
   computeSuspiciousSessionRisk,
+  concurrentSessionsSignalApplies,
+  countCorroboratedConcurrentSessions,
+  CONCURRENT_RISKY_SESSIONS_MIN_CORROBORATED,
   evaluateAdaptiveAuth,
   evaluateSessionTimeout,
   isSafeRedirectAfter,
@@ -2881,6 +2914,8 @@ export * from "./review-workflow-presentation.js";
 export * from "./evidence-protection-presentation.js";
 // 2026-10-23 — review decision state, shared by the authority and the page.
 export * from "./review-decision-state.js";
+// Team remediation (2026-11-24) — the one outcome / refusal copy for review decisions.
+export * from "./review-decision-copy.js";
 export * from "./review-event-taxonomy.js";
 
 // Members audit SEC-08 — share-grant lifetimes (owner links, external review).
@@ -2898,3 +2933,27 @@ export * from "./public-verification-page.js";
 
 // F-P1-08 — the one storage-PUT retry rule (web legacy, web multipart, extension).
 export * from "./storage-put-retry.js";
+
+// -----------------------------------------------------------------------------
+// T-030/T-031/T-036 — the review step-up policy as data (one table for the API
+// gate and the Review-settings copy).
+// -----------------------------------------------------------------------------
+
+export {
+  REVIEW_ACTIONS_WITHOUT_STEP_UP,
+  REVIEW_GATE_TABLE,
+  REVIEW_GOVERNED_ACTIONS,
+  REVIEW_STEP_UP_ALWAYS_ON,
+  REVIEW_STEP_UP_FLAG_KEYS,
+  classifyReviewBulkRequest,
+  policyFlagReason,
+  reviewGateSessionWindowHours,
+  reviewStepUpFlagGoverns,
+} from "./review-step-up-policy.js";
+export type {
+  ReviewBulkClassification,
+  ReviewGateAction,
+  ReviewGateRow,
+  ReviewStepUpFlagKey,
+  StepUpRefusalReason,
+} from "./review-step-up-policy.js";

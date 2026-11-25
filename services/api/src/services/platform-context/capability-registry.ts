@@ -581,9 +581,16 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
 export function resolvePersona(input: {
   scope: WorkspaceScope | null;
   role: WorkspaceRole | null;
+  /**
+   * Team remediation T-116 (PRD-10) — the workspace's plan sells collaboration
+   * (`planFeatures.teamCollaborationIncluded`). Team is a PERSONAL-workspace
+   * tier, so a Team owner's personal workspace is a shared workspace with
+   * members: it is not an INDIVIDUAL's. Omitted/false keeps INDIVIDUAL.
+   */
+  collaborationIncluded?: boolean;
 }): "INDIVIDUAL" | "WORKSPACE_OWNER" | "TEAM_ADMIN" | "TEAM_MEMBER" | "TEAM_VIEWER" {
-  if (input.scope === "PERSONAL") return "INDIVIDUAL";
-  if (input.scope !== "TEAM") return "INDIVIDUAL";
+  if (input.scope === "PERSONAL" && input.collaborationIncluded !== true) return "INDIVIDUAL";
+  if (input.scope !== "TEAM" && input.scope !== "PERSONAL") return "INDIVIDUAL";
   switch (input.role) {
     case "OWNER":
       return "WORKSPACE_OWNER";

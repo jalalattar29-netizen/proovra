@@ -297,7 +297,7 @@ describe("Phase 32.8 Foundation cleanup — /v1/teams contract drift fix", () =>
 
 describe("Phase 32.8 Foundation cleanup — reviewer/governance gate cleanup", () => {
   const SLA = readWeb("app/(app)/reviewer-ops/sla/page.tsx");
-  const ESC = readWeb("app/(app)/reviewer-ops/escalations/page.tsx");
+  const ESC = readWeb("app/(app)/reviewer-ops/escalations/_section.tsx");
   const REV = readWeb("app/(app)/reviewer-ops/[reviewId]/page.tsx");
   const POLICY = readWeb("app/(app)/governance/policy/page.tsx");
 
@@ -318,8 +318,14 @@ describe("Phase 32.8 Foundation cleanup — reviewer/governance gate cleanup", (
     // `requiredCapability` prop to a local gate. It now wraps in
     // <PageRouteGate routeId="review.escalations">, and the capability
     // is declared once on the canonical ROUTE_REGISTRY entry.
-    expect(ESC).toMatch(/PageRouteGate/);
-    expect(ESC).toMatch(/routeId="review\.escalations"/);
+    // Stage D (T-078) — Escalations are a Monitoring section: the Monitoring
+    // page carries the PageRouteGate and offers the section only where the
+    // review.escalations route resolves for the actor.
+    expect(ESC).toContain("export function EscalationsSection()");
+    const monitoring = readWeb("app/(app)/reviewer-ops/sla/page.tsx");
+    expect(monitoring).toContain('<PageRouteGate routeId="review.sla">');
+    const sections = readWeb("lib/reviewer-workspace/monitoring-sections.ts");
+    expect(sections).toContain('escalations: "review.escalations"');
     const registry = readWeb("lib/navigation/routeRegistry.ts");
     expect(registry).toMatch(
       /id:\s*"review\.escalations"[\s\S]*?ESCALATIONS_VIEW/,

@@ -288,6 +288,9 @@ export const NON_SESSION_WRITE_ROUTES: Readonly<Record<NonSessionCategory, reado
     /^POST \/v1\/notifications\/(process-retries|run-digests|run-reminders)$/,
     /^POST \/v1\/(ops\/reconcile|org-invite-deliveries\/process|reliability\/reconcile)$/,
     /^POST \/v1\/(review-operations\/reconcile-slas|reviewer-ops\/reconcile)$/,
+    // T-014 (team remediation): the operator re-evaluation of stuck second
+    // reviews, behind the reviewer-ops cron secret.
+    /^POST \/v1\/reviewer-ops\/maintenance\/second-review-reevaluation$/,
   ],
   PUBLIC_ANONYMOUS: [
     /^POST \/v1\/(contact-sales|demo-requests|analytics\/track)$/,

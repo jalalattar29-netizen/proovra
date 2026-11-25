@@ -108,6 +108,15 @@ describe("Phase CR0 — every (app) page wraps in <PageRouteGate> OR is document
         "retired hub — redirect-only, renders nothing; the destination is gated",
       revisitPhase: "delete with the route registry entry once no link remains",
     },
+    // Team remediation stage D (T-065, T-078, T-079) — retired Review pages
+    // that are now server redirects into the one Inbox / Monitoring / Review
+    // settings. They render nothing and read nothing; the destination carries
+    // its own <PageRouteGate>, so an ineligible viewer is refused there.
+    { page: "review/queues/page.tsx", reason: "retired — redirect-only to /review?view=<queue>; the destination is gated", revisitPhase: "delete with the route registry entry once no link remains" },
+    { page: "review/qc/page.tsx", reason: "retired — redirect-only to Monitoring → Quality; the destination is gated", revisitPhase: "delete with the route registry entry once no link remains" },
+    { page: "review/metrics/page.tsx", reason: "retired — redirect-only to Monitoring → Performance; the destination is gated", revisitPhase: "delete with the route registry entry once no link remains" },
+    { page: "review/schemas/page.tsx", reason: "retired — redirect-only to Review settings; the destination is gated", revisitPhase: "delete with the route registry entry once no link remains" },
+    { page: "reviewer-ops/escalations/page.tsx", reason: "retired — redirect-only to Monitoring → Escalations (keeps ?escalationId=); the destination is gated", revisitPhase: "delete with the route registry entry once no link remains" },
     {
       page: "notifications/page.tsx",
       reason: "re-export of the gated canonical page at inbox/page.tsx",

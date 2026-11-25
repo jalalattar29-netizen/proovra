@@ -37,6 +37,8 @@ import {
   evaluateExternalReviewAccess,
   isAllowedExternalReviewTransition,
   type ExternalReviewAccessFacts,
+  EXTERNAL_REVIEW_GRANT_MAX_LIFETIME_MS,
+  EXTERNAL_REVIEW_GRANT_MIN_LIFETIME_MS,
   type ExternalReviewAccessState,
 } from "@proovra/shared";
 
@@ -92,8 +94,9 @@ export type ExternalReviewGrantDenialCode =
 
 // Token lifetime bounds — operators can issue grants between 15 min
 // and 30 days. Anything outside the range is refused at creation.
-const MIN_GRANT_LIFETIME_MS = 15 * 60 * 1000;
-const MAX_GRANT_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
+// T-155 — the one definition lives in @proovra/shared (the console reads it too).
+const MIN_GRANT_LIFETIME_MS = EXTERNAL_REVIEW_GRANT_MIN_LIFETIME_MS;
+const MAX_GRANT_LIFETIME_MS = EXTERNAL_REVIEW_GRANT_MAX_LIFETIME_MS;
 
 const RAW_TOKEN_BYTES = 32; // 256-bit token, hex-encoded → 64 chars
 

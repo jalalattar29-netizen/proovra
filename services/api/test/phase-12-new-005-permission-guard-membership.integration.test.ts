@@ -484,6 +484,17 @@ describe("§1 — NEW-005: permission-guard admission requires a LIVE membership
       where: { id: team.organizationId },
       data: { status: "SUSPENDED" },
     });
+    // T-038 (stage B): every token now has a session-inventory row, as a real
+    // sign-in records one. A session bound to the suspended Organization's
+    // workspace is refused before any route runs (401, naming the policy) ...
+    await h.app.inject({ method: "GET", url: "/v1/users/me", headers: { authorization: `Bearer ${operatorToken}` } });
+    await prisma.authenticatedSession.updateMany({ where: { userId: operatorUserId }, data: { teamId: workspaceA } });
+    const bound = await call(routes[0]!);
+    expect(bound.statusCode, bound.body).toBe(401);
+    expect(JSON.parse(bound.body).error.details.policy).toBe("organization_suspended");
+    // ... and the permission guard itself refuses a session started elsewhere
+    // that reaches into the suspended workspace.
+    await prisma.authenticatedSession.updateMany({ where: { userId: operatorUserId }, data: { teamId: null } });
     await expectWholeSurfaceRefused("suspended parent Organization");
   }, 120_000);
 
@@ -690,6 +701,13 @@ describe("§1 — NEW-005: permission-guard admission requires a LIVE membership
       { method: "POST", url: "/v1/governance/delegated-admin" },
       { method: "POST", url: `/v1/governance/delegated-admin/${randomUUID()}/revoke` },
     ];
+    // T-038 (stage B): a token without a session-inventory row is adopted on its
+    // first authenticated request, as a real sign-in records it at login. Sign
+    // both callers in before the census so adoption is not counted as an effect
+    // of the retired endpoints.
+    for (const token of [operatorToken, h.fixtures.teamA.ownerToken]) {
+      await h.app.inject({ method: "GET", url: "/v1/users/me", headers: { authorization: `Bearer ${token}` } });
+    }
     const before = await censusTenantRows();
     for (const token of [operatorToken, h.fixtures.teamA.ownerToken]) {
       for (const r of retired) {

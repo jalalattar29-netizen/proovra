@@ -164,7 +164,7 @@ describe("Phase 32.8E — canonical /review console workspace wiring", () => {
   // summary, runtime banner, operator pivots) were folded into the
   // canonical console. These invariants now target that console.
   const src = readSource(
-    "../../../apps/web/components/reviewer-experience/ReviewerConsole.tsx",
+    "../../../apps/web/components/reviewer-experience/ReviewInbox.tsx",
   );
   const live = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
 
@@ -175,9 +175,8 @@ describe("Phase 32.8E — canonical /review console workspace wiring", () => {
   it("takes the workspace subject from the canonical server projection", () => {
     // The page resolves the active space from the platform-context
     // envelope and passes it down; the console re-derives nothing.
-    const page = readSource("../../../apps/web/app/(app)/review/page.tsx");
-    expect(page).toMatch(/usePlatformContext/);
-    expect(page).toMatch(/activeSpace\?\.type === "ORGANIZATION"/);
+    // Stage D — the Inbox reads the active space from the envelope itself.
+    expect(live).toContain("const teamId = useActiveSpaceId();");
     // TEAM-SPEC R1 (2026-11-23) — the console no longer reads the active
     // space KIND (bulk eligibility is plan + role); it reads the projected
     // plan feature and capability instead.
@@ -186,8 +185,8 @@ describe("Phase 32.8E — canonical /review console workspace wiring", () => {
   });
 
   it("renders bounded loading / error / empty states rather than a bare wall", () => {
-    expect(live).toMatch(/setLoading\(true\)/);
-    expect(live).toMatch(/setError\(/);
+    expect(live).toContain('setLoad({ kind: "loading" })');
+    expect(live).toContain('setLoad({ kind: "error", message })');
     expect(live).toMatch(/<EmptyState/);
     expect(live).not.toMatch(/ShellNoWorkspace/);
   });
@@ -224,9 +223,11 @@ describe("Reviewer Ops sub-routes mount the canonical PageRouteGate", () => {
       routeId: "review.sla",
     },
     {
-      name: "Escalations console",
-      rel: "../../../apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
-      routeId: "review.escalations",
+      // Stage D (T-078) — Escalations are a Monitoring section; the page that
+      // carries the gate is Monitoring (review.sla).
+      name: "Monitoring",
+      rel: "../../../apps/web/app/(app)/reviewer-ops/sla/page.tsx",
+      routeId: "review.sla",
     },
     {
       name: "Review workspace",

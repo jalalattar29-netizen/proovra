@@ -15,6 +15,12 @@ import { buildSweepWorld } from "./support/write-sweep-world.js";
 import { WRITE_METHODS, liveRoutes, type RouteResult, type WriteSweep } from "./support/write-sweep-engine.js";
 import { REVIEWED_ATTACK_RESULTS, reviewKey } from "./support/write-sweep-reviewed.js";
 
+// T-038 (team remediation stage B): every session now has an inventory row
+// anchored to its workspace, so the sampled membership heartbeat
+// (TeamMember.lastSeenAtUtc, auth.ts) writes from whichever request falls in its
+// sample window. That is the session's bookkeeping, not the attacked route's
+// effect; the sweep measures routes with the heartbeat's own kill switch off.
+process.env.SESSION_HEARTBEAT_ENABLED = "false";
 const RESULTS = process.env.WRITE_SWEEP_OUT ?? path.join(tmpdir(), `write-sweep-${process.pid}.json`);
 
 describe("write-route authorization sweep (live PostgreSQL)", () => {

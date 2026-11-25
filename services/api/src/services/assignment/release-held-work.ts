@@ -50,7 +50,13 @@ export type ReleaseReason =
   | "member_left"
   | "membership_ended"
   | "group_member_removed"
-  | "group_member_suspended";
+  | "group_member_suspended"
+  /**
+   * Team remediation T-099 — the person's workspace role was lowered below
+   * the reviewer floor (`evidence_request.review`): they stay a member but can
+   * no longer act on the work they held.
+   */
+  | "role_demoted";
 
 export type ReleasedWork = {
   reviewWorkflows: number;
@@ -82,7 +88,163 @@ const NOTE: Record<ReleaseReason, string> = {
   membership_ended: "Released: the assignee's workspace membership ended.",
   group_member_removed: "Released: the assignee was removed from this Collaboration Team.",
   group_member_suspended: "Released: the assignee was suspended in this Collaboration Team.",
+  role_demoted: "Released: the assignee's workspace role no longer allows reviewing.",
 };
+
+/**
+ * Team remediation T-100 (MEM-11) — the status a held review returns to when
+ * its holder goes. A review somebody had picked up (ASSIGNED) or was working
+ * on (IN_REVIEW) goes back to the QUEUE: "in review by nobody" read as
+ * progress in metrics and on the Inbox. Its decision history is untouched: a
+ * FIRST verdict already recorded in the current round keeps that round, so
+ * the next assignee is asked for the SECOND review the requirement still
+ * demands (the requirement itself is unchanged). Every other open state is a
+ * state the REVIEW is in, not one its holder is in, and is kept:
+ *
+ *   - ESCALATED (a manual escalation, a FIRST/SECOND conflict or an
+ *     UNRESOLVED adjudication): it waits for an escalation handler or an
+ *     independent OWNER/ADMIN adjudicator, never for the departed assignee;
+ *   - NEEDS_INFO / RESPONSE_RECEIVED / READY_FOR_EXTERNAL_REVIEW / REOPENED /
+ *     NOT_STARTED / QUEUED: the next assignee picks it up from there.
+ */
+export function releasedReviewStatus(status: string): string {
+  return status === "ASSIGNED" || status === "IN_REVIEW" ? "QUEUED" : status;
+}
+
+/**
+ * THE predicates of the release, shared with its previews (removal-impact,
+ * role-change impact) so a confirmation states exactly what the command does.
+ */
+export const heldWorkWhere = {
+  reviewWorkflows: (teamId: string, userIds: readonly string[]) => ({
+    teamId,
+    assignedToUserId: { in: [...userIds] },
+    status: { notIn: [...FINISHED_REVIEW_STATUSES] },
+  }),
+  escalations: (teamId: string, userIds: readonly string[]) => ({
+    teamId,
+    assignedToUserId: { in: [...userIds] },
+    status: { notIn: FINISHED_ESCALATION_STATUSES },
+  }),
+  teamTasks: (teamId: string, userIds: readonly string[]) => ({
+    workspaceId: teamId,
+    assigneeUserId: { in: [...userIds] },
+    status: { in: LIVE_TEAM_TASK_STATUSES },
+  }),
+  operationsWorkflows: (teamId: string, userIds: readonly string[]) => ({
+    teamId,
+    assignedOwnerUserId: { in: [...userIds] },
+    status: { notIn: [...FINISHED_OPERATIONS_STATUSES] },
+  }),
+  incidents: (teamId: string, userIds: readonly string[]) => ({
+    teamId,
+    assignedOperatorUserId: { in: [...userIds] },
+    status: { in: [...LIVE_INCIDENT_STATUSES] },
+  }),
+  qcSamples: (teamId: string, userIds: readonly string[]) => ({
+    teamId,
+    state: { in: LIVE_QC_STATES },
+    OR: [{ qcReviewerUserId: { in: [...userIds] } }, { assignedToUserId: { in: [...userIds] } }],
+  }),
+  evidenceRequests: (teamId: string, userIds: readonly string[]) => ({
+    teamId,
+    assignedReviewerUserId: { in: [...userIds] },
+    status: { notIn: [...FINISHED_REQUEST_STATUSES] },
+  }),
+  disagreements: (teamId: string, userIds: readonly string[]) => ({
+    teamId,
+    OR: [
+      { state: "UNDER_SECOND_REVIEW", secondReviewerUserId: { in: [...userIds] } },
+      { state: "UNDER_SUPERVISOR_REVIEW", supervisorUserId: { in: [...userIds] } },
+    ],
+  }),
+  siuAdjusters: (teamId: string, userIds: readonly string[]) => ({
+    teamId,
+    assignedAdjusterUserId: { in: [...userIds] },
+  }),
+  siuReviewers: (teamId: string, userIds: readonly string[]) => ({
+    teamId,
+    assignedSiuReviewerUserId: { in: [...userIds] },
+  }),
+  discussionThreads: (teamId: string, userIds: readonly string[]) => ({
+    teamId,
+    assignedToUserId: { in: [...userIds] },
+    status: { in: ["OPEN", "IN_PROGRESS"] },
+  }),
+};
+
+export type HeldWorkCounts = ReleasedWork & {
+  /** The part of `reviewWorkflows` held IN_REVIEW, which goes back to the queue (T-100). */
+  reviewsInProgress: number;
+};
+
+/**
+ * Team remediation T-099 / T-101 — what a release of `userIds` in `teamId`
+ * would touch right now, counted with the release's own predicates. Read-only.
+ */
+export async function countWorkHeldBy(
+  client: ReleaseTx,
+  input: { teamId: string; userIds: readonly string[] },
+): Promise<HeldWorkCounts> {
+  const { teamId, userIds } = input;
+  const zero: HeldWorkCounts = {
+    reviewWorkflows: 0,
+    reviewsInProgress: 0,
+    escalations: 0,
+    teamTasks: 0,
+    operationsWorkflows: 0,
+    incidents: 0,
+    qcSamples: 0,
+    evidenceRequests: 0,
+    disagreements: 0,
+    siuAssignments: 0,
+    discussionThreads: 0,
+  };
+  if (userIds.length === 0) return zero;
+  const w = heldWorkWhere;
+  const [
+    reviewWorkflows,
+    reviewsInProgress,
+    escalations,
+    teamTasks,
+    operationsWorkflows,
+    incidents,
+    qcSamples,
+    evidenceRequests,
+    disagreements,
+    siuAdjusters,
+    siuReviewers,
+    discussionThreads,
+  ] = await Promise.all([
+    client.evidenceReviewWorkflow.count({ where: w.reviewWorkflows(teamId, userIds) as never }),
+    client.evidenceReviewWorkflow.count({
+      where: { ...w.reviewWorkflows(teamId, userIds), status: "IN_REVIEW" } as never,
+    }),
+    client.reviewEscalation.count({ where: w.escalations(teamId, userIds) as never }),
+    client.collaborationTeamAssignment.count({ where: w.teamTasks(teamId, userIds) as never }),
+    client.operationalWorkflow.count({ where: w.operationsWorkflows(teamId, userIds) as never }),
+    client.operationalIncident.count({ where: w.incidents(teamId, userIds) as never }),
+    client.qcSample.count({ where: w.qcSamples(teamId, userIds) as never }),
+    client.evidenceRequest.count({ where: w.evidenceRequests(teamId, userIds) as never }),
+    client.reviewerDisagreement.count({ where: w.disagreements(teamId, userIds) as never }),
+    client.caseSiuProfile.count({ where: w.siuAdjusters(teamId, userIds) as never }),
+    client.caseSiuProfile.count({ where: w.siuReviewers(teamId, userIds) as never }),
+    client.discussionThread.count({ where: w.discussionThreads(teamId, userIds) as never }),
+  ]);
+  return {
+    reviewWorkflows,
+    reviewsInProgress,
+    escalations,
+    teamTasks,
+    operationsWorkflows,
+    incidents,
+    qcSamples,
+    evidenceRequests,
+    disagreements,
+    siuAssignments: siuAdjusters + siuReviewers,
+    discussionThreads,
+  };
+}
 
 /**
  * Release the open Team tasks `userIds` hold — in ONE group when
@@ -189,15 +351,11 @@ export async function releaseWorkHeldByTx(
 
   // 1. Review workflows — back to the queue, with an UNASSIGNED event.
   const workflows = await tx.evidenceReviewWorkflow.findMany({
-    where: {
-      teamId: input.teamId,
-      assignedToUserId: { in: userIds },
-      status: { notIn: [...FINISHED_REVIEW_STATUSES] },
-    },
+    where: heldWorkWhere.reviewWorkflows(input.teamId, userIds) as never,
     select: { id: true, evidenceId: true, status: true, assignedToUserId: true },
   });
   for (const wf of workflows) {
-    const nextStatus = wf.status === "ASSIGNED" ? "QUEUED" : wf.status;
+    const nextStatus = releasedReviewStatus(wf.status) as typeof wf.status;
     const written = await tx.evidenceReviewWorkflow.updateMany({
       where: { id: wf.id, assignedToUserId: wf.assignedToUserId, status: wf.status },
       data: { assignedToUserId: null, status: nextStatus },
@@ -219,11 +377,7 @@ export async function releaseWorkHeldByTx(
 
   // 2. Open escalations — unassigned, so they reach the owners and admins.
   const escalations = await tx.reviewEscalation.findMany({
-    where: {
-      teamId: input.teamId,
-      assignedToUserId: { in: userIds },
-      status: { notIn: FINISHED_ESCALATION_STATUSES },
-    },
+    where: heldWorkWhere.escalations(input.teamId, userIds) as never,
     select: { id: true, assignedToUserId: true },
   });
   for (const e of escalations) {
@@ -247,11 +401,7 @@ export async function releaseWorkHeldByTx(
 
   // 4. Operations workflows — ownerless again; an ASSIGNED one is OPEN again.
   const opsWorkflows = await tx.operationalWorkflow.findMany({
-    where: {
-      teamId: input.teamId,
-      assignedOwnerUserId: { in: userIds },
-      status: { notIn: [...FINISHED_OPERATIONS_STATUSES] },
-    },
+    where: heldWorkWhere.operationsWorkflows(input.teamId, userIds) as never,
     select: { id: true, status: true, assignedOwnerUserId: true },
   });
   for (const w of opsWorkflows) {
@@ -279,11 +429,7 @@ export async function releaseWorkHeldByTx(
   // 5. Operations incidents (conditions) — the same "unassigned" event an
   //    operator's unassign writes.
   const incidents = await tx.operationalIncident.findMany({
-    where: {
-      teamId: input.teamId,
-      assignedOperatorUserId: { in: userIds },
-      status: { in: [...LIVE_INCIDENT_STATUSES] },
-    },
+    where: heldWorkWhere.incidents(input.teamId, userIds) as never,
     select: { id: true, assignedOperatorUserId: true },
   });
   for (const i of incidents) {
@@ -305,11 +451,7 @@ export async function releaseWorkHeldByTx(
 
   // 6. QC samples not yet judged — back to SAMPLED, for another QC reviewer.
   const samples = await tx.qcSample.findMany({
-    where: {
-      teamId: input.teamId,
-      state: { in: LIVE_QC_STATES },
-      OR: [{ qcReviewerUserId: { in: userIds } }, { assignedToUserId: { in: userIds } }],
-    },
+    where: heldWorkWhere.qcSamples(input.teamId, userIds) as never,
     select: { id: true, qcReviewerUserId: true, assignedToUserId: true },
   });
   for (const s of samples) {
@@ -326,11 +468,7 @@ export async function releaseWorkHeldByTx(
 
   // 7. Evidence Requests still in flight — the assigned reviewer is cleared.
   const requests = await tx.evidenceRequest.findMany({
-    where: {
-      teamId: input.teamId,
-      assignedReviewerUserId: { in: userIds },
-      status: { notIn: [...FINISHED_REQUEST_STATUSES] },
-    },
+    where: heldWorkWhere.evidenceRequests(input.teamId, userIds) as never,
     select: { id: true, assignedReviewerUserId: true },
   });
   for (const r of requests) {
@@ -358,13 +496,7 @@ export async function releaseWorkHeldByTx(
   // longer holds the stage: it returns to the stage before they took it
   // (FILED, or UNDER_SECOND_REVIEW), for someone eligible to take again.
   const disputes = await tx.reviewerDisagreement.findMany({
-    where: {
-      teamId: input.teamId,
-      OR: [
-        { state: "UNDER_SECOND_REVIEW", secondReviewerUserId: { in: userIds } },
-        { state: "UNDER_SUPERVISOR_REVIEW", supervisorUserId: { in: userIds } },
-      ],
-    },
+    where: heldWorkWhere.disagreements(input.teamId, userIds) as never,
     select: { id: true, state: true, secondReviewerUserId: true, supervisorUserId: true },
   });
   for (const d of disputes) {
@@ -381,7 +513,7 @@ export async function releaseWorkHeldByTx(
 
   // 9. SIU profiles — the departed adjuster or SIU reviewer is cleared.
   const adjusted = await tx.caseSiuProfile.findMany({
-    where: { teamId: input.teamId, assignedAdjusterUserId: { in: userIds } },
+    where: heldWorkWhere.siuAdjusters(input.teamId, userIds),
     select: { id: true, assignedAdjusterUserId: true },
   });
   for (const profile of adjusted) {
@@ -392,7 +524,7 @@ export async function releaseWorkHeldByTx(
     if (written.count > 0) bucket(profile.assignedAdjusterUserId!).siuAssignments += 1;
   }
   const reviewed = await tx.caseSiuProfile.findMany({
-    where: { teamId: input.teamId, assignedSiuReviewerUserId: { in: userIds } },
+    where: heldWorkWhere.siuReviewers(input.teamId, userIds),
     select: { id: true, assignedSiuReviewerUserId: true },
   });
   for (const profile of reviewed) {
@@ -407,11 +539,7 @@ export async function releaseWorkHeldByTx(
   // inbox routes an assigned thread to its assignee only, so one left on a person
   // who cannot act is seen by nobody. The tenant audit row below keeps who held it.
   const threads = await tx.discussionThread.findMany({
-    where: {
-      teamId: input.teamId,
-      assignedToUserId: { in: userIds },
-      status: { in: ["OPEN", "IN_PROGRESS"] },
-    },
+    where: heldWorkWhere.discussionThreads(input.teamId, userIds) as never,
     select: { id: true, assignedToUserId: true },
   });
   for (const thread of threads) {

@@ -71,7 +71,7 @@ test.describe("Phase 2.6C — access review UI @critical", () => {
   });
 
   test("Phase 2.6 §10.5 workspace.team_governance nav entry still resolved", async () => {
-    const session = await createGuestSession();
+    const session = await createGuestSession({ plan: "TEAM" });
     try {
       const resp = await session.api.get("/v1/platform/context");
       expect(resp.ok()).toBe(true);
@@ -84,7 +84,10 @@ test.describe("Phase 2.6C — access review UI @critical", () => {
         (g.items ?? []).map((i) => i.id),
       );
       expect(ids).toContain("workspace.team_governance");
-      expect(ids).toContain("admin.teams");
+      // Team remediation T-125: the server navigation advertises only routes
+      // that load for the context. Collaboration Teams need a plan that
+      // includes them (Pro and above), and admin.teams is Enterprise-only.
+      expect(ids).not.toContain("admin.teams");
     } finally {
       await disposeSession(session);
     }

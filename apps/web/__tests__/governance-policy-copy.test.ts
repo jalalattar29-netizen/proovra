@@ -43,7 +43,8 @@ const SLA_PAGE_PATH = resolve(
   "(app)",
   "reviewer-ops",
   "sla",
-  "page.tsx",
+  // Stage D (T-078) — the dashboard content is Monitoring → Deadlines.
+  "_sections.tsx",
 );
 
 const POLICY_PAGE_SOURCE = readFileSync(POLICY_PAGE_PATH, "utf8");
@@ -183,8 +184,10 @@ test("/governance/policy keeps its PageRouteGate routeId", () => {
 });
 
 test("/reviewer-ops/sla keeps its PageRouteGate routeId", () => {
+  // Stage D — the gate is on the Monitoring page; its content moved to _sections.tsx.
+  const route = readFileSync(SLA_PAGE_PATH.replace(/_sections.tsx$/, "page.tsx"), "utf8");
   assert.match(
-    SLA_PAGE_SOURCE,
+    route,
     /routeId="review\.sla"/,
     "SLA page must keep routeId=review.sla — relocation is " +
       "forbidden.",

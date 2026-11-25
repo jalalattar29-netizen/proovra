@@ -25,7 +25,7 @@ vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
 }));
 
-import QcPage from "../../app/(app)/review/qc/page";
+import { QcSection as QcPage } from "../../app/(app)/review/qc/_section";
 
 const sampleId = "11111111-1111-4111-8111-111111111111";
 const workflowId = "22222222-2222-4222-8222-222222222222";

@@ -251,11 +251,24 @@ const toPackageLifecycle = (state: EvidenceOutputState): PackageLifecycle => out
  * error. It carries no workspace summary and no record status (the server
  * projects neither on this route), and the page says so rather than guessing.
  */
-async function tryUserScopedReports(workspaceId: string): Promise<ReportsArtifactsEnvelope | null> {
+/**
+ * T-146 (audit JRN-08 j) — a page cursor remembers WHICH list issued it. The
+ * user-scoped list's cursors are kept with this prefix, so "Next" on that view
+ * asks `/v1/reports` for its next page instead of handing its cursor to
+ * `/v1/reports/artifacts` (whose empty answer then fell back to the
+ * user-scoped FIRST page: page 2 repeated page 1).
+ */
+const USER_SCOPED_CURSOR_PREFIX = "user:";
+
+async function tryUserScopedReports(
+  workspaceId: string,
+  cursor: string | null = null,
+): Promise<ReportsArtifactsEnvelope | null> {
   try {
-    const envelope = (await apiFetch(`/v1/reports?teamId=${encodeURIComponent(workspaceId)}`, {
-      method: "GET",
-    })) as UserReportsEnvelope;
+    const envelope = (await apiFetch(
+      `/v1/reports?teamId=${encodeURIComponent(workspaceId)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+      { method: "GET" },
+    )) as UserReportsEnvelope;
     const items: ArtifactRow[] = (envelope.items ?? []).map((row) => ({
       evidenceId: row.evidenceId,
       teamId: row.teamId ?? null,
@@ -345,6 +358,10 @@ export function ReportsIndex() {
   // ET-RPT-05 — the summary has a LOADING phase; "temporarily unavailable"
   // is said only after it was asked for and did not come back.
   const [summaryAnswered, setSummaryAnswered] = useState(false);
+  // T-147 (audit JRN-08 k) — a summary read that FAILED is said with Retry; a
+  // user-scoped fallback read that failed is said too (both were swallowed).
+  const [summaryFailed, setSummaryFailed] = useState(false);
+  const [fallbackFailed, setFallbackFailed] = useState(false);
   // True while the list on screen came from the user-scoped fallback.
   const [userScopedView, setUserScopedView] = useState(false);
 
@@ -365,6 +382,7 @@ export function ReportsIndex() {
   const loadSummary = useCallback(async () => {
     if (!workspaceId) return;
     setSummaryAnswered(false);
+    setSummaryFailed(false);
     try {
       const envelope = (await apiFetch(
         `/v1/reports/artifacts?teamId=${encodeURIComponent(workspaceId)}&limit=1`,
@@ -373,6 +391,7 @@ export function ReportsIndex() {
       setSummarySection(envelope.sections.summary);
     } catch {
       setSummarySection({ status: "unavailable", data: null });
+      setSummaryFailed(true);
     } finally {
       setSummaryAnswered(true);
     }
@@ -400,6 +419,22 @@ export function ReportsIndex() {
       if (query.status) params.set("status", query.status);
       if (query.sort) params.set("sort", query.sort);
       if (query.search) params.set("search", query.search);
+      // T-146 — a cursor issued by the user-scoped list goes back to that list.
+      if (currentCursor?.startsWith(USER_SCOPED_CURSOR_PREFIX)) {
+        try {
+          const recovered = await tryUserScopedReports(workspaceId, currentCursor.slice(USER_SCOPED_CURSOR_PREFIX.length));
+          if (!isCurrent()) return;
+          if (recovered) {
+            setUserScopedView(true);
+            setState({ status: "ready", envelope: recovered });
+          } else {
+            setState({ status: "unavailable", message: "The next page of reports could not be loaded. Go back to the first page and try again." });
+          }
+        } finally {
+          if (isCurrent()) setRefreshing(false);
+        }
+        return;
+      }
       if (currentCursor) params.set("cursor", currentCursor);
       try {
         const envelope = (await apiFetch(`/v1/reports/artifacts?${params.toString()}`, {
@@ -416,11 +451,15 @@ export function ReportsIndex() {
           envelope.sections.artifacts.items.length === 0
         ) {
           const recovered = await tryUserScopedReports(workspaceId);
-          if (recovered && isCurrent() && recovered.sections.artifacts.items.length > 0) {
+          if (!isCurrent()) return;
+          setFallbackFailed(recovered === null);
+          if (recovered && recovered.sections.artifacts.items.length > 0) {
             setUserScopedView(true);
             setState({ status: "ready", envelope: recovered });
             return;
           }
+        } else {
+          setFallbackFailed(false);
         }
         setUserScopedView(false);
         setState({ status: "ready", envelope });
@@ -742,16 +781,35 @@ export function ReportsIndex() {
           </>
         ) : (
           <Card variant="status" tone="neutral">
-            <span className="cc-section-note rpt-note" data-cc-section-status={summarySection.status}>
+            <span
+              className="cc-section-note rpt-note"
+              data-cc-section-status={summarySection.status}
+              role={summaryFailed && !userScopedView ? "alert" : undefined}
+              data-reports-summary-failed={summaryFailed && !userScopedView ? "true" : undefined}
+            >
               {!summaryAnswered
                 ? copy.summary.loading
                 : userScopedView
                   ? copy.summary.userScoped
                   : copy.summary.unavailable}
             </span>
+            {summaryAnswered && summaryFailed && !userScopedView ? (
+              <button type="button" className="app-secondary-action" onClick={() => void loadSummary()} data-reports-summary-retry>
+                Retry
+              </button>
+            ) : null}
           </Card>
         )}
       </PageSection>
+
+      {fallbackFailed ? (
+        <div className="app-alert app-alert--warn" role="alert" data-reports-fallback-failed>
+          <p>Your own reports could not be checked, so this list may be incomplete.</p>
+          <button type="button" className="app-secondary-action" onClick={refreshAfterAction}>
+            Retry
+          </button>
+        </div>
+      ) : null}
 
       {/* ---------------------------------------------------- filters */}
       <PageSection title={copy.filters.heading} data-reports-filters>
@@ -1014,7 +1072,8 @@ export function ReportsIndex() {
               className="app-secondary-action"
               onClick={() => {
                 const next = sections.artifacts.nextCursor;
-                if (next) setCursors((c) => [...c, next]);
+                // T-146 — remember which list issued this cursor.
+                if (next) setCursors((c) => [...c, userScopedView ? `${USER_SCOPED_CURSOR_PREFIX}${next}` : next]);
               }}
               disabled={!sections.artifacts.nextCursor || refreshing}
               data-reports-next-page

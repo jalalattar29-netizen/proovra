@@ -1061,6 +1061,21 @@ export class WriteSweep {
     });
   }
 
+  /**
+   * T-038 (team remediation stage B): a token with no session-inventory row is
+   * adopted into the inventory on its first authenticated request. A real
+   * sign-in records that row at login, so the sweep signs each actor "in"
+   * (one authenticated read) before measuring what a route writes; otherwise
+   * the adoption row would read as the attacked route's effect.
+   */
+  private readonly warmedTokens = new Set<string>();
+  private async warmSession(actor: { token: string } | null): Promise<void> {
+    if (!actor || this.warmedTokens.has(actor.token)) return;
+    this.warmedTokens.add(actor.token);
+    await this.deps.h.app.inject({ method: "GET", url: "/v1/users/me", headers: { authorization: `Bearer ${actor.token}` } } as never);
+    await this.deps.h.handlersSettled();
+  }
+
   get fixtureFailures(): Map<string, string> {
     return this.factory.failures;
   }
@@ -1251,6 +1266,7 @@ export class WriteSweep {
     markers: string[],
     stepUpTeamId?: string,
   ): Promise<AttackResult> {
+    await this.warmSession(actor);
     await drainWrites(this.deps.prisma);
     const sent = await this.send(route, pathValues, payload, actor, headers, stepUpTeamId ? { stepUpTeamId } : undefined);
     await this.deps.h.handlersSettled();

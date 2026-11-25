@@ -89,7 +89,8 @@ describe("restricted-case reach on the residual surfaces (live PostgreSQL)", () 
   describe("AI QC runs", () => {
     let run: string;
     beforeAll(async () => {
-      run = await make("AiCopilotRun", { workspaceId: tenant.teamId, caseId, userId: listed.id });
+      // T-080 (stage D) — QC lists runs that produced output (status ok).
+      run = await make("AiCopilotRun", { workspaceId: tenant.teamId, caseId, userId: listed.id, status: "ok" });
     });
 
     it("the sample list leaves out a closed case's run", async () => {

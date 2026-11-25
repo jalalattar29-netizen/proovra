@@ -32,3 +32,17 @@ test("no window.prompt or window.confirm call in the app", () => {
   }
   assert.deepEqual(hits, []);
 });
+
+// T-143 (Team remediation stage F, audit JRN-08 g) — the Evidence Detail tree
+// says a refusal inline (role="alert"), never through a blocking alert().
+test("no alert() call anywhere under the Evidence Detail route", () => {
+  const hits = [];
+  for (const f of files(path.join(web, "app", "(app)", "evidence", "[id]"))) {
+    const code = fs
+      .readFileSync(f, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/.*$/gm, "");
+    if (/(^|[^.\w])(window\.)?alert\s*\(/m.test(code)) hits.push(path.relative(web, f));
+  }
+  assert.deepEqual(hits, []);
+});

@@ -141,6 +141,9 @@ export const STEP_UP_PURPOSES = [
   "REVIEWER_OPS_REJECT",
   "REVIEWER_OPS_ESCALATION_RESOLVE",
   "REVIEWER_OPS_BULK_ACTION",
+  // T-030 — archiving ONE review (close without a decision). Its own purpose,
+  // governed by the reject flag; never labelled bulk.
+  "REVIEWER_OPS_ARCHIVE",
   // MFA policy mutation (changing posture is itself a sensitive action)
   "MFA_POLICY_UPDATE",
   // Generic "operator session sanity check" — used when no specific

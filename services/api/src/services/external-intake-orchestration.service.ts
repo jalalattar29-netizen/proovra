@@ -57,6 +57,12 @@ import {
   removeStagedEvidencePart,
   writeEvidencePart,
 } from "./evidence/evidence-part-writer.service.js";
+import {
+  boundPartDigestHex,
+  isSameBoundFile,
+  withPartBinding,
+  type DeclaredPartFile,
+} from "./evidence/evidence-part-binding.service.js";
 import { headObject, presignPutObject } from "../storage.js";
 import { createEvidence } from "./evidence.service.js";
 import { completeEvidence } from "./evidence-complete.service.js";
@@ -578,6 +584,24 @@ export async function addExternalEvidencePart(
     }
   }
 
+  // T-127 — the link's per-submission byte cap is asked at presign, before any
+  // record is created or any URL is signed. A file that alone exceeds it is
+  // refused here; the running total of the files already staged is checked
+  // again under the record lock by the part writer (declaredBytesCap below).
+  // The stored-object check at submit stays the authority.
+  const sessionByteCap =
+    input.link.maxBytesPerSession != null ? Number(input.link.maxBytesPerSession) : null;
+  const declaredSizeBytes =
+    typeof input.sizeBytes === "number" && Number.isSafeInteger(input.sizeBytes) && input.sizeBytes >= 0
+      ? input.sizeBytes
+      : null;
+  if (sessionByteCap != null && declaredSizeBytes != null && declaredSizeBytes > sessionByteCap) {
+    throw new ExternalIntakeOrchestrationError("session_bytes_exceeded", {
+      maxBytes: String(sessionByteCap),
+      stage: "presign",
+    });
+  }
+
   // Load or create the backing Evidence once.
   const evidence = await createOrLoadExternalEvidence(
     { link: input.link, session: input.session },
@@ -622,6 +646,17 @@ export async function addExternalEvidencePart(
       webkitRelativePath: input.webkitRelativePath ?? null,
     });
 
+    // T-129 — the file this index is bound to: its name, type, the SHA-256
+    // signed into the upload URL and the declared size. A part's identity is
+    // its content, never its name and type alone (two camera "image.jpg" files
+    // are two files).
+    const declared: DeclaredPartFile = {
+      originalFileName: fileName,
+      mimeType: input.mimeType.slice(0, PART_MIME_TYPE_MAX),
+      sha256Base64: input.checksumSha256Base64 ?? null,
+      sizeBytes: declaredSizeBytes,
+    };
+
     // ET-INT-05 / ET-INT-14 — the ONE byte-write authority: it takes the
     // evidence lock finalize holds, so a part can never land on a record that
     // is being signed or already signed, nor on a soft-deleted record.
@@ -640,6 +675,11 @@ export async function addExternalEvidencePart(
         // a different file on a taken index is refused.
         onExistingIndex: "RETURN_EXISTING",
         maxPartCount: input.link.maxFileCountPerSession ?? null,
+        // T-127 — staged declared bytes + this file, under the record lock.
+        declaredBytesCap:
+          sessionByteCap != null && declaredSizeBytes != null
+            ? { cap: sessionByteCap, declaredSizeBytes }
+            : null,
         data: {
         storageBucket: bucket,
         storageKey: key,
@@ -652,7 +692,9 @@ export async function addExternalEvidencePart(
         privateNote: input.privateNote?.slice(0, 1000) ?? null,
         checklistStepId: input.checklistStepId?.slice(0, 120) ?? null,
         sourceLabel: "external_intake",
-        clientSignals: clientSignals as Prisma.InputJsonValue,
+        // T-129 — bound at first presign (digest + size), the shared C-06
+        // binding the seal later checks the stored bytes against.
+        clientSignals: withPartBinding(clientSignals, declared) as Prisma.InputJsonValue,
         // External submitter is not a User; uploadedByUserId tracks the
         // workspace admin who is the owner-of-record for traceability.
         uploadedByUserId: input.link.createdByUserId,
@@ -661,13 +703,19 @@ export async function addExternalEvidencePart(
       },
       client,
     ));
-    if (
-      !createdNow &&
-      (part.uploadedAtUtc !== null ||
-        part.originalFileName !== fileName ||
-        part.mimeType !== input.mimeType.slice(0, PART_MIME_TYPE_MAX))
-    ) {
-      throw new ExternalIntakeOrchestrationError("part_index_taken", { partIndex });
+    if (!createdNow) {
+      // T-129 — an occupied index is re-issued only for the SAME file (same
+      // bound digest; name and type alone never identify bytes). A row bound
+      // before this binding (no digest) keeps the name-and-type rule, but
+      // only while nothing is stored for it: a stored object (HEAD) counts as
+      // uploaded even though uploadedAtUtc is only stamped at the seal.
+      if (part.uploadedAtUtc !== null || !isSameBoundFile(part, declared)) {
+        throw new ExternalIntakeOrchestrationError("part_index_taken", { partIndex });
+      }
+      if (boundPartDigestHex(part.clientSignals) === null) {
+        const stored = await headObject({ bucket: part.storageBucket, key: part.storageKey }).catch(() => null);
+        if (stored) throw new ExternalIntakeOrchestrationError("part_index_taken", { partIndex });
+      }
     }
   } catch (err) {
     if (err instanceof ExternalIntakeOrchestrationError) throw err;
@@ -681,6 +729,12 @@ export async function addExternalEvidencePart(
       if (err.code === "PART_COUNT_EXCEEDED") {
         throw new ExternalIntakeOrchestrationError("max_files_reached", {
           max: input.link.maxFileCountPerSession ?? null,
+        });
+      }
+      if (err.code === "DECLARED_BYTES_EXCEEDED") {
+        throw new ExternalIntakeOrchestrationError("session_bytes_exceeded", {
+          maxBytes: String(sessionByteCap ?? ""),
+          stage: "presign",
         });
       }
       throw new ExternalIntakeOrchestrationError("session_not_open_for_upload");

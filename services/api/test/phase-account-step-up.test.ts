@@ -54,7 +54,12 @@ describe("canonical account step-up verifier", () => {
     );
     // The policy itself is unchanged: live session, this user, inside window.
     expect(SERVICE).toMatch(/revokedAtUtc: null/);
-    expect(SERVICE).toContain("where: { userId, sessionIdHash, revokedAtUtc: null }");
+    // T-038 (stage B) — the same live-session predicate (this user, this
+    // session, not revoked), plus: a server-ADOPTED legacy row never proves a
+    // recent sign-in (a null method is an older real sign-in and still counts).
+    expect(SERVICE).toMatch(
+      /prisma\.authenticatedSession\.findFirst\(\{[\s\S]{0,400}?where: \{\s*userId,\s*sessionIdHash,\s*revokedAtUtc: null,\s*(?:\/\/[^\n]*\n\s*)*OR: \[\{ authMethod: null \}, \{ authMethod: \{ not: ADOPTED_LEGACY_AUTH_METHOD \} \}\],\s*\}/,
+    );
     expect(SERVICE).toMatch(/RECENT_AUTH_WINDOW_MS/);
   });
 
@@ -114,10 +119,13 @@ describe("sensitive routes enforce step-up before mutating", () => {
   });
 
   it("revoke-other-sessions requires step-up before revoking", () => {
-    const h = handlerSlice(IDSEC_ROUTES, '"/v1/identity-security/my-sessions/revoke-others"', 3200);
+    const h = handlerSlice(IDSEC_ROUTES, '"/v1/identity-security/my-sessions/revoke-others"', 4800);
     expect(h).toMatch(/verifyAccountStepUp/);
     expect(h).toMatch(/"sessions_revoke_others"/);
+    expect(h.indexOf("updateMany")).toBeGreaterThan(-1);
     expect(h.indexOf("verifyAccountStepUp")).toBeLessThan(h.indexOf("updateMany"));
+    // Stage B (T-039): the iat cut-off is written only after the step-up too.
+    expect(h.indexOf("verifyAccountStepUp")).toBeLessThan(h.indexOf("revokeTokensIssuedBeforeCaller"));
   });
 
   it("password change keeps its equivalent re-auth (current password required)", () => {

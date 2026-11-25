@@ -24,6 +24,17 @@ export type MediaViewerProps = {
   annotations: ReadonlyArray<ReviewerAnnotationSummary>;
   imageMetadata?: Record<string, unknown> | null;
   transcript?: ReadonlyArray<AudioTranscriptSegment>;
+  /** T-076 — why `src` is null (says so instead of "not yet available"). */
+  unavailable?: "not_previewable" | "policy" | "no_file" | "failed" | null;
+};
+
+/** T-076 — what the viewer says when it has nothing to show. */
+export const PREVIEW_UNAVAILABLE_COPY: Readonly<Record<"not_previewable" | "policy" | "no_file" | "failed" | "loading", string>> = {
+  not_previewable: "This file type is not previewable here. Open evidence to download it.",
+  policy: "This workspace's download policy does not allow the original file to be shown.",
+  no_file: "This record has no stored file to preview.",
+  failed: "The preview could not be loaded. Open evidence to view the file.",
+  loading: "Loading preview…",
 };
 
 export function inferMediaKind(mimeType: string | null): MediaKind {
@@ -41,6 +52,7 @@ export function MediaViewer(props: MediaViewerProps) {
     return (
       <div
         data-media-viewer-empty
+        data-media-viewer-unavailable={props.unavailable ?? "loading"}
         style={{
           background: "#0f172a",
           color: "#cbd5e1",
@@ -50,7 +62,7 @@ export function MediaViewer(props: MediaViewerProps) {
           fontSize: 13,
         }}
       >
-        Evidence bytes are not yet available for in-workspace review.
+        {PREVIEW_UNAVAILABLE_COPY[props.unavailable ?? "loading"]}
       </div>
     );
   }

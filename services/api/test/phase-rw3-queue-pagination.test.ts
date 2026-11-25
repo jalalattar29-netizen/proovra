@@ -68,6 +68,9 @@ vi.mock("../src/db.js", () => ({
   prisma: {
     evidenceReviewWorkflow: { findMany: findManyMock },
     reviewEscalation: { findMany: escalationFindManyMock },
+    // Stage C follow-up — read-time SLA facts (first decision, sweep stamps).
+    workflowReviewDecision: { groupBy: vi.fn(async () => []) },
+    evidenceReviewWorkflowEvent: { findMany: vi.fn(async () => []) },
   },
 }));
 
@@ -216,11 +219,11 @@ describe("Phase RW3 — service wiring (source contract)", () => {
 
   it("orderBy ends with { id: 'desc' } as a total-order tiebreaker", () => {
     // The tiebreaker is essential — Prisma `cursor` requires the cursor
-    // column to appear in orderBy, and without a unique key the sort
-    // could repeat or skip rows under concurrent inserts.
-    expect(ENGINE_SRC).toMatch(
-      /orderBy:[\s\S]*?\{\s*priority:\s*"desc"\s*\}[\s\S]*?\{\s*dueAt:\s*"asc"\s*\}[\s\S]*?\{\s*updatedAt:\s*"desc"\s*\}[\s\S]*?\{\s*id:\s*"desc"\s*\}/,
-    );
+    // column to appear in orderBy. Stage D (T-096): the order is the shared
+    // REVIEW_QUEUE_ORDER (deadline, priority, updatedAt, id).
+    expect(ENGINE_SRC).toContain("export const REVIEW_QUEUE_ORDER = [");
+    expect(ENGINE_SRC).toContain('{ id: "desc" as const },');
+    expect(ENGINE_SRC).toContain("orderBy: REVIEW_QUEUE_ORDER,");
   });
 
   it("still computes nextCursor from the last row id", () => {
@@ -449,10 +452,11 @@ describe("Phase RW3 — stable under concurrent inserts", () => {
     const args = findManyMock.mock.calls[0]![0] as {
       orderBy: ReadonlyArray<Record<string, unknown>>;
     };
-    // Ordered tuple: priority, dueAt, updatedAt, id.
+    // Stage D (T-096) — ordered tuple: the deadline first (no deadline last),
+    // then priority, updatedAt, id.
     expect(args.orderBy).toHaveLength(4);
-    expect(args.orderBy[0]).toEqual({ priority: "desc" });
-    expect(args.orderBy[1]).toEqual({ dueAt: "asc" });
+    expect(args.orderBy[0]).toEqual({ dueAt: { sort: "asc", nulls: "last" } });
+    expect(args.orderBy[1]).toEqual({ priority: "desc" });
     expect(args.orderBy[2]).toEqual({ updatedAt: "desc" });
     expect(args.orderBy[3]).toEqual({ id: "desc" });
   });
@@ -548,18 +552,11 @@ describe("Phase RW3 — invalid cursor surface", () => {
 // ===========================================================================
 
 describe("Phase RW3 — frontend banner removed", () => {
-  it("queue page no longer renders the CANNOT_WIRE pagination banner", () => {
-    const pageSrc = readSource(
-      "../../../apps/web/app/(app)/review/queues/page.tsx",
-    );
-    expect(pageSrc).not.toContain("data-reviewer-queue-pagination-banner");
-    expect(pageSrc).toContain("data-reviewer-queue-load-more");
-  });
-
-  it("queue page sends &cursor= on subsequent pages", () => {
-    const pageSrc = readSource(
-      "../../../apps/web/app/(app)/review/queues/page.tsx",
-    );
-    expect(pageSrc).toMatch(/&cursor=\$\{encodeURIComponent\(cursor\)\}/);
+  // Stage D (T-065) — the Queues page is the Inbox: a Load more button that
+  // sends the cursor of the last row.
+  it("the Inbox renders Load more and sends the cursor on subsequent pages", () => {
+    const inbox = readSource("../../../apps/web/components/reviewer-experience/ReviewInbox.tsx");
+    expect(inbox).toContain("data-inbox-load-more");
+    expect(inbox).toContain('params.set("cursor", cursor)');
   });
 });

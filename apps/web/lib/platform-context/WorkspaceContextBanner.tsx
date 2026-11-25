@@ -12,6 +12,7 @@
  */
 
 import { usePlatformContext } from "./PlatformContextProvider";
+import { describeActiveWorkspace } from "./workspaceLabel";
 
 export type WorkspaceContextBannerProps = {
   /** Short operator label for the action, e.g. "Capturing evidence into". */
@@ -45,12 +46,15 @@ export function WorkspaceContextBanner({
   action = "This action will apply to",
   className,
 }: WorkspaceContextBannerProps) {
-  const { workspaceName, organizationName, kind } = useOwningContextLabel();
+  const owning = useOwningContextLabel();
+  const { envelope } = usePlatformContext();
+  const { organizationName, kind } = owning;
+  let workspaceName = owning.workspaceName;
 
   // Nothing to show before the first READY envelope.
   if (!workspaceName && !organizationName) return null;
 
-  const kindLabel =
+  let kindLabel =
     kind === "PERSONAL"
       ? "Personal Space"
       : kind === "ORGANIZATION"
@@ -58,6 +62,19 @@ export function WorkspaceContextBanner({
         : kind === "OWNED"
           ? "Workspace"
           : "Workspace";
+  // T-115 — a personal workspace is described by the ONE Team-aware label
+  // rule (lib/platform-context/workspaceLabel.ts): a Team owner reads their
+  // workspace name and "Team workspace"; a member reads the owner workspace
+  // name. The kind is never printed when it would repeat the name
+  // ("Personal Space · Personal Space").
+  if (kind === "PERSONAL") {
+    const d = describeActiveWorkspace(envelope);
+    if (d.kind !== "UNKNOWN" && d.kind !== "ORGANIZATION") {
+      workspaceName = d.name ?? workspaceName;
+      kindLabel = d.kindLabel;
+    }
+  }
+  const showKind = kindLabel !== workspaceName;
 
   return (
     <div
@@ -79,7 +96,11 @@ export function WorkspaceContextBanner({
     >
       <span style={{ opacity: 0.75 }}>{action}</span>
       <strong data-context-workspace>{workspaceName ?? "—"}</strong>
-      <span style={{ opacity: 0.55 }}>· {kindLabel}</span>
+      {showKind ? (
+        <span data-context-kind-label style={{ opacity: 0.55 }}>
+          · {kindLabel}
+        </span>
+      ) : null}
       {organizationName ? (
         <span data-context-organization style={{ opacity: 0.75 }}>
           · {organizationName}

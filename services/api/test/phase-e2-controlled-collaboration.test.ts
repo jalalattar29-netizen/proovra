@@ -236,11 +236,11 @@ describe("E2 Test 5 — collaboration UI surfaces present", () => {
       // Phase 12 Point 4 — the unmounted ReviewerCommandConsole was
       // deleted; `/review` mounts the canonical ReviewerConsole, which
       // carries the assignment / escalation / bulk-triage surface.
-      rel: "components/reviewer-experience/ReviewerConsole.tsx",
+      rel: "components/reviewer-experience/ReviewInbox.tsx",
       description: "reviewer console (canonical /review surface)",
     },
     {
-      rel: "app/(app)/reviewer-ops/escalations/page.tsx",
+      rel: "app/(app)/reviewer-ops/escalations/_section.tsx",
       description: "escalations console",
     },
     {

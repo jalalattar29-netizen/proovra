@@ -249,7 +249,10 @@ export default function ExternalIntakeSourceCard({
    * was told "Please review your input and try again", which describes an
    * input they were never asked for.
    */
+  // Team remediation T-010 — every verdict carries a written rationale (the
+  // decision authority refuses an empty one on every door), approval included.
   const DECISION_REQUIRES_REASON: ReadonlySet<string> = new Set([
+    "APPROVE_INTERNAL",
     "REQUEST_MORE_INFO",
     "REJECT_INSUFFICIENT",
   ]);

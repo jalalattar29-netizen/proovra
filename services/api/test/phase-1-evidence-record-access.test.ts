@@ -259,11 +259,35 @@ describe("evidence.routes — the 10 former owner-gate callers are classified", 
     expect(loader).not.toBeNull();
     expect(loader![0]).toContain("resolveEvidenceRecordAccess");
     // Both the access-denied and record-missing paths throw the same
-    // message + statusCode; no 403 / "Forbidden" branch exists.
+    // message + statusCode; no "Forbidden" wording exists.
     const notFoundThrows =
       loader![0].match(/Evidence not found/g) ?? [];
     expect(notFoundThrows.length).toBe(2);
     expect(loader![0]).not.toContain("Forbidden");
-    expect(loader![0]).not.toMatch(/statusCode = 403/);
+    // T-119/T-120 (stage E) — the ONE typed 403 branch is decided by the
+    // canonical refusal classifier, and only when it says 403; every other
+    // denial still falls through to the uniform 404 above.
+    expect(loader![0]).toMatch(
+      /const refusal = await evidenceRecordRefusal\(\{ userId, evidenceId, permission, denial: access\.internalReason \}\);\s*if \(refusal\.statusCode === 403\) \{/,
+    );
+    expect((loader![0].match(/statusCode = 403/g) ?? []).length).toBe(1);
+  });
+
+  it("T-120: the refusal classifier answers 403 ONLY for a record the caller can read (anti-enum preserved)", () => {
+    const svc = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "..", "src", "services", "evidence", "evidence-record-access.service.ts"),
+      "utf8",
+    );
+    const fn = svc.match(/export async function evidenceRecordRefusal\([\s\S]*?\n\}/);
+    expect(fn).not.toBeNull();
+    const body = fn![0];
+    // A denied READ is always the uniform 404 (never says the record exists).
+    expect(body).toMatch(/if \(input\.permission === "evidence\.read"\) return \{ statusCode: 404, code: "not_found" \};/);
+    // A caller who cannot read the record gets the uniform 404, decided by
+    // the same pure projection the read gate uses — BEFORE any 403 branch.
+    const unreadable = body.search(/if \(!granted\.get\(input\.evidenceId\)\?\.has\("evidence\.read"\)\) return \{ statusCode: 404, code: "not_found" \};/);
+    const first403 = body.indexOf("statusCode: 403");
+    expect(unreadable).toBeGreaterThan(-1);
+    expect(first403).toBeGreaterThan(unreadable);
   });
 });

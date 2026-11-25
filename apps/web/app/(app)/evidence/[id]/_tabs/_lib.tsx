@@ -157,6 +157,8 @@ export type EvidenceDetailCtx = {
   downloadReportVersion: (version: number) => Promise<void> | void;
   downloadVerificationPackageVersion: (version: number) => Promise<void> | void;
   downloadExternalDisclosurePackageVersion: (version: number) => Promise<void> | void;
+  /** T-139 — the record-level download gates, applied to every version's download too. */
+  versionDownloadBlock?: { report: string | null; package: string | null };
   /**
    * Request the action an output offers — GENERATE, RETRY or RECOVER, from the
    * server's `outputs.*.action`. The server re-derives what runs: a report
@@ -1592,4 +1594,27 @@ export function PreviewImage({ src, label }: { src: string; label: string }) {
       onError={() => setFailed(true)}
     />
   );
+}
+
+/**
+ * T-139 (audit JRN-08 c) — THE record-level download gates: recorded integrity
+ * failed, or an export-governance block. The page header and every version
+ * download in the Artifacts tab read this one answer (the version buttons used
+ * to skip it). Artifact existence is per control and is not part of it.
+ */
+export function recordDownloadBlock(input: {
+  isIntegrityFailed: boolean;
+  exportDisabled: boolean;
+  exportBlockedReason: string | null;
+  packageDisabled: boolean;
+  packageBlockedReason: string | null;
+}): { report: string | null; package: string | null } {
+  if (input.isIntegrityFailed) {
+    const r = "Downloads are unavailable while recorded integrity is failed.";
+    return { report: r, package: r };
+  }
+  return {
+    report: input.exportDisabled ? (input.exportBlockedReason ?? "Governance policy currently blocks this download.") : null,
+    package: input.packageDisabled ? (input.packageBlockedReason ?? "Governance policy currently blocks this download.") : null,
+  };
 }

@@ -7,11 +7,13 @@
  *
  * SLA: a null compliance rate reads "No completed reviews in range" (never
  * 100%), a null mean / capacity reads "No data" (never 0 h), the by-stage
- * escalated row is "Escalated (manual decision)", and a failed dashboard
+ * escalated row is "Escalated status (conflict or escalation)" (stage C T-057)
+ * with open and finished reviews apart, and a failed dashboard
  * read shows an error with Retry instead of "Loading…" forever.
  *
  * Real pages, real apiFetch over a stubbed fetch, RTL cleanup().
  */
+import { reviewStringScanViolations } from "./_review-string-scan";
 import React from "react";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -39,8 +41,9 @@ import {
 import { ToastProvider } from "../../components/ui";
 import { ConfirmActionProvider } from "../../components/ui/ConfirmActionModal";
 import { NoEscalationsEmptyState } from "../../components/operational";
-import EscalationsPage from "../../app/(app)/reviewer-ops/escalations/page";
-import SlaPage from "../../app/(app)/reviewer-ops/sla/page";
+import { EscalationsSection as EscalationsPage } from "../../app/(app)/reviewer-ops/escalations/_section";
+// Stage D (T-078) — the SLA page's content is the Monitoring Deadlines and Workload sections.
+import { DeadlinesSection, WorkloadSection } from "../../app/(app)/reviewer-ops/sla/_sections";
 import { setActiveWorkspaceId } from "../../lib/api";
 
 const WS = "88888888-8888-4888-8888-888888888888";
@@ -203,7 +206,9 @@ describe("Escalations page", () => {
     expect(tr.tagName).toBe("TR");
     const table = tr.closest("table")!;
     expect(table.classList.contains("app-table")).toBe(true);
-    expect(table.hasAttribute("data-responsive")).toBe(true);
+    // T-088 (stage D) — the card layout starts at ~900 px so every row action stays visible at 768 px.
+    expect(table.classList.contains("review-cards-900")).toBe(true);
+    expect(tr.querySelectorAll("[data-row-action]").length).toBe(4);
     for (const cell of ["ref", "priority", "status", "due", "actions"]) {
       expect(tr.querySelector(`[data-review-cell="${cell}"]`), cell).not.toBeNull();
     }
@@ -236,7 +241,7 @@ describe("Escalations page", () => {
 });
 
 const DASHBOARD = {
-  counts: { byStage: { QUEUED: 3, ESCALATED: 1 }, overdue: 0, dueSoon: 1, unassigned: 3, assignedToMe: 0 },
+  counts: { byStage: { QUEUED: 3, ESCALATED: 1, CLOSED: 1 }, overdue: 0, dueSoon: 1, unassigned: 3, assignedToMe: 0 },
   openEscalations: 1,
   criticalEscalationsOpen: 0,
   workloadTop: [],
@@ -286,7 +291,12 @@ describe("SLA page", () => {
       if (p.startsWith("/v1/reviewer-ops/reminders")) return { status: 200, body: { reminders: [] } };
       return null;
     };
-    mount(<SlaPage />);
+    mount(
+      <>
+        <DeadlinesSection teamId={WS} />
+        <WorkloadSection teamId={WS} />
+      </>,
+    );
     await settle();
     const compliance = document.querySelector("[data-sla-compliance]")!;
     expect(compliance.getAttribute("data-sla-compliance")).toBe("none");
@@ -295,7 +305,14 @@ describe("SLA page", () => {
     expect(document.body.textContent).toContain("No data");
     // The stored escalated stage, relabelled, with the definition of "open escalation".
     const stage = document.querySelector('[data-sla-stage="ESCALATED"]')!;
-    expect(stage.textContent).toBe("Escalated (manual decision)");
+    // T-057 (stage C, COR-B) — the status also comes from a conflict or an
+    // unresolved adjudication: never "manual decision".
+    expect(stage.textContent).toBe("Escalated status (conflict or escalation)");
+    expect(document.body.textContent).not.toMatch(/manual decision/i);
+    // Open work and finished reviews are reported apart.
+    expect(stage.closest("[data-sla-stage-section]")!.getAttribute("data-sla-stage-section")).toBe("open");
+    const closed = document.querySelector('[data-sla-stage="CLOSED"]')!;
+    expect(closed.closest("[data-sla-stage-section]")!.getAttribute("data-sla-stage-section")).toBe("closed");
     expect(stage.getAttribute("title")).toMatch(/open, acknowledged or reassigned/);
     expect(document.body.textContent).not.toMatch(/\bSla\b/);
     // TEAM-UI-SPEC §1 — panels and metric cards, no legacy button.
@@ -315,10 +332,10 @@ describe("SLA page", () => {
       }
       return null;
     };
-    mount(<SlaPage />);
+    mount(<DeadlinesSection teamId={WS} />);
     await settle();
     expect(document.querySelector("[data-sla-dashboard-error]")).not.toBeNull();
-    expect(document.body.textContent).not.toContain("Loading SLA dashboard");
+    expect(document.body.textContent).not.toContain("Loading monitoring figures");
     await act(async () => {
       fireEvent.click(document.querySelector("[data-sla-dashboard-retry]")!);
     });
@@ -326,5 +343,32 @@ describe("SLA page", () => {
     expect(failures).toBe(2);
     expect(document.querySelector("[data-sla-dashboard-error]")).toBeNull();
     expect(document.body.textContent).toContain("Workspace pressure");
+  });
+});
+
+describe("T-084 / T-083 — Monitoring escalations string scan", () => {
+  it("an old automatic escalation reads catalog words; no enum, code or id fragment on screen", async () => {
+    responder = (p) =>
+      p.startsWith("/v1/reviewer-ops/escalations")
+        ? {
+            status: 200,
+            body: {
+              escalations: [
+                {
+                  ...escalation(ESC, "OPEN"),
+                  severity: "WARNING",
+                  reason: "REVIEW_OVERDUE",
+                  safeSummary: "Review past due — automatic escalation by reviewer ops reconcile.",
+                },
+              ],
+              total: 1,
+            },
+          }
+        : null;
+    mount(<EscalationsPage />);
+    await settle();
+    const section = document.querySelector('[data-monitoring-section-body="escalations"]') as HTMLElement;
+    expect(section.textContent).toContain("Review is past its deadline; raised automatically.");
+    expect(reviewStringScanViolations(section.textContent ?? "")).toEqual([]);
   });
 });

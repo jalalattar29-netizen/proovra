@@ -166,12 +166,15 @@ test.describe("Phase A.1D — reports + reviewer operational maturity @critical"
       ),
       "utf8",
     );
-    expect(src).toContain('data-reviewer-cross-surface-links');
+    // Team remediation T-073 (stage D): the cross-surface link row and the
+    // duplicate report / package downloads left the Review page; ONE
+    // "Open evidence" stays in the header, and the escalation line links to
+    // Monitoring itself.
     expect(src).toContain('data-reviewer-link="open-evidence"');
-    expect(src).toContain('data-reviewer-link="download-report"');
-    expect(src).toContain('data-reviewer-link="download-package"');
-    expect(src).toContain('data-reviewer-link="open-reports"');
-    expect(src).toContain('data-reviewer-link="open-escalations"');
+    expect(src).not.toContain('data-reviewer-cross-surface-links');
+    expect(src).not.toContain('data-reviewer-link="download-report"');
+    expect(src).not.toContain('data-reviewer-link="download-package"');
+    expect(src).not.toContain('data-reviewer-link="open-reports"');
   });
 
   test("Backend regenerate endpoint source is registered with audit emission", async () => {

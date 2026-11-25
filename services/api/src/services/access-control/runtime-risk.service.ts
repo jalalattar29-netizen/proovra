@@ -18,6 +18,9 @@ import {
   HIGH_RISK_INCIDENT_DEDUP_HOURS,
   HIGH_RISK_INCIDENT_DEFAULT_THRESHOLD,
   RUNTIME_RISK_RECOMPUTE_DEFAULT_MINUTES,
+  SESSION_RISK_MEDIUM_THRESHOLD,
+  SUSPICIOUS_SESSION_SIGNAL_WEIGHTS,
+  computeSuspiciousSessionRisk,
   isSessionDueForRiskRecompute,
   sessionRiskLevel,
 } from "@proovra/shared";
@@ -26,7 +29,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { recordIncident } from "../observability/incident.service.js";
-import { detectAndScoreSession } from "./suspicious-session.service.js";
+import { collectSessionRiskSignals, detectAndScoreSession } from "./suspicious-session.service.js";
 import { quarantineSession } from "./session-quarantine.service.js";
 
 // -----------------------------------------------------------------------------
@@ -193,4 +196,105 @@ export async function runtimeRiskRecomputeSweep(
     escalatedToQuarantine,
     highRiskCount,
   };
+}
+
+// -----------------------------------------------------------------------------
+// T-026 — one-time recalibration of scores that came from the old concurrency
+// rule (compatibility for T-025).
+// -----------------------------------------------------------------------------
+
+/**
+ * Sessions are scored at issuance and the score is persisted. Sessions scored
+ * before T-025 kept CONCURRENT_RISKY_SESSIONS (35, MEDIUM on its own) for a
+ * person's own same-device sessions until the next re-score, so routine
+ * verdicts kept asking for a second factor after the deploy.
+ *
+ * This pass re-derives each live MEDIUM/HIGH session's signals with the
+ * current scorer and lowers the stored score ONLY by the concurrency weight
+ * the new rule no longer applies:
+ *   - the new signals no longer include CONCURRENT_RISKY_SESSIONS;
+ *   - the stored score is above the new one by at most that weight.
+ * Any other cause of the stored score (IP shift, unknown device, geo) is left
+ * as it is. Nobody is signed out; nothing is raised.
+ *
+ * Idempotent and bounded: a session evaluated here is stamped with
+ * `lastRiskRecomputedAtUtc`, and only sessions not recomputed since the
+ * recalibration epoch are selected, so a second run finds nothing to do. Each
+ * lowered score is audited as a `runtime_risk_cooled_down` security event with
+ * reason `concurrency_recalibrated`.
+ */
+export const CONCURRENCY_RECALIBRATION_EPOCH_UTC = new Date("2026-11-24T00:00:00Z");
+
+export type ConcurrencyRecalibrationResult = {
+  scanned: number;
+  lowered: number;
+  unchanged: number;
+};
+
+export async function recalibrateConcurrencyOnlySessionScores(
+  input: { batchSize?: number; nowUtc?: Date; userId?: string } = {},
+  client: PrismaClient = defaultPrisma,
+): Promise<ConcurrencyRecalibrationResult> {
+  const now = input.nowUtc ?? new Date();
+  const batchSize = Math.min(Math.max(input.batchSize ?? 500, 1), 2000);
+  const concurrencyWeight = SUSPICIOUS_SESSION_SIGNAL_WEIGHTS.CONCURRENT_RISKY_SESSIONS;
+  const candidates = await client.authenticatedSession.findMany({
+    where: {
+      ...(input.userId ? { userId: input.userId } : {}),
+      revokedAtUtc: null,
+      expiresAtUtc: { gt: now },
+      teamId: { not: null },
+      riskScore: { gte: SESSION_RISK_MEDIUM_THRESHOLD },
+      OR: [
+        { lastRiskRecomputedAtUtc: null },
+        { lastRiskRecomputedAtUtc: { lt: CONCURRENCY_RECALIBRATION_EPOCH_UTC } },
+      ],
+    },
+    take: batchSize,
+    select: {
+      id: true,
+      teamId: true,
+      userId: true,
+      riskScore: true,
+      countryCode: true,
+      ipPreview: true,
+      issuedAtUtc: true,
+      ssoConnectionId: true,
+      deviceIdHash: true,
+    },
+  });
+  let lowered = 0;
+  let unchanged = 0;
+  for (const c of candidates) {
+    const signals = await collectSessionRiskSignals(
+      { teamId: c.teamId as string, session: c, nowMs: now.getTime() },
+      client,
+    );
+    const newScore = computeSuspiciousSessionRisk(signals);
+    const stillConcurrent = signals.some((s) => s.kind === "CONCURRENT_RISKY_SESSIONS");
+    const drop = c.riskScore - newScore;
+    const lower = !stillConcurrent && drop > 0 && drop <= concurrencyWeight;
+    await client.authenticatedSession.update({
+      where: { id: c.id },
+      data: { lastRiskRecomputedAtUtc: now, ...(lower ? { riskScore: newScore } : {}) },
+    });
+    if (lower) {
+      lowered += 1;
+      safeEmitSecurityEvent({
+        teamId: c.teamId,
+        eventType: "runtime_risk_cooled_down",
+        severity: "INFO",
+        details: {
+          sessionId: c.id,
+          fromScore: c.riskScore,
+          toScore: newScore,
+          level: sessionRiskLevel(newScore),
+          reason: "concurrency_recalibrated",
+        },
+      });
+    } else {
+      unchanged += 1;
+    }
+  }
+  return { scanned: candidates.length, lowered, unchanged };
 }

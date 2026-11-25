@@ -1405,6 +1405,33 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     actionLabel: "Security settings",
     actionHref: "/settings/security",
   },
+  /**
+   * T-029 — a privileged action needs a RECENT sign-in. The person is still
+   * signed in for everything else, so this never says the session expired and
+   * never signs anyone out. The clients offer a re-sign-in that returns to the
+   * task (web: a sign-in window that keeps the page and its typed text).
+   */
+  REAUTH_REQUIRED: {
+    title: "Sign in again to continue",
+    message:
+      "For your security, this action needs a recent sign-in. You're still signed in — sign in again to continue. Nothing has been changed.",
+    severity: "warning",
+    actionLabel: "Sign in again",
+    actionHref: "/login",
+  },
+  /** The session is quarantined: reads continue, privileged actions are refused. */
+  SESSION_QUARANTINED: {
+    title: "This session can't make changes right now",
+    message:
+      "Unusual activity was detected on this sign-in, so it can still read but not perform sensitive actions. Sign out and sign in again, or ask a workspace admin. Nothing has been changed.",
+    severity: "warning",
+  },
+  SESSION_BLOCKED: {
+    title: "This action was blocked",
+    message:
+      "This sign-in shows a very high security risk, so sensitive actions are blocked. Sign out and sign in again. Nothing has been changed.",
+    severity: "warning",
+  },
   HIGH_RISK_ACTION_BLOCKED: {
     title: "This action was blocked",
     message:
@@ -1821,4 +1848,71 @@ export const SERVER_MESSAGE_MAX_LENGTH = 240;
 export function userFacingErrorFor(code: string | null | undefined): UserFacingError | null {
   if (typeof code !== "string" || code.trim() === "") return null;
   return USER_FACING_ERRORS[code.trim().toUpperCase()] ?? null;
+}
+
+/**
+ * T-028 — WHY A STEP-UP OR A FRESH SIGN-IN IS ASKED FOR.
+ *
+ * The gate's refusal carries `error.details.reason`; both clients render the
+ * matching sentence beside the challenge, so "workspace policy" and "unusual
+ * sign-in activity" read differently. A reason this table does not know shows
+ * nothing extra (the generic copy stands); it never shows the raw value.
+ */
+const STEP_UP_POLICY_FLAG_SENTENCES: Record<string, string> = {
+  requireStepUpForApprove: "Your workspace asks for a second factor to approve reviews.",
+  requireStepUpForReject:
+    "Your workspace asks for a second factor to reject, archive, close or reopen reviews.",
+  requireStepUpForEscalationResolve:
+    "Your workspace asks for a second factor to resolve or suppress escalations.",
+  requireStepUpForBulk: "Your workspace asks for a second factor for bulk review actions.",
+};
+
+const STEP_UP_REASON_SENTENCES: Record<string, string> = {
+  elevated_session_risk:
+    "We noticed unusual sign-in activity on your account (for example sign-ins from several networks at once), so this action needs a second factor.",
+  high_session_risk:
+    "This sign-in shows a high security risk, so this action needs a fresh sign-in.",
+  session_age_window:
+    "Your sign-in is older than this action allows, so it needs a fresh sign-in. You're still signed in for everything else.",
+  legacy_session:
+    "This sign-in predates the current session security checks, so this action needs a fresh sign-in.",
+  save_policy_requires_mfa:
+    "Saving review settings always needs a second factor, because it can lower protection.",
+  action_requires_step_up: "This action always needs a second factor.",
+};
+
+/** The sentence for a refusal's `details.reason`, or null when none applies. */
+export function stepUpReasonSentence(reason: unknown): string | null {
+  if (typeof reason !== "string" || reason.length === 0) return null;
+  if (reason.startsWith("policy_flag:")) {
+    return STEP_UP_POLICY_FLAG_SENTENCES[reason.slice("policy_flag:".length)] ?? null;
+  }
+  return STEP_UP_REASON_SENTENCES[reason] ?? null;
+}
+
+/**
+ * T-027 — the enrolment state names why a second factor is needed here.
+ * Without a reason it states the action's own requirement.
+ */
+export function stepUpEnrollmentSentence(reason: unknown): string {
+  const why = stepUpReasonSentence(reason);
+  const base =
+    "This account has no second factor it can use here — a passkey or security key, an authenticator app, your organization's sign-in or (where allowed) a verified phone. Signing in with your password again does not replace it.";
+  return why ? `${why} ${base}` : `This action needs a second factor. ${base}`;
+}
+
+/**
+ * T-029 — the re-sign-in sentence for a `reauth_required` refusal, naming the
+ * action's session window when the server sent one.
+ */
+export function reauthRequiredSentence(details: {
+  reason?: unknown;
+  windowHours?: unknown;
+} | null | undefined): string {
+  const hours = typeof details?.windowHours === "number" && details.windowHours > 0 ? details.windowHours : null;
+  if (details?.reason === "session_age_window" && hours) {
+    return `For your security, sign in again to continue: this action needs a sign-in from the last ${hours} hours. You're still signed in for everything else, and nothing has been changed.`;
+  }
+  const why = stepUpReasonSentence(details?.reason);
+  return `${why ? `${why} ` : "For your security, sign in again to continue. "}Nothing has been changed.`;
 }

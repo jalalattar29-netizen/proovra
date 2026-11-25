@@ -64,7 +64,7 @@ const GOVERNANCE_PANEL = readWeb(
   "components/governance-experience/GovernanceControlPlane.tsx",
 );
 const REVIEWER_PANEL = readWeb(
-  "components/reviewer-experience/ReviewerConsole.tsx",
+  "components/reviewer-experience/ReviewInbox.tsx",
 );
 // Phase Final-Closure-Remediation — the legacy `app/(app)/teams/page.tsx`
 // was deleted (duplicate of `app/(app)/workspaces/page.tsx`). The
@@ -624,33 +624,25 @@ describe("Phase 32.8E — /governance control plane", () => {
 // =============================================================================
 
 describe("Phase 32.8E — /review canonical reviewer console mount", () => {
-  it("delegates the canonical reviewer page to the reviewer console component", () => {
-    // Phase Final-Vocab-Alignment — `/review/page.tsx` is the canonical
-    // reviewer surface (the legacy `/reviewer-ops/page.tsx` was
-    // deleted). Phase 12 Point 4 deleted the older, unmounted
-    // `<ReviewerCommandConsole>` panel after folding its unique
-    // capabilities into this console, so the mount is now exact.
-    expect(REVIEWER_PAGE).toMatch(/<ReviewerConsole\b/);
-    expect(REVIEWER_PAGE).not.toMatch(/ReviewerCommandConsole/);
+  // Stage D (T-065) — /review is the one Inbox; the console and its aggregator
+  // read are retired. The Inbox reads the queue slice of the URL's view.
+  it("delegates the canonical reviewer page to the Inbox component", () => {
+    expect(REVIEWER_PAGE).toContain("<ReviewInbox />");
+    expect(REVIEWER_PAGE).not.toContain("ReviewerCommandConsole");
   });
 
-  it("reads the workspace state from the consolidated console aggregator", () => {
-    expect(REVIEWER_PANEL).toMatch(/\/v1\/reviewer-ops\/console\?teamId=/);
-    // The retired duplicate aggregator must not come back.
-    expect(REVIEWER_PANEL).not.toMatch(/\/v1\/reviewer-ops\/command/);
+  it("reads the view's queue slice, not the console aggregator", () => {
+    expect(REVIEWER_PANEL).toContain("/v1/reviewer-ops/queue?");
+    expect(REVIEWER_PANEL).not.toContain("/v1/reviewer-ops/console");
+    expect(REVIEWER_PANEL).not.toContain("/v1/reviewer-ops/command");
   });
 
-  // TEAM-SPEC §3 (2026-11-23) — the console is the hub's "My reviews" tab;
-  // its Escalations / Workload / SLA tabs duplicated the Monitoring pages and
-  // were removed (the hub tabs lead to /reviewer-ops/sla + /escalations).
-  it("renders the canonical sections (Queue / Saved views / Multi-stage summary); Monitoring lives on its own pages", () => {
-    for (const fn of ["QueueTable", "SavedViewsPanel"]) {
-      expect(REVIEWER_PANEL).toMatch(new RegExp(`function ${fn}\\(`));
-    }
+  it("renders the views, the rows and saved views; Monitoring lives on its own page", () => {
+    expect(REVIEWER_PANEL).toContain("export function SavedViewsPanel(");
+    expect(REVIEWER_PANEL).toContain("data-inbox-table");
     for (const fn of ["EscalationsTable", "WorkloadTable", "SlaPanel"]) {
-      expect(REVIEWER_PANEL).not.toMatch(new RegExp(`function ${fn}\\(`));
+      expect(REVIEWER_PANEL).not.toContain(`function ${fn}(`);
     }
-    expect(REVIEWER_PANEL).toMatch(/<MultiStageReviewSummaryCard/);
   });
 
   it("the one team-only affordance degrades to a labelled banner, never a blank surface", () => {
@@ -667,12 +659,9 @@ describe("Phase 32.8E — /review canonical reviewer console mount", () => {
 
   // TEAM-SPEC §3 — the subtitle describes the two slices; decisions still
   // happen in the per-workflow inspector the rows open.
-  it("explicitly notes what the console holds and that rows open the inspector", () => {
-    expect(REVIEWER_PANEL).toMatch(/Reviews waiting for an owner and reviews assigned to you/);
-    // TEAM-UI-SPEC §4 (round 3) — the row navigation is "Open" (ghost link to
-    // the inspector), still the canonical decision surface.
-    expect(REVIEWER_PANEL).toMatch(/data-reviewer-action="open-inspector"/);
-    expect(REVIEWER_PANEL).toMatch(/\/reviewer-ops\/\$\{encodeURIComponent\(wid\)\}/);
+  it("explicitly notes what the Inbox holds and that rows open the Review page", () => {
+    expect(REVIEWER_PANEL).toContain("Reviews in this workspace, one view at a time.");
+    expect(REVIEWER_PANEL).toContain("reviewHrefFromInbox(");
   });
 
   it("bulk triage maps only to bounded backend actions — no invented semantics", () => {
@@ -701,8 +690,8 @@ describe("Phase 32.8E — /review canonical reviewer console mount", () => {
     expect(bulk).toMatch(/data-reviewer-bulk-last-succeeded/);
     expect(bulk).toMatch(/data-reviewer-bulk-last-failed/);
     expect(bulk).toMatch(/data-reviewer-bulk-failed-error-code/);
-    // Per-row outcome markers live on the queue rows.
-    expect(REVIEWER_PANEL).toMatch(/data-reviewer-bulk-row-outcome/);
+    // Per-row outcome markers live on the Inbox rows.
+    expect(REVIEWER_PANEL).toContain("data-inbox-row-outcome");
   });
 
   it("never predicts permission client-side — server denial is surfaced verbatim", () => {
@@ -723,8 +712,8 @@ describe("Phase 32.8E — /review canonical reviewer console mount", () => {
   // gone. The page renders ReviewHubNav, whose tabs resolve each destination
   // and render only the ones that open for this actor.
   it("links to the canonical sub-routes through the Review hub (per-workflow detail + hub tabs + ops observability)", () => {
-    expect(REVIEWER_PAGE).toMatch(/\/reviewer-ops\/\$\{candidate\}/);
-    expect(REVIEWER_PAGE).toMatch(/<ReviewHubNav active="my-reviews"/);
+    expect(REVIEWER_PANEL).toContain("reviewHrefFromInbox(");
+    expect(REVIEWER_PANEL).toContain('<ReviewHubNav active="inbox" />');
     expect(REVIEWER_PANEL).not.toMatch(/href="\/governance\/policy"/);
     expect(REVIEWER_PANEL).not.toMatch(/href="\/review\/workspace"/);
     // ADM-013 PHASE 1 — the fifth link is no longer a constant href. See the sibling
@@ -885,7 +874,7 @@ describe("Phase 32.8E — shared invariants", () => {
       "app/(app)/governance/lifecycle/page.tsx",
       "app/(app)/reviewer-ops/[reviewId]/page.tsx",
       "app/(app)/reviewer-ops/sla/page.tsx",
-      "app/(app)/reviewer-ops/escalations/page.tsx",
+      "app/(app)/reviewer-ops/escalations/_section.tsx",
     ]) {
       expect(
         readWeb(path).length,

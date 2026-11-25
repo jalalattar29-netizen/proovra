@@ -90,7 +90,7 @@ test.describe("Phase 2.6B — governance aggregators @critical", () => {
   });
 
   test("Phase 2.6 permission matrix nav entry still present (regression guard)", async () => {
-    const session = await createGuestSession();
+    const session = await createGuestSession({ plan: "TEAM" });
     try {
       const resp = await session.api.get("/v1/platform/context");
       expect(resp.ok()).toBe(true);
@@ -103,7 +103,10 @@ test.describe("Phase 2.6B — governance aggregators @critical", () => {
         (g.items ?? []).map((i) => i.id),
       );
       expect(ids).toContain("workspace.team_governance");
-      expect(ids).toContain("admin.teams");
+      // Team remediation T-125: the server navigation advertises only routes
+      // that load for the context. Collaboration Teams need a plan that
+      // includes them (Pro and above), and admin.teams is Enterprise-only.
+      expect(ids).not.toContain("admin.teams");
     } finally {
       await disposeSession(session);
     }

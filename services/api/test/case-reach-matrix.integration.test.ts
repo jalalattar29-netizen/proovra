@@ -662,6 +662,16 @@ describe("restricted-case reach matrix (live PostgreSQL)", () => {
       const org = await prisma.organization.findUniqueOrThrow({ where: { id: t.organizationId }, select: { status: true } });
       await prisma.organization.update({ where: { id: t.organizationId }, data: { status: "SUSPENDED" } as never });
       try {
+        // T-038 (stage B): every token has a session-inventory row, as a real
+        // sign-in records one. A session bound to the suspended workspace is
+        // refused before any route runs (401, naming the policy) ...
+        await get("/v1/users/me", off);
+        await prisma.authenticatedSession.updateMany({ where: { userId: off.id }, data: { teamId: A().teamId } });
+        const bound = await get(`/v1/dashboard/command-center?${teamQ()}`, off);
+        expect(bound.statusCode, bound.body).toBe(401);
+        expect(JSON.parse(bound.body).error.details.policy).toBe("organization_suspended");
+        // ... and the aggregator itself refuses a session started elsewhere.
+        await prisma.authenticatedSession.updateMany({ where: { userId: off.id }, data: { teamId: null } });
         const r = await get(`/v1/dashboard/command-center?${teamQ()}`, off);
         expect(r.statusCode, r.body).toBe(404);
       } finally {

@@ -27,6 +27,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { maskEmail } from "@proovra/shared";
 import { evaluateMemberAccessWithSnapshot } from "../identity/access-policy.service.js";
 import { resolveEvidenceRecordAccess } from "../evidence/evidence-record-access.service.js";
 import { assertReviewAssigneeEligible, ReviewOperationError } from "../review-operations/review-operations.service.js";
@@ -45,6 +46,12 @@ export type ReviewHandoff = {
   firstReviewerUserId: string | null;
   /** Readable name of the first reviewer, when the account has one. */
   firstReviewerDisplayName: string | null;
+  /**
+   * Team remediation T-086 / E2E-08 — the first reviewer's e-mail, MASKED
+   * (shared `maskEmail`), so the banner names them the way the lineage and the
+   * picker do when there is no display name; never an id reference.
+   */
+  firstReviewerMaskedEmail: string | null;
   secondReviewerUserId: string | null;
   /**
    * Second review: true while nobody other than the first reviewer holds the
@@ -143,6 +150,7 @@ export async function computeReviewHandoff(
     requirement,
     firstReviewerUserId: decision.firstReviewerUserId,
     firstReviewerDisplayName: null as string | null,
+    firstReviewerMaskedEmail: null as string | null,
     secondReviewerUserId: decision.secondReviewerUserId,
   };
   if (requirement === null) {
@@ -150,9 +158,10 @@ export async function computeReviewHandoff(
   }
   if (decision.firstReviewerUserId) {
     const user = await client.user
-      .findUnique({ where: { id: decision.firstReviewerUserId }, select: { displayName: true } })
+      .findUnique({ where: { id: decision.firstReviewerUserId }, select: { displayName: true, email: true } })
       .catch(() => null);
     base.firstReviewerDisplayName = user?.displayName?.trim() || null;
+    base.firstReviewerMaskedEmail = maskEmail(user?.email ?? null);
   }
   if (requirement === "second_review") {
     const eligible = await countEligibleSecondReviewers(row, decision.firstReviewerUserId, client);

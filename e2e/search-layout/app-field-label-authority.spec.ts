@@ -239,7 +239,7 @@ async function openTeamsDialog(page: Page): Promise<void> {
     return json({});
   });
   await page.goto("/collaboration-teams");
-  const create = page.getByRole("button", { name: /create team/i }).first();
+  const create = page.getByRole("button", { name: /create (collaboration )?team/i }).first();
   await create.waitFor({ state: "visible", timeout: 30_000 });
   await create.click();
   await page.waitForSelector(".app-dialog .app-field-label", { timeout: 30_000 });

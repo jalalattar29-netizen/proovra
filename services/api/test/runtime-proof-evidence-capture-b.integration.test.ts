@@ -456,11 +456,11 @@ describe("K3 runtime proof — evidence capture (part B)", () => {
     it("DELETE /v1/evidence/:id — an owner moves the record to trash (recoverable)", async () => {
       const { teamA, teamB } = harness.fixtures;
       const id = await evidenceIn(teamA.teamId, teamA.memberUserId, "Record to trash");
-      // A reviewer lacks evidence.delete, and a stranger cannot see the record:
-      // both answer the same concealed 404.
-      for (const token of [teamA.memberToken, teamB.ownerToken]) {
+      // A reviewer lacks evidence.delete but can read the record: a typed 403
+      // (T-119/T-120). A stranger cannot see the record: the concealed 404.
+      for (const [token, status] of [[teamA.memberToken, 403], [teamB.ownerToken, 404]] as const) {
         const refused = await call("DELETE", `/v1/evidence/${id}`, token);
-        expect(refused.statusCode).toBe(404);
+        expect(refused.statusCode).toBe(status);
       }
       expect((await prisma.evidence.findUniqueOrThrow({ where: { id } })).deletedAt).toBeNull();
 
@@ -567,17 +567,17 @@ describe("K3 runtime proof — evidence capture (part B)", () => {
         relationshipType: "DUPLICATE_OF",
         note: null,
       });
-      expect(viewerCreate.statusCode, viewerCreate.body).toBe(404);
+      expect(viewerCreate.statusCode, viewerCreate.body).toBe(403); // T-119: readable record, typed refusal
       const viewerEdit = await call("PATCH", `/v1/evidence/${source}/relationships/${relationshipId}`, teamA.viewerToken, {
         relationshipType: "DUPLICATE_OF",
       });
-      expect(viewerEdit.statusCode, viewerEdit.body).toBe(404);
+      expect(viewerEdit.statusCode, viewerEdit.body).toBe(403); // T-119: readable record, typed refusal
       expect(await prisma.evidenceRelationship.count({ where: { sourceEvidenceId: source } })).toBe(1);
       expect((await prisma.evidenceRelationship.findUniqueOrThrow({ where: { id: relationshipId } })).relationshipType).toBe("SAME_INCIDENT");
 
       // A VIEWER holds evidence.read only; removing a link is a write.
       const viewer = await call("DELETE", `/v1/evidence/${source}/relationships/${relationshipId}`, teamA.viewerToken);
-      expect(viewer.statusCode, viewer.body).toBe(404);
+      expect(viewer.statusCode, viewer.body).toBe(403); // T-119: readable record, typed refusal
       const foreign = await call("DELETE", `/v1/evidence/${source}/relationships/${relationshipId}`, teamB.ownerToken);
       expect(foreign.statusCode).toBe(404);
       expect(await prisma.evidenceRelationship.count({ where: { id: relationshipId } })).toBe(1);

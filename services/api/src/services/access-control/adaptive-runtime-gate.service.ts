@@ -29,9 +29,11 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 
 import type { PrismaClient } from "@prisma/client";
 import {
+  PRIVILEGED_ACTION_REQUIRES_FRESH_AUTH_HOURS,
   privilegedActionRequiresFreshAuth,
   type PrivilegedAction,
   type RuntimeAdaptiveDecision,
+  type StepUpRefusalReason,
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
@@ -61,11 +63,48 @@ export type RuntimeAdaptiveGateInput = {
    * `stepUpRequired` instead of being answered here.
    */
   callerEnforcesStepUp?: boolean;
+  /**
+   * T-036 — SESSION TRUST ONLY. For an action that is not a step-up action
+   * (assignment on a bulk door): a quarantined or CRITICAL-risk session is
+   * still refused, but the age windows and the MEDIUM/HIGH step-up or re-auth
+   * are not applied. Never widens anything a full gate refuses for trust.
+   */
+  trustOnly?: boolean;
 };
 
 export type RuntimeAdaptiveGateResult =
-  | { allow: true; stepUpRequired?: boolean }
+  | {
+      allow: true;
+      stepUpRequired?: boolean;
+      /** T-028 — why the caller's step-up is required (risk). */
+      stepUpReason?: StepUpRefusalReason;
+    }
   | { allow: false; sent: true; decision: RuntimeAdaptiveDecision["decision"] };
+
+/**
+ * T-028/T-029 — the body of every `reauth_required` answer. The top-level
+ * `reason` keeps its historical technical value for existing consumers; the
+ * machine-readable, client-facing reason is `details.reason`.
+ */
+export function reauthRequiredBody(input: {
+  reason: StepUpRefusalReason;
+  technicalReason: string;
+  action: PrivilegedAction;
+}) {
+  return {
+    error: {
+      code: "reauth_required",
+      message: "Sign in again to perform this action.",
+      reason: input.technicalReason,
+      details: {
+        reason: input.reason,
+        technicalReason: input.technicalReason,
+        action: input.action,
+        windowHours: PRIVILEGED_ACTION_REQUIRES_FRESH_AUTH_HOURS[input.action] ?? null,
+      },
+    },
+  };
+}
 
 export async function runtimeAdaptiveGate(
   input: RuntimeAdaptiveGateInput,
@@ -85,13 +124,28 @@ export async function runtimeAdaptiveGate(
   }
   const session = quarantine.session;
   if (!session) {
-    // No sid claim (legacy token) or no inventory row (legacy session):
-    // allow, as before.
-    return { allow: true };
+    // No sid claim: not a requireAuth session (requireAuth refuses tokens
+    // without one), so nothing here to judge — as before.
+    if (!quarantine.sidPresent) return { allow: true };
+    // T-038 — a sid with no inventory row. `requireAuth` adopts every such
+    // token before a handler runs, so reaching here means the adoption did not
+    // happen: the session is untrusted for privileged actions. Session trust
+    // (trustOnly) has nothing to refuse it for.
+    if (input.trustOnly) return { allow: true };
+    bump("adaptive_auth_reauth_total");
+    input.reply.code(401).send(
+      reauthRequiredBody({
+        reason: "legacy_session",
+        technicalReason: "session_not_in_inventory",
+        action: input.action,
+      }),
+    );
+    return { allow: false, sent: true, decision: "REQUIRE_REAUTH" };
   }
 
   // (2) Privileged-action age check.
   if (
+    !input.trustOnly &&
     privilegedActionRequiresFreshAuth({
       sessionIssuedAtUtc: session.issuedAtUtc,
       action: input.action,
@@ -110,13 +164,13 @@ export async function runtimeAdaptiveGate(
         reason: "session_too_old_for_privileged_action",
       },
     });
-    input.reply.code(401).send({
-      error: {
-        code: "reauth_required",
-        message: "Sign in again to perform this action.",
-        reason: "session_too_old_for_privileged_action",
-      },
-    });
+    input.reply.code(401).send(
+      reauthRequiredBody({
+        reason: "session_age_window",
+        technicalReason: "session_too_old_for_privileged_action",
+        action: input.action,
+      }),
+    );
     return { allow: false, sent: true, decision: "REQUIRE_REAUTH" };
   }
 
@@ -132,13 +186,23 @@ export async function runtimeAdaptiveGate(
     client,
   );
 
+  // T-036 — session trust only: CRITICAL still blocks below; the step-up and
+  // re-authentication tiers do not apply to an action that is not a step-up
+  // action.
+  if (input.trustOnly && decision.decision !== "BLOCK") {
+    bump("adaptive_auth_allow_total");
+    return { allow: true };
+  }
+
   switch (decision.decision) {
     case "ALLOW":
       bump("adaptive_auth_allow_total");
       return { allow: true };
     case "REQUIRE_STEP_UP": {
       bump("adaptive_auth_step_up_total");
-      if (input.callerEnforcesStepUp) return { allow: true, stepUpRequired: true };
+      if (input.callerEnforcesStepUp) {
+        return { allow: true, stepUpRequired: true, stepUpReason: "elevated_session_risk" };
+      }
       // The canonical gate, so the answer is one a client can satisfy. This used
       // to send a lowercase code no client recognised and never read the
       // challenge header, so a medium-risk session could not act at all.
@@ -151,6 +215,7 @@ export async function runtimeAdaptiveGate(
           purpose: decision.stepUpPurpose ?? "SESSION_SANITY_CHECK",
           resourceKind: "adaptive_runtime_gate",
           resourceId: null,
+          reason: "elevated_session_risk",
         },
         client,
       );
@@ -159,13 +224,18 @@ export async function runtimeAdaptiveGate(
     }
     case "REQUIRE_REAUTH":
       bump("adaptive_auth_reauth_total");
-      input.reply.code(401).send({
-        error: {
-          code: "reauth_required",
-          message: "Sign in again to perform this action.",
-          reason: decision.reason,
-        },
-      });
+      input.reply.code(401).send(
+        reauthRequiredBody({
+          reason:
+            decision.reason === "session_too_old_for_privileged_action"
+              ? "session_age_window"
+              : decision.reason === "session_not_found"
+                ? "legacy_session"
+                : "high_session_risk",
+          technicalReason: decision.reason,
+          action: input.action,
+        }),
+      );
       return { allow: false, sent: true, decision: "REQUIRE_REAUTH" };
     case "BLOCK": {
       bump("adaptive_auth_block_total");
@@ -281,14 +351,14 @@ type RuntimeSessionRow = {
 async function checkSessionQuarantine(
   input: Omit<RefuseIfSessionQuarantinedInput, "reply">,
   client: PrismaClient,
-): Promise<{ refused: boolean; session: RuntimeSessionRow | null }> {
+): Promise<{ refused: boolean; session: RuntimeSessionRow | null; sidPresent: boolean }> {
   // Resolve the AuthenticatedSession row from the JWT sid claim. The
   // auth middleware has already verified the JWT; we re-read the sid
   // from the Authorization / cookie path.
   const sid = readSidFromRequest(input.req);
   if (!sid) {
     // No sid claim = a legacy token. Allowed.
-    return { refused: false, session: null };
+    return { refused: false, session: null, sidPresent: false };
   }
   const sessionIdHash = hashSessionId(sid);
   const session = await client.authenticatedSession.findFirst({
@@ -304,8 +374,9 @@ async function checkSessionQuarantine(
     },
   });
   if (!session) {
-    // Legacy session without inventory row — allowed.
-    return { refused: false, session: null };
+    // No inventory row: not quarantinable (the adaptive gate decides what a
+    // row-less sid may do, T-038).
+    return { refused: false, session: null, sidPresent: true };
   }
 
   // Read-only paths are never gated here (only routes that already know
@@ -327,9 +398,9 @@ async function checkSessionQuarantine(
         reason: "session_quarantined",
       },
     });
-    return { refused: true, session };
+    return { refused: true, session, sidPresent: true };
   }
-  return { refused: false, session };
+  return { refused: false, session, sidPresent: true };
 }
 
 // -----------------------------------------------------------------------------

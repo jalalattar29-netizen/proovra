@@ -60,8 +60,9 @@ const ROUTE_SRC = readSource(
 const SERVICE_SRC = readSource(
   "../src/services/reviewer-ops/workload.service.ts",
 );
+// Stage D (T-065) — the Queues page is the Inbox now.
 const PAGE_SRC = readSource(
-  "../../../apps/web/app/(app)/review/queues/page.tsx",
+  "../../../apps/web/components/reviewer-experience/ReviewInbox.tsx",
 );
 // TEAM-UI-SPEC round 3 — the picker (fetch, 403 copy, warn log) is the shared
 // ReviewerPickerModal used by the queues page AND the /review console.
@@ -86,6 +87,13 @@ vi.mock("../src/db.js", () => ({
 
 vi.mock("../src/services/identity/access-policy.service.js", () => ({
   evaluateMemberAccess: evaluateMemberAccessMock,
+}));
+
+// Stage E (T-099/T-100): the projection now states whether each reviewer is
+// placed. Placement has its own suite; here every reviewer counts as placed.
+vi.mock("../src/services/assignment/placement-policy.js", () => ({
+  assignmentRequiresPlacement: vi.fn(async () => false),
+  placedUserIdsForWorkspace: vi.fn(async (_t: string, ids: string[]) => new Set(ids)),
 }));
 
 vi.mock("../src/services/ops/metrics.service.js", () => ({
@@ -231,14 +239,17 @@ describe("Phase RW3-2 — service source contract", () => {
     );
   });
 
-  it("does NOT select email or password fields in the user projection", () => {
+  // Stage D (T-086) — the e-mail is read only to be MASKED (maskEmail) beside
+  // the display name; the full address and the password never leave.
+  it("reads the e-mail only to mask it, never selects password fields", () => {
     // Locate the listAssignableReviewers function body and assert
     // that within it, the TeamMember.user select clause never picks
     // up `email` or `passwordHash`.
     // The whole function body, and nothing after it.
     const fnBody = functionSource(SERVICE_SRC, "listAssignableReviewers");
     expect(fnBody).toContain("async function listAssignableReviewers");
-    expect(fnBody).not.toMatch(/email\s*:\s*true/);
+    expect(fnBody).toContain("maskedEmail: maskEmail(m.user?.email ?? null)");
+    expect(fnBody).not.toMatch(/\bemail: m\.user/);
     expect(fnBody).not.toMatch(/passwordHash/);
     expect(fnBody).not.toMatch(/accessReason/);
   });
@@ -250,11 +261,9 @@ describe("Phase RW3-2 — frontend source contract", () => {
   });
 
   it("queues page wires openReviewerPicker into the Bulk assign action", () => {
-    expect(PAGE_SRC).toMatch(/openReviewerPicker/);
+    expect(PAGE_SRC).toMatch(/openPicker/);
     // TEAM-UI-SPEC round 3 — the picker serves bulk AND row assign.
-    expect(PAGE_SRC).toMatch(
-      /onAssign=\{\s*\(\)\s*=>\s*openReviewerPicker\(\{\s*kind:\s*"BULK"\s*\}\)/,
-    );
+    expect(PAGE_SRC).toContain('openPicker({ kind: "BULK" })');
     expect(PAGE_SRC).toMatch(/useReviewerPicker\(teamId\)/);
   });
 
@@ -298,9 +307,10 @@ describe("Phase RW3-2 — bounded projection (no PII)", () => {
     expect(reviewers).toHaveLength(2);
     for (const r of reviewers) {
       expect(Object.keys(r).sort()).toEqual(
-        // currentWorkloadCount is OMITTED when no snapshot exists, so
-        // the sorted key set is exactly four. That's the bounded shape.
-        ["displayName", "role", "status", "userId"],
+        // currentWorkloadCount is OMITTED when no snapshot exists. Stage E
+        // (T-099/T-100) adds the placement answer (placed +
+        // notAssignableReason) — still no PII. That is the bounded shape.
+        ["displayName", "maskedEmail", "notAssignableReason", "placed", "role", "status", "userId"],
       );
       // Tight type assertions on the bounded shape.
       expect(typeof r.userId).toBe("string");

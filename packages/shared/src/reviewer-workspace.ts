@@ -424,12 +424,16 @@ export type ReviewerWorkspaceProjection = {
     rendered7d: number;
     failureRate7dPct: number;
   };
-  /** Bounded metric ribbon. */
+  /**
+   * Bounded metric ribbon. T-056 (stage C): rates are per review and null when
+   * there is no denominator ("No data"), never 0.
+   */
   metrics: {
+    /** unit: reviews decided in 7 days */
     throughput7d: number;
-    approvalRate7dPct: number;
-    escalationRate7dPct: number;
-    avgReviewDurationMs7d: number;
+    approvalRate7dPct: number | null;
+    escalationRate7dPct: number | null;
+    avgReviewDurationMs7d: number | null;
   };
   /** Active review pointer (null when none). */
   activeReview: {
@@ -439,3 +443,18 @@ export type ReviewerWorkspaceProjection = {
     codingSchemaVersion: number | null;
   } | null;
 };
+
+/**
+ * T-134 — the slugs of the six built-in coding schemas that "Seed default
+ * schemas" installs (the API catalog `DEFAULT_SCHEMAS` is pinned to this list
+ * by a unit test). Seeding is a no-op for a slug the workspace already holds,
+ * archived or not, so the page offers it only while one is missing.
+ */
+export const CODING_SCHEMA_DEFAULT_SLUGS = [
+  "general-evidence",
+  "insurance-review",
+  "legal-matter",
+  "incident-investigation",
+  "compliance-audit",
+  "journalism-review",
+] as const;

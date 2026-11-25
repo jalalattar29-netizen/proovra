@@ -53,6 +53,7 @@ function ArtifactFamilyCard({
   actionLabel,
   onDownload,
   onDownloadVersion,
+  versionBlockedReason = null,
   governed,
   evidenceId,
   teamId,
@@ -75,6 +76,8 @@ function ArtifactFamilyCard({
    * The control is per row because the promise was per row.
    */
   onDownloadVersion: (version: number) => void;
+  /** T-139 — a record-level gate (integrity failed, export governance) on every version. */
+  versionBlockedReason?: string | null;
   governed: boolean;
   evidenceId?: string | null;
   teamId?: string | null;
@@ -183,6 +186,9 @@ function ArtifactFamilyCard({
                   type="button"
                   className="app-secondary-action evidence-detail-artifact-version__action"
                   onClick={() => onDownloadVersion(item.version)}
+                  disabled={versionBlockedReason !== null}
+                  title={versionBlockedReason ?? undefined}
+                  data-evidence-disabled-reason={versionBlockedReason ?? undefined}
                   data-evidence-artifact-version-download={testid}
                   data-evidence-artifact-version-number={item.version}
                 >
@@ -211,6 +217,7 @@ export function ArtifactHistorySection({
   reportDisabledReason,
   packageDownloadable,
   packageDisabledReason,
+  versionDownloadBlock = { report: null, package: null },
 }: {
   history: ArtifactHistory | undefined;
   onDownloadReport: () => void;
@@ -245,6 +252,8 @@ export function ArtifactHistorySection({
   reportDisabledReason: string | null;
   packageDownloadable: boolean;
   packageDisabledReason: string | null;
+  /** T-139 — the page header's record-level download gates. */
+  versionDownloadBlock?: { report: string | null; package: string | null };
 }) {
   const reports = history?.reports ?? [];
   const packages = history?.verificationPackages ?? [];
@@ -313,6 +322,7 @@ export function ArtifactHistorySection({
         actionLabel={DOWNLOAD_REPORT_LABEL}
         onDownload={onDownloadReport}
         onDownloadVersion={onDownloadReportVersion}
+        versionBlockedReason={versionDownloadBlock.report}
         governed={governed}
         evidenceId={evidenceId}
         teamId={teamId}
@@ -330,6 +340,7 @@ export function ArtifactHistorySection({
         actionLabel={DOWNLOAD_PACKAGE_LABEL}
         onDownload={onDownloadVerificationPackage}
         onDownloadVersion={onDownloadVerificationPackageVersion}
+        versionBlockedReason={versionDownloadBlock.package}
         governed={governed}
         evidenceId={evidenceId}
         teamId={teamId}

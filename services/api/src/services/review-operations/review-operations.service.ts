@@ -25,6 +25,7 @@ import {
   computeReviewSlaStatus,
   decisionRequiresNote,
   REVIEW_FINISHED_DB_STATUSES,
+  isReviewOpenDbStatus,
   storedReviewSlaStatus,
   decisionTargetStage,
   isAllowedReviewStageTransition,
@@ -37,10 +38,10 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { escalatedReviewWhere } from "../reviewer-ops/review-count-definitions.js";
 import { triggerReviewAssigned } from "../automation/automation-triggers.js";
 import {
   notifyReviewAssigned,
-  notifyReviewEscalated,
   notifyReviewSlaBreached,
 } from "./review-notifications.service.js";
 // Track 1C — canonical review-decision authority. Reviewer VERDICTS
@@ -787,8 +788,8 @@ export async function recordLifecycleTransition(
     });
     // The escalation's security event and audit entry, then the operational
     // notification — after commit, best-effort.
+    // The escalation engine notifies whoever holds it (T-170), once.
     await afterCommit?.().catch(() => null);
-    notifyReviewEscalated({ workflow: updated, actorUserId: input.actorUserId }, client).catch(() => null);
     return updated;
   }
 
@@ -1314,6 +1315,7 @@ export async function bulkReviewAction(
               actorUserId: input.actorUserId,
               decision: "REQUEST_INFO",
               rationale: input.note,
+              source: "bulk",
             },
             client,
           );
@@ -1412,11 +1414,20 @@ export async function listReviewQueue(
 }
 
 export type ReviewQueueCounts = {
+  /** Every status, closed included (kept for older clients; T-057). */
   byStage: Record<ReviewStage, number>;
+  /** T-057 (stage C) — open reviews by stage (unit: reviews). */
+  openByStage: Partial<Record<ReviewStage, number>>;
+  /** T-057 (stage C) — finished reviews by outcome stage (unit: reviews). */
+  closedByStage: Partial<Record<ReviewStage, number>>;
   overdue: number;
   dueSoon: number;
   unassigned: number;
   assignedToMe: number;
+  /** T-052 (stage C) — open reviews that are escalated (unit: reviews). */
+  escalatedReviews: number;
+  /** Every figure above counts reviews. */
+  unit: "reviews";
 };
 
 export async function getReviewQueueCounts(
@@ -1449,9 +1460,13 @@ export async function getReviewQueueCounts(
     REOPENED: 0,
     CLOSED: 0,
   };
+  const openByStage: Partial<Record<ReviewStage, number>> = {};
+  const closedByStage: Partial<Record<ReviewStage, number>> = {};
   for (const r of stageRows) {
     const mapped = mapDbStatusToReviewStage(r.status as string);
     byStage[mapped] += r._count._all;
+    const bucket = isReviewOpenDbStatus(String(r.status)) ? openByStage : closedByStage;
+    bucket[mapped] = (bucket[mapped] ?? 0) + r._count._all;
   }
   // WORKFLOW-013 — every count below is OPEN work, the same set the queues show.
   // A review breached and then approved stays BREACHED on its row as history, and
@@ -1460,7 +1475,7 @@ export async function getReviewQueueCounts(
     ...scope,
     status: { notIn: [...REVIEW_FINISHED_DB_STATUSES] },
   };
-  const [overdue, dueSoon, unassigned, mine] = await Promise.all([
+  const [overdue, dueSoon, unassigned, mine, escalatedReviews] = await Promise.all([
     client.evidenceReviewWorkflow.count({
       where: { ...open, slaStatus: { in: ["OVERDUE", "BREACHED"] } },
     }),
@@ -1475,13 +1490,18 @@ export async function getReviewQueueCounts(
           where: { ...open, assignedToUserId: input.meUserId },
         })
       : Promise.resolve(0),
+    client.evidenceReviewWorkflow.count({ where: { AND: [scope, escalatedReviewWhere()] } }),
   ]);
   return {
     byStage,
+    openByStage,
+    closedByStage,
     overdue,
     dueSoon,
     unassigned,
     assignedToMe: mine,
+    escalatedReviews,
+    unit: "reviews",
   };
 }
 

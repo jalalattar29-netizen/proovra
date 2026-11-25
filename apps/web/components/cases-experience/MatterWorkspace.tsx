@@ -1981,13 +1981,30 @@ function CommunicationsTab({
   );
 }
 
-function AssignmentsTab({
+/**
+ * T-113 — the ONE case-assignment surface (CaseAssignment rows, POST/DELETE
+ * /v1/cases/:id/assignments). The Enterprise Matter Workspace renders it as
+ * its Assignments tab; the simple case view (Team on a Personal Workspace)
+ * renders the SAME component where reviewer operations are included. It reads
+ * only the envelope fields both case views receive from
+ * GET /v1/cases/:id/matter-workspace.
+ */
+export type CaseAssignmentsEnvelope = {
+  case: { teamId: string | null };
+  viewer: {
+    canAssign?: boolean;
+    disabledReasons?: Readonly<Partial<Record<string, string>>>;
+  };
+  assignments: MatterEnvelope["assignments"];
+};
+
+export function AssignmentsTab({
   envelope,
   filterText = "",
   caseId,
   onChanged,
 }: {
-  envelope: MatterEnvelope;
+  envelope: CaseAssignmentsEnvelope;
   filterText?: string;
   // Phase 6 (SCOPE B) — the interactive assign/unassign controls need
   // the case id (for the write endpoints) and a refetch callback so the

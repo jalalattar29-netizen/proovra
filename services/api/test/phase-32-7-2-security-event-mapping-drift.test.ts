@@ -1586,6 +1586,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20281123050000_evidence_owner_destruction_approval",
       // FINAL-VERIFY-2: the durable intent of a derived write. EXPAND.
       "20281123060000_derived_asset_storage_intent",
+      // Team remediation stage C (T-044): the review's first decision time. EXPAND.
+      "20281124010000_review_first_decided_at",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */
