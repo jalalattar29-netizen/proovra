@@ -34,13 +34,13 @@ import { OTS_ANCHORING_RECORD_SELECT, resolveRecordOtsAnchoring } from "@proovra
  * service had already converged here.
  */
 import { workspaceIncidentWhereWith } from "../observability/incident-scope.js";
+import { openReviewWhere } from "../reviewer-ops/review-count-definitions.js";
 import {
   DESTRUCTION_REVIEW_AWAITING_DECISION,
   DESTRUCTION_REVIEW_PROPOSED,
   loadEvidenceCounters,
   loadOperationsCounters,
   loadReviewQueueCounters,
-  OPEN_REVIEW_STATUSES,
   reviewQueueWindow,
   type EvidenceCounters,
   type OperationsCounters,
@@ -1790,16 +1790,14 @@ async function runReviewerOrchestration(
      * items are overdue.
      */
     const now = counters.now;
-    // The same 24h horizon the snapshot used, from the same clock.
-    const dueSoonCutoff = new Date(now.getTime() + 24 * 60 * 60 * 1000);
     const inactivityCutoff = new Date(
       now.getTime() - REVIEWER_INACTIVITY_HOURS * 60 * 60 * 1000,
     );
 
-    const queueDepth = counters.inStatus(OPEN_REVIEW_STATUSES);
+    const queueDepth = counters.openReviews;
     const overdueCount = counters.overdue;
     const dueSoonCount = counters.dueSoon;
-    const unassignedCount = counters.inStatus(["QUEUED"]);
+    const unassignedCount = counters.unassignedReviews;
     const openEscalationsCount = counters.openEscalations;
     const completedLast7dCount = counters.closedLast7d;
     const completedPrev7dCount = counters.closedPrev7d;
@@ -1811,7 +1809,8 @@ async function runReviewerOrchestration(
         teamId,
         AND: [{ evidence: reach.evidence }],
         assignedToUserId: { not: null },
-        status: { in: ["ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] },
+        // Round 2 (C H-3): a reviewer's load is their OPEN reviews (the definitions).
+        ...openReviewWhere(),
       },
       _count: { _all: true },
       orderBy: { _count: { assignedToUserId: "desc" } },
@@ -1837,10 +1836,8 @@ async function runReviewerOrchestration(
               teamId,
         AND: [{ evidence: reach.evidence }],
               assignedToUserId: { in: reviewerIds },
-              status: {
-                in: ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"],
-              },
-              dueAt: { lt: now },
+              ...openReviewWhere(),
+              slaStatus: { in: ["OVERDUE", "BREACHED"] },
             },
             _count: { _all: true },
           }),
@@ -1850,10 +1847,8 @@ async function runReviewerOrchestration(
               teamId,
         AND: [{ evidence: reach.evidence }],
               assignedToUserId: { in: reviewerIds },
-              status: {
-                in: ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"],
-              },
-              dueAt: { gte: now, lt: dueSoonCutoff },
+              ...openReviewWhere(),
+              slaStatus: "DUE_SOON",
             },
             _count: { _all: true },
           }),

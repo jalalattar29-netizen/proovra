@@ -3235,7 +3235,7 @@ function ReviewerOrchestrationSection({
       <div className="ec-reviewer-strip" data-cc-reviewer-strip>
         <ReviewerStripTile
           keyId="queue_depth"
-          label="Queue depth"
+          label="Open reviews"
           value={d.queueDepth}
         />
         <ReviewerStripTile
@@ -3246,7 +3246,7 @@ function ReviewerOrchestrationSection({
         />
         <ReviewerStripTile
           keyId="due_soon"
-          label="Due in 24h"
+          label="Due soon"
           value={d.dueSoonCount}
         />
         <ReviewerStripTile

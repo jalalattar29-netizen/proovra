@@ -52,7 +52,10 @@ export {
   DESTRUCTION_REVIEW_PROPOSED,
 } from "@proovra/shared";
 
+import type { Prisma } from "@prisma/client";
+
 import { prisma } from "../../db.js";
+import { activeEscalationWhere, openReviewWhere } from "../reviewer-ops/review-count-definitions.js";
 import { evidenceIdInReach, incidentInReach, type ViewerReach } from "../access/record-reach.js";
 import { workspaceIncidentWhereWith } from "../observability/incident-scope.js";
 import type { OwedOutputEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
@@ -80,15 +83,24 @@ export type ReviewQueueCounters = {
   now: Date;
   /** Exact count of workflows in ANY of the given statuses. */
   inStatus: (statuses: readonly ReviewWorkflowStatus[]) => number;
-  /** Open work whose due date has passed. */
+  /**
+   * Round 2 (2026-11-25, C H-3) — the figures below are THE review count
+   * definitions (reviewer-ops/review-count-definitions.ts), the same rows the
+   * Team Inbox, rail and Monitoring tiles count:
+   */
+  /** unit: reviews — open (not approved, rejected or archived). */
+  openReviews: number;
+  /** unit: reviews — open with no assignee (the Unassigned view). */
+  unassignedReviews: number;
+  /** unit: reviews — open, stored SLA overdue (the Overdue view). */
   overdue: number;
-  /** Open work due within the request's "due soon" horizon. */
+  /** unit: reviews — open, stored SLA due soon (the Due soon view). */
   dueSoon: number;
-  /** CLOSED and touched in the last 7 days. */
+  /** unit: reviews — completed (any verdict or archive) in the last 7 days. */
   closedLast7d: number;
-  /** CLOSED and touched in the 7 days before those. */
+  /** unit: reviews — completed in the 7 days before those. */
   closedPrev7d: number;
-  /** Open review escalations — counted here because two engines asked for it. */
+  /** unit: escalations — active (open, acknowledged or reassigned). */
   openEscalations: number;
 };
 
@@ -116,84 +128,47 @@ export function reviewQueueWindow(now = new Date()): ReviewQueueWindow {
   };
 }
 
-type WindowedRow = {
-  overdue: bigint | number;
-  due_soon: bigint | number;
-  closed_last_7d: bigint | number;
-  closed_prev_7d: bigint | number;
-};
-
-const toNumber = (v: bigint | number | null | undefined): number =>
-  typeof v === "bigint" ? Number(v) : (v ?? 0);
-
 export async function loadReviewQueueCounters(
   teamId: string,
   window: ReviewQueueWindow,
   reach: ViewerReach,
 ): Promise<ReviewQueueCounters> {
-  const openList = [...OPEN_REVIEW_STATUSES];
+  const scope: Prisma.EvidenceReviewWorkflowWhereInput = { teamId, ...evidenceIdInReach(reach) };
+  const open: Prisma.EvidenceReviewWorkflowWhereInput = { AND: [scope, openReviewWhere()] };
+  const count = (where: Prisma.EvidenceReviewWorkflowWhereInput) => prisma.evidenceReviewWorkflow.count({ where });
 
-  const [byStatus, windowed, openEscalations] = await Promise.all([
-    // 1. Every status-only counter, in one trip.
-    prisma.evidenceReviewWorkflow.groupBy({
-      by: ["status"],
-      where: { teamId, ...evidenceIdInReach(reach) },
-      _count: { _all: true },
-    }),
-    /*
-     * 2. The windowed counters, in one trip.
-     *
-     * Conditional aggregation rather than four counts: the predicates differ
-     * only in their time bounds, so they scan the same rows. Written as raw
-     * SQL because `COUNT(*) FILTER (WHERE …)` has no Prisma expression — and
-     * the equivalence test exists precisely because raw SQL can drift from
-     * the Prisma predicate it replaced.
-     *
-     * `status::text` keeps the comparison off the enum's OID so this cannot
-     * break when a value is added to `EvidenceReviewWorkflowStatus`.
-     */
-    prisma.$queryRaw<WindowedRow[]>`
-      SELECT
-        COUNT(*) FILTER (
-          WHERE "status"::text = ANY(${openList}::text[]) AND "due_at" < ${window.now}
-        ) AS overdue,
-        COUNT(*) FILTER (
-          WHERE "status"::text = ANY(${openList}::text[])
-            AND "due_at" >= ${window.now}
-            AND "due_at" < ${window.dueSoonCutoff}
-        ) AS due_soon,
-        COUNT(*) FILTER (
-          WHERE "status"::text = 'CLOSED' AND "updated_at" >= ${window.last7dStart}
-        ) AS closed_last_7d,
-        COUNT(*) FILTER (
-          WHERE "status"::text = 'CLOSED'
-            AND "updated_at" >= ${window.prev7dStart}
-            AND "updated_at" < ${window.last7dStart}
-        ) AS closed_prev_7d
-      FROM "public"."evidence_review_workflows"
-      WHERE "team_id" = ${teamId}::uuid
-        AND NOT ("evidence_id" = ANY(${reach.hidden.evidenceIds}::uuid[]))
-    `,
-    // Counted once for the two engines that both reported it.
-    prisma.reviewEscalation.count({
-      where: { teamId, status: "OPEN", workflow: { evidence: reach.evidence } },
-    }),
-  ]);
+  const [byStatus, openReviews, unassignedReviews, overdue, dueSoon, closedLast7d, closedPrev7d, openEscalations] =
+    await Promise.all([
+      // Status breakdowns (labelled by status where a surface shows them).
+      prisma.evidenceReviewWorkflow.groupBy({ by: ["status"], where: scope, _count: { _all: true } }),
+      count(open),
+      count({ AND: [open, { assignedToUserId: null }] }),
+      // The stored SLA status is the presented reading (round 2), so these are
+      // the Inbox's Overdue and Due soon views, figure for figure.
+      count({ AND: [open, { slaStatus: { in: ["OVERDUE", "BREACHED"] } }] }),
+      count({ AND: [open, { slaStatus: "DUE_SOON" }] }),
+      count({ AND: [scope, { completedAtUtc: { gte: window.last7dStart, lte: window.now } }] }),
+      count({ AND: [scope, { completedAtUtc: { gte: window.prev7dStart, lt: window.last7dStart } }] }),
+      prisma.reviewEscalation.count({
+        where: { teamId, ...activeEscalationWhere(), workflow: { evidence: reach.evidence } },
+      }),
+    ]);
 
   const counts = new Map<string, number>();
   for (const row of byStatus) {
     counts.set(String(row.status), row._count._all);
   }
-  const w = windowed[0];
 
   return {
     now: window.now,
     inStatus: (statuses) =>
       statuses.reduce((total, s) => total + (counts.get(String(s)) ?? 0), 0),
-    overdue: toNumber(w?.overdue),
-    dueSoon: toNumber(w?.due_soon),
-    closedLast7d: toNumber(w?.closed_last_7d),
-    closedPrev7d: toNumber(w?.closed_prev_7d),
+    openReviews,
+    unassignedReviews,
+    overdue,
+    dueSoon,
+    closedLast7d,
+    closedPrev7d,
     openEscalations,
   };
 }
