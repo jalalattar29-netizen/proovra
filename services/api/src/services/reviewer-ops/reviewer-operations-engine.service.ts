@@ -38,6 +38,8 @@ import {
   type ReviewerOpsLifecycleState,
   type ReviewerOpsQueueType,
   type ReviewerOpsSlaState,
+  reviewStartRefusal,
+  reviewWasHandedOver,
   stageMoveRefusal,
   verdictStageRefusal,
 } from "@proovra/shared";
@@ -855,6 +857,8 @@ export function computeViewerActions(input: {
   assignmentsIncluded: boolean;
   /** REVIEW_ESCALATION in the effective plan (escalate is a Team capability). Absent = included. */
   escalationIncluded?: boolean;
+  /** The review was handed over to its assignee (reviewWasHandedOver). Absent = not. */
+  handedOver?: boolean;
 }): ReviewerViewerProjection {
   const { row, lifecycle, viewerUserId, facts, decision } = input;
   const isAssignee = !!row.assignedToUserId && row.assignedToUserId === viewerUserId;
@@ -904,9 +908,9 @@ export function computeViewerActions(input: {
     // review; an in-review one cannot be "started" again (T-020).
     start: !facts.isReviewerCapable
       ? "reviewer_required"
-      : stageMoveRefusal(stage, "IN_REVIEW") === "already_in_stage"
+      : reviewStartRefusal(stage, !!input.handedOver) === "already_started"
         ? "already_started"
-        : stageMoveRefusal(stage, "IN_REVIEW") !== null || !isAllowedLifecycleTransition(lifecycle, "IN_REVIEW")
+        : reviewStartRefusal(stage, !!input.handedOver) !== null || !isAllowedLifecycleTransition(lifecycle, "IN_REVIEW")
           ? "invalid_transition"
           : !isAssignee
             ? "not_assignee"
@@ -1028,6 +1032,7 @@ export async function getReviewerOpsWorkspace(
       decision,
       assignmentsIncluded,
       escalationIncluded,
+      handedOver: await reviewHandedOver(row, client),
     });
     handoff = await computeReviewHandoff(row, decision, client);
   }
@@ -1324,6 +1329,24 @@ async function assignReviewerToWorkflowInner(
 
 // ----- startReview ------------------------------------------------------------
 
+/**
+ * The handover fact for reviewStartRefusal: only an in-review review with an
+ * assignee can have been handed over; it was if the latest recorded Start is
+ * someone else's (reviewWasHandedOver).
+ */
+async function reviewHandedOver(
+  row: Pick<DbWorkflow, "id" | "status" | "assignedToUserId">,
+  client: PrismaClient,
+): Promise<boolean> {
+  if (String(row.status) !== "IN_REVIEW" || !row.assignedToUserId) return false;
+  const latest = await client.evidenceReviewWorkflowEvent.findFirst({
+    where: { workflowId: row.id, eventType: "REVIEW_STARTED" },
+    orderBy: { createdAt: "desc" },
+    select: { actorUserId: true },
+  });
+  return reviewWasHandedOver({ assignedToUserId: row.assignedToUserId, latestStartActorUserId: latest?.actorUserId });
+}
+
 export async function startReview(
   ctx: LifecycleActorContext,
   input: { workflowId: string },
@@ -1337,13 +1360,18 @@ export async function startReview(
   // page's Begin review and the action projection apply: the PERSISTED stage
   // must be able to move to IN_REVIEW, and Start on an in-review review is
   // refused, not a silent rewrite.
-  const startRefusal = stageMoveRefusal(mapDbStatusToReviewStage(String(row.status)), "IN_REVIEW");
+  // A handed-over in-review review (the second reviewer after a FIRST verdict,
+  // a new assignee after a reassignment) may be started by its new assignee.
+  const startRefusal = reviewStartRefusal(
+    mapDbStatusToReviewStage(String(row.status)),
+    await reviewHandedOver(row, client),
+  );
   if (startRefusal) {
     bump("reviewer_invalid_transition_blocked_total");
     throw new ReviewerOpsError("REVIEW_INVALID_TRANSITION", {
       from: fromLc,
       to: "IN_REVIEW",
-      reason: startRefusal === "already_in_stage" ? "already_started" : "invalid_stage_transition",
+      reason: startRefusal,
     });
   }
   if (row.assignedToUserId !== ctx.actorUserId) {

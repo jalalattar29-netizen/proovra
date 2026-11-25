@@ -338,3 +338,39 @@ export function stageMoveRefusal(
   if (currentStage === toStage) return "already_in_stage";
   return isAllowedReviewStageTransition(currentStage, toStage) ? null : "invalid_stage_transition";
 }
+
+/**
+ * Why the Review page's Start is refused, or null — the ONE rule both the
+ * `/start` door and the Review page offer apply (round 2, 2026-11-25).
+ *
+ * The stage rule is `stageMoveRefusal(stage, "IN_REVIEW")`, with one case on
+ * top: an in-review review that was HANDED OVER (the latest Start was by
+ * someone other than the current assignee — e.g. the second reviewer after a
+ * FIRST verdict, or a new assignee after a reassignment) may be started by
+ * its new assignee. Otherwise Start on an in-review review is a no-op and is
+ * refused (`already_started`, T-020).
+ */
+export function reviewStartRefusal(
+  currentStage: ReviewStage,
+  handedOver: boolean,
+): "already_started" | "invalid_stage_transition" | null {
+  const move = stageMoveRefusal(currentStage, "IN_REVIEW");
+  if (move === "already_in_stage") return handedOver ? null : "already_started";
+  return move;
+}
+
+/**
+ * Whether an in-review review was handed over to its current assignee: the
+ * latest REVIEW_STARTED actor is known and is not the assignee. No recorded
+ * Start (legacy rows, direct writes) is NOT a handover.
+ */
+export function reviewWasHandedOver(input: {
+  assignedToUserId: string | null;
+  latestStartActorUserId: string | null | undefined;
+}): boolean {
+  return (
+    !!input.assignedToUserId &&
+    !!input.latestStartActorUserId &&
+    input.latestStartActorUserId !== input.assignedToUserId
+  );
+}

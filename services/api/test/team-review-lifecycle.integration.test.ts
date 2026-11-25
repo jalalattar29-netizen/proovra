@@ -701,6 +701,25 @@ describe("round 2 — the Review page offers exactly the moves the server accept
     expect(again.raw).toContain("already_started");
   });
 
+  it("a handed-over in-review review: its new assignee is offered Start and the door accepts it, once", async () => {
+    const w = await freshWorkflow(T.teamId, T.owner.userId, "r2-handover-start");
+    expect((await o().assign(T.owner, w.workflowId, T.member.userId)).status).toBe(200);
+    expect((await o().start(T.member, w.workflowId)).status).toBe(200);
+    expect((await o().reassign(T.owner, w.workflowId, T.member2.userId)).status).toBe(200);
+    expect((await prisma.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: w.workflowId } })).status).toBe("IN_REVIEW");
+
+    const offered = action(await o().workspace(T.member2, w.workflowId), "start");
+    expect(offered.allowed, JSON.stringify(offered)).toBe(true);
+    const started = await o().start(T.member2, w.workflowId);
+    expect(started.status, started.raw).toBe(200);
+
+    // Now the assignee has started it: a second Start is the no-op T-020 refuses, on both.
+    expect(action(await o().workspace(T.member2, w.workflowId), "start")).toMatchObject({ allowed: false, reason: "already_started" });
+    const again = await o().start(T.member2, w.workflowId);
+    expect(again.status, again.raw).not.toBe(200);
+    expect(again.raw).toContain("already_started");
+  });
+
   it("for every open stage, Approve and Start are offered exactly when the door accepts them", async () => {
     const stages = ["NOT_STARTED", "QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO", "RESPONSE_RECEIVED", "ESCALATED", "REOPENED"];
     for (const verb of ["approve", "start"] as const) {
