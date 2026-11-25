@@ -664,6 +664,49 @@ export type RecordLifecycleTransitionInput = {
   escalationReason?: string | null;
 };
 
+/**
+ * Round 2 (2026-11-25) — authorization BEFORE step-up for Close and Reopen.
+ * Every refusal recordLifecycleTransition can give before it writes, asked
+ * without writing: note, same stage, the stage matrix and (Close) the pending
+ * second review / unresolved disagreement. Throws the SAME errors; resolves
+ * when the move would be accepted. The real call re-checks under the row lock.
+ */
+export async function precheckLifecycleTransition(
+  input: Pick<RecordLifecycleTransitionInput, "evidenceId" | "decision" | "note" | "escalationReason">,
+  client: PrismaClient = defaultPrisma,
+): Promise<void> {
+  const workflow = await client.evidenceReviewWorkflow.findUnique({ where: { evidenceId: input.evidenceId } });
+  if (!workflow) throw new ReviewOperationError("workflow_not_found");
+  if (decisionRequiresNote(input.decision)) {
+    const noteText = (input.note ?? input.escalationReason ?? "").trim();
+    if (!noteText) throw new ReviewOperationError("note_required", { decision: input.decision });
+  }
+  const fromStage = mapDbStatusToReviewStage(workflow.status as string);
+  const toStage = decisionTargetStage(input.decision);
+  if (fromStage === toStage) throw new ReviewOperationError("already_in_stage", { stage: fromStage });
+  if (input.decision === "CLOSE" && workflow.teamId) {
+    const round = await loadCurrentRoundDecisionState(
+      {
+        id: workflow.id,
+        teamId: workflow.teamId,
+        evidenceId: workflow.evidenceId,
+        status: String(workflow.status),
+        decisionRound: workflow.decisionRound,
+      },
+      client,
+    );
+    if (round.state === "second_required" || round.state === "conflict_detected") {
+      throw new ReviewDecisionAuthorityError("second_review_pending", {
+        reason: "second_review_pending",
+        reviewState: round.state,
+      });
+    }
+  }
+  if (!isAllowedReviewStageTransition(fromStage, toStage)) {
+    throw new ReviewOperationError("invalid_stage_transition", { from: fromStage, to: toStage });
+  }
+}
+
 export async function recordLifecycleTransition(
   input: RecordLifecycleTransitionInput,
   client: PrismaClient = defaultPrisma,

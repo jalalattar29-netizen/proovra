@@ -75,6 +75,7 @@ import { requestWorkspaceCandidate, workspaceMismatchRefusal } from "../services
 import {
   ReviewerOpsError,
   approveReview,
+  precheckReviewVerdict,
   projectWorkflow,
   assignReviewerToWorkflow,
   buildDashboard,
@@ -93,7 +94,7 @@ import {
 import { projectQueueIntelligence } from "../services/reviewer-ops/queue-intelligence.service.js";
 import { reevaluateSecondReviewPolicyHolds } from "../services/reviewer-ops/second-review-reevaluation.service.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
-import { ReviewOperationError, recordLifecycleTransition } from "../services/review-operations/review-operations.service.js";
+import { ReviewOperationError, precheckLifecycleTransition, recordLifecycleTransition } from "../services/review-operations/review-operations.service.js";
 import {
   EscalationEngineError,
   acknowledgeEscalation,
@@ -175,6 +176,7 @@ import {
   ReviewDecisionAuthorityError,
   loadCurrentRoundDecisionState,
   recordReviewDecision as recordCanonicalReviewDecision,
+  precheckReviewDecision,
 } from "../services/reviewer-ops/review-decision.service.js";
 import { classifyCurrentRounds, countEligibleSecondReviewers } from "../services/reviewer-ops/review-handoff.service.js";
 
@@ -1610,6 +1612,14 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       if (!ctx) return;
       if (!(await requireWorkflowInReach(ctx, reply, workflowId))) return;
       if (!requireReviewerCapable(ctx, reply)) return;
+      // Authorization BEFORE step-up (round 2): a verdict the authority would
+      // refuse is refused here, and no second factor is asked for it.
+      try {
+        await precheckReviewVerdict(ctx, { workflowId, verdict: "APPROVE", note: body.note ?? null });
+      } catch (err) {
+        if (sendEngineError(reply, err)) return;
+        throw err;
+      }
       if (
         !(await enforceReviewActionGate(req, reply, {
           teamId: body.teamId,
@@ -1649,6 +1659,14 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       if (!ctx) return;
       if (!(await requireWorkflowInReach(ctx, reply, workflowId))) return;
       if (!requireReviewerCapable(ctx, reply)) return;
+      // Authorization BEFORE step-up (round 2): a verdict the authority would
+      // refuse is refused here, and no second factor is asked for it.
+      try {
+        await precheckReviewVerdict(ctx, { workflowId, verdict: "REJECT", note: body.note ?? "" });
+      } catch (err) {
+        if (sendEngineError(reply, err)) return;
+        throw err;
+      }
       if (
         !(await enforceReviewActionGate(req, reply, {
           teamId: body.teamId,
@@ -2050,6 +2068,15 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         select: { evidenceId: true, status: true },
       });
       if (!wf) return reply.code(404).send({ error: { code: "REVIEW_WORKFLOW_NOT_FOUND" } });
+      // Authorization BEFORE step-up (round 2): an archive the lifecycle service
+      // would refuse (pending second review, disagreement, finished) is refused
+      // here, and no second factor is asked for it.
+      try {
+        await precheckLifecycleTransition({ evidenceId: wf.evidenceId, decision: "CLOSE", note: note || "Archived from the review page." });
+      } catch (err) {
+        if (sendEngineError(reply, err) || sendArchiveRefusal(reply, err)) return;
+        throw err;
+      }
       if (
         !(await enforceReviewActionGate(req, reply, {
           teamId: body.teamId,
@@ -3203,7 +3230,43 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       });
       if (!wf) return reply.code(404).send({ error: { code: "not_found" } });
 
+      // AUTH-005 — adjudicator authority read from the PROVEN context
+      // rather than from a second, status-blind TeamMember query. The
+      // canonical decision authority still enforces it when the decision
+      // lands at ADJUDICATION; this value is now guaranteed to describe an
+      // ACTIVE member of a live workspace.
+      const adjudicatorRole = provenRole(ctx);
+      const isAdjudicator =
+        adjudicatorRole === "OWNER" || adjudicatorRole === "ADMIN";
+      const decisionInput = {
+        workflowId,
+        teamId: body.teamId,
+        actorUserId: ctx.actorUserId,
+        decision: body.decision,
+        reasonCode: body.reasonCode ?? null,
+        rationale: body.rationale,
+        actorIsAdjudicator: isAdjudicator,
+        // TEAM-SPEC R3 — THE explicit adjudication door. Approve / Reject /
+        // Request info never pass this, so a conflict reached through them is
+        // refused with use_adjudication.
+        adjudicationDoor: true,
+        source: "inspector" as const,
+      };
+
       const verdictGate = gateForVerdict(body.decision);
+      // Authorization BEFORE step-up (round 2): the authority answers first, as
+      // a dry run, so a refused verdict never asks for a second factor.
+      if (verdictGate) {
+        try {
+          await precheckReviewDecision(decisionInput);
+        } catch (err) {
+          if (!(err instanceof ReviewDecisionAuthorityError)) throw err;
+          return sendDecisionAuthorityError(reply, err, {
+            callerRole: provenRole(ctx),
+            decision: body.decision,
+          });
+        }
+      }
       if (
         verdictGate &&
         !(await enforceReviewActionGate(req, reply, {
@@ -3216,34 +3279,12 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         return;
       }
 
-      // AUTH-005 — adjudicator authority read from the PROVEN context
-      // rather than from a second, status-blind TeamMember query. The
-      // canonical decision authority still enforces it when the decision
-      // lands at ADJUDICATION; this value is now guaranteed to describe an
-      // ACTIVE member of a live workspace.
-      const adjudicatorRole = provenRole(ctx);
-      const isAdjudicator =
-        adjudicatorRole === "OWNER" || adjudicatorRole === "ADMIN";
-
       // Track 1C — ONE atomic decision command: workspace isolation,
       // stale/terminal denial, immutable decision-row append, derived
       // workflow.status projection, and audit all happen in a single
       // transaction inside the canonical service.
       try {
-        const result = await recordCanonicalReviewDecision({
-          workflowId,
-          teamId: body.teamId,
-          actorUserId: ctx.actorUserId,
-          decision: body.decision,
-          reasonCode: body.reasonCode ?? null,
-          rationale: body.rationale,
-          actorIsAdjudicator: isAdjudicator,
-          // TEAM-SPEC R3 — THE explicit adjudication door. Approve / Reject /
-          // Request info never pass this, so a conflict reached through them is
-          // refused with use_adjudication.
-          adjudicationDoor: true,
-          source: "inspector",
-        });
+        const result = await recordCanonicalReviewDecision(decisionInput);
         // TEAM-SPEC §2.3 — the outcome signals are emitted by the authority (T-171).
         return reply.code(result.idempotent ? 200 : 201).send({
           workflowId,

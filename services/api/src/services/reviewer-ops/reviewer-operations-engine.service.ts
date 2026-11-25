@@ -79,6 +79,7 @@ import {
 // through the legacy lifecycle service.
 import {
   ReviewDecisionAuthorityError,
+  ReviewDecisionDryRunPassed,
   recordReviewDecision as recordCanonicalReviewDecision,
   // PHASE 13 §4 (2026-08-17) — projection repair, armed by this reconcile pass.
   scanReviewDecisionProjections,
@@ -1701,6 +1702,44 @@ export async function recordResponseReceived(
   await notifyReviewResponseReceived({ workflow: updated, actorUserId: ctx.actorUserId }, client).catch(() => null);
   const open = await findOpenEscalationForWorkflow({ teamId: ctx.teamId, workflowId: row.id }, client);
   return projectWorkflow(updated, client, { hasOpenEscalation: !!open });
+}
+
+// ----- authorization before step-up (round 2, 2026-11-25) --------------------
+
+/**
+ * Every check approve / reject run before they record — the engine's own (human
+ * actor, note, reach, lifecycle) and then the canonical authority as a dry run —
+ * WITHOUT recording. The doors call it before the step-up gate so a verdict that
+ * would be refused is refused first and spends no challenge. Throws the same
+ * ReviewerOpsError the real call would; resolves when it would be accepted.
+ */
+export async function precheckReviewVerdict(
+  ctx: LifecycleActorContext,
+  input: { workflowId: string; verdict: "APPROVE" | "REJECT"; note?: string | null },
+  client: PrismaClient = defaultPrisma,
+): Promise<void> {
+  requireHuman(ctx);
+  const note = input.verdict === "REJECT" ? (input.note ?? "") : (input.note ?? null);
+  assertDecisionInput(note);
+  const row = await loadWorkflowOrThrow(ctx, input.workflowId, client);
+  const fromLc = await currentLifecycle(ctx, row, client);
+  assertLifecycleTransition(fromLc, input.verdict === "APPROVE" ? "APPROVED" : "REJECTED", "decision_not_from_stage");
+  try {
+    await recordDecisionViaAuthority(
+      {
+        workflowId: row.id,
+        teamId: ctx.teamId,
+        actorUserId: ctx.actorUserId,
+        decision: input.verdict,
+        rationale: note,
+        dryRun: true,
+      },
+      client,
+    );
+  } catch (err) {
+    if (err instanceof ReviewDecisionDryRunPassed) return;
+    throw err;
+  }
 }
 
 // ----- approveReview ----------------------------------------------------------

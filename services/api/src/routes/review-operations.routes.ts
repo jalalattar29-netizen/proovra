@@ -45,6 +45,7 @@ import {
   getReviewQueueCounts,
   listReviewQueue,
   projectReviewWorkflow,
+  precheckLifecycleTransition,
   reconcileReviewSlas,
   recordLifecycleTransition,
 } from "../services/review-operations/review-operations.service.js";
@@ -55,8 +56,8 @@ import {
 // stays on the Phase 13 lifecycle service above.
 import {
   ReviewDecisionAuthorityError,
-  loadCurrentRoundDecisionState,
   recordReviewDecision,
+  precheckReviewDecision,
 } from "../services/reviewer-ops/review-decision.service.js";
 // Phase C0 — Sensitive review decision step-up enforcement.
 import { resolveEvidenceRecordAccess } from "../services/evidence/evidence-record-access.service.js";
@@ -360,6 +361,60 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
       const verdictGate =
         gateForVerdict(body.decision) ??
         (body.decision === "CLOSE" || body.decision === "REOPEN" ? "reject" : null);
+
+      const isVerdict =
+        body.decision === "APPROVE_INTERNAL" ||
+        body.decision === "REJECT_INSUFFICIENT" ||
+        body.decision === "REQUEST_MORE_INFO";
+      let verdictInput: Parameters<typeof recordReviewDecision>[0] | null = null;
+      if (isVerdict) {
+        // TEAM-SPEC §2.10 — the adjudicator role is the PROVEN role of the
+        // ACTIVE member (the canonical authorization context), never a
+        // status-blind TeamMember read. This door never adjudicates (no
+        // adjudicationDoor): a conflict here is refused with use_adjudication.
+        const proven = await evaluateAuthorizedWorkspace(req, {
+          workspaceId: teamId,
+          permission: "evidence_request.review",
+          antiEnumeration: true,
+        });
+        const provenRole = proven.allowed ? proven.context.workspaceRole : null;
+        verdictInput = {
+          workflowId: workflow.id,
+          teamId: teamId,
+          actorUserId: ok.userId,
+          decision:
+            body.decision === "APPROVE_INTERNAL"
+              ? "APPROVE"
+              : body.decision === "REJECT_INSUFFICIENT"
+                ? "REJECT"
+                : "REQUEST_INFO",
+          rationale: body.note ?? body.escalationReason ?? null,
+          actorIsAdjudicator: provenRole === "OWNER" || provenRole === "ADMIN",
+          source: "evidence_page",
+        };
+      }
+
+      // Authorization BEFORE step-up (round 2, 2026-11-25): the refusals this
+      // door can give are given before the gate, so no second factor is asked
+      // for a verdict or a Close that would be refused. The authority answers a
+      // verdict as a dry run; Close's second-review guard is a read.
+      try {
+        if (verdictGate && verdictInput) await precheckReviewDecision(verdictInput);
+        // Close / Reopen: every refusal the lifecycle service gives before it
+        // writes (note, same stage, matrix, and TEAM-SPEC §2.2: Close never
+        // skips a pending second review or an unresolved disagreement).
+        if (verdictGate && (body.decision === "CLOSE" || body.decision === "REOPEN")) {
+          await precheckLifecycleTransition({
+            evidenceId,
+            decision: body.decision,
+            note: body.note ?? null,
+            escalationReason: body.escalationReason ?? null,
+          });
+        }
+      } catch (err) {
+        return reviewErrorToReply(err, reply);
+      }
+
       if (
         verdictGate &&
         !(await enforceReviewActionGate(req, reply, {
@@ -377,71 +432,20 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
         // T-171 / one outcome vocabulary — what the submission actually did
         // (a first-of-two decision changes no status).
         let outcome: unknown = null;
-        if (
-          body.decision === "APPROVE_INTERNAL" ||
-          body.decision === "REJECT_INSUFFICIENT" ||
-          body.decision === "REQUEST_MORE_INFO"
-        ) {
-          // Track 1C — reviewer VERDICT: the canonical decision
-          // authority appends the immutable decision row + derives the
-          // status projection atomically. Adjudicator authority is an
-          // informational role read (authorization already enforced by
-          // requireReviewerMember above).
-          //
-          // TEAM-SPEC §2.10 — the adjudicator role is the PROVEN role of the
-          // ACTIVE member (the canonical authorization context), never a
-          // status-blind TeamMember read. This door never adjudicates (no
-          // adjudicationDoor): a conflict here is refused with use_adjudication.
-          const proven = await evaluateAuthorizedWorkspace(req, {
-            workspaceId: teamId,
-            permission: "evidence_request.review",
-            antiEnumeration: true,
-          });
-          const provenRole = proven.allowed ? proven.context.workspaceRole : null;
-          const result = await recordReviewDecision({
-            workflowId: workflow.id,
-            teamId: teamId,
-            actorUserId: ok.userId,
-            decision:
-              body.decision === "APPROVE_INTERNAL"
-                ? "APPROVE"
-                : body.decision === "REJECT_INSUFFICIENT"
-                  ? "REJECT"
-                  : "REQUEST_INFO",
-            rationale: body.note ?? body.escalationReason ?? null,
-            actorIsAdjudicator: provenRole === "OWNER" || provenRole === "ADMIN",
-            source: "evidence_page",
-          });
+        if (verdictInput) {
+          // Track 1C — reviewer VERDICT: the canonical decision authority
+          // appends the immutable decision row + derives the status projection
+          // atomically, re-checking everything the precheck asked.
+          const result = await recordReviewDecision(verdictInput);
           updated = result.workflow;
           outcome = result.outcome;
         } else {
-          // TEAM-SPEC §2.2 — Close never skips a pending second review or an
-          // unresolved disagreement: the required number of reviews is never
-          // reduced.
-          if (body.decision === "CLOSE") {
-            const current = await prisma.evidenceReviewWorkflow.findUniqueOrThrow({
-              where: { id: workflow.id },
-              select: { id: true, evidenceId: true, status: true, decisionRound: true },
-            });
-            const round = await loadCurrentRoundDecisionState({
-              id: current.id,
-              teamId,
-              evidenceId: current.evidenceId,
-              status: String(current.status),
-              decisionRound: current.decisionRound,
-            });
-            if (round.state === "second_required" || round.state === "conflict_detected") {
-              throw new ReviewDecisionAuthorityError("second_review_pending", {
-                reason: "second_review_pending",
-                reviewState: round.state,
-              });
-            }
-          }
+          // The service re-checks Close's second-review guard under the row lock.
           // ESCALATE / REOPEN / CLOSE — lifecycle routing, not a
           // verdict; handled by the Phase 13 lifecycle service.
           updated = await recordLifecycleTransition({
             evidenceId,
-            decision: body.decision,
+            decision: body.decision as "ESCALATE" | "REOPEN" | "CLOSE",
             actorUserId: ok.userId,
             note: body.note ?? null,
             escalationReason: body.escalationReason ?? null,

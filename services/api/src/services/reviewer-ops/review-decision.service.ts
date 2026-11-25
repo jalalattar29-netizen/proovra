@@ -227,7 +227,43 @@ export type RecordReviewDecisionInput = {
   expectedStatus?: string | null;
   /** Which door recorded it — audit metadata only. */
   source?: ReviewDecisionSource;
+  /**
+   * Round 2 (2026-11-25) — authorization BEFORE step-up. Runs every check of the
+   * authority inside its transaction, then throws `ReviewDecisionDryRunPassed`
+   * where the first immutable write would happen, so the transaction rolls back
+   * (including the round bump) and nothing is notified. Use
+   * `precheckReviewDecision`, never set this directly.
+   */
+  dryRun?: boolean;
 };
+
+/** Thrown by a dry run that every check passed. Never escapes `precheckReviewDecision`. */
+export class ReviewDecisionDryRunPassed extends Error {
+  constructor() {
+    super("review_decision_dry_run_passed");
+    this.name = "ReviewDecisionDryRunPassed";
+  }
+}
+
+/**
+ * The SAME authority, asked before a door spends a step-up challenge: a verdict
+ * that would be refused is refused first, with the authority's own error, and no
+ * second factor is asked for it. Resolves when the decision would be accepted
+ * (or replayed idempotently); throws `ReviewDecisionAuthorityError` otherwise.
+ * The real call re-checks everything: state can move between the two.
+ */
+export async function precheckReviewDecision(
+  input: Omit<RecordReviewDecisionInput, "dryRun">,
+  client: PrismaClient = defaultPrisma,
+): Promise<void> {
+  try {
+    await recordReviewDecision({ ...input, dryRun: true }, client);
+  } catch (err) {
+    if (err instanceof ReviewDecisionDryRunPassed) return;
+    throw err;
+  }
+  throw new Error("precheckReviewDecision: the dry run returned instead of stopping");
+}
 
 export type ReviewDecisionNextRequirement = "second_review" | "adjudication" | null;
 
@@ -409,6 +445,7 @@ export async function recordReviewDecision(
         r.decision === input.decision,
     );
     if (identical) {
+      if (input.dryRun) throw new ReviewDecisionDryRunPassed();
       const requiresSecondNow = await secondReviewForRound(
         {
           workflowId: input.workflowId,
@@ -596,6 +633,8 @@ export async function recordReviewDecision(
     if (stringContainsForbiddenOverclaim(rationale)) {
       throw new ReviewDecisionAuthorityError("forbidden_wording", { reason: "forbidden_wording" });
     }
+
+    if (input.dryRun) throw new ReviewDecisionDryRunPassed();
 
     // (iv) Append the IMMUTABLE decision row. The DB unique
     // (workflow_id, stage) constraint is the concurrency backstop — a
