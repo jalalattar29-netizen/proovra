@@ -28,6 +28,7 @@ import {
   isReviewOpenDbStatus,
   storedReviewSlaStatus,
   reviewSlaBreachedSince,
+  stageMoveRefusal,
   decisionTargetStage,
   isAllowedReviewStageTransition,
   mapDbStatusToReviewStage,
@@ -683,7 +684,9 @@ export async function precheckLifecycleTransition(
   }
   const fromStage = mapDbStatusToReviewStage(workflow.status as string);
   const toStage = decisionTargetStage(input.decision);
-  if (fromStage === toStage) throw new ReviewOperationError("already_in_stage", { stage: fromStage });
+  // The canonical stage rule (shared with the action projections).
+  const move = stageMoveRefusal(fromStage, toStage);
+  if (move === "already_in_stage") throw new ReviewOperationError("already_in_stage", { stage: fromStage });
   if (input.decision === "CLOSE" && workflow.teamId) {
     const round = await loadCurrentRoundDecisionState(
       {
@@ -702,7 +705,7 @@ export async function precheckLifecycleTransition(
       });
     }
   }
-  if (!isAllowedReviewStageTransition(fromStage, toStage)) {
+  if (move === "invalid_stage_transition") {
     throw new ReviewOperationError("invalid_stage_transition", { from: fromStage, to: toStage });
   }
 }

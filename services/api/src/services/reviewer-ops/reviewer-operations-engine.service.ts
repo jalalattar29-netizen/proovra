@@ -39,6 +39,8 @@ import {
   type ReviewerOpsLifecycleState,
   type ReviewerOpsQueueType,
   type ReviewerOpsSlaState,
+  stageMoveRefusal,
+  verdictStageRefusal,
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
@@ -861,11 +863,14 @@ export function computeViewerActions(input: {
   const finished = !isReviewOpenDbStatus(String(row.status)) || !!row.completedAtUtc || !!row.closedAt;
   const isAdjudicatorRole = facts.role === "OWNER" || facts.role === "ADMIN";
 
-  const verdict = (to: ReviewerOpsLifecycleState): string | null => {
+  // Round 2 (2026-11-25, divergences #2 / #3) — the verdict's stage rule is the
+  // AUTHORITY'S (verdictStageRefusal over the PERSISTED stage), not the derived
+  // lifecycle: a reopened review, or an escalated one nobody has started, no
+  // longer shows an Approve / Reject the server then refuses.
+  const verdict = (to: ReviewerOpsLifecycleState, kind: "APPROVE" | "REJECT" | "REQUEST_INFO"): string | null => {
     if (!facts.isReviewerCapable) return "reviewer_required";
-    if (stage === "APPROVED_INTERNAL" || stage === "REJECTED_INSUFFICIENT" || stage === "CLOSED") {
-      return "review_already_resolved";
-    }
+    const stageRefusal = verdictStageRefusal(stage, kind);
+    if (stageRefusal) return stageRefusal;
     if (!isAllowedLifecycleTransition(lifecycle, to)) return "decision_not_from_stage";
     switch (decision.state) {
       case "resolved":
@@ -893,18 +898,23 @@ export function computeViewerActions(input: {
     // T-020 — Start is offered only for a review that has not started: the
     // PERSISTED stage, not the lifecycle an open escalation derives (an
     // in-review review with an escalation offered a no-op "Start review").
+    // Round 2 (divergence #4) — Start is offered exactly when the PERSISTED
+    // stage may move to IN_REVIEW under the canonical stage rule (the rule
+    // startReview and the Evidence page's Begin review apply): an escalated,
+    // response-received or needs-information review can be taken back into
+    // review; an in-review one cannot be "started" again (T-020).
     start: !facts.isReviewerCapable
       ? "reviewer_required"
-      : stage === "IN_REVIEW" || stage === "ESCALATED" || stage === "RESPONSE_RECEIVED" || stage === "NEEDS_MORE_INFO"
+      : stageMoveRefusal(stage, "IN_REVIEW") === "already_in_stage"
         ? "already_started"
-        : !isAllowedLifecycleTransition(lifecycle, "IN_REVIEW")
+        : stageMoveRefusal(stage, "IN_REVIEW") !== null || !isAllowedLifecycleTransition(lifecycle, "IN_REVIEW")
           ? "invalid_transition"
           : !isAssignee
             ? "not_assignee"
             : null,
     pause: clock(false),
     resume: clock(true),
-    request_info: verdict("NEEDS_INFORMATION"),
+    request_info: verdict("NEEDS_INFORMATION", "REQUEST_INFO"),
     record_response: !facts.isReviewerCapable
       ? "reviewer_required"
       : !isAssignee
@@ -912,8 +922,8 @@ export function computeViewerActions(input: {
         : stage !== "NEEDS_MORE_INFO"
           ? "not_awaiting_information"
           : null,
-    approve: verdict("APPROVED"),
-    reject: verdict("REJECTED"),
+    approve: verdict("APPROVED", "APPROVE"),
+    reject: verdict("REJECTED", "REJECT"),
     reassign: !input.assignmentsIncluded
       ? "reviewer_operations_not_included"
       : !facts.isReviewerCapable
@@ -933,9 +943,11 @@ export function computeViewerActions(input: {
             : decision.firstReviewerUserId === viewerUserId || decision.secondReviewerUserId === viewerUserId
               ? "adjudicator_not_independent"
               : null,
+    // Round 2 (divergence #2) — archive is the lifecycle Close: the canonical
+    // stage rule decides it, as precheckLifecycleTransition does.
     archive: !facts.isReviewerCapable
       ? "reviewer_required"
-      : !isAllowedLifecycleTransition(lifecycle, "ARCHIVED")
+      : !isAllowedLifecycleTransition(lifecycle, "ARCHIVED") || stageMoveRefusal(stage, "CLOSED") !== null
         ? "invalid_transition"
         : decision.state === "second_required" || decision.state === "conflict_detected"
           ? "second_review_pending"
@@ -1322,6 +1334,19 @@ export async function startReview(
   const row = await loadWorkflowOrThrow(ctx, input.workflowId, client);
   const fromLc = await currentLifecycle(ctx, row, client);
   assertLifecycleTransition(fromLc, "IN_REVIEW");
+  // Round 2 (2026-11-25) — the canonical stage rule, the same one the Evidence
+  // page's Begin review and the action projection apply: the PERSISTED stage
+  // must be able to move to IN_REVIEW, and Start on an in-review review is
+  // refused, not a silent rewrite.
+  const startRefusal = stageMoveRefusal(mapDbStatusToReviewStage(String(row.status)), "IN_REVIEW");
+  if (startRefusal) {
+    bump("reviewer_invalid_transition_blocked_total");
+    throw new ReviewerOpsError("REVIEW_INVALID_TRANSITION", {
+      from: fromLc,
+      to: "IN_REVIEW",
+      reason: startRefusal === "already_in_stage" ? "already_started" : "invalid_stage_transition",
+    });
+  }
   if (row.assignedToUserId !== ctx.actorUserId) {
     throw new ReviewerOpsError("REVIEW_PERMISSION_DENIED", {
       reason: "actor_not_assignee",

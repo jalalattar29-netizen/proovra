@@ -9,7 +9,7 @@
  * decision round's rows.
  */
 
-import type { ReviewStage } from "./review-operations.js";
+import { isAllowedReviewStageTransition, type ReviewStage } from "./review-operations.js";
 
 export type ReviewDecisionState =
   | "first_required"
@@ -284,4 +284,50 @@ export function roundContinuesInNewRound(
   if (projection.projectedStage === "NEEDS_MORE_INFO" && stageNow !== "NEEDS_MORE_INFO") return "request_info";
   if (decisions.some((d) => d.stage === "ADJUDICATION" && d.decision === "UNRESOLVED")) return "unresolved_adjudication";
   return null;
+}
+
+// -----------------------------------------------------------------------------
+// THE CANONICAL STAGE RULES the server applies (2026-11-25, round 2). The
+// decision authority, the lifecycle doors, Start, and the projections that
+// tell a client which actions to offer all call these — one rule, so a button
+// the page shows is a move the server accepts. They read the PERSISTED stage
+// and the stage matrix (isAllowedReviewStageTransition), never the lifecycle
+// an open escalation derives.
+// -----------------------------------------------------------------------------
+
+/** A review in one of these stages takes no further verdict. */
+export const DECISION_TERMINAL_STAGES: ReadonlySet<ReviewStage> = new Set<ReviewStage>([
+  "APPROVED_INTERNAL",
+  "REJECTED_INSUFFICIENT",
+  "CLOSED",
+]);
+
+/**
+ * Why the decision authority refuses this verdict kind from this stage, or null.
+ * A verdict is a move to the stage it projects; adjudication kinds project no
+ * stage and are governed by the decision state instead.
+ */
+export function verdictStageRefusal(
+  currentStage: ReviewStage,
+  kind: string,
+): "review_already_resolved" | "decision_not_from_stage" | null {
+  if (DECISION_TERMINAL_STAGES.has(currentStage)) return "review_already_resolved";
+  const verdictStage = kindToProjectedStage(kind);
+  if (verdictStage !== null && verdictStage !== currentStage && !isAllowedReviewStageTransition(currentStage, verdictStage)) {
+    return "decision_not_from_stage";
+  }
+  return null;
+}
+
+/**
+ * Why an explicit move (Start, Close / archive, Reopen, Escalate) is refused
+ * from this stage, or null: a move into the stage it is already in is refused,
+ * and otherwise the stage matrix decides.
+ */
+export function stageMoveRefusal(
+  currentStage: ReviewStage,
+  toStage: ReviewStage,
+): "already_in_stage" | "invalid_stage_transition" | null {
+  if (currentStage === toStage) return "already_in_stage";
+  return isAllowedReviewStageTransition(currentStage, toStage) ? null : "invalid_stage_transition";
 }

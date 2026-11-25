@@ -56,8 +56,9 @@ import type {
 import {
   deriveDecisionProjection,
   deriveReviewState,
-  isAllowedReviewStageTransition,
+  DECISION_TERMINAL_STAGES,
   kindToProjectedStage,
+  verdictStageRefusal,
   mapDbStatusToReviewStage,
   mapReviewStageToDbStatus,
   roundContinuesInNewRound,
@@ -167,11 +168,8 @@ export type ReviewDecisionSource =
  * REOPEN / CLOSE remain lifecycle transitions owned by the Phase 13
  * lifecycle service.
  */
-const DECISION_TERMINAL_STAGES: ReadonlySet<ReviewStage> = new Set([
-  "APPROVED_INTERNAL",
-  "REJECTED_INSUFFICIENT",
-  "CLOSED",
-]);
+// DECISION_TERMINAL_STAGES and the verdict stage rule live in @proovra/shared
+// (review-decision-state.ts) so the action projections apply the same rule.
 
 /**
  * PHASE 12 POINT 4 PASS C1 — the statuses this authority projects, and which
@@ -477,7 +475,8 @@ export async function recordReviewDecision(
 
     // (iii) Terminal / resolved denial — conflict with zero mutation.
     const currentStage = mapDbStatusToReviewStage(wf.status as string);
-    if (DECISION_TERMINAL_STAGES.has(currentStage)) {
+    const stageRefusal = verdictStageRefusal(currentStage, input.decision as string);
+    if (stageRefusal === "review_already_resolved") {
       throw new ReviewDecisionAuthorityError("review_already_resolved", {
         currentStage,
       });
@@ -486,15 +485,10 @@ export async function recordReviewDecision(
     // projects; it was accepted from any non-terminal stage, so a review
     // nobody had started could be approved. Adjudication kinds project no
     // stage of their own and are governed by the decision state below.
-    const verdictStage = kindToProjectedStage(input.decision as string);
-    if (
-      verdictStage !== null &&
-      verdictStage !== currentStage &&
-      !isAllowedReviewStageTransition(currentStage, verdictStage)
-    ) {
+    if (stageRefusal === "decision_not_from_stage") {
       throw new ReviewDecisionAuthorityError("decision_not_from_stage", {
         currentStage,
-        verdictStage,
+        verdictStage: kindToProjectedStage(input.decision as string),
       });
     }
     // The requirement that governs THIS round: a fresh round after an
