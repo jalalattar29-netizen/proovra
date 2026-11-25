@@ -105,7 +105,11 @@ test("1. the scheduled run includes Chromium AND Edge, unconditionally", () => {
 
 test("2. workflow_dispatch takes the identical path — nothing branches on the event", () => {
   assert.match(WORKFLOW, /\non:\n {2}workflow_dispatch:\n/);
-  assert.doesNotMatch(WORKFLOW, /github\.event_name|github\.event\.schedule|github\.event\.inputs/);
+  // The ONLY event reference allowed is the run-grouping rule (CI dedupe
+  // 2026-11-25): it decides which runs cancel each other, never what a job does.
+  const CONCURRENCY = /\nconcurrency:\n {2}group: [^\n]*\n {2}cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}\n/;
+  assert.match(WORKFLOW, CONCURRENCY);
+  assert.doesNotMatch(WORKFLOW.replace(CONCURRENCY, "\n"), /github\.event_name|github\.event\.schedule|github\.event\.inputs/);
   for (const job of ["windows-acceptance", "linux-extension-e2e"]) {
     assert.doesNotMatch(jobText(job).split("steps:")[0], /\n {4}if:/, `${job} has a job-level condition`);
   }
