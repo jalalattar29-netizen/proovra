@@ -1091,7 +1091,10 @@ describe("authority guard — ONE decision writer", () => {
     expect(src).toMatch(
       /from "\.\.\/services\/reviewer-ops\/review-decision\.service\.js"/,
     );
-    expect(src).toMatch(/recordReviewDecision\(\{/);
+    // Round 2: the verdict input is built once; it feeds the pre-step-up dry
+    // run (precheckReviewDecision) and then the write.
+    expect(src).toMatch(/recordReviewDecision\((\{|verdictInput\))/);
+    expect(src).toMatch(/precheckReviewDecision\(verdictInput\)/);
     // Lifecycle routing (escalate / reopen / close) uses the narrowed
     // transition writer, and the verdict vocabulary can never reach it.
     expect(src).toMatch(/recordLifecycleTransition\(\{/);
@@ -1102,6 +1105,7 @@ describe("authority guard — ONE decision writer", () => {
 
   it("the reviewer-ops multi-stage decision POST delegates to the canonical authority", () => {
     const src = readSrc(join("routes", "reviewer-ops.routes.ts"));
-    expect(src).toMatch(/recordCanonicalReviewDecision\(\{/);
+    expect(src).toMatch(/recordCanonicalReviewDecision\((\{|decisionInput\))/);
+    expect(src).toMatch(/precheckReviewDecision\(decisionInput\)/);
   });
 });
