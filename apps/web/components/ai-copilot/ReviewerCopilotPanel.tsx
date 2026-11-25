@@ -323,7 +323,10 @@ export function ReviewerCopilotPanel({
     return (
       <section className="app-panel app-panel__body" aria-label="Reviewer Copilot">
         <Header criteriaLabel={criteriaLabel} expanded onToggle={() => {}} />
-        <p style={{ opacity: 0.7 }}>AI is turned off for this workspace by policy.</p>
+        <p style={{ opacity: 0.7 }}>
+          The Reviewer Copilot is not available to you in this workspace: the workspace AI policy turns it off, or
+          does not allow it for your role or plan. An owner can change this in Settings → AI.
+        </p>
       </section>
     );
   }
