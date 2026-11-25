@@ -713,3 +713,54 @@ describe("round 2 — the Review page offers exactly the moves the server accept
     }
   });
 });
+
+// =============================================================================
+// Round 2 (2026-11-25) — divergence #7: the request-for-information rollover.
+// The console reads the round through the authority's read-only mirror
+// (loadCurrentRoundDecisionState, continuedFrom); the Evidence page derives it
+// inline (resolvedByRequestInfo → first_required). This pins that both answer
+// the same, and that the authority accepts exactly what both offer.
+// =============================================================================
+
+describe("round 2 — request-for-information rollover: Review page and Evidence page agree with the authority", () => {
+  type EvidenceOffer = { action: string; enabled: boolean; blockedBy: string | null; reason?: string };
+  async function evidenceOffer(a: Actor, evidenceId: string, verb: string): Promise<EvidenceOffer> {
+    const res = await call(a.token, "GET", `/v1/evidence/${evidenceId}/review-workspace`);
+    expect(res.status, res.raw.slice(0, 300)).toBe(200);
+    const found = (res.body.reviewWorkflow.availableActions as EvidenceOffer[]).find((x) => x.action === verb);
+    if (!found) throw new Error(`no evidence action ${verb}`);
+    return found;
+  }
+
+  it("after a request for information and the response, the next verdict is the assignee's FIRST verdict of a new round on both pages", async () => {
+    const o = ops(T);
+    const w = await freshWorkflow(T.teamId, T.owner.userId, "r2-request-info-rollover");
+    await prisma.evidenceReviewWorkflow.update({
+      where: { id: w.workflowId },
+      data: { status: "IN_REVIEW", assignedToUserId: T.member.userId, assignedAtUtc: new Date() },
+    });
+    expect((await o.requestInfo(T.member, w.workflowId)).status).toBe(200);
+    expect((await o.responseReceived(T.member, w.workflowId)).status).toBe(200);
+
+    for (const [who, expectAllowed] of [
+      [T.member, true], // the assignee
+      [T.member2, false], // another reviewer: not the assignee
+    ] as const) {
+      const consoleApprove = action(await o.workspace(who, w.workflowId), "approve");
+      const evidenceApprove = await evidenceOffer(who, w.evidenceId, "APPROVE_INTERNAL");
+      expect(consoleApprove.allowed, `console for ${who === T.member ? "assignee" : "other"}`).toBe(expectAllowed);
+      expect(evidenceApprove.enabled, `evidence for ${who === T.member ? "assignee" : "other"}`).toBe(expectAllowed);
+      if (!expectAllowed) {
+        expect(consoleApprove.reason).toBe("not_assignee");
+        expect(evidenceApprove.reason).toBe("not_assignee");
+      }
+    }
+
+    // The authority agrees: the other reviewer is refused, the assignee's verdict lands as FIRST.
+    const refused = await o.approve(T.member2, w.workflowId);
+    expect(refused.status, refused.raw).not.toBe(200);
+    const accepted = await o.approve(T.member, w.workflowId);
+    expect(accepted.status, accepted.raw).toBe(200);
+    expect(accepted.body.outcome.stageRecorded).toBe("FIRST");
+  });
+});

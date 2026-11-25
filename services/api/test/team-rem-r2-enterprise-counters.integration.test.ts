@@ -90,6 +90,7 @@ let reviewCounts: typeof import("../src/services/reviewer-ops/review-count-defin
 let ccCounters: typeof import("../src/services/dashboard/command-center-counters.js");
 let analytics: typeof import("../src/services/analytics/analytics.service.js");
 let reachMod: typeof import("../src/services/access/record-reach.js");
+let workload: typeof import("../src/services/reviewer-ops/workload.service.js");
 
 beforeAll(async () => {
   harness = await bootIntegrationHarness();
@@ -100,6 +101,7 @@ beforeAll(async () => {
   ccCounters = await import("../src/services/dashboard/command-center-counters.js");
   analytics = await import("../src/services/analytics/analytics.service.js");
   reachMod = await import("../src/services/access/record-reach.js");
+  workload = await import("../src/services/reviewer-ops/workload.service.js");
 }, 900_000);
 
 afterAll(async () => {
@@ -148,6 +150,20 @@ describe("C H-3 — one set of review counts across Team and Enterprise surfaces
     const ops = await analytics.getOperationsOverview({ teamId: s.teamId, scope: "SHARED", reach });
     expect(ops.metrics.openReviewWorkflows).toBe(team.openReviews);
     expect(ops.metrics.openEscalations).toBe(team.activeEscalations);
+    // A finished review keeps its last stored SLA status as history; it is not
+    // overdue work in any figure (workload counted it before round 2).
+    await workflow(s, {
+      status: "CLOSED",
+      assignedToUserId: s.owner.userId,
+      extra: { slaStatus: "BREACHED", completedAtUtc: new Date(Date.now() - 9 * 86400_000) },
+    });
+    const mine = await workload.computeReviewerWorkload(
+      { teamId: s.teamId, reviewerUserId: s.owner.userId, viewerUserId: s.owner.userId },
+      prisma as never,
+    );
+    expect(mine.overdueReviewCount).toBe(0); // RESPONSE_RECEIVED (mine) is due soon, not overdue
+    expect(mine.dueSoonReviewCount).toBe(1);
+    expect(mine.activeReviewCount).toBe(2); // RESPONSE_RECEIVED + IN_REVIEW
     const rev = await analytics.getReviewerAnalytics({ teamId: s.teamId, scope: "SHARED", reach });
     expect(rev.metrics.activeReviews).toBe(team.openReviews);
     expect(rev.metrics.overdueReviews).toBe(cc.overdue);

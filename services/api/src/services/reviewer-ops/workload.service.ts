@@ -25,7 +25,7 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
-import { escalatedReviewWhere } from "./review-count-definitions.js";
+import { escalatedReviewWhere, openReviewWhere } from "./review-count-definitions.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { evaluateMemberAccess } from "../identity/access-policy.service.js";
@@ -61,9 +61,8 @@ export async function computeReviewerWorkload(
         teamId: input.teamId,
         ...reach,
         assignedToUserId: input.reviewerUserId,
-        status: {
-          notIn: ["CLOSED", "REJECTED_INSUFFICIENT", "APPROVED_INTERNAL"],
-        },
+        // THE open-review definition (review-count-definitions.ts).
+        ...openReviewWhere(),
       },
     }),
     client.evidenceReviewWorkflow.count({
@@ -71,6 +70,9 @@ export async function computeReviewerWorkload(
         teamId: input.teamId,
         ...reach,
         assignedToUserId: input.reviewerUserId,
+        // Round 2 (C H-3): open reviews only — a finished review keeps its last
+        // stored SLA status as history and is not overdue work.
+        ...openReviewWhere(),
         slaStatus: { in: ["OVERDUE", "BREACHED"] },
       },
     }),
@@ -79,6 +81,7 @@ export async function computeReviewerWorkload(
         teamId: input.teamId,
         ...reach,
         assignedToUserId: input.reviewerUserId,
+        ...openReviewWhere(),
         slaStatus: "DUE_SOON",
       },
     }),

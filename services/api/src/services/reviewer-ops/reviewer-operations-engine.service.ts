@@ -27,7 +27,6 @@ import {
   computeReviewerOpsSlaSnapshot,
   deriveLifecycleState,
   escalationForcesIndependentReview,
-  isAllowedReviewStageTransition,
   isAllowedLifecycleTransition,
   isReviewOpenDbStatus,
   mapDbStatusToReviewStage,
@@ -956,7 +955,7 @@ export function computeViewerActions(input: {
     // transition the Evidence page uses (REJECTED/APPROVED/CLOSED → REOPENED).
     reopen: !facts.isReviewerCapable
       ? "reviewer_required"
-      : !isAllowedReviewStageTransition(stage, "REOPENED")
+      : stageMoveRefusal(stage, "REOPENED") !== null
         ? "review_not_finished"
         : null,
     // T-019 — raising an escalation stays open to every reviewer-capable

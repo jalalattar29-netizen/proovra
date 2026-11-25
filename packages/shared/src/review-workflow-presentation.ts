@@ -27,13 +27,12 @@ import { classifyReviewWorkflowEvent, type ReviewEventCode } from "./review-even
 import {
   decisionRequiresNote,
   decisionTargetStage,
-  listAllowedReviewStageTransitions,
   mapDbStatusToReviewStage,
   type ReviewDecisionType,
   type ReviewStage,
 } from "./review-operations.js";
 import type { ReviewDecisionState } from "./review-decision-state.js";
-import { REVIEW_DECISION_LABELS, type ReviewDecision } from "./review-decision-state.js";
+import { REVIEW_DECISION_LABELS, stageMoveRefusal, verdictToStageRefusal, type ReviewDecision } from "./review-decision-state.js";
 
 // ---------------------------------------------------------------------------
 // Labels
@@ -307,7 +306,6 @@ export function projectReviewWorkflowActions(
   input: ReviewWorkflowActionInput,
 ): ReviewWorkflowActionAvailability[] {
   const stage: ReviewStage = input.dbStatus ? mapDbStatusToReviewStage(input.dbStatus) : "QUEUED";
-  const allowed = listAllowedReviewStageTransitions(stage);
   return REVIEW_WORKFLOW_ACTIONS.map((action) => {
     const requiresNote = action === "CLAIM" || action === "BEGIN_REVIEW" ? false : decisionRequiresNote(action);
     const block = ((): ReviewWorkflowActionBlock | null => {
@@ -324,7 +322,8 @@ export function projectReviewWorkflowActions(
         return input.viewerMayReceiveWork === false ? "NOT_PLACED" : null;
       }
       if (action === "BEGIN_REVIEW") {
-        if (stage === "IN_REVIEW" || !allowed.includes("IN_REVIEW")) return "NOT_FROM_STAGE";
+        // THE canonical stage rule (shared with startReview and the console).
+        if (stageMoveRefusal(stage, "IN_REVIEW") !== null) return "NOT_FROM_STAGE";
         if (!input.assignedToUserId) return "CLAIM_FIRST";
         if (input.assignedToUserId !== input.viewerUserId) return "OWNED_BY_SOMEONE_ELSE";
         return null;
@@ -347,7 +346,13 @@ export function projectReviewWorkflowActions(
           return "ADJUDICATION_REQUIRED";
         }
       }
-      return allowed.includes(decisionTargetStage(action as ReviewDecisionType)) ? null : "NOT_FROM_STAGE";
+      // Round 2 (2026-11-25) — THE canonical stage rules: a verdict answers to the
+      // authority's verdict rule, a lifecycle move (Close, Reopen, Escalate) to
+      // the move rule — the same functions the authority, startReview,
+      // precheckLifecycleTransition and the console's projection call.
+      const target = decisionTargetStage(action as ReviewDecisionType);
+      const refusal = VERDICTS.has(action) ? verdictToStageRefusal(stage, target) : stageMoveRefusal(stage, target);
+      return refusal === null ? null : "NOT_FROM_STAGE";
     })();
     return { action, enabled: block === null, blockedBy: block, requiresNote };
   });

@@ -311,8 +311,15 @@ export function verdictStageRefusal(
   currentStage: ReviewStage,
   kind: string,
 ): "review_already_resolved" | "decision_not_from_stage" | null {
+  return verdictToStageRefusal(currentStage, kindToProjectedStage(kind));
+}
+
+/** The same rule, for a caller that already holds the verdict's projected stage. */
+export function verdictToStageRefusal(
+  currentStage: ReviewStage,
+  verdictStage: ReviewStage | null,
+): "review_already_resolved" | "decision_not_from_stage" | null {
   if (DECISION_TERMINAL_STAGES.has(currentStage)) return "review_already_resolved";
-  const verdictStage = kindToProjectedStage(kind);
   if (verdictStage !== null && verdictStage !== currentStage && !isAllowedReviewStageTransition(currentStage, verdictStage)) {
     return "decision_not_from_stage";
   }
