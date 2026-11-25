@@ -78,11 +78,15 @@ const client = {
 };
 
 const DAY = 24 * 3600 * 1000;
-function expired(id: string, daysAgo: number): Row {
+// `from` is the clock the expiry is measured against. A test that pins the
+// system time must date its rows from that pinned time, not the wall clock:
+// rows dated from the real "now" stop being expired on the pinned days once
+// the real date moves past them (a red main on 2026-11-25).
+function expired(id: string, daysAgo: number, from: number = Date.now()): Row {
   return {
     id,
     teamId: "t",
-    retentionUntilUtc: new Date(Date.now() - daysAgo * DAY),
+    retentionUntilUtc: new Date(from - daysAgo * DAY),
     retentionReconciliationFlaggedAtUtc: null,
     archivedAt: null,
     deletedAt: null,
@@ -98,11 +102,12 @@ beforeEach(() => {
 
 describe("PRO-W2C2-01 retention custody events", () => {
   it("three daily runs add one custody event per expired record, held or not", async () => {
-    H.rows = [expired("a", 10), expired("b", 5)];
+    const firstRun = Date.UTC(2026, 10, 18, 12);
+    H.rows = [expired("a", 10, firstRun), expired("b", 5, firstRun)];
     H.held.add("b");
     vi.useFakeTimers({ toFake: ["Date"] });
     for (let day = 0; day < 3; day += 1) {
-      vi.setSystemTime(new Date(Date.UTC(2026, 10, 18 + day, 12)));
+      vi.setSystemTime(new Date(firstRun + day * DAY));
       await reconcileRetention({}, client as never);
     }
     vi.useRealTimers();
