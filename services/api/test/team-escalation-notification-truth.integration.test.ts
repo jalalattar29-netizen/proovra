@@ -57,11 +57,17 @@ describe("Review escalation and reminder email truth (live PostgreSQL)", () => {
     });
   }
 
-  // Missed 2 h ago: inside the sweep's overdue e-mail window (24 h by default,
-  // REVIEW_SLA_BREACH_NOTIFY_MAX_AGE_HOURS; round 2, 2026-11-25). A breach found
-  // later is escalated but not mailed (team-rem-r2-sla-one-authority).
+  // These workspaces model ones the presented SLA rules have already swept
+  // (owner decision 2026-11-25: only HISTORICAL backlog found at rollout is not
+  // e-mailed; see team-rem-r2-sla-one-authority). Marked before each sweep.
+  const rolledOut = (teamId: string) =>
+    prisma.workerSweepCursor.upsert({
+      where: { key: `sla_presented_rollout:${teamId}` },
+      create: { key: `sla_presented_rollout:${teamId}`, cursorAt: new Date(Date.now() - 30 * 86400_000) },
+      update: { cursorAt: new Date(Date.now() - 30 * 86400_000) },
+    });
   const overdue = () => {
-    const past = new Date(Date.now() - 2 * 3600_000);
+    const past = new Date(Date.now() - 24 * 3600_000);
     return { dueAt: past, completionDueAtUtc: past, firstResponseDueAtUtc: past };
   };
 
@@ -111,6 +117,7 @@ describe("Review escalation and reminder email truth (live PostgreSQL)", () => {
     for (const t of [team.personalTeamId, pro.personalTeamId]) {
       await prisma.notificationDelivery.deleteMany({ where: { teamId: t } });
       await prisma.reviewerOpsReminder.deleteMany({ where: { teamId: t } });
+      await rolledOut(t);
     }
   });
 

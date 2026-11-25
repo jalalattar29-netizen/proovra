@@ -1019,9 +1019,10 @@ export async function reconcileReviewSlas(
   /** The rows that moved into BREACHED, for the caller to escalate. */
   breachedWorkflowIds: string[];
   /**
-   * Of those, the rows found long after the deadline (older than the
-   * notification window): status, SLA_BREACHED event and escalation as usual,
-   * but no overdue e-mail.
+   * Of those, the HISTORICAL BACKLOG at rollout: breaches whose deadline passed
+   * before the presented SLA rules first swept this workspace, found inside the
+   * bounded rollout window. Status, SLA_BREACHED event and escalation as usual;
+   * no overdue e-mail. Every breach occurring after rollout is e-mailed.
    */
   breachedStale: number;
   /** True when this call reached the last row. */
@@ -1064,7 +1065,11 @@ export async function reconcileReviewSlas(
   let wrapped = false;
   const breachedWorkflowIds: string[] = [];
   let breachedStale = 0;
-  const notifyMaxAgeMs = reviewSlaBreachNotifyMaxAgeMs();
+  const rolloutAt = new Map<string, Date>();
+  const rolloutFor = async (teamId: string): Promise<Date> => {
+    if (!rolloutAt.has(teamId)) rolloutAt.set(teamId, await presentedSlaRolloutAt(teamId, now, client));
+    return rolloutAt.get(teamId)!;
+  };
 
   for (let page = 0; page < maxPages && !wrapped; page += 1) {
     const cursor = await readSweepCursor(client, cursorKey);
@@ -1122,7 +1127,7 @@ export async function reconcileReviewSlas(
         if (computed === "BREACHED") {
           flippedBreached += 1;
           const since = reviewSlaBreachedSince(read, { nowUtc: now, dueSoonHours });
-          const stale = notifyMaxAgeMs > 0 && since !== null && now.getTime() - since.getTime() > notifyMaxAgeMs;
+          const stale = isHistoricalBacklogBreach({ since, now, rolloutAt: await rolloutFor(wf.teamId!) });
           await recordEvent(
             wf,
             "SLA_BREACHED",
@@ -1132,7 +1137,7 @@ export async function reconcileReviewSlas(
             {
               slaStatus: computed,
               ...(since ? { breachedSinceUtc: since.toISOString() } : {}),
-              ...(stale ? { notified: false, reason: "detected_after_notification_window" } : {}),
+              ...(stale ? { notified: false, reason: "historical_backlog_at_rollout" } : {}),
             },
             client,
           );
@@ -1652,17 +1657,35 @@ export function projectReviewWorkflow(row: DbWorkflow, decision?: ReviewDecision
 }
 
 /**
- * How long after a deadline the breach sweep still sends the overdue e-mail. A
- * breach found later than this (a backlog re-read under the 2026-11-25 SLA
- * rules, or a sweep outage) is recorded and escalated as usual — status,
- * SLA_BREACHED event with `notified: false`, escalation — without a burst of
- * overdue e-mails about deadlines that passed days ago. REVIEW_SLA_BREACH_NOTIFY_MAX_AGE_HOURS: default 24;
- * 0 notifies every breach whatever its age (the behaviour before 2026-11-25).
+ * OWNER DECISION 2026-11-25 — bounded, rollout-only suppression of HISTORICAL
+ * backlog overdue e-mails. Not a standing cutoff.
+ *
+ * When the presented SLA rules (round 2) first sweep a workspace, reviews whose
+ * deadline passed long ago under the old reading flip to BREACHED all at once.
+ * Those — and only those — are recorded and escalated as usual (status,
+ * SLA_BREACHED event with `notified: false`, escalation, audit) without an
+ * overdue e-mail. A breach is backlog when its missed deadline is EARLIER than
+ * the workspace's rollout instant and it is found within
+ * REVIEW_SLA_ROLLOUT_BACKLOG_WINDOW_MS of that instant. Every breach whose
+ * deadline passes after rollout is e-mailed normally, at any age, forever.
  */
-export function reviewSlaBreachNotifyMaxAgeMs(env: NodeJS.ProcessEnv = process.env): number {
-  const raw = env.REVIEW_SLA_BREACH_NOTIFY_MAX_AGE_HOURS?.trim();
-  if (raw === undefined || raw === "") return 24 * 3_600_000;
-  const hours = Number(raw);
-  if (!Number.isFinite(hours) || hours < 0) return 24 * 3_600_000;
-  return hours * 3_600_000;
+export const REVIEW_SLA_ROLLOUT_BACKLOG_WINDOW_MS = 7 * 86_400_000;
+
+export function isHistoricalBacklogBreach(input: { since: Date | null; now: Date; rolloutAt: Date }): boolean {
+  if (!input.since) return false;
+  if (input.now.getTime() - input.rolloutAt.getTime() > REVIEW_SLA_ROLLOUT_BACKLOG_WINDOW_MS) return false;
+  return input.since.getTime() < input.rolloutAt.getTime();
+}
+
+/**
+ * The workspace's rollout instant: written ONCE, by the first sweep that runs
+ * the presented rules for it (insert-if-absent, so concurrent sweeps and
+ * retries agree on one value), then only read. Stored in worker_sweep_cursors
+ * (key `sla_presented_rollout:<teamId>`, cursor_at).
+ */
+export async function presentedSlaRolloutAt(teamId: string, now: Date, client: PrismaClient): Promise<Date> {
+  const key = `sla_presented_rollout:${teamId}`;
+  await client.workerSweepCursor.createMany({ data: [{ key, cursorAt: now }], skipDuplicates: true });
+  const row = await client.workerSweepCursor.findUnique({ where: { key }, select: { cursorAt: true } });
+  return row?.cursorAt ?? now;
 }

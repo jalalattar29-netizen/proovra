@@ -10,8 +10,11 @@
  *   1. Started, undecided, first-review deadline missed: header, Overdue queue,
  *      counts and the sweep all read BREACHED; the overdue e-mail goes out.
  *   2. Only the escalation trigger passed: nobody reads it overdue; no breach.
- *   3. A breach detected long after its deadline is recorded and escalated
- *      (status + event notified:false) without the overdue e-mail.
+ *   3. Owner decision 2026-11-25: HISTORICAL backlog at rollout (deadline
+ *      before the workspace's first presented-rules sweep, found within the
+ *      bounded window) is recorded and escalated without the overdue e-mail;
+ *      every breach occurring after rollout is e-mailed, however late it is
+ *      found; concurrent sweeps record and notify once.
  *   4. A review decided before first_decided_at_utc existed is not breached.
  *   5. Resume moves a started-but-undecided review's first-review deadline.
  */
@@ -137,6 +140,14 @@ async function header(s: Space, workflowId: string): Promise<string> {
   expect(ws.status, ws.raw).toBe(200);
   return ws.body.projection.slaRollupState;
 }
+/** Records that the presented SLA rules first swept this workspace at `at`. */
+const rolledOutAt = (teamId: string, at: Date) =>
+  prisma.workerSweepCursor.upsert({
+    where: { key: `sla_presented_rollout:${teamId}` },
+    create: { key: `sla_presented_rollout:${teamId}`, cursorAt: at },
+    update: { cursorAt: at },
+  });
+
 const breachEvents = (workflowId: string) =>
   prisma.evidenceReviewWorkflowEvent.findMany({ where: { workflowId, eventType: "SLA_BREACHED" } });
 
@@ -156,6 +167,8 @@ describe("round 2 — the stored SLA status is the presented one", () => {
       },
     });
     expect(await header(s, w.workflowId)).toBe("BREACHED");
+    // A workspace the presented rules already swept before this deadline passed.
+    await rolledOutAt(s.teamId, ago(3 * HOUR));
 
     const swept = await ops.reconcileReviewSlas({ teamId: s.teamId }, prisma as never);
     expect(swept.breachedWorkflowIds).toEqual([w.workflowId]);
@@ -193,31 +206,82 @@ describe("round 2 — the stored SLA status is the presented one", () => {
     expect(overdue.rows).toHaveLength(0);
   });
 
-  it("a breach found days after its deadline is recorded and escalated, without the overdue e-mail", async () => {
-    const s = await teamSpace("stale");
-    const w = await workflow(s, {
+  const startedOverdue = (s: Space, missedAgoMs: number) =>
+    workflow(s, {
       status: "IN_REVIEW",
       assignedToUserId: s.owner.userId,
-      assignedAtUtc: ago(5 * 24 * HOUR),
+      assignedAtUtc: ago(missedAgoMs + 24 * HOUR),
       extra: {
-        lastReviewedAt: ago(5 * 24 * HOUR),
-        firstResponseDueAtUtc: ago(3 * 24 * HOUR),
+        lastReviewedAt: ago(missedAgoMs + 24 * HOUR),
+        firstResponseDueAtUtc: ago(missedAgoMs),
         completionDueAtUtc: ahead(40 * HOUR),
         slaStatus: "ON_TRACK",
       },
     });
+
+  it("historical backlog at rollout: recorded and escalated, not e-mailed; the rollout instant is written once", async () => {
+    const s = await teamSpace("backlog");
+    const w = await startedOverdue(s, 3 * 24 * HOUR);
     const swept = await ops.reconcileReviewSlas({ teamId: s.teamId }, prisma as never);
     expect(swept.flippedBreached).toBe(1);
     expect(swept.breachedStale).toBe(1);
-    expect(swept.breachedWorkflowIds).toEqual([w.workflowId]);
+    expect(swept.breachedWorkflowIds).toEqual([w.workflowId]); // escalated as usual
     expect((await prisma.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: w.workflowId } })).slaStatus).toBe("BREACHED");
     const [event] = await breachEvents(w.workflowId);
-    expect(event!.nextValue).toMatchObject({ slaStatus: "BREACHED", notified: false, reason: "detected_after_notification_window" });
+    expect(event!.nextValue).toMatchObject({ slaStatus: "BREACHED", notified: false, reason: "historical_backlog_at_rollout" });
 
-    // 0 restores the old behaviour: every breach is notified, whatever its age.
-    expect(ops.reviewSlaBreachNotifyMaxAgeMs({ REVIEW_SLA_BREACH_NOTIFY_MAX_AGE_HOURS: "0" })).toBe(0);
-    expect(ops.reviewSlaBreachNotifyMaxAgeMs({})).toBe(24 * HOUR);
-    expect(ops.reviewSlaBreachNotifyMaxAgeMs({ REVIEW_SLA_BREACH_NOTIFY_MAX_AGE_HOURS: "nonsense" })).toBe(24 * HOUR);
+    const marker = await prisma.workerSweepCursor.findUniqueOrThrow({ where: { key: `sla_presented_rollout:${s.teamId}` } });
+    const again = await ops.presentedSlaRolloutAt(s.teamId, new Date(), prisma as never);
+    expect(again.getTime()).toBe(marker.cursorAt!.getTime()); // never moved by a later sweep
+  });
+
+  it("a breach whose deadline passes after rollout is e-mailed, however late the sweep finds it", async () => {
+    const s = await teamSpace("after-rollout");
+    await rolledOutAt(s.teamId, ago(5 * 24 * HOUR));
+    const w = await startedOverdue(s, 3 * 24 * HOUR); // missed 2 days after rollout, found now
+    const swept = await ops.reconcileReviewSlas({ teamId: s.teamId }, prisma as never);
+    expect(swept.breachedStale).toBe(0);
+    const [event] = await breachEvents(w.workflowId);
+    expect((event!.nextValue as Record<string, unknown>).notified).toBeUndefined();
+  });
+
+  it("the suppression is bounded: once the rollout window has closed, even an old deadline is e-mailed", async () => {
+    const s = await teamSpace("window-closed");
+    await rolledOutAt(s.teamId, ago(8 * 24 * HOUR));
+    const w = await startedOverdue(s, 9 * 24 * HOUR); // missed before rollout, found after the window
+    const swept = await ops.reconcileReviewSlas({ teamId: s.teamId }, prisma as never);
+    expect(swept.breachedStale).toBe(0);
+    const [event] = await breachEvents(w.workflowId);
+    expect((event!.nextValue as Record<string, unknown>).notified).toBeUndefined();
+  });
+
+  it("concurrent sweeps and retries record one breach and notify once; the rollout instant is one value", async () => {
+    const s = await teamSpace("concurrent");
+    await rolledOutAt(s.teamId, ago(3 * 24 * HOUR));
+    const w = await startedOverdue(s, 2 * HOUR);
+    const [one, two] = await Promise.all([
+      ops.reconcileReviewSlas({ teamId: s.teamId }, prisma as never),
+      ops.reconcileReviewSlas({ teamId: s.teamId }, prisma as never),
+    ]);
+    const third = await ops.reconcileReviewSlas({ teamId: s.teamId }, prisma as never); // a retry
+    const winners = [...one.breachedWorkflowIds, ...two.breachedWorkflowIds, ...third.breachedWorkflowIds];
+    expect(winners).toEqual([w.workflowId]); // the overdue e-mail is sent only by the winner
+    expect(await breachEvents(w.workflowId)).toHaveLength(1);
+
+    const fresh = await teamSpace("concurrent-marker");
+    const instants = await Promise.all(
+      [0, 1, 2, 3].map((i) => ops.presentedSlaRolloutAt(fresh.teamId, new Date(Date.now() + i * 1000), prisma as never)),
+    );
+    expect(new Set(instants.map((d) => d.getTime())).size).toBe(1);
+  });
+
+  it("isHistoricalBacklogBreach: only a deadline before rollout, only inside the window", () => {
+    const rolloutAt = new Date("2026-11-25T08:00:00Z");
+    const at = (iso: string) => new Date(iso);
+    expect(ops.isHistoricalBacklogBreach({ since: at("2026-11-20T00:00:00Z"), now: at("2026-11-25T08:05:00Z"), rolloutAt })).toBe(true);
+    expect(ops.isHistoricalBacklogBreach({ since: at("2026-11-25T09:00:00Z"), now: at("2026-11-25T09:05:00Z"), rolloutAt })).toBe(false);
+    expect(ops.isHistoricalBacklogBreach({ since: at("2026-11-20T00:00:00Z"), now: at("2026-12-03T08:00:01Z"), rolloutAt })).toBe(false);
+    expect(ops.isHistoricalBacklogBreach({ since: null, now: at("2026-11-25T08:05:00Z"), rolloutAt })).toBe(false);
   });
 
   it("a review decided before first_decided_at_utc existed is not breached by the sweep", async () => {
