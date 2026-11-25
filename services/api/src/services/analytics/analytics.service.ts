@@ -33,6 +33,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { holdInReach, type ViewerReach } from "../access/record-reach.js";
+import { activeEscalationWhere, openReviewWhere } from "../reviewer-ops/review-count-definitions.js";
 import {
   workspaceCaseWhere,
   workspaceEvidenceWhere,
@@ -183,7 +184,7 @@ export async function getOperationsOverview(
     { metric: "evidenceCreated", source: "Evidence", filter: "workspace scope + createdAt>=window", windowed: true },
     { metric: "evidenceFinalized", source: "Evidence", filter: "workspace scope + status=REPORTED + createdAt>=window", windowed: true },
     { metric: "openCases", source: "Case", filter: "workspace scope + status=OPEN", windowed: false },
-    { metric: "openReviewWorkflows", source: "EvidenceReviewWorkflow", filter: "evidence in workspace scope + status not in (APPROVED_INTERNAL, CLOSED)", windowed: false },
+    { metric: "openReviewWorkflows", source: "EvidenceReviewWorkflow", filter: "evidence in workspace scope + open review (not approved, rejected or archived)", windowed: false },
     { metric: "openEscalations", source: "ReviewEscalation", filter: "teamId + status=OPEN", windowed: false },
     { metric: "reviewerCount", source: "TeamMember", filter: "teamId + role in (ADMIN, OWNER, MEMBER)", windowed: false },
   ];
@@ -236,7 +237,9 @@ export async function getOperationsOverview(
           // ownership authority for a workflow — the relation is `@unique` —
           // so reading through it is both correct and one authority fewer.
           evidence: scope,
-          status: { notIn: ["APPROVED_INTERNAL", "CLOSED"] as never[] },
+          // Round 2 (C H-3): THE open-review definition (rejected reviews are
+          // finished too; this used to count them as open).
+          ...openReviewWhere(),
         },
       }),
       "EvidenceReviewWorkflow",
@@ -244,7 +247,7 @@ export async function getOperationsOverview(
     ),
     safe(
       prisma.reviewEscalation.count({
-        where: { teamId: input.teamId, ...escalationInReach(input.reach), status: "OPEN" },
+        where: { teamId: input.teamId, ...escalationInReach(input.reach), ...activeEscalationWhere() },
       }),
       "ReviewEscalation",
       degraded,
@@ -309,21 +312,16 @@ export async function getReviewerAnalytics(
   const degraded: string[] = [];
 
   const sourceTrace: SourceTrace = [
-    { metric: "activeReviews", source: "EvidenceReviewWorkflow", filter: "teamId + status in (NOT_STARTED, IN_REVIEW, NEEDS_INFO, READY_FOR_EXTERNAL_REVIEW, ESCALATED)", windowed: false },
-    { metric: "assignedReviews", source: "EvidenceReviewWorkflow", filter: "teamId + assignedToUserId not null + status in active", windowed: false },
-    { metric: "overdueReviews", source: "EvidenceReviewWorkflow", filter: "teamId + dueAt < now + status in active", windowed: false },
-    { metric: "openEscalations", source: "ReviewEscalation", filter: "teamId + status=OPEN", windowed: false },
+    { metric: "activeReviews", source: "EvidenceReviewWorkflow", filter: "teamId + open review (not approved, rejected or archived)", windowed: false },
+    { metric: "assignedReviews", source: "EvidenceReviewWorkflow", filter: "teamId + open review + assignedToUserId not null", windowed: false },
+    { metric: "overdueReviews", source: "EvidenceReviewWorkflow", filter: "teamId + open review + stored SLA overdue", windowed: false },
+    { metric: "openEscalations", source: "ReviewEscalation", filter: "teamId + active escalation (open, acknowledged, reassigned)", windowed: false },
     { metric: "resolvedEscalationsInWindow", source: "ReviewEscalation", filter: "teamId + status=RESOLVED + updatedAt>=window", windowed: true },
   ];
 
-  const activeStatuses = [
-    "NOT_STARTED",
-    "IN_REVIEW",
-    "NEEDS_INFO",
-    "READY_FOR_EXTERNAL_REVIEW",
-    "ESCALATED",
-  ];
-  const now = new Date(input.nowMs ?? Date.now());
+  // Round 2 (C H-3): "active" is THE open-review definition. The old list left
+  // QUEUED, ASSIGNED, RESPONSE_RECEIVED and REOPENED reviews out.
+  const open = openReviewWhere();
   // B7B-F03: a workflow of a record closed to the reader is not counted.
   const workflowReach =
     input.reach && input.reach.hidden.evidenceIds.length > 0
@@ -342,7 +340,7 @@ export async function getReviewerAnalytics(
         where: {
           teamId: input.teamId,
           ...workflowReach,
-          status: { in: activeStatuses as never[] },
+          ...open,
         },
       }),
       "EvidenceReviewWorkflow",
@@ -353,7 +351,7 @@ export async function getReviewerAnalytics(
         where: {
           teamId: input.teamId,
           ...workflowReach,
-          status: { in: activeStatuses as never[] },
+          ...open,
           assignedToUserId: { not: null },
         },
       }),
@@ -365,8 +363,8 @@ export async function getReviewerAnalytics(
         where: {
           teamId: input.teamId,
           ...workflowReach,
-          status: { in: activeStatuses as never[] },
-          dueAt: { lt: now },
+          ...open,
+          slaStatus: { in: ["OVERDUE", "BREACHED"] },
         },
       }),
       "EvidenceReviewWorkflow",
@@ -374,7 +372,7 @@ export async function getReviewerAnalytics(
     ),
     safe(
       prisma.reviewEscalation.count({
-        where: { teamId: input.teamId, ...escalationInReach(input.reach), status: "OPEN" },
+        where: { teamId: input.teamId, ...escalationInReach(input.reach), ...activeEscalationWhere() },
       }),
       "ReviewEscalation",
       degraded,

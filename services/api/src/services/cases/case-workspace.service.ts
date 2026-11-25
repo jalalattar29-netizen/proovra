@@ -20,6 +20,7 @@
 
 import { prisma } from "../../db.js";
 import { caseVisibleToWhere, evidenceVisibleThroughCasesWhere } from "./case-visibility.js";
+import { activeEscalationWhere, openReviewWhere } from "../reviewer-ops/review-count-definitions.js";
 import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 import { deriveCanonicalArtifactAvailability } from "@proovra/shared";
 
@@ -267,7 +268,7 @@ export async function buildCasesSummary(input: {
         .findMany({
           where: {
             teamId: input.teamId,
-            status: { in: ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] },
+            ...openReviewWhere(),
             evidenceId: { not: undefined },
             // PRO-K1-06 — a workflow on a record closed to the reader moves no count.
             evidence: evidenceVisibleThroughCasesWhere(input.userId),
@@ -341,9 +342,7 @@ export async function buildCasesSummary(input: {
           prisma.evidenceReviewWorkflow.findMany({
             where: {
               teamId: input.teamId,
-              status: {
-                in: ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"],
-              },
+              ...openReviewWhere(),
               evidence: {
                 caseLinks: { some: { caseId: { in: caseIds } } },
                 // PRO-K1-06 — the per-case pending-review count excludes closed records.
@@ -491,12 +490,13 @@ export async function buildCaseWorkspace(input: {
       prisma.evidenceReviewWorkflow.count({
         where: {
           evidence: { caseLinks: { some: { caseId: input.caseId } } },
-          status: { in: ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] },
+          // Round 2 (C H-3): THE definitions — open reviews, active escalations.
+          ...openReviewWhere(),
         },
       }),
       prisma.reviewEscalation.count({
         where: {
-          status: "OPEN",
+          ...activeEscalationWhere(),
           workflow: {
             evidence: { caseLinks: { some: { caseId: input.caseId } } },
           },
