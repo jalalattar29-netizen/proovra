@@ -1,8 +1,21 @@
 name: ci
 
 on:
+  # CI dedupe (2026-11-25): push runs on main only, so every main commit (the
+  # release commit the image gate verifies) still gets its own push run, and a
+  # PR commit runs once (pull_request) instead of twice (branch push + PR).
   push:
+    branches: [main]
   pull_request:
+
+# PR runs share one group per pull request, and a newer commit cancels the
+# older run. Every other event (a push to main, a schedule, a dispatch) gets
+# its own group per event and commit and is never cancelled, so a PR can
+# never cancel or block a main run, and the nightly can never cancel the
+# push run of the same commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.event_name, github.sha) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-test:

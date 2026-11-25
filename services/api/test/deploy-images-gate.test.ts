@@ -108,12 +108,39 @@ describe("decidePublication", () => {
     for (const w of REQUIRED_WORKFLOWS) {
       const src = readFileSync(resolve(REPO, ".github/workflows", w.file), "utf8");
       expect(src).toMatch(new RegExp(`^name: ${w.name}$`, "m"));
-      expect(src).toMatch(/^on:\s*\n\s{2}push:\s*\n/m);
-      // AUD-50 (2026-10-20) — unfiltered: no paths / branches filter under push,
-      // or a main SHA could have no run and never publish.
-      const push = /^on:\s*\n\s{2}push:\s*\n((?:\s{4,}.*\n)*)/m.exec(src)?.[1] ?? "";
-      expect(push, `${w.file} filters its push trigger`).not.toMatch(/paths|branches/);
+      // AUD-50 (2026-10-20) — no paths filter under push, or a main SHA could
+      // have no run and never publish. CI dedupe (2026-11-25): the push trigger
+      // is main only (every main commit still runs; a feature branch runs on
+      // its pull_request instead of twice), and pull_request is kept.
+      const push = /^ {2}push:[ \t]*\n((?: {4,}.*\n)*)/m.exec(src)?.[1];
+      expect(push, `${w.file} has a push trigger`).toBeDefined();
+      expect(push, `${w.file} push trigger`).toBe("    branches: [main]\n");
+      expect(src, `${w.file} keeps its PR check`).toMatch(/^ {2}pull_request:[ \t]*$/m);
     }
+  });
+});
+
+// CI dedupe (2026-11-25) — PR and main runs never share a concurrency group:
+// a newer PR commit cancels its own PR's older run, and nothing else is ever
+// cancelled — not a main (release) run, not a schedule, not a dispatch.
+describe("CI concurrency keeps PR runs and main runs apart", () => {
+  const GROUP =
+    "group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.event_name, github.sha) }}";
+  const CANCEL = "cancel-in-progress: ${{ github.event_name == 'pull_request' }}";
+  const FILES = [
+    ...REQUIRED_WORKFLOWS.map((w) => w.file),
+    "forward-mutation.yml",
+    "native-build.yml",
+    "uc1-browser-acceptance.yml",
+  ];
+  it.each(FILES)("%s: per-PR cancelling group, per-event-and-commit group otherwise", (file) => {
+    const src = readFileSync(resolve(REPO, ".github/workflows", file), "utf8");
+    const block = /^concurrency:[ \t]*\n((?: {2}.*\n)+)/m.exec(src)?.[1] ?? "";
+    expect(block, file).toBe(`  ${GROUP}\n  ${CANCEL}\n`);
+    // Push runs on main only; a path filter, where a workflow has one, is unchanged.
+    expect(src, `${file} push is main only`).toMatch(/^ {2}push:[ \t]*\n {4}branches: \[main\]\n/m);
+    expect(src, `${file} has a pull_request trigger`).toMatch(/^ {2}pull_request:/m);
+    expect(src, `${file} has no job-level concurrency that could override`).not.toMatch(/^ {4,}concurrency:/m);
   });
 });
 

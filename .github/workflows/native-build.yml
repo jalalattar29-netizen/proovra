@@ -24,17 +24,23 @@ on:
       - "apps/mobile/**"
       - "packages/shared/src/**"
       - ".github/workflows/native-build.yml"
-  # Every branch, like ci / playwright-e2e / schema-reproducibility: a branch that
-  # changes native capture code proves it compiles before any PR or merge.
+  # Push runs on main only (CI dedupe 2026-11-25): a branch proves this on its
+  # pull_request run, with the same path filter.
   push:
+    branches: [main]
     paths:
       - "apps/mobile/**"
       - "packages/shared/src/**"
       - ".github/workflows/native-build.yml"
 
+# PR runs share one group per pull request, and a newer commit cancels the
+# older run. Every other event (a push to main, a schedule, a dispatch) gets
+# its own group per event and commit and is never cancelled, so a PR can
+# never cancel or block a main run, and the nightly can never cancel the
+# push run of the same commit.
 concurrency:
-  group: native-build-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.event_name, github.sha) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   ios-simulator-build:
