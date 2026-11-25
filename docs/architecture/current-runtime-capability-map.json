@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "0a2e3e98c1494063e4995a43225d318a0795de3cfaf144ba2b586f1fdd57ed99",
-  "consumerInventoryHash": "4f95d37db056f19dc710c9575dbe955889104793f2d2c1fde05fc4f1bf0f03e2",
+  "consumerInventoryHash": "53a5671c8869bef0e3955d5c1df12ec49585dbdd56454ae9c1e1ed35d0148557",
   "dispositionsHash": "5472155ec04ac336267e75a6cb759f22ce11dced779d3370d0c8d1f974d1651f",
   "totals": {
     "RegisteredRoutes": 1277,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 13012,
-      "UNRESOLVED_IDENTIFIER": 1872
+      "METHOD_ON_VALUE": 13016,
+      "UNRESOLVED_IDENTIFIER": 1873
     },
     "MutationFixpointRounds": 11,
     "MutationClosurePass": false,
@@ -6352,7 +6352,7 @@
       "method": "GET",
       "route": "/v1/reviewer-ops/workspace/:workflowId",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:303",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:306",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6376,7 +6376,7 @@
       "method": "GET",
       "route": "/v1/reviewer-ops/workspace/:workflowId/notes",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1194",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1198",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14188,7 +14188,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/escalations",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:553",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:556",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14296,7 +14296,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/:workflowId/archive",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:587",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:590",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14320,7 +14320,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/:workflowId/pause",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:352",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:355",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14332,7 +14332,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/:workflowId/reassign",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:529",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:532",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14368,7 +14368,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/:workflowId/response-received",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:352",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:355",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14380,7 +14380,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/:workflowId/resume",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:352",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:355",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14392,7 +14392,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/:workflowId/start",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:352",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:355",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14440,7 +14440,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/workspace/:workflowId/decisions",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:495",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:498",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14452,7 +14452,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/workspace/:workflowId/notes",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1223",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1227",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -34247,8 +34247,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/reviewer-ops.routes.ts#evidenceReviewerComment.create@2835",
-      "terminalLocation": "services/api/src/routes/reviewer-ops.routes.ts:2835",
+      "writerId": "services/api/src/routes/reviewer-ops.routes.ts#evidenceReviewerComment.create@2865",
+      "terminalLocation": "services/api/src/routes/reviewer-ops.routes.ts:2865",
       "file": "services/api/src/routes/reviewer-ops.routes.ts",
       "enclosingDeclaration": "reviewerOpsRoutes",
       "kind": "DATABASE",
@@ -34280,8 +34280,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/reviewer-ops.routes.ts#teamActivity.create@2867",
-      "terminalLocation": "services/api/src/routes/reviewer-ops.routes.ts:2867",
+      "writerId": "services/api/src/routes/reviewer-ops.routes.ts#teamActivity.create@2897",
+      "terminalLocation": "services/api/src/routes/reviewer-ops.routes.ts:2897",
       "file": "services/api/src/routes/reviewer-ops.routes.ts",
       "enclosingDeclaration": "reviewerOpsRoutes",
       "kind": "DATABASE",
@@ -98138,8 +98138,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/redaction/redaction-detection.service.ts#redactionDetection.create@450",
-      "terminalLocation": "services/api/src/services/redaction/redaction-detection.service.ts:450",
+      "writerId": "services/api/src/services/redaction/redaction-detection.service.ts#redactionDetection.create@472",
+      "terminalLocation": "services/api/src/services/redaction/redaction-detection.service.ts:472",
       "file": "services/api/src/services/redaction/redaction-detection.service.ts",
       "enclosingDeclaration": "runRedactionDetection",
       "kind": "DATABASE",
@@ -99562,8 +99562,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/review-operations/review-operations.service.ts#evidenceReviewWorkflow.create@197",
-      "terminalLocation": "services/api/src/services/review-operations/review-operations.service.ts:197",
+      "writerId": "services/api/src/services/review-operations/review-operations.service.ts#evidenceReviewWorkflow.create@199",
+      "terminalLocation": "services/api/src/services/review-operations/review-operations.service.ts:199",
       "file": "services/api/src/services/review-operations/review-operations.service.ts",
       "enclosingDeclaration": "ensureReviewWorkflow",
       "kind": "DATABASE",
@@ -99595,8 +99595,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/review-operations/review-operations.service.ts#evidenceReviewWorkflow.updateMany@382",
-      "terminalLocation": "services/api/src/services/review-operations/review-operations.service.ts:382",
+      "writerId": "services/api/src/services/review-operations/review-operations.service.ts#evidenceReviewWorkflow.updateMany@384",
+      "terminalLocation": "services/api/src/services/review-operations/review-operations.service.ts:384",
       "file": "services/api/src/services/review-operations/review-operations.service.ts",
       "enclosingDeclaration": "applyTransition",
       "kind": "DATABASE",
@@ -99641,8 +99641,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/review-operations/review-operations.service.ts#evidenceReviewWorkflowEvent.create@420",
-      "terminalLocation": "services/api/src/services/review-operations/review-operations.service.ts:420",
+      "writerId": "services/api/src/services/review-operations/review-operations.service.ts#evidenceReviewWorkflowEvent.create@422",
+      "terminalLocation": "services/api/src/services/review-operations/review-operations.service.ts:422",
       "file": "services/api/src/services/review-operations/review-operations.service.ts",
       "enclosingDeclaration": "recordEvent",
       "kind": "DATABASE",
@@ -99679,8 +99679,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/review-operations/review-operations.service.ts#evidenceReviewWorkflowEvent.create@500",
-      "terminalLocation": "services/api/src/services/review-operations/review-operations.service.ts:500",
+      "writerId": "services/api/src/services/review-operations/review-operations.service.ts#evidenceReviewWorkflowEvent.create@502",
+      "terminalLocation": "services/api/src/services/review-operations/review-operations.service.ts:502",
       "file": "services/api/src/services/review-operations/review-operations.service.ts",
       "enclosingDeclaration": "assignReviewer",
       "kind": "DATABASE",
@@ -99718,8 +99718,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/review-operations/review-operations.service.ts#evidenceReviewWorkflowEvent.create@613",
-      "terminalLocation": "services/api/src/services/review-operations/review-operations.service.ts:613",
+      "writerId": "services/api/src/services/review-operations/review-operations.service.ts#evidenceReviewWorkflowEvent.create@615",
+      "terminalLocation": "services/api/src/services/review-operations/review-operations.service.ts:615",
       "file": "services/api/src/services/review-operations/review-operations.service.ts",
       "enclosingDeclaration": "claimReviewerWorkflow",
       "kind": "DATABASE",
@@ -99751,8 +99751,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/review-operations/review-operations.service.ts#evidenceReviewWorkflowEvent.create@767",
-      "terminalLocation": "services/api/src/services/review-operations/review-operations.service.ts:767",
+      "writerId": "services/api/src/services/review-operations/review-operations.service.ts#evidenceReviewWorkflowEvent.create@812",
+      "terminalLocation": "services/api/src/services/review-operations/review-operations.service.ts:812",
       "file": "services/api/src/services/review-operations/review-operations.service.ts",
       "enclosingDeclaration": "recordLifecycleTransition",
       "kind": "DATABASE",
@@ -99788,8 +99788,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/review-operations/review-operations.service.ts#evidenceReviewWorkflowEvent.create@830",
-      "terminalLocation": "services/api/src/services/review-operations/review-operations.service.ts:830",
+      "writerId": "services/api/src/services/review-operations/review-operations.service.ts#evidenceReviewWorkflowEvent.create@875",
+      "terminalLocation": "services/api/src/services/review-operations/review-operations.service.ts:875",
       "file": "services/api/src/services/review-operations/review-operations.service.ts",
       "enclosingDeclaration": "recordLifecycleTransition",
       "kind": "DATABASE",
@@ -100286,8 +100286,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@1074",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:1074",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@1113",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:1113",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "reconcileWorkflowProjection",
       "kind": "DATABASE",
@@ -100321,8 +100321,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@348",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:348",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@384",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:384",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "recordReviewDecision",
       "kind": "DATABASE",
@@ -100361,8 +100361,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@391",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:391",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@427",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:427",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "recordReviewDecision",
       "kind": "DATABASE",
@@ -100401,8 +100401,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@669",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:669",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@708",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:708",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "recordReviewDecision",
       "kind": "DATABASE",
@@ -100441,8 +100441,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflowEvent.create@1090",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:1090",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflowEvent.create@1129",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:1129",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "reconcileWorkflowProjection",
       "kind": "DATABASE",
@@ -100476,8 +100476,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflowEvent.create@700",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:700",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflowEvent.create@739",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:739",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "recordReviewDecision",
       "kind": "DATABASE",
@@ -100516,8 +100516,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#teamActivity.create@735",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:735",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#teamActivity.create@774",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:774",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "recordReviewDecision",
       "kind": "DATABASE",
@@ -100556,8 +100556,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#workflowReviewDecision.create@605",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:605",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#workflowReviewDecision.create@644",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:644",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "recordReviewDecision",
       "kind": "DATABASE",
@@ -100830,8 +100830,8 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1332",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1332",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1337",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1337",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "startReview",
       "kind": "DATABASE",
@@ -100863,8 +100863,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1397",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1397",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1402",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1402",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "pauseReview",
       "kind": "DATABASE",
@@ -100897,8 +100897,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1501",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1501",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1511",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1511",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "resumeReview",
       "kind": "DATABASE",
@@ -100930,8 +100930,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1664",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1664",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1674",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1674",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "recordResponseReceived",
       "kind": "DATABASE",
@@ -100963,8 +100963,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1344",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1344",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1349",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1349",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "startReview",
       "kind": "DATABASE",
@@ -100996,8 +100996,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1410",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1410",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1415",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1415",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "pauseReview",
       "kind": "DATABASE",
@@ -101030,8 +101030,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1510",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1510",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1520",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1520",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "resumeReview",
       "kind": "DATABASE",
@@ -101063,8 +101063,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1673",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1673",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1683",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1683",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "recordResponseReceived",
       "kind": "DATABASE",
@@ -118325,7 +118325,7 @@
       "method": "DELETE",
       "path": "/v1/reviewer-ops/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2160",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2190",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -129272,9 +129272,9 @@
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
-        "services/api/src/services/dashboard/command-center-counters.ts: evidence.count — no tenant or self predicate",
-        "services/api/src/services/dashboard/command-center-counters.ts: evidence.count — no tenant or self predicate",
-        "services/api/src/services/dashboard/command-center-counters.ts: evidence.findMany — no tenant or self predicate",
+        "services/api/src/services/dashboard/command-center-counters.ts: evidenceReviewWorkflow.count — no tenant or self predicate",
+        "services/api/src/services/dashboard/command-center-counters.ts: evidenceReviewWorkflow.groupBy — no tenant or self predicate",
+        "services/api/src/services/dashboard/command-center-counters.ts: evidenceReviewWorkflow.count — no tenant or self predicate",
         "services/api/src/services/dashboard/command-center-counters.ts: evidence.count — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
@@ -150800,7 +150800,7 @@
       "method": "GET",
       "path": "/v1/review-operations/queue",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:208",
+      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:209",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/collaboration.routes.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -150867,7 +150867,7 @@
       "method": "GET",
       "path": "/v1/review-operations/queue-counts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:249",
+      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:250",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/collaboration.routes.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -151251,7 +151251,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/analytics/escalations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2186",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2216",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -151313,7 +151313,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/analytics/reviewers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2207",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2237",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -151386,7 +151386,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/assignable-reviewers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1204",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1209",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -151537,7 +151537,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/dashboard",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:946",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:951",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -151608,7 +151608,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/decisions/summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:3299",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:3343",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -151681,7 +151681,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/escalations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1679",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1700",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -151753,7 +151753,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/qc/pending-count",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1302",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1307",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -151817,7 +151817,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/queue",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:809",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:811",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -151836,7 +151836,7 @@
         },
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 426,
+          "line": 429,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -151854,7 +151854,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/review/workspace/page.tsx:55 (FocusModeRedirect, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:426 (ReviewWorkspacePageInner, WEB); apps/web/components/reviewer-experience/ReviewInbox.tsx:204 (ReviewInbox, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/review/workspace/page.tsx:55 (FocusModeRedirect, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:429 (ReviewWorkspacePageInner, WEB); apps/web/components/reviewer-experience/ReviewInbox.tsx:204 (ReviewInbox, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -151910,7 +151910,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/reminders",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1487",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1492",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -151974,7 +151974,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/runtime-probe",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:965",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:970",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -152035,7 +152035,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2097",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2127",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -152097,7 +152097,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/sla-policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2237",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2267",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -152169,7 +152169,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/workload",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1144",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1149",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -152223,7 +152223,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/workspace/:workflowId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1010",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1015",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -152234,7 +152234,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 303,
+          "line": 306,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -152252,7 +152252,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:303 (ReviewWorkspacePageInner, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:335 (fetchReviewerOpsWorkspace, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:306 (ReviewWorkspacePageInner, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:335 (fetchReviewerOpsWorkspace, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -152307,7 +152307,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/workspace/:workflowId/decisions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2977",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:3007",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -152391,7 +152391,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/workspace/:workflowId/notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2701",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2731",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -152402,7 +152402,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 1194,
+          "line": 1198,
           "caller": "ReviewerNotesPanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -152412,7 +152412,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1194 (ReviewerNotesPanel, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1198 (ReviewerNotesPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -154853,6 +154853,14 @@
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
+        },
+        {
+          "file": "apps/web/lib/ai/copilot-availability.ts",
+          "line": 22,
+          "caller": "useCopilotAvailability",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
         }
       ],
       "nonProductConsumers": [],
@@ -156002,6 +156010,14 @@
           "file": "apps/web/app/(app)/settings/_sections/AiSection.tsx",
           "line": 224,
           "caller": "AiSection",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        },
+        {
+          "file": "apps/web/lib/ai/copilot-availability.ts",
+          "line": 22,
+          "caller": "useCopilotAvailability",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -196983,10 +196999,10 @@
         "services/api/src/services/ops/operational-seed.service.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
         "packages/shared-runtime/src/ops/sla-policy-resolution.ts: evidenceWorkflowTemplate.findUnique — no tenant or self predicate",
         "services/api/src/services/reviewer-ops/review-sla-stamp.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/review-sla-read-facts.ts: workflowReviewDecision.groupBy — no tenant or self predicate",
         "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
         "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUniqueOrThrow — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUniqueOrThrow — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate"
+        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUniqueOrThrow — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -202211,7 +202227,8 @@
         "team",
         "teamMember",
         "user",
-        "videoTrack"
+        "videoTrack",
+        "workspaceAiPolicy"
       ],
       "modelsWritten": [
         "custodyEvent",
@@ -203320,7 +203337,7 @@
       "method": "POST",
       "path": "/v1/review-operations/bulk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:466",
+      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:470",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireAssignerMember -> services/api/src/routes/review-operations.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -203442,7 +203459,7 @@
       "method": "POST",
       "path": "/v1/review-operations/evidence/:evidenceId/claim",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:267",
+      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:268",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/collaboration.routes.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -203550,7 +203567,7 @@
       "method": "POST",
       "path": "/v1/review-operations/evidence/:evidenceId/decision",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:302",
+      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:303",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/collaboration.routes.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -203587,7 +203604,7 @@
         },
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 621,
+          "line": 624,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -203671,21 +203688,20 @@
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared-runtime/src/standing-creator-authority.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
-        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate"
+        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
+        "services/api/src/services/review-operations/review-notifications.service.ts: notificationDelivery.findMany — no tenant or self predicate",
+        "services/api/src/services/review-operations/review-notifications.service.ts: notificationDelivery.findMany — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/escalation-engine.service.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/review-decision.service.ts: evidence.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
-        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create",
         "services/api/src/services/reviewer-ops/review-decision.service.ts: workflowReviewDecision.create",
         "services/api/src/services/reviewer-ops/review-decision.service.ts: teamActivity.create",
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
@@ -203694,7 +203710,8 @@
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
         "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.create",
         "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.create",
-        "packages/shared-runtime/src/reports/report-generation-request.ts: reportGenerationRequest.create"
+        "packages/shared-runtime/src/reports/report-generation-request.ts: reportGenerationRequest.create",
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
       ],
       "tenantUnboundInsertSites": []
     },
@@ -203703,7 +203720,7 @@
       "method": "POST",
       "path": "/v1/review-operations/reconcile-slas",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:540",
+      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:544",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)"
@@ -203715,7 +203732,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "CRON_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/review-operations.routes.ts:540 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
+      "dispositionEvidence": "services/api/src/routes/review-operations.routes.ts:544 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
       "dispositionReason": "gated by the canonical constant-time cron/internal shared secret, so only a scheduler or operator holding it can call it",
       "replacement": null,
       "result": "DISPOSED_CRON_CONSUMER",
@@ -203730,6 +203747,7 @@
       "modelsRead": [
         "enterpriseContract",
         "evidenceReviewWorkflow",
+        "evidenceReviewWorkflowEvent",
         "evidenceWorkflowTemplate",
         "organization",
         "organizationNotificationPolicy",
@@ -203738,6 +203756,7 @@
         "user",
         "webhookEndpoint",
         "workerSweepCursor",
+        "workflowReviewDecision",
         "workspaceGovernancePolicy",
         "workspaceNotificationPreference"
       ],
@@ -203752,6 +203771,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/workspace-usage.service.ts: teamMember.count paired with a lifecycle-status predicate (services/api/src/services/workspace-usage.service.ts)",
         "packages/shared-runtime/src/ops/sla-policy-resolution.ts: evidenceWorkflowTemplate.findUnique — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/review-sla-read-facts.ts: workflowReviewDecision.groupBy — no tenant or self predicate",
         "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
         "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUniqueOrThrow — no tenant or self predicate",
         "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUniqueOrThrow — no tenant or self predicate",
@@ -204099,7 +204119,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/escalations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1722",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1743",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -204110,7 +204130,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 553,
+          "line": 556,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -204128,7 +204148,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:553 (ReviewWorkspacePageInner, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:924 (createEscalation, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:556 (ReviewWorkspacePageInner, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:924 (createEscalation, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -204207,7 +204227,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/escalations/:id/acknowledge",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1782",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1803",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -204279,7 +204299,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/escalations/:id/reassign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1805",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1826",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -204356,7 +204376,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/escalations/:id/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1835",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1856",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -204453,7 +204473,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/escalations/:id/suppress",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1888",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1909",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -204550,7 +204570,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/maintenance/second-review-reevaluation",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2350",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2380",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "handler body -> handler: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)"
@@ -204562,7 +204582,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "CRON_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2350 — handler body -> handler: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)",
+      "dispositionEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2380 — handler body -> handler: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)",
       "dispositionReason": "gated by the canonical constant-time cron/internal shared secret, so only a scheduler or operator holding it can call it",
       "replacement": null,
       "result": "DISPOSED_CRON_CONSUMER",
@@ -204612,7 +204632,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/queue-intelligence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:920",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:925",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -204680,7 +204700,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2380",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2410",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "handler body -> handler: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)"
@@ -204700,7 +204720,7 @@
       ],
       "primaryDisposition": "WORKER_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2380 — worker caller(s): services/worker/src/reviewer-ops/reviewer-reconciliation.worker.ts:129 (runReviewerReconciliation)",
+      "dispositionEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2410 — worker caller(s): services/worker/src/reviewer-ops/reviewer-reconciliation.worker.ts:129 (runReviewerReconciliation)",
       "dispositionReason": "called by the worker service",
       "replacement": null,
       "result": "DISPOSED_WORKER_CONSUMER",
@@ -204757,14 +204777,14 @@
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared-runtime/src/ops/sla-policy-resolution.ts: evidenceWorkflowTemplate.findUnique — no tenant or self predicate",
         "services/api/src/services/reviewer-ops/review-sla-stamp.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/review-sla-read-facts.ts: workflowReviewDecision.groupBy — no tenant or self predicate",
         "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
         "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUniqueOrThrow — no tenant or self predicate",
         "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUniqueOrThrow — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/reviewer-ops/escalation-engine.service.ts: evidenceReviewWorkflow.update — no tenant or self predicate",
-        "services/api/src/services/reviewer-ops/escalation-engine.service.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate"
+        "services/api/src/services/reviewer-ops/escalation-engine.service.ts: evidenceReviewWorkflow.update — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -204785,7 +204805,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/approve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1598",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1603",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -204839,7 +204859,6 @@
         "organization",
         "organizationMembership",
         "organizationSecurityPolicy",
-        "qcSample",
         "report",
         "reportGenerationRequest",
         "reviewEscalation",
@@ -204853,7 +204872,8 @@
         "trustedDevice",
         "user",
         "workflowReviewDecision",
-        "workspaceGovernancePolicy"
+        "workspaceGovernancePolicy",
+        "workspaceNotificationPreference"
       ],
       "modelsWritten": [
         "evidence",
@@ -204863,7 +204883,6 @@
         "notificationDelivery",
         "operationalIncident",
         "operationalIncidentEvent",
-        "qcSample",
         "reportGenerationRequest",
         "reviewEscalation",
         "revokedSession",
@@ -204876,21 +204895,20 @@
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
-        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate"
+        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
+        "services/api/src/services/review-operations/review-notifications.service.ts: notificationDelivery.findMany — no tenant or self predicate",
+        "services/api/src/services/review-operations/review-notifications.service.ts: notificationDelivery.findMany — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/escalation-engine.service.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/review-decision.service.ts: evidence.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
-        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create",
         "services/api/src/services/reviewer-ops/review-decision.service.ts: workflowReviewDecision.create",
         "services/api/src/services/reviewer-ops/review-decision.service.ts: teamActivity.create",
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
@@ -204898,7 +204916,7 @@
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
         "packages/shared-runtime/src/reports/report-generation-request.ts: reportGenerationRequest.create",
-        "services/api/src/services/reviewer-workspace/qc-sample.service.ts: qcSample.create"
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
       ],
       "tenantUnboundInsertSites": []
     },
@@ -204907,7 +204925,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2029",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2050",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -204918,7 +204936,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 587,
+          "line": 590,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -204928,7 +204946,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:587 (ReviewWorkspacePageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:590 (ReviewWorkspacePageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -204994,15 +205012,15 @@
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
+        "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
+        "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate",
         "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUniqueOrThrow — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUniqueOrThrow — no tenant or self predicate"
+        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -205024,7 +205042,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1347",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1352",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -205123,7 +205141,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/pause",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1455",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1460",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -205134,7 +205152,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 352,
+          "line": 355,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -205160,7 +205178,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:352 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:355 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -205209,7 +205227,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/reassign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1396",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1401",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -205220,7 +205238,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 529,
+          "line": 532,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -205230,7 +205248,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:529 (ReviewWorkspacePageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:532 (ReviewWorkspacePageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -205308,7 +205326,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/reject",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1640",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1653",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -205398,28 +205416,28 @@
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
-        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate"
+        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
+        "services/api/src/services/review-operations/review-notifications.service.ts: notificationDelivery.findMany — no tenant or self predicate",
+        "services/api/src/services/review-operations/review-notifications.service.ts: notificationDelivery.findMany — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/escalation-engine.service.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/review-decision.service.ts: evidence.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
-        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create",
         "services/api/src/services/reviewer-ops/review-decision.service.ts: workflowReviewDecision.create",
         "services/api/src/services/reviewer-ops/review-decision.service.ts: teamActivity.create",
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
-        "packages/shared-runtime/src/reports/report-generation-request.ts: reportGenerationRequest.create"
+        "packages/shared-runtime/src/reports/report-generation-request.ts: reportGenerationRequest.create",
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
       ],
       "tenantUnboundInsertSites": []
     },
@@ -205428,7 +205446,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/request-info",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1539",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1544",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -205534,7 +205552,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/response-received",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1572",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1577",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -205545,7 +205563,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 352,
+          "line": 355,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -205571,7 +205589,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:352 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:355 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -205636,7 +205654,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/resume",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1510",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1515",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -205647,7 +205665,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 352,
+          "line": 355,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -205673,7 +205691,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:352 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:355 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -205722,7 +205740,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/start",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1431",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1436",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -205733,7 +205751,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 352,
+          "line": 355,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -205759,7 +205777,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:352 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:355 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -205808,7 +205826,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/bulk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1949",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1970",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -205927,7 +205945,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2118",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2148",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -205992,7 +206010,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/sla-policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2255",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2285",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -206078,7 +206096,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/workspace/:workflowId/decisions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:3168",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:3198",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -206089,7 +206107,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 495,
+          "line": 498,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -206099,7 +206117,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:495 (ReviewWorkspacePageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:498 (ReviewWorkspacePageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -206128,12 +206146,12 @@
         "mfaFactor",
         "notificationDelivery",
         "operationalIncident",
-        "operationalIncidentEvent",
         "organization",
         "organizationMembership",
         "organizationNotificationPolicy",
         "organizationSecurityPolicy",
         "report",
+        "reportGenerationRequest",
         "reviewEscalation",
         "revokedSession",
         "riskSignal",
@@ -206158,6 +206176,7 @@
         "notificationDelivery",
         "operationalIncident",
         "operationalIncidentEvent",
+        "reportGenerationRequest",
         "reviewEscalation",
         "revokedSession",
         "stepUpChallenge",
@@ -206169,21 +206188,20 @@
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
-        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate"
+        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
+        "services/api/src/services/review-operations/review-notifications.service.ts: notificationDelivery.findMany — no tenant or self predicate",
+        "services/api/src/services/review-operations/review-notifications.service.ts: notificationDelivery.findMany — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/escalation-engine.service.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/review-decision.service.ts: evidence.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
-        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create",
         "services/api/src/services/reviewer-ops/review-decision.service.ts: workflowReviewDecision.create",
         "services/api/src/services/reviewer-ops/review-decision.service.ts: teamActivity.create",
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
@@ -206191,7 +206209,9 @@
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
         "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.create",
-        "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.create"
+        "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.create",
+        "packages/shared-runtime/src/reports/report-generation-request.ts: reportGenerationRequest.create",
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
       ],
       "tenantUnboundInsertSites": []
     },
@@ -206200,7 +206220,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/workspace/:workflowId/notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2795",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2825",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -206211,7 +206231,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 1223,
+          "line": 1227,
           "caller": "ReviewerNotesPanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -206221,7 +206241,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1223 (ReviewerNotesPanel, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1227 (ReviewerNotesPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
