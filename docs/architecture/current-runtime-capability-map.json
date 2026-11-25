@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 14
     },
-    "TerminalWriters": 1730,
-    "ReachableSensitiveMutations": 1694,
-    "ClassifiedSensitiveMutations": 1694,
+    "TerminalWriters": 1731,
+    "ReachableSensitiveMutations": 1695,
+    "ClassifiedSensitiveMutations": 1695,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 36,
@@ -82,7 +82,7 @@
       "EXTERNAL_REVIEW_INTAKE_SHARE": 107,
       "BILLING_SUBSCRIPTION_SEAT": 121,
       "SSO_OIDC_SCIM_PROVISIONING": 66,
-      "AUTOMATION_QUEUE_WEBHOOK": 133,
+      "AUTOMATION_QUEUE_WEBHOOK": 134,
       "REPORT_EXPORT_REDACTION": 86,
       "API_KEY_SECRET_OPERATIONAL_ADMIN": 135
     },
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1501,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1502,
       "JOB_ATTRIBUTED_REACHABLE": 181,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 10,
@@ -125,7 +125,7 @@
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
       "METHOD_ON_VALUE": 13017,
-      "UNRESOLVED_IDENTIFIER": 1873
+      "UNRESOLVED_IDENTIFIER": 1872
     },
     "MutationFixpointRounds": 11,
     "MutationClosurePass": false,
@@ -99825,6 +99825,43 @@
       }
     },
     {
+      "writerId": "services/api/src/services/review-operations/review-operations.service.ts#workerSweepCursor.createMany@1688",
+      "terminalLocation": "services/api/src/services/review-operations/review-operations.service.ts:1688",
+      "file": "services/api/src/services/review-operations/review-operations.service.ts",
+      "enclosingDeclaration": "presentedSlaRolloutAt",
+      "kind": "DATABASE",
+      "target": "workerSweepCursor",
+      "mutationKind": "createMany",
+      "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/ops/seed/reviewer-ops",
+        "POST /v1/review-operations/reconcile-slas",
+        "POST /v1/reviewer-ops/reconcile"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/ops-seed.routes.ts",
+        "MODULE services/api/src/routes/review-operations.routes.ts",
+        "MODULE services/api/src/routes/reviewer-ops.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
       "writerId": "services/api/src/services/reviewer-ops/bulk-triage.service.ts#evidenceReviewWorkflow.update@418",
       "terminalLocation": "services/api/src/services/reviewer-ops/bulk-triage.service.ts:418",
       "file": "services/api/src/services/reviewer-ops/bulk-triage.service.ts",
@@ -100830,8 +100867,8 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1362",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1362",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1361",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1361",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "startReview",
       "kind": "DATABASE",
@@ -100863,8 +100900,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1427",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1427",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1426",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1426",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "pauseReview",
       "kind": "DATABASE",
@@ -100897,8 +100934,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1536",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1536",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1535",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1535",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "resumeReview",
       "kind": "DATABASE",
@@ -100930,8 +100967,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1699",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1699",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflow.updateMany@1698",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1698",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "recordResponseReceived",
       "kind": "DATABASE",
@@ -100963,8 +101000,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1374",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1374",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1373",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1373",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "startReview",
       "kind": "DATABASE",
@@ -100996,8 +101033,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1440",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1440",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1439",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1439",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "pauseReview",
       "kind": "DATABASE",
@@ -101030,8 +101067,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1545",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1545",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1544",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1544",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "resumeReview",
       "kind": "DATABASE",
@@ -101063,8 +101100,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1708",
-      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1708",
+      "writerId": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts#evidenceReviewWorkflowEvent.create@1707",
+      "terminalLocation": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts:1707",
       "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       "enclosingDeclaration": "recordResponseReceived",
       "kind": "DATABASE",
@@ -101269,8 +101306,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/workload.service.ts#reviewerWorkloadSnapshot.create@159",
-      "terminalLocation": "services/api/src/services/reviewer-ops/workload.service.ts:159",
+      "writerId": "services/api/src/services/reviewer-ops/workload.service.ts#reviewerWorkloadSnapshot.create@162",
+      "terminalLocation": "services/api/src/services/reviewer-ops/workload.service.ts:162",
       "file": "services/api/src/services/reviewer-ops/workload.service.ts",
       "enclosingDeclaration": "snapshotWorkspaceWorkload",
       "kind": "DATABASE",
