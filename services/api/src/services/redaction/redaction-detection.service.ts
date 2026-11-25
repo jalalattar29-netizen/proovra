@@ -52,6 +52,7 @@ import {
 import { analyzeDocumentLayout as azureAnalyzeDocumentLayout } from "./providers/azure-document-intelligence-client.js";
 import { transcribeAndScan as deepgramTranscribeAndScan } from "./providers/deepgram-client.js";
 import { detectionKindEnabled, isPolicyAllowed } from "./redaction-policy.service.js";
+import { resolveWorkspaceAiPolicy } from "../ai/workspace-ai-policy.service.js";
 import { recordProviderUsage } from "../intelligence/provider-usage.service.js";
 import { releaseBudgetReservation, reserveBudgetGate } from "../intelligence/provider-budget.service.js";
 
@@ -295,6 +296,13 @@ export async function runRedactionDetection(
     projectId: version.projectId,
   });
 
+  // Round 2 (2026-11-25) — the WORKSPACE AI POLICY binds redaction detection
+  // too. The external providers receive the record's raw bytes (images, the
+  // document, the audio); before this, only the redaction policy was asked, so
+  // a workspace that turned AI off, or never allowed raw content, OCR or
+  // transcription, still sent its evidence to AWS, Azure and Deepgram.
+  const aiBlock = await workspaceAiPolicyBlockFor(input.teamId);
+
   const probes: RedactionProviderProbe[] = [];
   let inserted = 0;
   const kindEnabledCache = new Map<string, boolean>();
@@ -305,6 +313,20 @@ export async function runRedactionDetection(
   let aggregatedInlineText = input.inlineText ?? "";
 
   for (const provider of input.providers) {
+    const aiDenied = aiBlock(provider);
+    if (aiDenied) {
+      probes.push({ provider, state: "DISABLED_BY_POLICY", reason: `workspace_ai_policy_block:${aiDenied}` });
+      await emitRedactionActivity({
+        prisma,
+        teamId: input.teamId,
+        projectId: version.projectId,
+        versionId: input.versionId,
+        code: "DETECTION_RUN_FAILED",
+        actorUserId: input.actorUserId,
+        payload: { provider, state: "DISABLED_BY_POLICY", reason: "workspace_ai_policy" },
+      });
+      continue;
+    }
     if (!policyAllowed.has(provider)) {
       probes.push({
         provider,
@@ -648,3 +670,40 @@ export type {
   RedactionMethod,
   RedactionRegionKind,
 };
+
+/**
+ * The workspace AI policy's answer for each redaction provider, read once per
+ * run. Local providers (regex PII, manual, policy rules) send nothing out and
+ * are never blocked here. External providers get the raw bytes, so they need the
+ * master switch and raw-content processing, plus OCR (Rekognition text, Azure
+ * document) or transcription (Deepgram) — the same switches media intelligence
+ * applies (runProviderOperation). A policy that cannot be read blocks every
+ * external provider: unknown is not allowed.
+ */
+const EXTERNAL_REDACTION_PROVIDER_NEEDS: Readonly<Partial<Record<RedactionDetectionProvider, "faces" | "ocr" | "transcription">>> = {
+  AWS_REKOGNITION_FACES: "faces",
+  AWS_REKOGNITION_TEXT: "ocr",
+  AZURE_DOCUMENT_INTELLIGENCE: "ocr",
+  DEEPGRAM_TRANSCRIPT: "transcription",
+};
+
+export async function workspaceAiPolicyBlockFor(
+  teamId: string,
+): Promise<(provider: RedactionDetectionProvider) => string | null> {
+  let policy: Awaited<ReturnType<typeof resolveWorkspaceAiPolicy>> | null = null;
+  try {
+    policy = await resolveWorkspaceAiPolicy(teamId);
+  } catch {
+    policy = null;
+  }
+  return (provider) => {
+    const needs = EXTERNAL_REDACTION_PROVIDER_NEEDS[provider];
+    if (!needs) return null;
+    if (!policy) return "WORKSPACE_AI_POLICY_UNAVAILABLE";
+    if (!policy.aiEnabled) return "WORKSPACE_DISABLED";
+    if (!policy.rawContentProcessingAllowed) return "RAW_CONTENT_NOT_ALLOWED";
+    if (needs === "ocr" && !policy.ocrAllowed) return "OCR_NOT_ALLOWED";
+    if (needs === "transcription" && !policy.transcriptionAllowed) return "TRANSCRIPTION_NOT_ALLOWED";
+    return null;
+  };
+}

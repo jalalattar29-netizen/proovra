@@ -17,6 +17,7 @@
  * sides of every time boundary, and rows belonging to another workspace.
  */
 
+import { REVIEW_FINISHED_DB_STATUSES } from "@proovra/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
@@ -175,6 +176,16 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
           workspaceType: "TEAM",
           status: r.status as never,
           dueAt: r.dueAt,
+          // Round 2 (C H-3): the counters read the stored SLA status (the
+          // presented reading) and the completion time, as the Inbox does.
+          slaStatus: (r.dueAt === null || r.status === "CLOSED"
+            ? null
+            : r.dueAt.getTime() < now
+              ? "BREACHED"
+              : r.dueAt.getTime() < now + DAY
+                ? "DUE_SOON"
+                : "ON_TRACK") as never,
+          completedAtUtc: r.status === "CLOSED" ? r.updatedAt : null,
         },
         select: { id: true },
       });
@@ -826,85 +837,49 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
     expect(ops.escalations(["ACKNOWLEDGED"])).toBe(0);
   });
 
-  it("agrees with the per-engine counts it replaced, figure for figure", async () => {
+  it("round 2 (C H-3): the review figures are THE count definitions, figure for figure", async () => {
     const window = reviewQueueWindow();
-    const { now, dueSoonCutoff, last7dStart, prev7dStart } = window;
-    const OPEN = ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] as const;
-
+    const { now, last7dStart, prev7dStart } = window;
     /*
-     * THE ORIGINALS, verbatim. Each of these is a predicate that was written
-     * inside an engine before the consolidation; they are reproduced here
-     * rather than referenced so that deleting one from the service cannot
-     * quietly delete the thing this suite compares against.
+     * The definitions, written out independently (review-count-definitions.ts):
+     * open = not approved / rejected / archived; overdue and due soon = the
+     * stored SLA status the Inbox views read; completed = completedAtUtc;
+     * escalations = active (open, acknowledged, reassigned).
      */
-    const [
-      queueDepth,
-      overdue,
-      dueSoon,
-      unassigned,
-      closedLast7d,
-      closedPrev7d,
-      assigned,
-      inReview,
-      pendingSignoff,
-      openEscalations,
-    ] = await Promise.all([
-      prisma.evidenceReviewWorkflow.count({
-        where: { teamId, status: { in: [...OPEN] as never } },
-      }),
-      prisma.evidenceReviewWorkflow.count({
-        where: { teamId, status: { in: [...OPEN] as never }, dueAt: { lt: now } },
-      }),
-      prisma.evidenceReviewWorkflow.count({
-        where: {
-          teamId,
-          status: { in: [...OPEN] as never },
-          dueAt: { gte: now, lt: dueSoonCutoff },
-        },
-      }),
-      prisma.evidenceReviewWorkflow.count({ where: { teamId, status: "QUEUED" } }),
-      prisma.evidenceReviewWorkflow.count({
-        where: { teamId, status: "CLOSED", updatedAt: { gte: last7dStart } },
-      }),
-      prisma.evidenceReviewWorkflow.count({
-        where: {
-          teamId,
-          status: "CLOSED",
-          updatedAt: { gte: prev7dStart, lt: last7dStart },
-        },
-      }),
-      prisma.evidenceReviewWorkflow.count({ where: { teamId, status: "ASSIGNED" } }),
-      prisma.evidenceReviewWorkflow.count({ where: { teamId, status: "IN_REVIEW" } }),
-      prisma.evidenceReviewWorkflow.count({
-        where: { teamId, status: { in: ["IN_REVIEW", "NEEDS_INFO"] as never } },
-      }),
-      prisma.reviewEscalation.count({ where: { teamId, status: "OPEN" } }),
-    ]);
+    const open = { teamId, status: { notIn: [...REVIEW_FINISHED_DB_STATUSES] as never } };
+    const [openReviews, unassigned, overdue, dueSoon, completedLast7d, completedPrev7d, activeEscalations] =
+      await Promise.all([
+        prisma.evidenceReviewWorkflow.count({ where: open }),
+        prisma.evidenceReviewWorkflow.count({ where: { ...open, assignedToUserId: null } }),
+        prisma.evidenceReviewWorkflow.count({ where: { ...open, slaStatus: { in: ["OVERDUE", "BREACHED"] as never } } }),
+        prisma.evidenceReviewWorkflow.count({ where: { ...open, slaStatus: "DUE_SOON" as never } }),
+        prisma.evidenceReviewWorkflow.count({ where: { teamId, completedAtUtc: { gte: last7dStart, lte: now } } }),
+        prisma.evidenceReviewWorkflow.count({ where: { teamId, completedAtUtc: { gte: prev7dStart, lt: last7dStart } } }),
+        prisma.reviewEscalation.count({
+          where: { teamId, status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] as never } },
+        }),
+      ]);
 
     const snapshot = await loadReviewQueueCounters(teamId, window, OPEN_REACH);
-
-    expect(snapshot.inStatus(OPEN)).toBe(queueDepth);
+    expect(snapshot.openReviews).toBe(openReviews);
+    expect(snapshot.unassignedReviews).toBe(unassigned);
     expect(snapshot.overdue).toBe(overdue);
     expect(snapshot.dueSoon).toBe(dueSoon);
-    expect(snapshot.inStatus(["QUEUED"])).toBe(unassigned);
-    expect(snapshot.closedLast7d).toBe(closedLast7d);
-    expect(snapshot.closedPrev7d).toBe(closedPrev7d);
-    expect(snapshot.inStatus(["ASSIGNED"])).toBe(assigned);
-    expect(snapshot.inStatus(["IN_REVIEW"])).toBe(inReview);
-    expect(snapshot.inStatus(["IN_REVIEW", "NEEDS_INFO"])).toBe(pendingSignoff);
-    expect(snapshot.openEscalations).toBe(openEscalations);
+    expect(snapshot.closedLast7d).toBe(completedLast7d);
+    expect(snapshot.closedPrev7d).toBe(completedPrev7d);
+    expect(snapshot.openEscalations).toBe(activeEscalations);
+    // Status breakdowns stay status breakdowns.
+    for (const st of ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO", "NOT_STARTED"] as const) {
+      expect(snapshot.inStatus([st])).toBe(await prisma.evidenceReviewWorkflow.count({ where: { teamId, status: st } }));
+    }
 
-    /*
-     * And the fixture actually exercises the boundaries. Equal-but-zero would
-     * be equality proving nothing, which is the usual way a consolidation test
-     * passes while the consolidation is wrong.
-     */
-    expect(queueDepth).toBeGreaterThan(0);
+    // The fixture exercises every figure (equal-but-zero proves nothing).
+    expect(openReviews).toBeGreaterThan(0);
     expect(overdue).toBeGreaterThan(0);
     expect(dueSoon).toBeGreaterThan(0);
-    expect(closedLast7d).toBeGreaterThan(0);
-    expect(closedPrev7d).toBeGreaterThan(0);
-    expect(openEscalations).toBe(2);
+    expect(completedLast7d).toBeGreaterThan(0);
+    expect(completedPrev7d).toBeGreaterThan(0);
+    expect(activeEscalations).toBe(2);
   });
 
   it("does not count another workspace's queue", async () => {
@@ -916,53 +891,43 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
     expect(theirs.inStatus(["IN_REVIEW"])).toBe(1);
     expect(theirs.openEscalations).toBe(1);
     // The two workspaces disagree, which is how we know the filter is applied.
-    expect(mine.inStatus(["QUEUED"])).not.toBe(theirs.inStatus(["QUEUED"]));
+    expect(mine.openReviews).not.toBe(theirs.openReviews);
   });
 
-  it("never treats a workflow with no due date as overdue", async () => {
-    /*
-     * `due_at < now` is NULL-safe in SQL and `dueAt: { lt: now }` is
-     * NULL-safe in Prisma, but they are different implementations of that
-     * safety and the fixture holds a QUEUED row with a NULL due date
-     * specifically so a regression in either shows up here.
-     */
+  it("a workflow with no deadline is never overdue", async () => {
     const window = reviewQueueWindow();
     const snapshot = await loadReviewQueueCounters(teamId, window, OPEN_REACH);
-    const nullDue = await prisma.evidenceReviewWorkflow.count({
-      where: { teamId, status: "QUEUED", dueAt: null },
-    });
+    const nullDue = await prisma.evidenceReviewWorkflow.count({ where: { teamId, status: "QUEUED", dueAt: null } });
     expect(nullDue).toBeGreaterThan(0);
-
-    const overdueViaPrisma = await prisma.evidenceReviewWorkflow.count({
+    const overdueWithDeadline = await prisma.evidenceReviewWorkflow.count({
       where: {
         teamId,
-        status: { in: ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] as never },
-        dueAt: { lt: window.now },
+        status: { notIn: [...REVIEW_FINISHED_DB_STATUSES] as never },
+        slaStatus: { in: ["OVERDUE", "BREACHED"] as never },
+        dueAt: { not: null },
       },
     });
-    expect(snapshot.overdue).toBe(overdueViaPrisma);
+    expect(snapshot.overdue).toBe(overdueWithDeadline);
   });
 
-  it("excludes statuses outside the open set even when they are overdue", async () => {
-    // The fixture holds a NOT_STARTED row whose due date has passed. A
-    // predicate of `status <> 'CLOSED'` would count it; the product's does not.
+  it("an overdue review not yet started is open work and counts, as in the Inbox's Overdue view", async () => {
+    // Before round 2 the Command Center's own open set (QUEUED, ASSIGNED,
+    // IN_REVIEW, NEEDS_INFO) left NOT_STARTED, ESCALATED, RESPONSE_RECEIVED
+    // and REOPENED reviews out of every tile while the Inbox listed them.
     const window = reviewQueueWindow();
     const snapshot = await loadReviewQueueCounters(teamId, window, OPEN_REACH);
     const notStartedOverdue = await prisma.evidenceReviewWorkflow.count({
-      where: { teamId, status: "NOT_STARTED", dueAt: { lt: window.now } },
+      where: { teamId, status: "NOT_STARTED", slaStatus: "BREACHED" as never },
     });
     expect(notStartedOverdue).toBeGreaterThan(0);
-    expect(snapshot.inStatus(["NOT_STARTED"])).toBe(notStartedOverdue);
-
-    const openOverdue = await prisma.evidenceReviewWorkflow.count({
+    const fourStatusOverdue = await prisma.evidenceReviewWorkflow.count({
       where: {
         teamId,
         status: { in: ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] as never },
-        dueAt: { lt: window.now },
+        slaStatus: "BREACHED" as never,
       },
     });
-    expect(snapshot.overdue).toBe(openOverdue);
-    expect(snapshot.overdue).toBeLessThan(openOverdue + notStartedOverdue);
+    expect(snapshot.overdue).toBe(fourStatusOverdue + notStartedOverdue);
   });
 
   it("the command-center endpoint still returns the same reviewer figures", async () => {

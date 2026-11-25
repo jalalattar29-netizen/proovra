@@ -57,6 +57,15 @@ describe("Review escalation and reminder email truth (live PostgreSQL)", () => {
     });
   }
 
+  // These workspaces model ones the presented SLA rules have already swept
+  // (owner decision 2026-11-25: only HISTORICAL backlog found at rollout is not
+  // e-mailed; see team-rem-r2-sla-one-authority). Marked before each sweep.
+  const rolledOut = (teamId: string) =>
+    prisma.workerSweepCursor.upsert({
+      where: { key: `sla_presented_rollout:${teamId}` },
+      create: { key: `sla_presented_rollout:${teamId}`, cursorAt: new Date(Date.now() - 30 * 86400_000) },
+      update: { cursorAt: new Date(Date.now() - 30 * 86400_000) },
+    });
   const overdue = () => {
     const past = new Date(Date.now() - 24 * 3600_000);
     return { dueAt: past, completionDueAtUtc: past, firstResponseDueAtUtc: past };
@@ -108,6 +117,7 @@ describe("Review escalation and reminder email truth (live PostgreSQL)", () => {
     for (const t of [team.personalTeamId, pro.personalTeamId]) {
       await prisma.notificationDelivery.deleteMany({ where: { teamId: t } });
       await prisma.reviewerOpsReminder.deleteMany({ where: { teamId: t } });
+      await rolledOut(t);
     }
   });
 

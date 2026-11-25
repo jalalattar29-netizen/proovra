@@ -621,3 +621,165 @@ describe("the decisions door — the inspector's single verdict entry (TEAM-UI-S
     expect(ok.body.outcome).toMatchObject({ stageRecorded: "FIRST" });
   });
 });
+
+// =============================================================================
+// Round 2 (2026-11-25) — viewer-action divergences #2, #3, #4: the Review page
+// offers exactly the moves the server accepts. Both read the canonical stage
+// rules in @proovra/shared (verdictStageRefusal / stageMoveRefusal) over the
+// PERSISTED stage; each case below reads the offer, then tries the real door.
+// =============================================================================
+
+describe("round 2 — the Review page offers exactly the moves the server accepts", () => {
+  async function at(status: string, extra: Record<string, unknown> = {}) {
+    const w = await freshWorkflow(T.teamId, T.owner.userId, `r2-${status.toLowerCase()}`);
+    await prisma.evidenceReviewWorkflow.update({
+      where: { id: w.workflowId },
+      data: { status: status as never, assignedToUserId: T.member.userId, assignedAtUtc: new Date(), ...extra },
+    });
+    return w;
+  }
+  const o = () => ops(T);
+
+  it("#2 a reopened review: Approve, Reject and Archive are not offered and are refused; Start is, then Approve works", async () => {
+    const w = await at("REOPENED");
+    const before = await o().workspace(T.member, w.workflowId);
+    expect(before.status, before.raw).toBe(200);
+    expect(action(before, "approve")).toMatchObject({ allowed: false, reason: "decision_not_from_stage" });
+    expect(action(before, "reject")).toMatchObject({ allowed: false, reason: "decision_not_from_stage" });
+    expect(action(before, "archive").allowed).toBe(false);
+    expect(action(before, "start").allowed).toBe(true);
+
+    const refused = await o().approve(T.member, w.workflowId);
+    expect(refused.status, refused.raw).not.toBe(200);
+    expect(refused.raw).toContain("decision_not_from_stage");
+    const archive = await call(T.owner.token, "POST", `/v1/reviewer-ops/reviews/${w.workflowId}/archive`, { teamId: T.teamId });
+    expect(archive.status, archive.raw).not.toBe(200);
+
+    expect((await o().start(T.member, w.workflowId)).status).toBe(200);
+    const after = await o().workspace(T.member, w.workflowId);
+    expect(action(after, "approve").allowed).toBe(true);
+    const approved = await o().approve(T.member, w.workflowId);
+    expect(approved.status, approved.raw).toBe(200);
+  });
+
+  it("#3 an escalated review nobody started: Approve is not offered and is refused; Start is offered", async () => {
+    const w = await at("ASSIGNED");
+    await prisma.reviewEscalation.create({
+      data: {
+        teamId: T.teamId,
+        workflowId: w.workflowId,
+        evidenceId: w.evidenceId,
+        reason: "REVIEWER_ESCALATED",
+        severity: "WARNING",
+        status: "OPEN",
+        safeSummary: "escalated before start",
+        fingerprint: `r2-esc-${w.workflowId}`,
+      } as never,
+    });
+    const ws = await o().workspace(T.member, w.workflowId);
+    expect(action(ws, "approve")).toMatchObject({ allowed: false, reason: "decision_not_from_stage" });
+    expect(action(ws, "start").allowed).toBe(true);
+    const refused = await o().approve(T.member, w.workflowId);
+    expect(refused.status, refused.raw).not.toBe(200);
+    expect(refused.raw).toContain("decision_not_from_stage");
+  });
+
+  it("#4 Start is offered and accepted from Escalated, Response received and Needs information; never from In review", async () => {
+    for (const status of ["ESCALATED", "RESPONSE_RECEIVED", "NEEDS_INFO"]) {
+      const w = await at(status);
+      const ws = await o().workspace(T.member, w.workflowId);
+      expect(action(ws, "start").allowed, status).toBe(true);
+      const started = await o().start(T.member, w.workflowId);
+      expect(started.status, `${status}: ${started.raw}`).toBe(200);
+      expect((await prisma.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: w.workflowId } })).status).toBe("IN_REVIEW");
+    }
+    const inReview = await at("IN_REVIEW");
+    const ws = await o().workspace(T.member, inReview.workflowId);
+    expect(action(ws, "start")).toMatchObject({ allowed: false, reason: "already_started" });
+    const again = await o().start(T.member, inReview.workflowId);
+    expect(again.status, again.raw).not.toBe(200);
+    expect(again.raw).toContain("already_started");
+  });
+
+  it("a handed-over in-review review: its new assignee is offered Start and the door accepts it, once", async () => {
+    const w = await freshWorkflow(T.teamId, T.owner.userId, "r2-handover-start");
+    expect((await o().assign(T.owner, w.workflowId, T.member.userId)).status).toBe(200);
+    expect((await o().start(T.member, w.workflowId)).status).toBe(200);
+    expect((await o().reassign(T.owner, w.workflowId, T.member2.userId)).status).toBe(200);
+    expect((await prisma.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: w.workflowId } })).status).toBe("IN_REVIEW");
+
+    const offered = action(await o().workspace(T.member2, w.workflowId), "start");
+    expect(offered.allowed, JSON.stringify(offered)).toBe(true);
+    const started = await o().start(T.member2, w.workflowId);
+    expect(started.status, started.raw).toBe(200);
+
+    // Now the assignee has started it: a second Start is the no-op T-020 refuses, on both.
+    expect(action(await o().workspace(T.member2, w.workflowId), "start")).toMatchObject({ allowed: false, reason: "already_started" });
+    const again = await o().start(T.member2, w.workflowId);
+    expect(again.status, again.raw).not.toBe(200);
+    expect(again.raw).toContain("already_started");
+  });
+
+  it("for every open stage, Approve and Start are offered exactly when the door accepts them", async () => {
+    const stages = ["NOT_STARTED", "QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO", "RESPONSE_RECEIVED", "ESCALATED", "REOPENED"];
+    for (const verb of ["approve", "start"] as const) {
+      for (const status of stages) {
+        const w = await at(status);
+        const offered = action(await o().workspace(T.member, w.workflowId), verb).allowed;
+        const res = await o()[verb](T.member, w.workflowId);
+        expect(res.status === 200, `${verb} from ${status}: offered=${offered}, door=${res.status} ${res.raw}`).toBe(offered);
+      }
+    }
+  });
+});
+
+// =============================================================================
+// Round 2 (2026-11-25) — divergence #7: the request-for-information rollover.
+// The console reads the round through the authority's read-only mirror
+// (loadCurrentRoundDecisionState, continuedFrom); the Evidence page derives it
+// inline (resolvedByRequestInfo → first_required). This pins that both answer
+// the same, and that the authority accepts exactly what both offer.
+// =============================================================================
+
+describe("round 2 — request-for-information rollover: Review page and Evidence page agree with the authority", () => {
+  type EvidenceOffer = { action: string; enabled: boolean; blockedBy: string | null; reason?: string };
+  async function evidenceOffer(a: Actor, evidenceId: string, verb: string): Promise<EvidenceOffer> {
+    const res = await call(a.token, "GET", `/v1/evidence/${evidenceId}/review-workspace`);
+    expect(res.status, res.raw.slice(0, 300)).toBe(200);
+    const found = (res.body.reviewWorkflow.availableActions as EvidenceOffer[]).find((x) => x.action === verb);
+    if (!found) throw new Error(`no evidence action ${verb}`);
+    return found;
+  }
+
+  it("after a request for information and the response, the next verdict is the assignee's FIRST verdict of a new round on both pages", async () => {
+    const o = ops(T);
+    const w = await freshWorkflow(T.teamId, T.owner.userId, "r2-request-info-rollover");
+    await prisma.evidenceReviewWorkflow.update({
+      where: { id: w.workflowId },
+      data: { status: "IN_REVIEW", assignedToUserId: T.member.userId, assignedAtUtc: new Date() },
+    });
+    expect((await o.requestInfo(T.member, w.workflowId)).status).toBe(200);
+    expect((await o.responseReceived(T.member, w.workflowId)).status).toBe(200);
+
+    for (const [who, expectAllowed] of [
+      [T.member, true], // the assignee
+      [T.member2, false], // another reviewer: not the assignee
+    ] as const) {
+      const consoleApprove = action(await o.workspace(who, w.workflowId), "approve");
+      const evidenceApprove = await evidenceOffer(who, w.evidenceId, "APPROVE_INTERNAL");
+      expect(consoleApprove.allowed, `console for ${who === T.member ? "assignee" : "other"}`).toBe(expectAllowed);
+      expect(evidenceApprove.enabled, `evidence for ${who === T.member ? "assignee" : "other"}`).toBe(expectAllowed);
+      if (!expectAllowed) {
+        expect(consoleApprove.reason).toBe("not_assignee");
+        expect(evidenceApprove.reason).toBe("not_assignee");
+      }
+    }
+
+    // The authority agrees: the other reviewer is refused, the assignee's verdict lands as FIRST.
+    const refused = await o.approve(T.member2, w.workflowId);
+    expect(refused.status, refused.raw).not.toBe(200);
+    const accepted = await o.approve(T.member, w.workflowId);
+    expect(accepted.status, accepted.raw).toBe(200);
+    expect(accepted.body.outcome.stageRecorded).toBe("FIRST");
+  });
+});

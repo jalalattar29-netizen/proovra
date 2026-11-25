@@ -15,12 +15,14 @@ describe("PRO-AI1Z-04 AI assistance status (live PostgreSQL 16)", () => {
   let h: IntegrationHarness;
   let prisma: (typeof import("../src/db.js"))["prisma"];
   let billing: typeof import("../src/services/billing-enforcement.service.js");
+  let aiPolicy: typeof import("../src/services/ai/workspace-ai-policy.service.js");
 
   beforeAll(async () => {
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
     billing = await import("../src/services/billing-enforcement.service.js");
+    aiPolicy = await import("../src/services/ai/workspace-ai-policy.service.js");
   }, 180_000);
 
   afterAll(async () => {
@@ -40,7 +42,7 @@ describe("PRO-AI1Z-04 AI assistance status (live PostgreSQL 16)", () => {
       headers: { authorization: `Bearer ${token}` },
     });
     expect(res.statusCode).toBe(200);
-    return res.json() as { status: string; available: boolean; reason?: string };
+    return res.json() as { status: string; available: boolean; reason?: string; copilots: { reviewer: boolean; case: boolean } };
   }
 
   it("an OWNER on the allowed-roles list is AVAILABLE; a VIEWER off it is NOT_PERMITTED_FOR_ROLE", async () => {
@@ -53,6 +55,34 @@ describe("PRO-AI1Z-04 AI assistance status (live PostgreSQL 16)", () => {
     await prisma.entitlementUsage.deleteMany({ where: { teamId, key: billing.AI_USAGE_KEY } });
     expect((await status(h.fixtures.teamA.ownerToken)).status).toBe("AVAILABLE");
     expect((await status(h.fixtures.teamA.viewerToken)).status).toBe("NOT_PERMITTED_FOR_ROLE");
+  });
+
+  it("T-091 (round 2): copilots follow the reviewer/case copilot switches and the allowed roles, per viewer", async () => {
+    const teamId = h.fixtures.teamA.teamId;
+    await prisma.entitlementUsage.deleteMany({ where: { teamId, key: billing.AI_USAGE_KEY } });
+    await prisma.workspaceAiPolicy.upsert({
+      where: { teamId },
+      create: { teamId, reviewerCopilotEnabled: false, caseCopilotEnabled: false } as never,
+      update: { allowedRolesJson: null as never, reviewerCopilotEnabled: false, caseCopilotEnabled: false, aiEnabled: true },
+    });
+    expect((await status(h.fixtures.teamA.ownerToken)).copilots).toEqual({ reviewer: false, case: false });
+
+    // Switched on: the projection is exactly what the copilot route's evaluator
+    // answers for the same viewer (the plan decides too: teamA's plan may not
+    // include the copilot, and then both say no).
+    await prisma.workspaceAiPolicy.update({ where: { teamId }, data: { reviewerCopilotEnabled: true } });
+    const routeSays = async (role: string) =>
+      (await aiPolicy.evaluateWorkspaceAiPolicy({ teamId, feature: "REVIEWER_COPILOT", dataClass: "METADATA", userRole: role, planAllowed: true })).allowed;
+    expect((await status(h.fixtures.teamA.ownerToken)).copilots.reviewer).toBe(await routeSays("OWNER"));
+
+    // An allowed-roles list that leaves the viewer out: never offered to them.
+    await prisma.workspaceAiPolicy.update({ where: { teamId }, data: { allowedRolesJson: ["OWNER"] } });
+    expect((await status(h.fixtures.teamA.viewerToken)).copilots.reviewer).toBe(false);
+    expect((await status(h.fixtures.teamA.ownerToken)).copilots.reviewer).toBe(await routeSays("OWNER"));
+
+    await prisma.workspaceAiPolicy.update({ where: { teamId }, data: { aiEnabled: false, allowedRolesJson: null as never } });
+    expect((await status(h.fixtures.teamA.ownerToken)).copilots).toEqual({ reviewer: false, case: false });
+    await prisma.workspaceAiPolicy.update({ where: { teamId }, data: { aiEnabled: true, reviewerCopilotEnabled: false } });
   });
 
   it("a spent monthly allowance is not reported AVAILABLE", async () => {

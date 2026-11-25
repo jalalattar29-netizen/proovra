@@ -48,6 +48,7 @@ import {
   useStepUpAction,
 } from "../../../../components/identity-security/StepUpModal";
 import { ReviewerCopilotPanel } from "../../../../components/ai-copilot/ReviewerCopilotPanel";
+import { useCopilotAvailability } from "../../../../lib/ai/copilot-availability";
 import {
   ReviewerReasonModal,
   type ReviewerReasonKind,
@@ -257,6 +258,8 @@ function ReviewWorkspacePageInner() {
   const viewerUserId = useOptionalPlatformContext()?.envelope?.user?.id ?? null;
   // PageRouteGate guarantees an entitled active workspace here.
   const teamId = useActiveSpaceId();
+  // T-091 (round 2) — the workspace AI policy, for this viewer, decides whether the copilot is offered.
+  const copilots = useCopilotAvailability(teamId);
   // The envelope's REVIEW_ESCALATE capability gates the Escalate entry point
   // (fail-closed without an envelope). The server still decides the POST.
   const platform = useOptionalPlatformContext();
@@ -1003,6 +1006,7 @@ function ReviewWorkspacePageInner() {
           <div style={{ marginBottom: 12, minWidth: 0 }}>
             <ReviewerCopilotPanel
               reviewId={workflowId}
+              aiEnabled={copilots?.reviewer !== false}
               evidence={[
                 {
                   id: p.evidenceId,

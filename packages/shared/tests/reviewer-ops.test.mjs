@@ -134,6 +134,7 @@ test("REVIEWER_OPS_QUEUE_TYPES catalog is exhaustive", () => {
     "INTEGRITY_RISK",
     "EXTERNAL_INTAKE",
     "COMPLETED_RECENTLY",
+    "ALL_OPEN",
   ]) {
     assert.equal(REVIEWER_OPS_QUEUE_TYPES.includes(q), true);
     assert.equal(ReviewerOpsQueueTypeSchema.safeParse(q).success, true);

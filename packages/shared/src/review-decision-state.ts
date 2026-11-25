@@ -9,7 +9,7 @@
  * decision round's rows.
  */
 
-import type { ReviewStage } from "./review-operations.js";
+import { isAllowedReviewStageTransition, type ReviewStage } from "./review-operations.js";
 
 export type ReviewDecisionState =
   | "first_required"
@@ -284,4 +284,93 @@ export function roundContinuesInNewRound(
   if (projection.projectedStage === "NEEDS_MORE_INFO" && stageNow !== "NEEDS_MORE_INFO") return "request_info";
   if (decisions.some((d) => d.stage === "ADJUDICATION" && d.decision === "UNRESOLVED")) return "unresolved_adjudication";
   return null;
+}
+
+// -----------------------------------------------------------------------------
+// THE CANONICAL STAGE RULES the server applies (2026-11-25, round 2). The
+// decision authority, the lifecycle doors, Start, and the projections that
+// tell a client which actions to offer all call these — one rule, so a button
+// the page shows is a move the server accepts. They read the PERSISTED stage
+// and the stage matrix (isAllowedReviewStageTransition), never the lifecycle
+// an open escalation derives.
+// -----------------------------------------------------------------------------
+
+/** A review in one of these stages takes no further verdict. */
+export const DECISION_TERMINAL_STAGES: ReadonlySet<ReviewStage> = new Set<ReviewStage>([
+  "APPROVED_INTERNAL",
+  "REJECTED_INSUFFICIENT",
+  "CLOSED",
+]);
+
+/**
+ * Why the decision authority refuses this verdict kind from this stage, or null.
+ * A verdict is a move to the stage it projects; adjudication kinds project no
+ * stage and are governed by the decision state instead.
+ */
+export function verdictStageRefusal(
+  currentStage: ReviewStage,
+  kind: string,
+): "review_already_resolved" | "decision_not_from_stage" | null {
+  return verdictToStageRefusal(currentStage, kindToProjectedStage(kind));
+}
+
+/** The same rule, for a caller that already holds the verdict's projected stage. */
+export function verdictToStageRefusal(
+  currentStage: ReviewStage,
+  verdictStage: ReviewStage | null,
+): "review_already_resolved" | "decision_not_from_stage" | null {
+  if (DECISION_TERMINAL_STAGES.has(currentStage)) return "review_already_resolved";
+  if (verdictStage !== null && verdictStage !== currentStage && !isAllowedReviewStageTransition(currentStage, verdictStage)) {
+    return "decision_not_from_stage";
+  }
+  return null;
+}
+
+/**
+ * Why an explicit move (Start, Close / archive, Reopen, Escalate) is refused
+ * from this stage, or null: a move into the stage it is already in is refused,
+ * and otherwise the stage matrix decides.
+ */
+export function stageMoveRefusal(
+  currentStage: ReviewStage,
+  toStage: ReviewStage,
+): "already_in_stage" | "invalid_stage_transition" | null {
+  if (currentStage === toStage) return "already_in_stage";
+  return isAllowedReviewStageTransition(currentStage, toStage) ? null : "invalid_stage_transition";
+}
+
+/**
+ * Why the Review page's Start is refused, or null — the ONE rule both the
+ * `/start` door and the Review page offer apply (round 2, 2026-11-25).
+ *
+ * The stage rule is `stageMoveRefusal(stage, "IN_REVIEW")`, with one case on
+ * top: an in-review review that was HANDED OVER (the latest Start was by
+ * someone other than the current assignee — e.g. the second reviewer after a
+ * FIRST verdict, or a new assignee after a reassignment) may be started by
+ * its new assignee. Otherwise Start on an in-review review is a no-op and is
+ * refused (`already_started`, T-020).
+ */
+export function reviewStartRefusal(
+  currentStage: ReviewStage,
+  handedOver: boolean,
+): "already_started" | "invalid_stage_transition" | null {
+  const move = stageMoveRefusal(currentStage, "IN_REVIEW");
+  if (move === "already_in_stage") return handedOver ? null : "already_started";
+  return move;
+}
+
+/**
+ * Whether an in-review review was handed over to its current assignee: the
+ * latest REVIEW_STARTED actor is known and is not the assignee. No recorded
+ * Start (legacy rows, direct writes) is NOT a handover.
+ */
+export function reviewWasHandedOver(input: {
+  assignedToUserId: string | null;
+  latestStartActorUserId: string | null | undefined;
+}): boolean {
+  return (
+    !!input.assignedToUserId &&
+    !!input.latestStartActorUserId &&
+    input.latestStartActorUserId !== input.assignedToUserId
+  );
 }

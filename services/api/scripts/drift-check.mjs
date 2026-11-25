@@ -24,9 +24,13 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { classifyHost, parseDatabaseHost } from "./db-host-policy.mjs";
+import { resolvePrismaCli } from "./resolve-prisma-cli.mjs";
+
+const API_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 function loadEnvFile(path) {
   if (!existsSync(path)) return;
@@ -141,9 +145,39 @@ process.stderr.write(`  database: ${database}\n`);
 process.stderr.write(`  source  : ${urlSource}\n`);
 process.stderr.write("───────────────────────────────────────────────────────────────\n");
 
-const result = spawnSync("pnpm", ["exec", "prisma", "migrate", "status"], {
+// A deployed (non-local) database: `prisma migrate status` is read-only, but the
+// in-process hook in prisma.config.ts refuses every `migrate` verb against a
+// non-local host unless the operator gives the SAME two acknowledgements the
+// migration wrapper asks for. Without them the check stops here with the
+// instruction, instead of failing inside Prisma.
+const targetClass = classifyHost(parseDatabaseHost(databaseUrl).host);
+const remoteAck = process.argv.includes("--allow-remote") && process.env.MIGRATE_ALLOW_REMOTE === "1";
+if (targetClass !== "local" && !remoteAck) {
+  process.stderr.write(
+    `\n  drift-check: ${host} is a ${targetClass} host. Reading its migration status\n` +
+      "    needs both acknowledgements (nothing is written):\n" +
+      "      MIGRATE_ALLOW_REMOTE=1 node scripts/drift-check.mjs --allow-remote\n\n",
+  );
+  process.exit(8);
+}
+
+let prismaCli;
+try {
+  prismaCli = resolvePrismaCli(API_ROOT);
+} catch (err) {
+  process.stderr.write(
+    `\n  drift-check: the Prisma CLI cannot be resolved from ${API_ROOT} (${err instanceof Error ? err.message : String(err)}).\n\n`,
+  );
+  process.exit(12);
+}
+
+// Run with THIS node binary from services/api (no package manager, no PATH):
+// the release image has no services/api/node_modules/.bin, so `pnpm exec prisma`
+// answered `Command "prisma" not found` there (2026-11-25).
+const result = spawnSync(process.execPath, [prismaCli.cliPath, "migrate", "status"], {
+  cwd: API_ROOT,
   encoding: "utf8",
-  shell: process.platform === "win32",
+  env: remoteAck ? { ...process.env, SAFE_MIGRATE_WRAPPER_OK: "1" } : process.env,
 });
 
 const stdout = result.stdout ?? "";

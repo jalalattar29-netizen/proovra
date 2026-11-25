@@ -47,9 +47,10 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { resolvePrismaCli as resolvePrismaCliFrom } from "./resolve-prisma-cli.mjs";
 
 // ---------------------------------------------------------------------------
 // THE PROOVRA-API WORKSPACE ROOT — derived from THIS file's location, never
@@ -81,12 +82,7 @@ const API_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // hoisted image layout and pnpm's isolated layout in a developer checkout.
 // ---------------------------------------------------------------------------
 function resolvePrismaCli() {
-  const requireFromApi = createRequire(resolve(API_ROOT, "package.json"));
-  const manifestPath = requireFromApi.resolve("prisma/package.json");
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  const bin = typeof manifest.bin === "string" ? manifest.bin : manifest.bin?.prisma;
-  if (!bin) throw new Error(`prisma@${manifest.version} declares no 'prisma' bin`);
-  return { cliPath: resolve(dirname(manifestPath), bin), version: manifest.version };
+  return resolvePrismaCliFrom(API_ROOT);
 }
 // Phase 2.5D — single source of truth for host classification.
 // Both this wrapper AND the in-process prisma.config.ts hook

@@ -70,7 +70,7 @@ export async function getEscalationAnalytics(
       where: {
         teamId: input.teamId,
         workflow,
-        status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
+        ...activeEscalationWhere(),
       },
     }),
     client.reviewEscalation.findMany({

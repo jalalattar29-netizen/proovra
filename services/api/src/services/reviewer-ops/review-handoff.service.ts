@@ -19,6 +19,7 @@
  */
 
 import type { EvidenceReviewWorkflow as DbWorkflow, PrismaClient } from "@prisma/client";
+import { DECISION_TERMINAL_STAGES } from "@proovra/shared";
 import {
   deriveDecisionProjection,
   deriveReviewState,
@@ -196,7 +197,7 @@ export type HandoffWorkflowRef = {
   decisionRound: number;
 };
 
-const DECISION_TERMINAL_STAGES = new Set(["APPROVED_INTERNAL", "REJECTED_INSUFFICIENT", "CLOSED"]);
+// One terminal set: the authority's (@proovra/shared).
 
 /**
  * `loadCurrentRoundDecisionState(wf).state` for MANY workflows in a constant

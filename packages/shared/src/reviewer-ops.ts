@@ -182,6 +182,13 @@ export const REVIEWER_OPS_QUEUE_TYPES = [
   "INTEGRITY_RISK",
   "EXTERNAL_INTAKE",
   "COMPLETED_RECENTLY",
+  /**
+   * Round 2 (2026-11-25) — every open review in the workspace, whoever holds
+   * it: the owner's / admin's view of the whole queue (an on-time review a
+   * member is working on appeared in no view). Served only to members who may
+   * act on others' reviews (`review.assign`); restricted cases stay hidden.
+   */
+  "ALL_OPEN",
 ] as const;
 export const ReviewerOpsQueueTypeSchema = z.enum(REVIEWER_OPS_QUEUE_TYPES);
 export type ReviewerOpsQueueType = z.infer<typeof ReviewerOpsQueueTypeSchema>;
@@ -791,47 +798,33 @@ export function reviewSlaInputFromRow(
 }
 
 /**
- * The STORED reading (`slaStatus`, read by the queues, counts, reminders and the
- * breach sweep). Its semantics are deliberately unchanged by stage C (CONSUMER-MAP
- * M12): first review still counts the reviewer's first touch and the escalation
- * trigger still participates. Never used for what a reader is shown.
+ * True when the row carries at least one of the review's OWN deadlines. The
+ * automatic-escalation trigger is not a review deadline (T-045), so a row that
+ * carries only the trigger has no SLA status.
  */
-function storedReviewSlaInputFromRow(
-  row: ReviewSlaRowFacts,
-  opts: { nowUtc?: Date; dueSoonHours?: number },
-): ReviewSlaComputationInput {
-  const presented = reviewSlaInputFromRow(row, opts);
-  const finishedAt = row.completedAtUtc ?? row.closedAt ?? null;
-  return { ...presented, firstReviewedAtUtc: row.lastReviewedAt ?? finishedAt };
-}
-
-/** Stored-status rollup: every dimension, as before stage C. */
-function rollupAllDimensions(
-  snapshots: ReadonlyArray<ReviewSlaDimensionSnapshot>,
-): ReviewerOpsSlaState {
-  if (snapshots.length === 0) return "HEALTHY";
-  for (const s of SLA_SEVERITY_ORDER) {
-    if (snapshots.some((x) => x.state === s)) return s;
-  }
-  return "HEALTHY";
-}
-
-/** True when the row carries at least one deadline. */
 export function reviewRowHasDeadline(row: ReviewSlaRowFacts): boolean {
   return Boolean(
-    row.assignmentDueAtUtc ??
-      row.firstResponseDueAtUtc ??
-      row.dueAt ??
-      row.completionDueAtUtc ??
-      row.escalationDueAtUtc,
+    row.assignmentDueAtUtc ?? row.firstResponseDueAtUtc ?? row.dueAt ?? row.completionDueAtUtc,
   );
 }
 
 export type StoredReviewSlaStatus = "ON_TRACK" | "DUE_SOON" | "BREACHED" | "PAUSED";
 
 /**
- * The value the queues read. A missed deadline is a breach: the policy states the
- * hours, so no grace period is added behind it. Null when the row has no deadline.
+ * The stored `slaStatus`: the queues, counts, workload, reminders, the breach
+ * sweep and its e-mail read it. Since 2026-11-25 (Team remediation round 2) it
+ * is the PRESENTED reading, the same one the Review header shows: first review
+ * completes on the first recorded decision (never on Start), and the escalation
+ * trigger never makes a review overdue. Before, it counted Start as the first
+ * review and rolled the trigger up, so a started-but-undecided review past its
+ * first-review deadline read "On track" in the queues while its header read
+ * "Overdue", and every review not escalated by the trigger was stored BREACHED
+ * and e-mailed as overdue while its header read healthy.
+ *
+ * Callers that read rows decided before `first_decided_at_utc` existed must
+ * pass the read-time facts (`withReadTimeSlaFacts`), as the header does.
+ * A missed deadline is a breach: no grace period. Null when the row has none of
+ * the review's own deadlines.
  */
 export function storedReviewSlaStatus(
   row: ReviewSlaRowFacts,
@@ -839,8 +832,8 @@ export function storedReviewSlaStatus(
 ): StoredReviewSlaStatus | null {
   if (!reviewRowHasDeadline(row)) return null;
   // An open escalation changes the badge's wording, never the timing.
-  const snapshots = computeReviewerOpsSlaSnapshot(storedReviewSlaInputFromRow(row, opts));
-  switch (rollupAllDimensions(snapshots)) {
+  const snapshots = computeReviewerOpsSlaSnapshot(reviewSlaInputFromRow(row, opts));
+  switch (rollupReviewerOpsSlaState(snapshots)) {
     case "BREACHED":
       return "BREACHED";
     case "DUE_SOON":
@@ -850,6 +843,23 @@ export function storedReviewSlaStatus(
     default:
       return "ON_TRACK";
   }
+}
+
+/**
+ * When the review became overdue: the earliest of its own presented deadlines
+ * that is missed now. Null when nothing is missed. The breach sweep uses it to
+ * tell a breach it detects as it happens from one it finds long after the
+ * deadline (a backlog re-read under new rules, or a sweep outage).
+ */
+export function reviewSlaBreachedSince(
+  row: ReviewSlaRowFacts,
+  opts: { nowUtc?: Date; dueSoonHours?: number } = {},
+): Date | null {
+  if (!reviewRowHasDeadline(row)) return null;
+  const missed = presentReviewSlaDimensions(computeReviewerOpsSlaSnapshot(reviewSlaInputFromRow(row, opts)))
+    .filter((d) => d.state === "BREACHED" && d.dueAtUtc !== null)
+    .map((d) => new Date(d.dueAtUtc as string | Date).getTime());
+  return missed.length > 0 ? new Date(Math.min(...missed)) : null;
 }
 
 // -----------------------------------------------------------------------------

@@ -169,7 +169,7 @@ top level of it.
 | OK | `parsePendingOwnershipOffer` | `GET /v1/teams/:id/ownership-offer` | offer | offer |
 | OK | `parseAlerts` | `GET /v1/teams/:workspaceId/operations/alerts` | complete, counts, evaluatedAtUtc, items, scope, workspaceId | complete, counts, evaluatedAtUtc, items |
 | OK | `parseHealth` | `GET /v1/teams/:workspaceId/operations/health` | evaluatedAtUtc, lastIncidentActivityUtc, openIncidents, readiness, scope, state, unknown… | evaluatedAtUtc, lastIncidentActivityUtc, openIncidents, readiness, state, unknownReason,… |
-| OK | `parseAiAssistanceSettings` | `GET /v1/teams/ai-assistance-status` | <SPREAD>, allowanceResetsAtUtc, available, features, processing, reason, status | allowanceResetsAtUtc, available, enabled, features, processing, reason, status |
+| OK | `parseAiAssistanceSettings` | `GET /v1/teams/ai-assistance-status` | <SPREAD>, allowanceResetsAtUtc, available, copilots, features, processing, reason, status | allowanceResetsAtUtc, available, enabled, features, processing, reason, status |
 | OK | `parseAiCapabilities` | `GET /v1/teams/ai-policy` | assistance, capabilities, hasExplicitPolicy, lastModifiedAtUtc, lastModifiedByUserId, po… | capabilities |
 | OK | `parseAiPolicyEnvelope` | `GET /v1/teams/ai-policy` | assistance, capabilities, hasExplicitPolicy, lastModifiedAtUtc, lastModifiedByUserId, po… | hasExplicitPolicy, lastModifiedAtUtc, policy, version |
 | OK | `parseAiUsage` | `GET /v1/teams/ai-usage` | allowance, blockedProhibitedClaims, copilotRuns, daily, dayUtc, ledgerAvailable, monthUt… | allowance, monthUtc |

@@ -283,6 +283,13 @@ test("no process-spawning script is unguarded", () => {
       why: "the canonical migration runner; a real database is its target, and it refuses a non-local host without the dual acknowledgement and a backup id",
       guard: /shouldAllowMigration\(/,
     },
+    // 2026-11-25 (round 2) — the read-only migration status check. It names
+    // `env:` only to add the same SAFE_MIGRATE_WRAPPER_OK hand-off, and only
+    // after the operator gave both acknowledgements for a non-local host.
+    "services/api/scripts/drift-check.mjs": {
+      why: "reads `prisma migrate status` of the database it is pointed at (read-only); a non-local host needs --allow-remote and MIGRATE_ALLOW_REMOTE=1, and an explicit remote target is refused",
+      guard: /targetClass !== "local" && !remoteAck/,
+    },
     "scripts/mutation/public-verify-mutations.mjs": {
       why: "runs the repo's own test commands; it hands each child an ALLOWLISTED environment (platform and disposable-infrastructure variables only), never the ambient one",
       guard: /const CHILD_ENV_ALLOW = /,

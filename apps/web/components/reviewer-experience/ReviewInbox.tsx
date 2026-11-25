@@ -53,7 +53,7 @@ import {
   INBOX_TITLE,
   INBOX_VIEW_LABELS,
   MORE_INBOX_VIEWS,
-  PRIMARY_INBOX_VIEWS,
+  primaryInboxViewsFor,
   inboxHref,
   inboxViewFromParams,
   isInboxView,
@@ -453,7 +453,7 @@ export function ReviewInbox() {
       {/* T-065 — the views. The URL decides which one is highlighted. */}
       <div className="review-view-bar" data-inbox-views>
         <nav className="app-tabs review-view-tabs" aria-label="Inbox views" data-inbox-view-tabs>
-          {PRIMARY_INBOX_VIEWS.map((v) => {
+          {primaryInboxViewsFor(canAssign).map((v) => {
             const active = v === view;
             return (
               <Link

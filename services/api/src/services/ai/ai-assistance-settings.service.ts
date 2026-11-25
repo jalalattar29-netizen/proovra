@@ -60,6 +60,13 @@ export type AiAssistanceFeature = {
 
 export type AiAssistanceSettings = AiAssistanceProjection & {
   features: AiAssistanceFeature[];
+  /**
+   * Round 2 (2026-11-25, T-091) — whether each copilot may run for THIS viewer,
+   * from the same evaluator its route applies (master switch, feature switch,
+   * allowed roles, plan). The panels read it to say "turned off" up front
+   * instead of after a refused run. The routes still decide; this is a mirror.
+   */
+  copilots: { reviewer: boolean; case: boolean };
   /** The fixed data-handling summary the AI Use Policy commits to. */
   processing: {
     mode: "METADATA_FIRST";
@@ -148,6 +155,22 @@ export async function buildAiAssistanceSettings(input: {
       allowance.denial !== "AI_NOT_INCLUDED" && allowance.denial !== "COMMERCIAL_LIFECYCLE_RESTRICTED",
   });
   const base = withAllowance(projectAiAssistance(decision, policy), allowance.denial);
+  const planAllowed =
+    allowance.denial !== "AI_NOT_INCLUDED" && allowance.denial !== "COMMERCIAL_LIFECYCLE_RESTRICTED";
+  const copilotAllowed = async (feature: "REVIEWER_COPILOT" | "CASE_COPILOT") =>
+    (
+      await evaluateWorkspaceAiPolicy({
+        teamId: input.teamId,
+        feature,
+        dataClass: "METADATA",
+        userRole: input.userRole ?? null,
+        planAllowed,
+      })
+    ).allowed === true;
+  const copilots = {
+    reviewer: await copilotAllowed("REVIEWER_COPILOT"),
+    case: await copilotAllowed("CASE_COPILOT"),
+  };
 
   const features: AiAssistanceFeature[] = FEATURES.map((f) => {
     // Platform unavailability outranks a workspace switch: a feature that is
@@ -170,6 +193,7 @@ export async function buildAiAssistanceSettings(input: {
   return {
     ...base,
     features,
+    copilots,
     processing: {
       mode: "METADATA_FIRST",
       rawEvidenceSentByDefault: false,

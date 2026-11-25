@@ -224,7 +224,10 @@ describe("review door authority (live PostgreSQL)", () => {
     });
 
     it("the step-up flag binds this door too", async () => {
-      const r = await reviewRecord();
+      // The reviewer is the assignee, so the authority would accept the verdict:
+      // what stops it is the second factor (round 2: a verdict the authority
+      // refuses is refused before step-up — see the next case).
+      const r = await reviewRecord("IN_REVIEW", { assignedToUserId: reviewer.id });
       await prisma.workspaceGovernancePolicy.upsert({
         where: { teamId: A().teamId },
         update: { requireStepUpForApprove: true },
@@ -245,6 +248,95 @@ describe("review door authority (live PostgreSQL)", () => {
           data: { requireStepUpForApprove: false },
         });
       }
+    });
+
+    it("round 2: a verdict or Close the authority refuses is refused BEFORE step-up, on every door", async () => {
+      await prisma.workspaceGovernancePolicy.upsert({
+        where: { teamId: A().teamId },
+        update: { requireStepUpForApprove: true, requireStepUpForReject: true },
+        create: { teamId: A().teamId, requireStepUpForApprove: true, requireStepUpForReject: true },
+      });
+      try {
+        // Someone else's first review: the decision is the assignee's.
+        const theirs = await reviewRecord("IN_REVIEW", { assignedToUserId: admin.id });
+        const doors = [
+          await post(`/v1/reviewer-ops/workspace/${theirs.workflowId}/decisions`, reviewer, {
+            teamId: A().teamId,
+            decision: "APPROVE",
+            rationale: "not mine",
+          }),
+          await post(`/v1/reviewer-ops/reviews/${theirs.workflowId}/approve`, reviewer, { teamId: A().teamId, note: "not mine" }),
+          await post(`/v1/reviewer-ops/reviews/${theirs.workflowId}/reject`, reviewer, { teamId: A().teamId, note: "not mine" }),
+          await post(`/v1/review-operations/evidence/${theirs.evidenceId}/decision`, reviewer, {
+            decision: "APPROVE_INTERNAL",
+            note: "not mine",
+          }),
+        ];
+        for (const res of doors) {
+          // Each door keeps its own refusal status (the inspector door answers
+          // not_assignee with 409); none of them is the step-up 401.
+          expect([403, 409], res.body).toContain(res.statusCode);
+          expect(res.body).toContain("not_assignee");
+          expect(res.body).not.toContain("STEP_UP_REQUIRED");
+        }
+        expect(await decisionsOn(theirs.workflowId)).toBe(0);
+
+        // A Close that would be refused (already closed) asks for no second factor.
+        const closed = await reviewRecord("CLOSED", { assignedToUserId: reviewer.id });
+        const close = await post(`/v1/review-operations/evidence/${closed.evidenceId}/decision`, reviewer, {
+          decision: "CLOSE",
+          note: "again",
+        });
+        expect(close.statusCode, close.body).not.toBe(401);
+        expect(close.body).not.toContain("STEP_UP_REQUIRED");
+        const archive = await post(`/v1/reviewer-ops/reviews/${closed.workflowId}/archive`, admin, { teamId: A().teamId });
+        expect(archive.body).not.toContain("STEP_UP_REQUIRED");
+        expect(archive.statusCode, archive.body).not.toBe(200);
+
+        // Positive control: the assignee's verdict still meets the second factor.
+        const mine = await reviewRecord("IN_REVIEW", { assignedToUserId: reviewer.id });
+        const gated = await post(`/v1/reviewer-ops/reviews/${mine.workflowId}/approve`, reviewer, { teamId: A().teamId, note: "mine" });
+        expect(gated.statusCode, gated.body).toBe(401);
+        expect(gated.body).toContain("STEP_UP_REQUIRED");
+        expect(await decisionsOn(mine.workflowId)).toBe(0);
+      } finally {
+        await prisma.workspaceGovernancePolicy.update({
+          where: { teamId: A().teamId },
+          data: { requireStepUpForApprove: false, requireStepUpForReject: false },
+        });
+      }
+    });
+  });
+
+  // ===========================================================================
+  describe("round 2 (2026-11-25): All open reviews", () => {
+    it("an admin sees a member's on-time review in progress; a restricted record stays hidden; a reviewer is refused", async () => {
+      const inProgress = await reviewRecord("IN_REVIEW", {
+        assignedToUserId: reviewer.id,
+        assignedAtUtc: new Date(),
+        dueAt: new Date(Date.now() + 48 * 3_600_000),
+        slaStatus: "ON_TRACK",
+      });
+      const hidden = await closedRecord();
+      const finished = await reviewRecord("CLOSED", { assignedToUserId: reviewer.id });
+
+      const res = await get(`/v1/reviewer-ops/queue?${teamQ()}&queue=ALL_OPEN&limit=100`, admin);
+      expect(res.statusCode, res.body).toBe(200);
+      const ids = (res.json().rows as Array<{ workflowId: string }>).map((r) => r.workflowId);
+      expect(ids).toContain(inProgress.workflowId);
+      expect(ids).not.toContain(hidden.workflowId);
+      expect(ids).not.toContain(finished.workflowId);
+
+      // The admin's other views do not show it (the gap this view closes).
+      for (const view of ["MY_REVIEWS", "UNASSIGNED", "OVERDUE", "DUE_SOON", "ESCALATED"]) {
+        const other = await get(`/v1/reviewer-ops/queue?${teamQ()}&queue=${view}&limit=100`, admin);
+        const otherIds = (other.json().rows as Array<{ workflowId: string }>).map((r) => r.workflowId);
+        expect(otherIds, view).not.toContain(inProgress.workflowId);
+      }
+
+      const refused = await get(`/v1/reviewer-ops/queue?${teamQ()}&queue=ALL_OPEN`, reviewer);
+      expect(refused.statusCode, refused.body).toBe(403);
+      expect(refused.body).toContain("review_assign_required");
     });
   });
 

@@ -41,6 +41,7 @@ import {
  * on the envelope under a name that says what it is.
  */
 import { evidenceIdInReach, holdInReach, viewerReachInWorkspace } from "../access/record-reach.js";
+import { activeEscalationWhere, openReviewWhere } from "../reviewer-ops/review-count-definitions.js";
 import { resolveCommercialContext } from "../billing/commercial-context.service.js";
 
 export type SectionStatus = "ok" | "degraded" | "unavailable" | "not_applicable";
@@ -542,7 +543,6 @@ export async function buildWorkspaceAdmin(input: {
   }
   if (scope === "SHARED") {
     try {
-      const now = new Date();
       const [queuedCount, assignedCount, overdueCount, openEscalationsCount] =
         await Promise.all([
           prisma.evidenceReviewWorkflow.count({
@@ -555,14 +555,15 @@ export async function buildWorkspaceAdmin(input: {
             where: {
               teamId: input.teamId,
               ...evidenceIdInReach(reach),
-              status: {
-                in: ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"],
-              },
-              dueAt: { lt: now },
+              // Round 2 (C H-3): THE definitions — an open review whose stored
+              // SLA status is overdue (the Inbox's Overdue view), and active
+              // escalations (open, acknowledged, reassigned).
+              ...openReviewWhere(),
+              slaStatus: { in: ["OVERDUE", "BREACHED"] },
             },
           }),
           prisma.reviewEscalation.count({
-            where: { teamId: input.teamId, status: "OPEN", workflow: { evidence: reach.evidence } },
+            where: { teamId: input.teamId, ...activeEscalationWhere(), workflow: { evidence: reach.evidence } },
           }),
         ]);
       reviewerWorkload = {

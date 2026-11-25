@@ -27,6 +27,8 @@ import {
   REVIEW_FINISHED_DB_STATUSES,
   isReviewOpenDbStatus,
   storedReviewSlaStatus,
+  reviewSlaBreachedSince,
+  stageMoveRefusal,
   decisionTargetStage,
   isAllowedReviewStageTransition,
   mapDbStatusToReviewStage,
@@ -68,6 +70,7 @@ import { stampReviewDeadlines } from "../reviewer-ops/review-sla-stamp.service.j
 import { resolveEffectiveSlaPolicy } from "../reviewer-ops/sla-policy.service.js";
 import { workspaceIncludesReviewCapability } from "../billing-enforcement.service.js";
 import { advanceSweepCursor, afterCursor, readSweepCursor } from "../reviewer-ops/sweep-cursor.js";
+import { withReadTimeSlaFacts } from "../reviewer-ops/review-sla-read-facts.js";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -662,6 +665,51 @@ export type RecordLifecycleTransitionInput = {
   escalationReason?: string | null;
 };
 
+/**
+ * Round 2 (2026-11-25) — authorization BEFORE step-up for Close and Reopen.
+ * Every refusal recordLifecycleTransition can give before it writes, asked
+ * without writing: note, same stage, the stage matrix and (Close) the pending
+ * second review / unresolved disagreement. Throws the SAME errors; resolves
+ * when the move would be accepted. The real call re-checks under the row lock.
+ */
+export async function precheckLifecycleTransition(
+  input: Pick<RecordLifecycleTransitionInput, "evidenceId" | "decision" | "note" | "escalationReason">,
+  client: PrismaClient = defaultPrisma,
+): Promise<void> {
+  const workflow = await client.evidenceReviewWorkflow.findUnique({ where: { evidenceId: input.evidenceId } });
+  if (!workflow) throw new ReviewOperationError("workflow_not_found");
+  if (decisionRequiresNote(input.decision)) {
+    const noteText = (input.note ?? input.escalationReason ?? "").trim();
+    if (!noteText) throw new ReviewOperationError("note_required", { decision: input.decision });
+  }
+  const fromStage = mapDbStatusToReviewStage(workflow.status as string);
+  const toStage = decisionTargetStage(input.decision);
+  // The canonical stage rule (shared with the action projections).
+  const move = stageMoveRefusal(fromStage, toStage);
+  if (move === "already_in_stage") throw new ReviewOperationError("already_in_stage", { stage: fromStage });
+  if (input.decision === "CLOSE" && workflow.teamId) {
+    const round = await loadCurrentRoundDecisionState(
+      {
+        id: workflow.id,
+        teamId: workflow.teamId,
+        evidenceId: workflow.evidenceId,
+        status: String(workflow.status),
+        decisionRound: workflow.decisionRound,
+      },
+      client,
+    );
+    if (round.state === "second_required" || round.state === "conflict_detected") {
+      throw new ReviewDecisionAuthorityError("second_review_pending", {
+        reason: "second_review_pending",
+        reviewState: round.state,
+      });
+    }
+  }
+  if (move === "invalid_stage_transition") {
+    throw new ReviewOperationError("invalid_stage_transition", { from: fromStage, to: toStage });
+  }
+}
+
 export async function recordLifecycleTransition(
   input: RecordLifecycleTransitionInput,
   client: PrismaClient = defaultPrisma,
@@ -906,8 +954,11 @@ export async function updateReviewSla(
     input.firstResponseDueAtUtc !== undefined
       ? input.firstResponseDueAtUtc
       : workflow.firstResponseDueAtUtc;
+  // The same facts the Review header reads (a pre-column first decision comes
+  // from the decision log); only used to compute, the write fences on `workflow`.
+  const [facts] = await withReadTimeSlaFacts([workflow], client);
   const computed = storedReviewSlaStatus({
-    ...workflow,
+    ...(facts ?? workflow),
     dueAt: effectiveDue,
     firstResponseDueAtUtc: effectiveFirstResponse,
     slaPausedAtUtc: (input.paused ?? !!workflow.slaPausedAtUtc) ? new Date() : null,
@@ -967,6 +1018,13 @@ export async function reconcileReviewSlas(
   skippedNotEntitled: number;
   /** The rows that moved into BREACHED, for the caller to escalate. */
   breachedWorkflowIds: string[];
+  /**
+   * Of those, the HISTORICAL BACKLOG at rollout: breaches whose deadline passed
+   * before the presented SLA rules first swept this workspace, found inside the
+   * bounded rollout window. Status, SLA_BREACHED event and escalation as usual;
+   * no overdue e-mail. Every breach occurring after rollout is e-mailed.
+   */
+  breachedStale: number;
   /** True when this call reached the last row. */
   wrapped: boolean;
 }> {
@@ -1006,6 +1064,12 @@ export async function reconcileReviewSlas(
   let skippedPaused = 0;
   let wrapped = false;
   const breachedWorkflowIds: string[] = [];
+  let breachedStale = 0;
+  const rolloutAt = new Map<string, Date>();
+  const rolloutFor = async (teamId: string): Promise<Date> => {
+    if (!rolloutAt.has(teamId)) rolloutAt.set(teamId, await presentedSlaRolloutAt(teamId, now, client));
+    return rolloutAt.get(teamId)!;
+  };
 
   for (let page = 0; page < maxPages && !wrapped; page += 1) {
     const cursor = await readSweepCursor(client, cursorKey);
@@ -1026,6 +1090,11 @@ export async function reconcileReviewSlas(
       take: batchSize,
     });
     scanned += candidates.length;
+    // The SAME facts the Review header reads: a first decision recorded before
+    // first_decided_at_utc existed is filled from the decision log, and a
+    // deadline the open-review sweep stamped after its fact does not count.
+    // Used only to COMPUTE the status; the write below fences on the row read.
+    const facts = new Map((await withReadTimeSlaFacts(candidates, client)).map((r) => [r.id, r]));
     for (const wf of candidates) {
       if (wf.completedAtUtc) {
         skippedCompleted += 1;
@@ -1040,7 +1109,8 @@ export async function reconcileReviewSlas(
         continue;
       }
       const dueSoonHours = wf.slaDueSoonHours ?? (await dueSoonFor(wf.teamId));
-      const computed = storedReviewSlaStatus(wf, { nowUtc: now, dueSoonHours });
+      const read = facts.get(wf.id) ?? wf;
+      const computed = storedReviewSlaStatus(read, { nowUtc: now, dueSoonHours });
       if (!computed || computed === wf.slaStatus) continue;
       const stage = mapDbStatusToReviewStage(wf.status as string);
       try {
@@ -1056,18 +1126,28 @@ export async function reconcileReviewSlas(
         );
         if (computed === "BREACHED") {
           flippedBreached += 1;
-          breachedWorkflowIds.push(wf.id);
+          const since = reviewSlaBreachedSince(read, { nowUtc: now, dueSoonHours });
+          const stale = isHistoricalBacklogBreach({ since, now, rolloutAt: await rolloutFor(wf.teamId!) });
           await recordEvent(
             wf,
             "SLA_BREACHED",
             null,
             null,
             { slaStatus: wf.slaStatus },
-            { slaStatus: computed },
+            {
+              slaStatus: computed,
+              ...(since ? { breachedSinceUtc: since.toISOString() } : {}),
+              ...(stale ? { notified: false, reason: "historical_backlog_at_rollout" } : {}),
+            },
             client,
           );
-          // One overdue-reminder email per BREACHED transition. Safe.
-          notifyReviewSlaBreached({ workflow: wf }, client).catch(() => null);
+          breachedWorkflowIds.push(wf.id);
+          if (stale) {
+            breachedStale += 1;
+          } else {
+            // One overdue-reminder email per BREACHED transition. Safe.
+            notifyReviewSlaBreached({ workflow: wf }, client).catch(() => null);
+          }
         } else if (computed === "DUE_SOON") {
           flippedDueSoon += 1;
         }
@@ -1085,6 +1165,7 @@ export async function reconcileReviewSlas(
   return {
     scanned,
     flippedBreached,
+    breachedStale,
     flippedDueSoon,
     skippedCompleted,
     skippedPaused,
@@ -1573,4 +1654,38 @@ export function projectReviewWorkflow(row: DbWorkflow, decision?: ReviewDecision
     // Deliberately NOT projected: internal `billingShape`, raw `status`
     // (use `stage` instead).
   };
+}
+
+/**
+ * OWNER DECISION 2026-11-25 — bounded, rollout-only suppression of HISTORICAL
+ * backlog overdue e-mails. Not a standing cutoff.
+ *
+ * When the presented SLA rules (round 2) first sweep a workspace, reviews whose
+ * deadline passed long ago under the old reading flip to BREACHED all at once.
+ * Those — and only those — are recorded and escalated as usual (status,
+ * SLA_BREACHED event with `notified: false`, escalation, audit) without an
+ * overdue e-mail. A breach is backlog when its missed deadline is EARLIER than
+ * the workspace's rollout instant and it is found within
+ * REVIEW_SLA_ROLLOUT_BACKLOG_WINDOW_MS of that instant. Every breach whose
+ * deadline passes after rollout is e-mailed normally, at any age, forever.
+ */
+export const REVIEW_SLA_ROLLOUT_BACKLOG_WINDOW_MS = 7 * 86_400_000;
+
+export function isHistoricalBacklogBreach(input: { since: Date | null; now: Date; rolloutAt: Date }): boolean {
+  if (!input.since) return false;
+  if (input.now.getTime() - input.rolloutAt.getTime() > REVIEW_SLA_ROLLOUT_BACKLOG_WINDOW_MS) return false;
+  return input.since.getTime() < input.rolloutAt.getTime();
+}
+
+/**
+ * The workspace's rollout instant: written ONCE, by the first sweep that runs
+ * the presented rules for it (insert-if-absent, so concurrent sweeps and
+ * retries agree on one value), then only read. Stored in worker_sweep_cursors
+ * (key `sla_presented_rollout:<teamId>`, cursor_at).
+ */
+export async function presentedSlaRolloutAt(teamId: string, now: Date, client: PrismaClient): Promise<Date> {
+  const key = `sla_presented_rollout:${teamId}`;
+  await client.workerSweepCursor.createMany({ data: [{ key, cursorAt: now }], skipDuplicates: true });
+  const row = await client.workerSweepCursor.findUnique({ where: { key }, select: { cursorAt: true } });
+  return row?.cursorAt ?? now;
 }

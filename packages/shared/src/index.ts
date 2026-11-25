@@ -1643,6 +1643,7 @@ export {
   reviewRowHasDeadline,
   reviewSlaInputFromRow,
   storedReviewSlaStatus,
+  reviewSlaBreachedSince,
   deriveLifecycleState,
   isAllowedEscalationStatusTransition,
   isAllowedLifecycleTransition,

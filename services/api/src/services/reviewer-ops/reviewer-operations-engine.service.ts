@@ -27,7 +27,6 @@ import {
   computeReviewerOpsSlaSnapshot,
   deriveLifecycleState,
   escalationForcesIndependentReview,
-  isAllowedReviewStageTransition,
   isAllowedLifecycleTransition,
   isReviewOpenDbStatus,
   mapDbStatusToReviewStage,
@@ -39,6 +38,10 @@ import {
   type ReviewerOpsLifecycleState,
   type ReviewerOpsQueueType,
   type ReviewerOpsSlaState,
+  reviewStartRefusal,
+  reviewWasHandedOver,
+  stageMoveRefusal,
+  verdictStageRefusal,
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
@@ -79,6 +82,7 @@ import {
 // through the legacy lifecycle service.
 import {
   ReviewDecisionAuthorityError,
+  ReviewDecisionDryRunPassed,
   recordReviewDecision as recordCanonicalReviewDecision,
   // PHASE 13 §4 (2026-08-17) — projection repair, armed by this reconcile pass.
   scanReviewDecisionProjections,
@@ -386,6 +390,10 @@ async function listReviewerOpsQueueInner(
     status: { notIn: [...REVIEW_FINISHED_DB_STATUSES] },
   };
   switch (input.queue) {
+    case "ALL_OPEN":
+      // Every open review (openReviewWhere): the base filter alone. The route
+      // serves it only to review.assign holders; the record rule applies below.
+      break;
     case "MY_REVIEWS":
       baseWhere.assignedToUserId = input.meUserId;
       break;
@@ -849,6 +857,8 @@ export function computeViewerActions(input: {
   assignmentsIncluded: boolean;
   /** REVIEW_ESCALATION in the effective plan (escalate is a Team capability). Absent = included. */
   escalationIncluded?: boolean;
+  /** The review was handed over to its assignee (reviewWasHandedOver). Absent = not. */
+  handedOver?: boolean;
 }): ReviewerViewerProjection {
   const { row, lifecycle, viewerUserId, facts, decision } = input;
   const isAssignee = !!row.assignedToUserId && row.assignedToUserId === viewerUserId;
@@ -856,11 +866,14 @@ export function computeViewerActions(input: {
   const finished = !isReviewOpenDbStatus(String(row.status)) || !!row.completedAtUtc || !!row.closedAt;
   const isAdjudicatorRole = facts.role === "OWNER" || facts.role === "ADMIN";
 
-  const verdict = (to: ReviewerOpsLifecycleState): string | null => {
+  // Round 2 (2026-11-25, divergences #2 / #3) — the verdict's stage rule is the
+  // AUTHORITY'S (verdictStageRefusal over the PERSISTED stage), not the derived
+  // lifecycle: a reopened review, or an escalated one nobody has started, no
+  // longer shows an Approve / Reject the server then refuses.
+  const verdict = (to: ReviewerOpsLifecycleState, kind: "APPROVE" | "REJECT" | "REQUEST_INFO"): string | null => {
     if (!facts.isReviewerCapable) return "reviewer_required";
-    if (stage === "APPROVED_INTERNAL" || stage === "REJECTED_INSUFFICIENT" || stage === "CLOSED") {
-      return "review_already_resolved";
-    }
+    const stageRefusal = verdictStageRefusal(stage, kind);
+    if (stageRefusal) return stageRefusal;
     if (!isAllowedLifecycleTransition(lifecycle, to)) return "decision_not_from_stage";
     switch (decision.state) {
       case "resolved":
@@ -888,18 +901,23 @@ export function computeViewerActions(input: {
     // T-020 — Start is offered only for a review that has not started: the
     // PERSISTED stage, not the lifecycle an open escalation derives (an
     // in-review review with an escalation offered a no-op "Start review").
+    // Round 2 (divergence #4) — Start is offered exactly when the PERSISTED
+    // stage may move to IN_REVIEW under the canonical stage rule (the rule
+    // startReview and the Evidence page's Begin review apply): an escalated,
+    // response-received or needs-information review can be taken back into
+    // review; an in-review one cannot be "started" again (T-020).
     start: !facts.isReviewerCapable
       ? "reviewer_required"
-      : stage === "IN_REVIEW" || stage === "ESCALATED" || stage === "RESPONSE_RECEIVED" || stage === "NEEDS_MORE_INFO"
+      : reviewStartRefusal(stage, !!input.handedOver) === "already_started"
         ? "already_started"
-        : !isAllowedLifecycleTransition(lifecycle, "IN_REVIEW")
+        : reviewStartRefusal(stage, !!input.handedOver) !== null || !isAllowedLifecycleTransition(lifecycle, "IN_REVIEW")
           ? "invalid_transition"
           : !isAssignee
             ? "not_assignee"
             : null,
     pause: clock(false),
     resume: clock(true),
-    request_info: verdict("NEEDS_INFORMATION"),
+    request_info: verdict("NEEDS_INFORMATION", "REQUEST_INFO"),
     record_response: !facts.isReviewerCapable
       ? "reviewer_required"
       : !isAssignee
@@ -907,8 +925,8 @@ export function computeViewerActions(input: {
         : stage !== "NEEDS_MORE_INFO"
           ? "not_awaiting_information"
           : null,
-    approve: verdict("APPROVED"),
-    reject: verdict("REJECTED"),
+    approve: verdict("APPROVED", "APPROVE"),
+    reject: verdict("REJECTED", "REJECT"),
     reassign: !input.assignmentsIncluded
       ? "reviewer_operations_not_included"
       : !facts.isReviewerCapable
@@ -928,9 +946,11 @@ export function computeViewerActions(input: {
             : decision.firstReviewerUserId === viewerUserId || decision.secondReviewerUserId === viewerUserId
               ? "adjudicator_not_independent"
               : null,
+    // Round 2 (divergence #2) — archive is the lifecycle Close: the canonical
+    // stage rule decides it, as precheckLifecycleTransition does.
     archive: !facts.isReviewerCapable
       ? "reviewer_required"
-      : !isAllowedLifecycleTransition(lifecycle, "ARCHIVED")
+      : !isAllowedLifecycleTransition(lifecycle, "ARCHIVED") || stageMoveRefusal(stage, "CLOSED") !== null
         ? "invalid_transition"
         : decision.state === "second_required" || decision.state === "conflict_detected"
           ? "second_review_pending"
@@ -939,7 +959,7 @@ export function computeViewerActions(input: {
     // transition the Evidence page uses (REJECTED/APPROVED/CLOSED → REOPENED).
     reopen: !facts.isReviewerCapable
       ? "reviewer_required"
-      : !isAllowedReviewStageTransition(stage, "REOPENED")
+      : stageMoveRefusal(stage, "REOPENED") !== null
         ? "review_not_finished"
         : null,
     // T-019 — raising an escalation stays open to every reviewer-capable
@@ -1012,6 +1032,7 @@ export async function getReviewerOpsWorkspace(
       decision,
       assignmentsIncluded,
       escalationIncluded,
+      handedOver: await reviewHandedOver(row, client),
     });
     handoff = await computeReviewHandoff(row, decision, client);
   }
@@ -1308,6 +1329,24 @@ async function assignReviewerToWorkflowInner(
 
 // ----- startReview ------------------------------------------------------------
 
+/**
+ * The handover fact for reviewStartRefusal: only an in-review review with an
+ * assignee can have been handed over; it was if the latest recorded Start is
+ * someone else's (reviewWasHandedOver).
+ */
+async function reviewHandedOver(
+  row: Pick<DbWorkflow, "id" | "status" | "assignedToUserId">,
+  client: PrismaClient,
+): Promise<boolean> {
+  if (String(row.status) !== "IN_REVIEW" || !row.assignedToUserId) return false;
+  const latest = await client.evidenceReviewWorkflowEvent.findFirst({
+    where: { workflowId: row.id, eventType: "REVIEW_STARTED" },
+    orderBy: { createdAt: "desc" },
+    select: { actorUserId: true },
+  });
+  return reviewWasHandedOver({ assignedToUserId: row.assignedToUserId, latestStartActorUserId: latest?.actorUserId });
+}
+
 export async function startReview(
   ctx: LifecycleActorContext,
   input: { workflowId: string },
@@ -1317,6 +1356,24 @@ export async function startReview(
   const row = await loadWorkflowOrThrow(ctx, input.workflowId, client);
   const fromLc = await currentLifecycle(ctx, row, client);
   assertLifecycleTransition(fromLc, "IN_REVIEW");
+  // Round 2 (2026-11-25) — the canonical stage rule, the same one the Evidence
+  // page's Begin review and the action projection apply: the PERSISTED stage
+  // must be able to move to IN_REVIEW, and Start on an in-review review is
+  // refused, not a silent rewrite.
+  // A handed-over in-review review (the second reviewer after a FIRST verdict,
+  // a new assignee after a reassignment) may be started by its new assignee.
+  const startRefusal = reviewStartRefusal(
+    mapDbStatusToReviewStage(String(row.status)),
+    await reviewHandedOver(row, client),
+  );
+  if (startRefusal) {
+    bump("reviewer_invalid_transition_blocked_total");
+    throw new ReviewerOpsError("REVIEW_INVALID_TRANSITION", {
+      from: fromLc,
+      to: "IN_REVIEW",
+      reason: startRefusal,
+    });
+  }
   if (row.assignedToUserId !== ctx.actorUserId) {
     throw new ReviewerOpsError("REVIEW_PERMISSION_DENIED", {
       reason: "actor_not_assignee",
@@ -1486,17 +1543,22 @@ export async function resumeReview(
     throw new ReviewerOpsError("REVIEW_INVALID_TRANSITION", { reason: "not_paused" });
   }
   const now = new Date();
+  // First review is met by the first recorded DECISION, never by Start (stage C
+  // semantics; before 2026-11-25 a started-but-undecided review kept its
+  // first-review deadline unmoved across the pause and read overdue on resume).
+  // A decision recorded before first_decided_at_utc existed comes from the log.
+  const [facts] = await withReadTimeSlaFacts([row], client, { stampedAfter: false });
   const heldMs = Math.max(now.getTime() - pausedAt.getTime(), 0);
   const moved = (d: Date | null, met: boolean = false) =>
     d && !met ? new Date(d.getTime() + heldMs) : d;
   const next = {
     assignmentDueAtUtc: moved(row.assignmentDueAtUtc, Boolean(row.assignedAtUtc)),
-    firstResponseDueAtUtc: moved(row.firstResponseDueAtUtc, Boolean(row.lastReviewedAt)),
+    firstResponseDueAtUtc: moved(row.firstResponseDueAtUtc, Boolean(facts?.firstDecidedAtUtc ?? row.firstDecidedAtUtc)),
     completionDueAtUtc: moved(row.completionDueAtUtc),
     dueAt: moved(row.dueAt),
     escalationDueAtUtc: moved(row.escalationDueAtUtc, Boolean(row.escalatedAtUtc)),
   };
-  const slaStatus = storedReviewSlaStatus({ ...row, ...next, slaPausedAtUtc: null }, { nowUtc: now });
+  const slaStatus = storedReviewSlaStatus({ ...(facts ?? row), ...next, slaPausedAtUtc: null }, { nowUtc: now });
   const updated = await client.$transaction(async (tx) => {
     const claimed = await tx.evidenceReviewWorkflow.updateMany({
       where: { id: row.id, status: row.status, slaPausedAtUtc: pausedAt },
@@ -1696,6 +1758,44 @@ export async function recordResponseReceived(
   await notifyReviewResponseReceived({ workflow: updated, actorUserId: ctx.actorUserId }, client).catch(() => null);
   const open = await findOpenEscalationForWorkflow({ teamId: ctx.teamId, workflowId: row.id }, client);
   return projectWorkflow(updated, client, { hasOpenEscalation: !!open });
+}
+
+// ----- authorization before step-up (round 2, 2026-11-25) --------------------
+
+/**
+ * Every check approve / reject run before they record — the engine's own (human
+ * actor, note, reach, lifecycle) and then the canonical authority as a dry run —
+ * WITHOUT recording. The doors call it before the step-up gate so a verdict that
+ * would be refused is refused first and spends no challenge. Throws the same
+ * ReviewerOpsError the real call would; resolves when it would be accepted.
+ */
+export async function precheckReviewVerdict(
+  ctx: LifecycleActorContext,
+  input: { workflowId: string; verdict: "APPROVE" | "REJECT"; note?: string | null },
+  client: PrismaClient = defaultPrisma,
+): Promise<void> {
+  requireHuman(ctx);
+  const note = input.verdict === "REJECT" ? (input.note ?? "") : (input.note ?? null);
+  assertDecisionInput(note);
+  const row = await loadWorkflowOrThrow(ctx, input.workflowId, client);
+  const fromLc = await currentLifecycle(ctx, row, client);
+  assertLifecycleTransition(fromLc, input.verdict === "APPROVE" ? "APPROVED" : "REJECTED", "decision_not_from_stage");
+  try {
+    await recordDecisionViaAuthority(
+      {
+        workflowId: row.id,
+        teamId: ctx.teamId,
+        actorUserId: ctx.actorUserId,
+        decision: input.verdict,
+        rationale: note,
+        dryRun: true,
+      },
+      client,
+    );
+  } catch (err) {
+    if (err instanceof ReviewDecisionDryRunPassed) return;
+    throw err;
+  }
 }
 
 // ----- approveReview ----------------------------------------------------------
