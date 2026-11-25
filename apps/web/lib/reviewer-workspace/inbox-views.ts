@@ -28,6 +28,7 @@ export const INBOX_TITLE = "Inbox";
 
 /** THE label map (T-092): exactly one label per view. */
 export const INBOX_VIEW_LABELS: Readonly<Record<InboxView, string>> = {
+  ALL_OPEN: "All open reviews",
   MY_REVIEWS: "Assigned to me",
   UNASSIGNED: "Unassigned",
   OVERDUE: "Overdue",
@@ -54,12 +55,26 @@ export const PRIMARY_INBOX_VIEWS: ReadonlyArray<InboxView> = [
   "AWAITING_ADJUDICATION",
 ];
 
+/**
+ * Round 2 (2026-11-25) — views served only to members who may act on others'
+ * reviews (`review.assign`, the REVIEW_ASSIGN capability): "All open reviews",
+ * the whole workspace queue whoever holds each review. Shown first for them,
+ * never offered to anyone else (the route refuses it with 403).
+ */
+export const ASSIGNER_INBOX_VIEWS: ReadonlyArray<InboxView> = ["ALL_OPEN"];
+
+/** The tabs a viewer is offered. */
+export function primaryInboxViewsFor(canAssign: boolean): ReadonlyArray<InboxView> {
+  return canAssign ? [...ASSIGNER_INBOX_VIEWS, ...PRIMARY_INBOX_VIEWS] : PRIMARY_INBOX_VIEWS;
+}
+
 export const MORE_INBOX_VIEWS: ReadonlyArray<InboxView> = INBOX_VIEWS.filter(
-  (v) => !PRIMARY_INBOX_VIEWS.includes(v),
+  (v) => !PRIMARY_INBOX_VIEWS.includes(v) && !ASSIGNER_INBOX_VIEWS.includes(v),
 );
 
 /** What a confirmed-empty view says (never shown for a failed load, T-067). */
 export const INBOX_EMPTY_COPY: Readonly<Record<InboxView, string>> = {
+  ALL_OPEN: "No reviews are open in this workspace.",
   MY_REVIEWS: "No reviews are assigned to you.",
   UNASSIGNED: "No reviews are waiting for an owner.",
   OVERDUE: "No reviews are overdue.",

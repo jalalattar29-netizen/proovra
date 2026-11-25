@@ -216,8 +216,11 @@ describe("T-065 / T-092 — one Inbox; the URL view and the highlighted view agr
     expect(hrefs.MY_REVIEWS).toBe("/review");
     expect(hrefs.UNASSIGNED).toBe("/review?view=UNASSIGNED");
     expect(hrefs.AWAITING_ADJUDICATION).toBe("/review?view=AWAITING_ADJUDICATION");
-    // T-092 — one label per view.
+    expect(hrefs.ALL_OPEN).toBe("/review?view=ALL_OPEN");
+    // T-092 — one label per view. Round 2: an owner (REVIEW_ASSIGN) is offered
+    // "All open reviews" first.
     expect(tabs.map((t) => t.textContent)).toEqual([
+      "All open reviews",
       "Assigned to me",
       "Unassigned",
       "Overdue",
@@ -227,6 +230,23 @@ describe("T-065 / T-092 — one Inbox; the URL view and the highlighted view agr
       "Conflicts",
     ]);
     expect(document.body.textContent).not.toMatch(/My reviews|Assigned \(mine\)|Open my queue/);
+  });
+});
+
+describe("round 2 — All open reviews", () => {
+  it("is asked of the queue route as ALL_OPEN when chosen", async () => {
+    nav.search = "view=ALL_OPEN";
+    await mount();
+    const current = document.querySelector('[data-inbox-view-tabs] [aria-current="page"]') as HTMLElement;
+    expect(current.getAttribute("data-inbox-view-tab")).toBe("ALL_OPEN");
+    expect(current.textContent).toBe("All open reviews");
+    expect(queueCalls()[0]!.path).toContain("queue=ALL_OPEN");
+  });
+
+  it("is never offered to a member who cannot act on others' reviews", async () => {
+    await mount("VIEWER");
+    expect(document.querySelector('[data-inbox-view-tab="ALL_OPEN"]')).toBeNull();
+    expect(document.body.textContent).not.toMatch(/All open reviews/);
   });
 });
 

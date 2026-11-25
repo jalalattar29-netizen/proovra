@@ -309,6 +309,38 @@ describe("review door authority (live PostgreSQL)", () => {
   });
 
   // ===========================================================================
+  describe("round 2 (2026-11-25): All open reviews", () => {
+    it("an admin sees a member's on-time review in progress; a restricted record stays hidden; a reviewer is refused", async () => {
+      const inProgress = await reviewRecord("IN_REVIEW", {
+        assignedToUserId: reviewer.id,
+        assignedAtUtc: new Date(),
+        dueAt: new Date(Date.now() + 48 * 3_600_000),
+        slaStatus: "ON_TRACK",
+      });
+      const hidden = await closedRecord();
+      const finished = await reviewRecord("CLOSED", { assignedToUserId: reviewer.id });
+
+      const res = await get(`/v1/reviewer-ops/queue?${teamQ()}&queue=ALL_OPEN&limit=100`, admin);
+      expect(res.statusCode, res.body).toBe(200);
+      const ids = (res.json().rows as Array<{ workflowId: string }>).map((r) => r.workflowId);
+      expect(ids).toContain(inProgress.workflowId);
+      expect(ids).not.toContain(hidden.workflowId);
+      expect(ids).not.toContain(finished.workflowId);
+
+      // The admin's other views do not show it (the gap this view closes).
+      for (const view of ["MY_REVIEWS", "UNASSIGNED", "OVERDUE", "DUE_SOON", "ESCALATED"]) {
+        const other = await get(`/v1/reviewer-ops/queue?${teamQ()}&queue=${view}&limit=100`, admin);
+        const otherIds = (other.json().rows as Array<{ workflowId: string }>).map((r) => r.workflowId);
+        expect(otherIds, view).not.toContain(inProgress.workflowId);
+      }
+
+      const refused = await get(`/v1/reviewer-ops/queue?${teamQ()}&queue=ALL_OPEN`, reviewer);
+      expect(refused.statusCode, refused.body).toBe(403);
+      expect(refused.body).toContain("review_assign_required");
+    });
+  });
+
+  // ===========================================================================
   describe("WORKFLOW-003: review surfaces obey the record rule", () => {
     it("reads are 404 by id and the lists omit the record", async () => {
       const r = await closedRecord();

@@ -182,6 +182,13 @@ export const REVIEWER_OPS_QUEUE_TYPES = [
   "INTEGRITY_RISK",
   "EXTERNAL_INTAKE",
   "COMPLETED_RECENTLY",
+  /**
+   * Round 2 (2026-11-25) — every open review in the workspace, whoever holds
+   * it: the owner's / admin's view of the whole queue (an on-time review a
+   * member is working on appeared in no view). Served only to members who may
+   * act on others' reviews (`review.assign`); restricted cases stay hidden.
+   */
+  "ALL_OPEN",
 ] as const;
 export const ReviewerOpsQueueTypeSchema = z.enum(REVIEWER_OPS_QUEUE_TYPES);
 export type ReviewerOpsQueueType = z.infer<typeof ReviewerOpsQueueTypeSchema>;

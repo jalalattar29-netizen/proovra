@@ -900,6 +900,9 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const q = parsed.data;
       const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_TASKS_AND_QUEUES");
       if (!ctx) return;
+      // Round 2 — "All open reviews" is the queue of everyone's work: only for
+      // members who may act on others' reviews (owners and admins).
+      if (q.queue === "ALL_OPEN" && !requireReviewAssigner(ctx, reply)) return;
       const result = await listReviewerOpsQueue(
         {
           teamId: q.teamId,

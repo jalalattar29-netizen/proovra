@@ -387,6 +387,10 @@ async function listReviewerOpsQueueInner(
     status: { notIn: [...REVIEW_FINISHED_DB_STATUSES] },
   };
   switch (input.queue) {
+    case "ALL_OPEN":
+      // Every open review (openReviewWhere): the base filter alone. The route
+      // serves it only to review.assign holders; the record rule applies below.
+      break;
     case "MY_REVIEWS":
       baseWhere.assignedToUserId = input.meUserId;
       break;
