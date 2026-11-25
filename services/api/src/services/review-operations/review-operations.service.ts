@@ -27,6 +27,7 @@ import {
   REVIEW_FINISHED_DB_STATUSES,
   isReviewOpenDbStatus,
   storedReviewSlaStatus,
+  reviewSlaBreachedSince,
   decisionTargetStage,
   isAllowedReviewStageTransition,
   mapDbStatusToReviewStage,
@@ -68,6 +69,7 @@ import { stampReviewDeadlines } from "../reviewer-ops/review-sla-stamp.service.j
 import { resolveEffectiveSlaPolicy } from "../reviewer-ops/sla-policy.service.js";
 import { workspaceIncludesReviewCapability } from "../billing-enforcement.service.js";
 import { advanceSweepCursor, afterCursor, readSweepCursor } from "../reviewer-ops/sweep-cursor.js";
+import { withReadTimeSlaFacts } from "../reviewer-ops/review-sla-read-facts.js";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -906,8 +908,11 @@ export async function updateReviewSla(
     input.firstResponseDueAtUtc !== undefined
       ? input.firstResponseDueAtUtc
       : workflow.firstResponseDueAtUtc;
+  // The same facts the Review header reads (a pre-column first decision comes
+  // from the decision log); only used to compute, the write fences on `workflow`.
+  const [facts] = await withReadTimeSlaFacts([workflow], client);
   const computed = storedReviewSlaStatus({
-    ...workflow,
+    ...(facts ?? workflow),
     dueAt: effectiveDue,
     firstResponseDueAtUtc: effectiveFirstResponse,
     slaPausedAtUtc: (input.paused ?? !!workflow.slaPausedAtUtc) ? new Date() : null,
@@ -967,6 +972,12 @@ export async function reconcileReviewSlas(
   skippedNotEntitled: number;
   /** The rows that moved into BREACHED, for the caller to escalate. */
   breachedWorkflowIds: string[];
+  /**
+   * Of those, the rows found long after the deadline (older than the
+   * notification window): status, SLA_BREACHED event and escalation as usual,
+   * but no overdue e-mail.
+   */
+  breachedStale: number;
   /** True when this call reached the last row. */
   wrapped: boolean;
 }> {
@@ -1006,6 +1017,8 @@ export async function reconcileReviewSlas(
   let skippedPaused = 0;
   let wrapped = false;
   const breachedWorkflowIds: string[] = [];
+  let breachedStale = 0;
+  const notifyMaxAgeMs = reviewSlaBreachNotifyMaxAgeMs();
 
   for (let page = 0; page < maxPages && !wrapped; page += 1) {
     const cursor = await readSweepCursor(client, cursorKey);
@@ -1026,6 +1039,11 @@ export async function reconcileReviewSlas(
       take: batchSize,
     });
     scanned += candidates.length;
+    // The SAME facts the Review header reads: a first decision recorded before
+    // first_decided_at_utc existed is filled from the decision log, and a
+    // deadline the open-review sweep stamped after its fact does not count.
+    // Used only to COMPUTE the status; the write below fences on the row read.
+    const facts = new Map((await withReadTimeSlaFacts(candidates, client)).map((r) => [r.id, r]));
     for (const wf of candidates) {
       if (wf.completedAtUtc) {
         skippedCompleted += 1;
@@ -1040,7 +1058,8 @@ export async function reconcileReviewSlas(
         continue;
       }
       const dueSoonHours = wf.slaDueSoonHours ?? (await dueSoonFor(wf.teamId));
-      const computed = storedReviewSlaStatus(wf, { nowUtc: now, dueSoonHours });
+      const read = facts.get(wf.id) ?? wf;
+      const computed = storedReviewSlaStatus(read, { nowUtc: now, dueSoonHours });
       if (!computed || computed === wf.slaStatus) continue;
       const stage = mapDbStatusToReviewStage(wf.status as string);
       try {
@@ -1056,18 +1075,28 @@ export async function reconcileReviewSlas(
         );
         if (computed === "BREACHED") {
           flippedBreached += 1;
-          breachedWorkflowIds.push(wf.id);
+          const since = reviewSlaBreachedSince(read, { nowUtc: now, dueSoonHours });
+          const stale = notifyMaxAgeMs > 0 && since !== null && now.getTime() - since.getTime() > notifyMaxAgeMs;
           await recordEvent(
             wf,
             "SLA_BREACHED",
             null,
             null,
             { slaStatus: wf.slaStatus },
-            { slaStatus: computed },
+            {
+              slaStatus: computed,
+              ...(since ? { breachedSinceUtc: since.toISOString() } : {}),
+              ...(stale ? { notified: false, reason: "detected_after_notification_window" } : {}),
+            },
             client,
           );
-          // One overdue-reminder email per BREACHED transition. Safe.
-          notifyReviewSlaBreached({ workflow: wf }, client).catch(() => null);
+          breachedWorkflowIds.push(wf.id);
+          if (stale) {
+            breachedStale += 1;
+          } else {
+            // One overdue-reminder email per BREACHED transition. Safe.
+            notifyReviewSlaBreached({ workflow: wf }, client).catch(() => null);
+          }
         } else if (computed === "DUE_SOON") {
           flippedDueSoon += 1;
         }
@@ -1085,6 +1114,7 @@ export async function reconcileReviewSlas(
   return {
     scanned,
     flippedBreached,
+    breachedStale,
     flippedDueSoon,
     skippedCompleted,
     skippedPaused,
@@ -1573,4 +1603,20 @@ export function projectReviewWorkflow(row: DbWorkflow, decision?: ReviewDecision
     // Deliberately NOT projected: internal `billingShape`, raw `status`
     // (use `stage` instead).
   };
+}
+
+/**
+ * How long after a deadline the breach sweep still sends the overdue e-mail. A
+ * breach found later than this (a backlog re-read under the 2026-11-25 SLA
+ * rules, or a sweep outage) is recorded and escalated as usual — status,
+ * SLA_BREACHED event with `notified: false`, escalation — without a burst of
+ * overdue e-mails about deadlines that passed days ago. REVIEW_SLA_BREACH_NOTIFY_MAX_AGE_HOURS: default 24;
+ * 0 notifies every breach whatever its age (the behaviour before 2026-11-25).
+ */
+export function reviewSlaBreachNotifyMaxAgeMs(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env.REVIEW_SLA_BREACH_NOTIFY_MAX_AGE_HOURS?.trim();
+  if (raw === undefined || raw === "") return 24 * 3_600_000;
+  const hours = Number(raw);
+  if (!Number.isFinite(hours) || hours < 0) return 24 * 3_600_000;
+  return hours * 3_600_000;
 }

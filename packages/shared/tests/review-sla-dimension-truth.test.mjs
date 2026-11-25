@@ -20,6 +20,7 @@ import {
   rollupReviewerOpsSlaState,
   selectGoverningEscalation,
   storedReviewSlaStatus,
+  reviewSlaBreachedSince,
   REVIEW_COUNT_DEFINITIONS,
   REVIEW_ESCALATED_STATUS_LABEL,
 } from "../dist/index.js";
@@ -122,17 +123,42 @@ test("T-048: the governing deadline is the earliest NOT completed dimension", ()
   assert.deepEqual(governingReviewDeadline(presented({})), { kind: "none" });
 });
 
-test("stored slaStatus semantics are unchanged (CONSUMER-MAP M12)", () => {
-  // Started, undecided, first-review deadline passed: the stored reading still
-  // counts the first touch (and the escalation trigger), as before stage C.
+test("round 2 (2026-11-25): stored slaStatus IS the presented reading", () => {
+  // Started, undecided, first-review deadline passed: Start is not a first
+  // review, so the queues and the breach sweep now read it overdue, like the header.
   const row = {
     lastReviewedAt: h(NOW, -30),
     firstResponseDueAtUtc: h(NOW, -5),
     completionDueAtUtc: h(NOW, 40),
   };
-  assert.equal(storedReviewSlaStatus(row, { nowUtc: NOW }), "ON_TRACK");
+  assert.equal(storedReviewSlaStatus(row, { nowUtc: NOW }), "BREACHED");
+  assert.equal(rollupReviewerOpsSlaState(presented(row)), "BREACHED");
+  assert.deepEqual(reviewSlaBreachedSince(row, { nowUtc: NOW }), h(NOW, -5));
+  // Decided: first review met, completion still ahead.
+  assert.equal(storedReviewSlaStatus({ ...row, firstDecidedAtUtc: h(NOW, -6) }, { nowUtc: NOW }), "ON_TRACK");
+  // The escalation trigger never makes a review overdue.
   const trigger = { escalationDueAtUtc: h(NOW, -1), completionDueAtUtc: h(NOW, 40) };
-  assert.equal(storedReviewSlaStatus(trigger, { nowUtc: NOW }), "BREACHED");
+  assert.equal(storedReviewSlaStatus(trigger, { nowUtc: NOW }), "ON_TRACK");
+  assert.equal(reviewSlaBreachedSince(trigger, { nowUtc: NOW }), null);
+  // A row whose only deadline is the trigger has no SLA status.
+  assert.equal(storedReviewSlaStatus({ escalationDueAtUtc: h(NOW, -1) }, { nowUtc: NOW }), null);
+});
+
+test("round 2: stored and presented agree on every open state of the production fixture family", () => {
+  const variants = [
+    productionRow,
+    { ...productionRow, firstDecidedAtUtc: h(STAMP, 20) },
+    { ...productionRow, escalatedAtUtc: null },
+    { ...productionRow, completionDueAtUtc: h(NOW, 3) },
+    { ...productionRow, completionDueAtUtc: h(NOW, 30), firstResponseDueAtUtc: h(NOW, 2) },
+    { assignmentDueAtUtc: h(NOW, 2) },
+    { dueAt: h(NOW, 100) },
+  ];
+  const asStored = { HEALTHY: "ON_TRACK", AT_RISK: "ON_TRACK", DUE_SOON: "DUE_SOON", BREACHED: "BREACHED", PAUSED: "PAUSED" };
+  for (const v of variants) {
+    const header = rollupReviewerOpsSlaState(presented(v));
+    assert.equal(storedReviewSlaStatus(v, { nowUtc: NOW }), asStored[header] ?? "ON_TRACK", JSON.stringify(v));
+  }
 });
 
 test("T-051: a finished review with a lingering escalation keeps its finished state", () => {

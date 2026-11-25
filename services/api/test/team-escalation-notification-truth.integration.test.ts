@@ -57,8 +57,11 @@ describe("Review escalation and reminder email truth (live PostgreSQL)", () => {
     });
   }
 
+  // Missed 2 h ago: inside the sweep's overdue e-mail window (24 h by default,
+  // REVIEW_SLA_BREACH_NOTIFY_MAX_AGE_HOURS; round 2, 2026-11-25). A breach found
+  // later is escalated but not mailed (team-rem-r2-sla-one-authority).
   const overdue = () => {
-    const past = new Date(Date.now() - 24 * 3600_000);
+    const past = new Date(Date.now() - 2 * 3600_000);
     return { dueAt: past, completionDueAtUtc: past, firstResponseDueAtUtc: past };
   };
 

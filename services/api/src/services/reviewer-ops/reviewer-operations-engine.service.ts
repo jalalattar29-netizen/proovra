@@ -1486,17 +1486,22 @@ export async function resumeReview(
     throw new ReviewerOpsError("REVIEW_INVALID_TRANSITION", { reason: "not_paused" });
   }
   const now = new Date();
+  // First review is met by the first recorded DECISION, never by Start (stage C
+  // semantics; before 2026-11-25 a started-but-undecided review kept its
+  // first-review deadline unmoved across the pause and read overdue on resume).
+  // A decision recorded before first_decided_at_utc existed comes from the log.
+  const [facts] = await withReadTimeSlaFacts([row], client, { stampedAfter: false });
   const heldMs = Math.max(now.getTime() - pausedAt.getTime(), 0);
   const moved = (d: Date | null, met: boolean = false) =>
     d && !met ? new Date(d.getTime() + heldMs) : d;
   const next = {
     assignmentDueAtUtc: moved(row.assignmentDueAtUtc, Boolean(row.assignedAtUtc)),
-    firstResponseDueAtUtc: moved(row.firstResponseDueAtUtc, Boolean(row.lastReviewedAt)),
+    firstResponseDueAtUtc: moved(row.firstResponseDueAtUtc, Boolean(facts?.firstDecidedAtUtc ?? row.firstDecidedAtUtc)),
     completionDueAtUtc: moved(row.completionDueAtUtc),
     dueAt: moved(row.dueAt),
     escalationDueAtUtc: moved(row.escalationDueAtUtc, Boolean(row.escalatedAtUtc)),
   };
-  const slaStatus = storedReviewSlaStatus({ ...row, ...next, slaPausedAtUtc: null }, { nowUtc: now });
+  const slaStatus = storedReviewSlaStatus({ ...(facts ?? row), ...next, slaPausedAtUtc: null }, { nowUtc: now });
   const updated = await client.$transaction(async (tx) => {
     const claimed = await tx.evidenceReviewWorkflow.updateMany({
       where: { id: row.id, status: row.status, slaPausedAtUtc: pausedAt },
