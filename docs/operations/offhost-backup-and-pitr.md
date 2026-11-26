@@ -99,12 +99,37 @@ docker compose --env-file /opt/proovra/app/.env -f infra/docker/docker-compose.p
   --profile backup up -d --force-recreate --no-deps pg-backup-offhost
 docker compose --env-file /opt/proovra/app/.env -f infra/docker/docker-compose.prod.yml \
   --profile backup logs --tail 20 pg-backup-offhost
-# expect: pg-backup-offhost: OK proovra-<stamp>.dump copied and verified (4 artifacts, sizes and checksum file match)
+# expect: pg-backup-offhost: OK proovra-<stamp>.dump copied and verified (4 artifacts, the SHA-256 of each object at the destination matches)
 ```
 
 The next `pg-backup` cycle records `OFFHOST_COPY SUCCEEDED`, and the watchdog then
 sends one `Resolved: Off-host backup copy failed`. Then run the proof in
 `docs/runbooks/disaster-recovery.md` ("Proving the off-host copy restores").
+
+### 1a. Immutable keys on a locked bucket (2026-11-26)
+
+The production bucket refuses to overwrite an object (R2 bucket lock:
+`ObjectLockedByBucketPolicy`). The copy used to run `aws s3 sync`, which re-sent
+backups that were already there. The bucket refused, and every hourly run from
+2026-11-22 15:23Z ended FAILED although the newest backup had uploaded. Between
+2026-11-22 and the fix, the only verified off-host backup was stamp
+`20261122T123534Z`.
+
+The copy now treats every artifact as an immutable key:
+
+| At the destination | What happens | Counts as |
+|---|---|---|
+| absent | uploaded, then streamed back and its SHA-256 compared with the local one | verified when equal, FAILED otherwise |
+| present, same content (SHA-256) | nothing is sent | verified |
+| present, different size or SHA-256 | nothing is sent; reported as `CONFLICT` and listed in `.offhost-conflicts` | never success |
+
+- The newest backup is copied and verified first and on its own; its four
+  artifacts decide `.offhost-status`. A conflict on an older backup is reported
+  as a warning and never changes that result.
+- Verified objects are remembered in `.offhost-verified` (`<name> <sha256>`), so
+  each object is downloaded for verification once.
+- Nothing is ever overwritten or deleted remotely. The credential needs read and
+  write, never delete.
 
 ## 2. Retention policy
 
@@ -115,7 +140,7 @@ sends one `Resolved: Off-host backup copy failed`. Then run the proof in
 | Neon (provider) | point-in-time restore inside the project's history retention window | the Neon plan / project setting (section 3) |
 
 - Nothing deletes off-host copies except the lifecycle rule. Local rotation never
-  removes a remote copy, because the copy runs `sync` without `--delete`.
+  removes a remote copy, because the copy only ever uploads absent keys (section 1a).
 - The readiness posture `restore_verified` needs an off-host copy within 48 h and a
   drill within 35 days. The lifecycle rule must keep at least that much.
 - A longer off-host window means a longer lifecycle expiry. Cost grows by about
