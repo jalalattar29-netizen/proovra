@@ -9,12 +9,15 @@ push to main
  → backend-release (this runbook)
      gate:    images exist with that exact revision · SHA is still main HEAD · CI green on it
               · the live API runs an ANCESTOR of it · no earlier automatic attempt of it failed
-     host:    rollback point recorded and its images proven
+     host:    disk + inode headroom proven on every filesystem the release writes
+              (obsolete PROOVRA images retired first when short; still short → refused)
+              → rollback point recorded and its images proven
               → database backup taken and proven (checksum, pg_restore --list, counts, schema)
               → scripts/deploy-prod-pull.sh --plan, then worker → API (its own revision,
                 schema and readiness gates)
               → every container's image tag, revision label, health and readiness verified;
                 /health revision, contract and route epoch = the release's own contract
+              → once verified: obsolete PROOVRA images retired (reports only, never a rollback)
               → on any failure after a service changed: automatic rollback (API first), verified
      finish:  the PUBLIC API verified from GitHub (revision, contract, route epoch, /readyz)
               → commit status release/backend = success → web-release-continuation dispatched
@@ -119,6 +122,43 @@ live web is refused (nothing changes) and says so.
 | release | main HEAD | retries a release after a failure was understood and fixed |
 | verify | the live release | verifies a release that is already running and records `release/backend` success (e.g. after an owner-run host deploy) |
 | rollback | the release running now | makes the web compatible with the recorded rollback point (or refuses), then rolls the backend back (API first) and verifies it |
+
+## 3a. Disk headroom and image retention
+
+Added 2026-11-26. On 2026-11-25 a release ran on a full root filesystem (28 MB free). The
+backup and the pull took the last space, verification could not write its temp file, and
+the automatic rollback died in `git checkout`, leaving tracked files empty.
+
+**Headroom, before the backup and before any image pull.** Checked on each filesystem the
+release writes to: the checkout, `/opt/proovra/backups/postgres` and Docker's root.
+
+| Need | Size |
+|---|---|
+| backup | 2 × the previous release's proven dump (`.deploy-state/backup-proof-*.txt`), else 2 × 2048 MB |
+| images | 1.5 × the unpacked size of each candidate or rollback image not yet on the host (sized from the rollback image), else 6144 MB each |
+| margin | 2048 MB per filesystem (checkout, logs, verification, a rollback) |
+| inodes | at least 200000 free |
+
+Host overrides: `PROOVRA_RELEASE_MARGIN_MB`, `PROOVRA_RELEASE_MIN_FREE_INODES`,
+`PROOVRA_BACKUP_DIR`, `PROOVRA_RELEASE_BACKUP_ESTIMATE_MB`, `PROOVRA_RELEASE_IMAGE_ESTIMATE_MB`.
+
+When space is short, obsolete images are retired (below) and the check runs again. If it is
+still short, the result is `failure "deploy failed before any service changed: insufficient
+disk space, …"` and nothing has changed.
+
+**Retention policy.**
+- **Candidates:** only `sha-<7>` tags of `ghcr.io/<owner>/proovra-api` and `proovra-worker`.
+- **How:** one exact tag at a time with `docker image rm`. Never `-f`, never `prune`.
+- **Always kept:**
+  - every image a container uses, running or stopped;
+  - the release being deployed and its rollback pair;
+  - the rollback pair recorded in `.deploy-state/previous-release`.
+- **Never touched:** other repositories, `latest` or any other tag, untagged images, volumes, backups.
+- A tag whose image another tag still holds (for example `latest`) is only untagged.
+- **When it runs:**
+  - before the backup, only when space is short;
+  - after every verified release, where it only reports (`PROOVRA_RELEASE retention=removed N, kept K, failed F`) and never fails or rolls back the release;
+  - never after a failed release: nothing is removed.
 
 ## 4. When the rollback did not verify
 

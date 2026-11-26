@@ -50,6 +50,30 @@ case "$args" in
   "pull -q "*) [ -n "\${STUB_PULL_FAIL:-}" ] && exit 1; exit 0 ;;
   "image inspect --format {{ index .Config.Labels "*)
     rev_of_tag "\${last##*:}"; exit 0 ;;
+  # --- images on the host: state/images holds "<ref> <id> <bytes>" lines ---
+  "info --format {{.DockerRootDir}}") echo "$st/docker-root"; exit 0 ;;
+  "ps -aq")
+    [ -n "\${STUB_PSA_FAIL:-}" ] && { echo 'Cannot connect to the Docker daemon' >&2; exit 1; }
+    for s in proovra-api proovra-worker; do r="$(cat "$st/running-$s" 2>/dev/null)"; [ -n "$r" ] && echo "cid-$s-$r-$(cat "$st/gen-$s" 2>/dev/null || echo 0)"; done
+    cat "$st/stopped" 2>/dev/null; exit 0 ;;
+  "inspect --format {{.Image}} "*)
+    [ -f "$st/cimg-$last" ] && { cat "$st/cimg-$last"; exit 0; }
+    s="$(echo "$last" | cut -d- -f2-3)"; r="$(echo "$last" | cut -d- -f4)"
+    awk -v ref="ghcr.io/owner/$s:sha-\${r:0:7}" '$1==ref {print $2}' "$st/images"; exit 0 ;;
+  "image inspect --format {{.Size}} "*)
+    l="$(awk -v ref="$last" '$1==ref' "$st/images")"; [ -n "$l" ] || exit 1; echo "$l" | awk '{print $3}'; exit 0 ;;
+  "image inspect --format {{.Id}} "*)
+    l="$(awk -v ref="$last" '$1==ref' "$st/images")"; [ -n "$l" ] || exit 1; echo "$l" | awk '{print $2}'; exit 0 ;;
+  "image ls --no-trunc --format "*)
+    awk -v repo="$last" 'index($1, repo ":") == 1 {print substr($1, length(repo) + 2), $2}' "$st/images"; exit 0 ;;
+  "image rm "*)
+    case "$args" in *" -f "*|*" -f"|*"--force"*) echo "force refused by the stub" >&2; exit 98 ;; esac
+    [ -n "\${STUB_RM_FAIL:-}" ] && [ "\${last##*:}" = "$STUB_RM_FAIL" ] && { echo "conflict: unable to remove" >&2; exit 1; }
+    l="$(awk -v ref="$last" '$1==ref' "$st/images")"; [ -n "$l" ] || exit 1
+    id="$(echo "$l" | awk '{print $2}')"; sz="$(echo "$l" | awk '{print $3}')"
+    awk -v ref="$last" '$1!=ref' "$st/images" > "$st/images.tmp"; mv "$st/images.tmp" "$st/images"
+    awk -v id="$id" '$2==id {f=1} END {exit !f}' "$st/images" || echo $(( $(cat "$st/df-free") + sz / 1024 )) > "$st/df-free"
+    exit 0 ;;
 esac
 echo "unexpected docker call: $args" >&2; exit 99
 `;
@@ -92,6 +116,16 @@ case "$*" in
 esac
 exit 0
 `;
+// df: one filesystem "/", free KiB in state/df-free, free inodes in state/df-inodes.
+const DF = `#!/usr/bin/env bash
+echo "df $*" >> "$STUB_LOG"
+st="$STUB_STATE"
+if [ "$1" = -Pi ]; then
+  printf 'Filesystem Inodes IUsed IFree IUse%% Mounted on\\n/dev/sda1 4862256 1 %s 45%% /\\n' "$(cat "$st/df-inodes")"
+else
+  printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\\n/dev/sda1 78643200 1 %s 50%% /\\n' "$(cat "$st/df-free")"
+fi
+`;
 const FLOCK = `#!/usr/bin/env bash
 echo "flock $*" >> "$STUB_LOG"
 exit "\${STUB_FLOCK_RC:-0}"
@@ -101,6 +135,12 @@ const DEPLOY = `#!/usr/bin/env bash
 echo "deploy-prod-pull $* RELEASE_SHA=\${RELEASE_SHA:-} IMAGE_TAG=\${IMAGE_TAG:-} GHCR_OWNER=\${GHCR_OWNER:-}" >> "$STUB_LOG"
 st="$STUB_STATE"
 bump() { echo $(( $(cat "$st/gen-$1" 2>/dev/null || echo 0) + 1 )) > "$st/gen-$1"; }
+# The pull of the candidate images: they appear on the host (ids as imageId() builds them).
+pulled() {
+  grep -q "^ghcr.io/owner/proovra-api:$IMAGE_TAG " "$st/images" || echo "ghcr.io/owner/proovra-api:$IMAGE_TAG sha256:\${RELEASE_SHA}000000000000000000000001 1048576" >> "$st/images"
+  grep -q "^ghcr.io/owner/proovra-worker:$IMAGE_TAG " "$st/images" || echo "ghcr.io/owner/proovra-worker:$IMAGE_TAG sha256:\${RELEASE_SHA}000000000000000000000002 1048576" >> "$st/images"
+}
+case "\${STUB_DEPLOY:-ok}" in ok|api-unhealthy|silent-wrong) [ -z "\${1:-}" ] && pulled ;; esac
 case "\${1:-}" in
   --plan) echo "Currently running: sha-x — this is the rollback point."; exit "\${STUB_PLAN_RC:-0}" ;;
   --rollback)
@@ -122,7 +162,19 @@ afterEach(() => {
   dirs = [];
 });
 
-function stubWorld({ running = OLD, env = {} as Record<string, string> } = {}) {
+const GiB = 1024 ** 3;
+/** Image ids as the deploy stub builds them: the revision, padded, 1 = API, 2 = worker. */
+const imageId = (rev: string, svc: "api" | "worker") => `sha256:${rev}${"0".repeat(23)}${svc === "api" ? 1 : 2}`;
+const imageLine = (rev: string, svc: "api" | "worker", bytes = GiB, tag = `sha-${rev.slice(0, 7)}`) =>
+  `ghcr.io/owner/proovra-${svc}:${tag} ${imageId(rev, svc)} ${bytes}`;
+
+function stubWorld({
+  running = OLD,
+  env = {} as Record<string, string>,
+  images = undefined as string[] | undefined,
+  freeMb = 100 * 1024,
+  freeInodes = 3_000_000,
+} = {}) {
   const root = mkdtempSync(join(tmpdir(), "host-release-"));
   dirs.push(root);
   const bin = join(root, "bin");
@@ -137,6 +189,11 @@ function stubWorld({ running = OLD, env = {} as Record<string, string> } = {}) {
   put(join(bin, "git"), GIT);
   put(join(bin, "curl"), CURL);
   put(join(bin, "flock"), FLOCK);
+  put(join(bin, "df"), DF);
+  const seeded = images ?? [...new Set([OLD, running])].flatMap((r) => [imageLine(r, "api"), imageLine(r, "worker")]);
+  writeFileSync(join(state, "images"), seeded.map((l) => `${l}\n`).join(""));
+  writeFileSync(join(state, "df-free"), String(freeMb * 1024));
+  writeFileSync(join(state, "df-inodes"), String(freeInodes));
   put(join(app, "scripts", "deploy-prod-pull.sh"), DEPLOY);
   writeFileSync(join(app, ".env"), `DATABASE_URL=${SECRET}\n`);
   writeFileSync(join(state, "running-proovra-api"), running);
@@ -305,6 +362,174 @@ describe("host-release.sh release", () => {
     expect(r.status).toBe(0);
     expect(r.marks.already_running).toBe("true");
     expect(r.calls.some((l) => l.startsWith("deploy-prod-pull") || / pg-backup /.test(l))).toBe(false);
+  });
+});
+
+// 2026-11-25: a release on a full root filesystem (28 MB free) backed up,
+// deployed, could not verify, and its rollback died in `git checkout`. Headroom
+// is now proven before the backup and any pull, and obsolete images are retired.
+describe("host-release.sh disk headroom and image retention", () => {
+  const OBSOLETE = "2222222";
+  const RECORDED = "1111111"; // the rollback pair recorded on the host before this release
+  const STOPPED = "4444444"; // the image of a stopped container
+  function crowded() {
+    const extra = [
+      `ghcr.io/owner/proovra-api:sha-${RECORDED} sha256:${"1".repeat(64)} ${GiB}`,
+      `ghcr.io/owner/proovra-worker:sha-${RECORDED} sha256:${"2".repeat(64)} ${GiB}`,
+      `ghcr.io/owner/proovra-worker:sha-${OBSOLETE} sha256:${"3".repeat(64)} ${4 * GiB}`,
+      `ghcr.io/owner/proovra-api:sha-${STOPPED} sha256:${"4".repeat(64)} ${GiB}`,
+      `ghcr.io/owner/proovra-api:latest ${imageId(OLD, "api")} ${GiB}`,
+      `ghcr.io/owner/other:sha-${OBSOLETE} sha256:${"5".repeat(64)} ${GiB}`,
+    ];
+    return [imageLine(OLD, "api", 2 * GiB), imageLine(OLD, "worker", 4 * GiB), ...extra];
+  }
+  function seed(w: ReturnType<typeof stubWorld>) {
+    mkdirSync(join(w.app, ".deploy-state"), { recursive: true });
+    writeFileSync(join(w.app, ".deploy-state", "previous-release"), `RELEASE_SHA=${"1".repeat(40)}\nIMAGE_TAG=sha-${RECORDED}\n`);
+    // The previous release's proven backup: 1 GiB.
+    writeFileSync(join(w.app, ".deploy-state", "backup-proof-0123456789ab.txt"), `${GiB}\n`);
+    writeFileSync(join(w.state, "stopped"), "stopped-1\n");
+    writeFileSync(join(w.state, "cimg-stopped-1"), `sha256:${"4".repeat(64)}\n`);
+  }
+  const imagesOf = (w: ReturnType<typeof stubWorld>) =>
+    readFileSync(join(w.state, "images"), "utf8").split("\n").filter(Boolean).map((l) => l.split(" ")[0]);
+  const noForce = (calls: string[]) => {
+    for (const l of calls.filter((c) => c.startsWith("docker "))) {
+      expect(l).not.toMatch(/ prune\b|system |volume |builder |image rm .*(-f\b|--force)/);
+    }
+  };
+
+  it("needs 2 x the last proven backup + 1.5 x each image not yet here + the margin, and checks it before the rollback pull and the backup", () => {
+    const w = stubWorld({ images: crowded() });
+    seed(w);
+    const r = w.run(["release", NEW]);
+    expect(r.status, r.out).toBe(0);
+    // 2 x 1 GiB backup + 1.5 x (2 + 4 GiB candidate, sized from the rollback pair) + 2048 MB margin.
+    expect(r.out).toMatch(/disk \/: 102400 MB free, 13312 MB needed; inodes free 3000000 \(minimum 200000\)/);
+    expect(r.marks.disk_free_mb).toBe("/ 102400");
+    expect(r.marks.retention_before).toBeUndefined(); // enough: nothing removed up front
+    const at = (re: RegExp) => r.calls.findIndex((l) => re.test(l));
+    expect(at(/^df -Pk /)).toBeGreaterThanOrEqual(0);
+    expect(at(/^df -Pk /)).toBeLessThan(at(/^docker pull -q /));
+    expect(at(/^df -Pi /)).toBeLessThan(at(/pg-backup \/ops\/pg-backup\.sh$/));
+  });
+
+  it("after a VERIFIED release retires only obsolete sha-tagged PROOVRA images, by exact tag, without force", () => {
+    const w = stubWorld({ images: crowded() });
+    seed(w);
+    const r = w.run(["release", NEW]);
+    expect(r.status, r.out).toBe(0);
+    expect(r.marks.result).toBe("DEPLOYED");
+    expect(r.marks.retention).toBe("removed 3, kept 5, failed 0");
+    const left = imagesOf(w);
+    // Kept: the release now running, the rollback pair just recorded, a stopped container's image,
+    // every other tag and repository.
+    for (const keep of [
+      `ghcr.io/owner/proovra-api:sha-${NEW.slice(0, 7)}`,
+      `ghcr.io/owner/proovra-worker:sha-${NEW.slice(0, 7)}`,
+      `ghcr.io/owner/proovra-api:sha-${OLD.slice(0, 7)}`,
+      `ghcr.io/owner/proovra-worker:sha-${OLD.slice(0, 7)}`,
+      `ghcr.io/owner/proovra-api:sha-${STOPPED}`,
+      "ghcr.io/owner/proovra-api:latest",
+      `ghcr.io/owner/other:sha-${OBSOLETE}`,
+    ]) expect(left, keep).toContain(keep);
+    // Retired: the pair recorded before this release (superseded by OLD) and an obsolete worker.
+    for (const gone of [
+      `ghcr.io/owner/proovra-api:sha-${RECORDED}`,
+      `ghcr.io/owner/proovra-worker:sha-${RECORDED}`,
+      `ghcr.io/owner/proovra-worker:sha-${OBSOLETE}`,
+    ]) expect(left, gone).not.toContain(gone);
+    expect(r.calls).toContain(`docker image rm ghcr.io/owner/proovra-worker:sha-${OBSOLETE}`);
+    // Retention runs only after the verification, and reports before the final result line.
+    const at = (re: RegExp) => r.calls.findIndex((l) => re.test(l));
+    expect(at(/^docker image rm /)).toBeGreaterThan(at(/^curl .*\/health$/));
+    expect(r.out.trim().split("\n").at(-1)).toBe("PROOVRA_RELEASE result=DEPLOYED");
+    expect(r.marks.disk_free_after_mb).toMatch(/^\/ \d+$/);
+    noForce(r.calls);
+  });
+
+  it("when short, removes obsolete images first (keeping the running, candidate and recorded rollback pairs) and proceeds once enough is free", () => {
+    // 13312 MB needed; 10000 MB free; the obsolete 4 GiB worker brings it to 14096.
+    const w = stubWorld({ images: crowded(), freeMb: 10000 });
+    seed(w);
+    const r = w.run(["release", NEW]);
+    expect(r.status, r.out).toBe(0);
+    expect(r.marks.result).toBe("DEPLOYED");
+    expect(r.marks.retention_before).toBe("removed 1, kept 5, failed 0");
+    const at = (re: RegExp) => r.calls.findIndex((l) => re.test(l));
+    const rm = at(new RegExp(`^docker image rm ghcr.io/owner/proovra-worker:sha-${OBSOLETE}$`));
+    expect(rm).toBeGreaterThanOrEqual(0);
+    expect(rm).toBeLessThan(at(/^docker pull -q /));
+    expect(rm).toBeLessThan(at(/pg-backup \/ops\/pg-backup\.sh$/));
+    // Up front, the pair recorded on the host is still the live rollback point: never removed then.
+    const before = r.calls.slice(0, at(/^docker pull -q /));
+    expect(before.some((l) => l.includes(`image rm ghcr.io/owner/proovra-api:sha-${RECORDED}`))).toBe(false);
+    noForce(r.calls);
+  });
+
+  it("refuses before anything changes when safe cleanup cannot free enough", () => {
+    const w = stubWorld({ images: crowded(), freeMb: 1000 });
+    seed(w);
+    const r = w.run(["release", NEW]);
+    expect(r.status).toBe(10);
+    expect(r.marks.result).toBe("REFUSED_BEFORE_CHANGE");
+    expect(r.marks.reason).toMatch(
+      /^insufficient disk space, and removing obsolete PROOVRA images did not free enough: \/ has 5096 MB free and needs 13312 MB$/,
+    );
+    expect(r.calls.some((l) => /^docker pull /.test(l) || / pg-backup /.test(l) || l.startsWith("deploy-prod-pull"))).toBe(false);
+    expect(r.calls.some((l) => /^git checkout /.test(l))).toBe(false);
+    expect(w.running()).toEqual({ api: OLD, worker: OLD });
+    // The rollback point already recorded on the host is untouched.
+    expect(readFileSync(join(w.app, ".deploy-state", "previous-release"), "utf8")).toContain(`IMAGE_TAG=sha-${RECORDED}`);
+    expect(imagesOf(w)).toContain(`ghcr.io/owner/proovra-api:sha-${RECORDED}`);
+    noForce(r.calls);
+  });
+
+  it("refuses on too few free inodes, too", () => {
+    const w = stubWorld({ freeInodes: 1000 });
+    const r = w.run(["release", NEW]);
+    expect(r.status).toBe(10);
+    expect(r.marks.reason).toMatch(/\/ has 1000 free inodes and needs 200000$/);
+    expect(r.calls.some((l) => / pg-backup /.test(l) || l.startsWith("deploy-prod-pull"))).toBe(false);
+  });
+
+  it("a candidate already on the host needs no image headroom", () => {
+    const w = stubWorld({ images: [...crowded(), imageLine(NEW, "api"), imageLine(NEW, "worker")] });
+    seed(w);
+    const r = w.run(["release", NEW]);
+    expect(r.out).toMatch(/disk \/: 102400 MB free, 4096 MB needed/); // 2 x 1 GiB backup + margin
+  });
+
+  it("a retention failure after a healthy release never fails it and never rolls back", () => {
+    const w = stubWorld({ images: crowded(), env: { STUB_RM_FAIL: `sha-${OBSOLETE}` } });
+    seed(w);
+    const r = w.run(["release", NEW]);
+    expect(r.status, r.out).toBe(0);
+    expect(r.marks.result).toBe("DEPLOYED");
+    expect(r.marks.retention).toBe("removed 2, kept 5, failed 1");
+    expect(r.out).toMatch(/retention did not complete; the release stands/);
+    expect(r.calls.some((l) => /deploy-prod-pull --rollback/.test(l))).toBe(false);
+    expect(imagesOf(w)).toContain(`ghcr.io/owner/proovra-worker:sha-${OBSOLETE}`);
+  });
+
+  it("unreadable containers after a healthy release: retention removes nothing, and the release stands", () => {
+    const w = stubWorld({ images: crowded(), env: { STUB_PSA_FAIL: "1" } });
+    seed(w);
+    const r = w.run(["release", NEW]);
+    expect(r.status, r.out).toBe(0);
+    expect(r.marks.result).toBe("DEPLOYED");
+    expect(r.marks.retention).toBe("skipped (containers unreadable)");
+    expect(r.calls.some((l) => /^docker image rm /.test(l))).toBe(false);
+    expect(r.calls.some((l) => /deploy-prod-pull --rollback/.test(l))).toBe(false);
+  });
+
+  it("a failed release keeps every image for the operator: no retention after a rollback", () => {
+    const w = stubWorld({ images: crowded(), env: { STUB_DEPLOY: "api-unhealthy" } });
+    seed(w);
+    const r = w.run(["release", NEW]);
+    expect(r.marks.result).toBe("FAILED_ROLLED_BACK");
+    expect(r.marks.retention).toBeUndefined();
+    expect(r.calls.some((l) => /^docker image rm /.test(l))).toBe(false);
   });
 });
 

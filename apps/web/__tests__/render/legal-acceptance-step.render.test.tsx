@@ -162,8 +162,17 @@ describe("A1-06 — a write refused for outstanding terms", () => {
     expect(statusReads(calls)).toBe(1);
 
     await apiFetch("/v1/shares", { method: "POST", body: "{}" }).catch(() => undefined);
-    await waitFor(() => expect(step()).not.toBeNull());
+    // The step re-opens at once from the status it already holds, and the
+    // refusal also re-reads the status; that read can be issued a moment
+    // after the step is back (CI, 2026-11-25: read 1 of 2 when the step
+    // appeared). Wait for both, then prove the counts settle exactly there.
+    await waitFor(() => {
+      expect(step()).not.toBeNull();
+      expect(statusReads(calls)).toBe(2);
+    });
+    await new Promise((r) => setTimeout(r, 30));
     expect(statusReads(calls)).toBe(2);
+    expect(step()).not.toBeNull();
     // Showing the step retried nothing: one write, one refusal.
     expect(calls.filter((c) => c.url.includes("/v1/shares")).length).toBe(1);
   });
