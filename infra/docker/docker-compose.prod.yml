@@ -112,6 +112,9 @@ services:
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.2}
       SENTRY_PROFILES_SAMPLE_RATE: ${SENTRY_PROFILES_SAMPLE_RATE:-0.1}
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+      # The tag this container was created from; the process reports drift from
+      # its own immutable sha-<7> at start-up (a hand-run IMAGE_TAG=latest, 2026-11-26).
+      PROOVRA_IMAGE_TAG: ${IMAGE_TAG}
       # OTEL (Grafana Cloud OTLP gateway). Service-name is fixed to
       # `proovra-api` on this container so the api and worker report
       # as distinct services even with a shared `.env`.
@@ -271,6 +274,9 @@ services:
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.2}
       SENTRY_PROFILES_SAMPLE_RATE: ${SENTRY_PROFILES_SAMPLE_RATE:-0.1}
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+      # The tag this container was created from; the process reports drift from
+      # its own immutable sha-<7> at start-up (a hand-run IMAGE_TAG=latest, 2026-11-26).
+      PROOVRA_IMAGE_TAG: ${IMAGE_TAG}
       # OTEL — service-name pinned to `proovra-worker` so api and
       # worker telemetry are distinguishable even with a shared .env.
       OTEL_ENABLED: ${OTEL_ENABLED:-true}

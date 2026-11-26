@@ -645,9 +645,21 @@ function answer(code: number, body: unknown): ReadinessAnswer {
 let readinessInFlight: Promise<ReadinessAnswer> | null = null;
 
 function sharedReadiness(log: ReadinessLog): Promise<ReadinessAnswer> {
-  readinessInFlight ??= evaluateReadiness(log).finally(() => {
-    readinessInFlight = null;
-  });
+  readinessInFlight ??= evaluateReadiness(log)
+    // A dependency that fails AFTER the first probe passed (the signer-identity
+    // lookup, a dropped connection mid-evaluation) used to escape as a 500 and
+    // a Sentry error. Readiness answers that as what it is: not ready, with a
+    // bounded reason; never a 200, never the driver's message.
+    .catch((err: unknown) => {
+      log?.error(
+        { err: err instanceof Error ? err.name : "unknown" },
+        "readyz.check_failed",
+      );
+      return answer(503, { status: "degraded", reason: "readiness_check_failed" });
+    })
+    .finally(() => {
+      readinessInFlight = null;
+    });
   return readinessInFlight;
 }
 

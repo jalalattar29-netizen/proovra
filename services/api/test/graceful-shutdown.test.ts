@@ -154,3 +154,115 @@ describe("NEW-RG-22-8 — the API closes the reconciliation runs it still holds"
     expect(h.warn).toHaveBeenCalledWith({ boundMs: 30 }, "api.shutdown_runs_interrupt_timed_out");
   });
 });
+
+/**
+ * Sentry alert audit (2026-11-26): at 10:14:18Z four platform-maintenance steps
+ * queried a CLOSED pool, because the drain cleared the sweep's timer but never
+ * waited for the run in progress. The real background-work tracker and the real
+ * maintenance sweep, against a pool that refuses use after end exactly like pg.
+ */
+describe("2026-11-26 — scheduled background work is drained before the pool closes", () => {
+  async function tracker() {
+    const bw = await import("../src/runtime/background-work.js");
+    bw.__resetBackgroundWorkForTests();
+    return bw;
+  }
+
+  function pool() {
+    let ended = false;
+    const afterEnd: string[] = [];
+    return {
+      query: async (what: string) => {
+        if (ended) {
+          afterEnd.push(what);
+          throw new Error("Cannot use a pool after calling end on the pool");
+        }
+      },
+      end: async () => { ended = true; },
+      afterEnd,
+    };
+  }
+
+  function install(bw: Awaited<ReturnType<typeof tracker>>, p: ReturnType<typeof pool>, drainMs = 1_000) {
+    const order: string[] = [];
+    const handlers = new Map<string, () => void>();
+    const warn = vi.fn();
+    H.interrupt = async () => 0;
+    installGracefulShutdown(
+      { close: async () => { order.push("close"); }, log: { info: vi.fn(), warn } },
+      {
+        closePool: async () => { order.push("pool"); await p.end(); },
+        exit: (code) => { order.push(`exit:${code}`); },
+        on: (signal, handler) => handlers.set(signal, handler),
+        deadlineMs: 5_000,
+        backgroundWork: { stop: bw.stopBackgroundWork, drain: bw.drainBackgroundWork },
+        backgroundDrainMs: drainMs,
+      },
+    );
+    return { order, handlers, warn };
+  }
+
+  it("a maintenance sweep running at SIGTERM finishes its current step, starts no further step, and only then is the pool closed", async () => {
+    const bw = await tracker();
+    const p = pool();
+    const { runPlatformMaintenanceSweep } = await import("../src/jobs/platform-maintenance-reconciliation.job.js");
+    const stepsRun: string[] = [];
+    let releaseFirst!: () => void;
+    const firstStepGate = new Promise<void>((r) => (releaseFirst = r));
+    const step = (name: string, gate?: Promise<void>) => async () => {
+      stepsRun.push(name);
+      if (gate) await gate;
+      await p.query(name);
+      return {} as never;
+    };
+    const sweep = bw.runBackgroundOperation("platform_maintenance", () =>
+      runPlatformMaintenanceSweep(
+        { trigger: "scheduler" },
+        {
+          runMasterReconcile: step("ops_master_reconcile", firstStepGate),
+          reconcileUploads: step("reliability_upload_reconcile"),
+          releaseHeldOutputs: step("output_hold_release"),
+          recoverSealedRecords: step("sealed_record_recovery"),
+          continueKeyCompromiseNotices: step("key_compromise_notices"),
+          withLease: async (_k, _t, fn) => fn(),
+          shouldStop: bw.isBackgroundShutdown,
+        },
+      ),
+    );
+    const h = install(bw, p);
+    await new Promise((r) => setTimeout(r, 10));
+    h.handlers.get("SIGTERM")!(); // the first step is still running
+    await new Promise((r) => setTimeout(r, 20));
+    expect(h.order).toEqual(["close"]); // waiting for the running step, pool still open
+    releaseFirst();
+    const result = await sweep;
+    await new Promise((r) => setTimeout(r, 20));
+    expect(stepsRun).toEqual(["ops_master_reconcile"]);
+    expect(result?.uploadReconcile.status).toBe("skipped_shutdown");
+    expect(result?.keyCompromiseNotices?.status).toBe("skipped_shutdown");
+    expect(h.order).toEqual(["close", "pool", "exit:0"]);
+    expect(p.afterEnd).toEqual([]); // nothing queried the closed pool
+  });
+
+  it("no new background run starts once shutdown has begun", async () => {
+    const bw = await tracker();
+    const p = pool();
+    const h = install(bw, p);
+    h.handlers.get("SIGTERM")!();
+    const ran = vi.fn(async () => p.query("late tick"));
+    expect(await bw.runBackgroundOperation("billing_reconciler", ran)).toBeUndefined();
+    expect(ran).not.toHaveBeenCalled();
+  });
+
+  it("work still running at the drain bound keeps its pool: the pool is NOT closed and the exit is 1", async () => {
+    const bw = await tracker();
+    const p = pool();
+    void bw.runBackgroundOperation("operations_reconciler", () => new Promise(() => undefined));
+    const h = install(bw, p, 30);
+    h.handlers.get("SIGTERM")!();
+    await new Promise((r) => setTimeout(r, 120));
+    expect(h.order).toEqual(["close", "exit:1"]);
+    expect(h.warn).toHaveBeenCalledWith(expect.objectContaining({ stillRunning: 1 }), "api.shutdown_background_cut");
+    expect(h.warn).toHaveBeenCalledWith(expect.anything(), "api.shutdown_pool_left_open_for_running_work");
+  });
+});

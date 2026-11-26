@@ -29,6 +29,15 @@ export const SHUTDOWN_DEADLINE_MS = 8_000;
  */
 export const INTERRUPT_RUNS_BOUND_MS = 1_500;
 
+/**
+ * Scheduled background work (runtime/background-work.ts) gets this long to
+ * finish its running step, in parallel with the audit-append drain. Work that
+ * is still running then keeps its pool: the pool is NOT closed under it, and
+ * the process exits 1 instead (2026-11-26: four platform-maintenance steps
+ * queried a closed pool because the drain never waited for them).
+ */
+export const BACKGROUND_DRAIN_MS = 3_500;
+
 async function interruptActiveRuns(app: DrainableServer, boundMs: number): Promise<void> {
   let timer: NodeJS.Timeout | null = null;
   const timedOut = Symbol("timed_out");
@@ -77,12 +86,21 @@ export function installGracefulShutdown(
     deadlineMs?: number;
     /** Bound for closing the held reconciliation runs (NEW-RG-22-8). */
     interruptRunsBoundMs?: number;
+    /** Scheduled background work: refused from the first signal, then drained. */
+    backgroundWork?: {
+      stop: () => void;
+      drain: (timeoutMs: number) => Promise<{ drained: boolean; stillRunning: number }>;
+    };
+    backgroundDrainMs?: number;
   },
 ): { shutdown: (signal: string) => Promise<void> } {
   let draining: Promise<void> | null = null;
   const shutdown = (signal: string): Promise<void> => {
     if (draining) return draining;
     app.log.info({ signal }, "api.shutdown_started");
+    // No new scheduled run starts from here on, before anything else happens.
+    deps.backgroundWork?.stop();
+    let backgroundDrained = true;
     const deadline = setTimeout(() => {
       app.log.warn({ signal, deadlineMs: deps.deadlineMs ?? SHUTDOWN_DEADLINE_MS }, "api.shutdown_deadline_exceeded");
       deps.exit(1);
@@ -90,15 +108,30 @@ export function installGracefulShutdown(
     deadline.unref?.();
     draining = app
       .close()
-      .then(() => (deps.drainBackground ? deps.drainBackground() : undefined))
+      .then(() =>
+        Promise.all([
+          deps.drainBackground ? deps.drainBackground() : undefined,
+          deps.backgroundWork
+            ? deps.backgroundWork.drain(deps.backgroundDrainMs ?? BACKGROUND_DRAIN_MS).then((r) => {
+                backgroundDrained = r.drained;
+                if (!r.drained) app.log.warn({ signal, stillRunning: r.stillRunning }, "api.shutdown_background_cut");
+              })
+            : undefined,
+        ]),
+      )
       .then(() => interruptActiveRuns(app, deps.interruptRunsBoundMs ?? INTERRUPT_RUNS_BOUND_MS))
-      .then(() => deps.closePool())
+      .then(() => {
+        // Never close the pool under work that is still using it.
+        if (backgroundDrained) return deps.closePool();
+        app.log.warn({ signal }, "api.shutdown_pool_left_open_for_running_work");
+        return undefined;
+      })
       .then(() => (deps.flushTelemetry ? deps.flushTelemetry() : undefined))
       .then(
         () => {
           clearTimeout(deadline);
-          app.log.info({ signal }, "api.shutdown_drained");
-          deps.exit(0);
+          app.log.info({ signal, backgroundDrained }, "api.shutdown_drained");
+          deps.exit(backgroundDrained ? 0 : 1);
         },
         (err: unknown) => {
           clearTimeout(deadline);

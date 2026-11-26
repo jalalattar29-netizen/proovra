@@ -18,6 +18,7 @@ import {
   decideBackendRelease,
   decideFinish,
   parseHostOutput,
+  imageDriftWarnings,
   readImageRevision,
   runFinish,
   runGate,
@@ -316,4 +317,15 @@ test("helpers — host output, compatibility, choice of web, GHCR revision", asy
 
   const ok = decideBackendRelease({ mode: "rollback", sha: C1, config: { key: true, target: true, knownHosts: true } });
   assert.equal(ok.action, "rollback");
+});
+
+test("image-reference drift from the host status becomes a warning per service, and nothing else (2026-11-26)", () => {
+  const h = parseHostOutput(
+    `PROOVRA_RELEASE revision_api=${C1}\nPROOVRA_RELEASE image_drift_api=latest (runs ${C1.slice(0, 7)}; want sha-${C1.slice(0, 7)})\nPROOVRA_RELEASE result=STATUS\n`,
+  );
+  const w = imageDriftWarnings(h);
+  assert.equal(w.length, 1);
+  assert.match(w[0], /the api container was created from latest/);
+  assert.match(w[0], /never IMAGE_TAG=latest/);
+  assert.deepEqual(imageDriftWarnings(parseHostOutput("PROOVRA_RELEASE result=STATUS\n")), []);
 });

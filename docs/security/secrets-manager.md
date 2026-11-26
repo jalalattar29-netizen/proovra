@@ -259,3 +259,33 @@ All are bounded names registered in `packages/shared-runtime/src/ops/metrics.ser
 **Response body:** see §4. **Never** carries secret values.
 
 This is the only operational surface for secret hydration; there is no operator UI yet (the response is consumed by ops dashboards if needed).
+
+## Production state and the owner action (2026-11-26)
+
+Both production containers run legacy `AWS_SECRETS_ENABLED=true` (= `optional`) and log
+`aws_secrets.hydration_failed code=access_denied`, then `refresh_suspended_until_restart`.
+They therefore run on their environment values, by design of `optional`. The identity
+whose keys are in the host's `.env` is not allowed to read `proovra/prod/app-secrets` in
+`us-east-1`.
+
+**Owner action (once, AWS console, least privilege).** On the IAM user whose access key is
+the host's `AWS_ACCESS_KEY_ID`, add the inline policy
+`infra/aws/proovra-app-secrets-read-policy.json` with `ACCOUNT_ID` replaced by the account
+number. It allows only `secretsmanager:GetSecretValue` on that one secret. If the secret is
+encrypted with a customer-managed KMS key rather than `aws/secretsmanager`, that key's
+policy must also allow this user `kms:Decrypt` via `secretsmanager.us-east-1.amazonaws.com`.
+
+**Check (read-only, prints no value).** In each container:
+
+```bash
+docker exec -i $(docker ps -q --filter label=com.docker.compose.service=proovra-api) node - < /opt/proovra/app/scripts/ops/secrets-authority-check.cjs
+```
+
+It prints the outcome (`ok`, `access_denied`, `not_found`, …), the key count, and for each
+secret the services read whether AWS holds it, whether the environment holds it and whether
+they agree. A container picks up the grant at its next start (`access_denied` suspends the
+refresh until restart); the next release restarts both.
+
+**Bitcoin verifier.** In production `OTS_BITCOIN_RPC_PASSWORD` is read only from this
+secret or from `OTS_BITCOIN_RPC_PASSWORD_FILE`, never from the environment. The worker logs
+its state at start-up as `ots.bitcoin_verifier.state` (flags and endpoint label only).

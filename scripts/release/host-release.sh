@@ -327,7 +327,16 @@ main() {
   status_report() {
     local svc
     for svc in "${API_SVC}" "${WORKER_SVC}"; do
-      running_of "${svc}" | while read -r rev img; do mark "running_${svc#proovra-}=${rev} ${img}"; done
+      running_of "${svc}" | while read -r rev img; do
+        mark "running_${svc#proovra-}=${rev} ${img}"
+        # Image-reference drift: the container runs the right revision but was
+        # created from a moving tag (2026-11-26: `IMAGE_TAG=latest` + compose
+        # pull/up by hand). Reported, never "fixed" by recreating a healthy
+        # container: the next release normalises it.
+        if [[ "${rev}" =~ ^[0-9a-f]{40}$ ]] && [ "${img##*:}" != "sha-${rev:0:7}" ]; then
+          mark "image_drift_${svc#proovra-}=${img##*:} (runs ${rev:0:7}; want sha-${rev:0:7})"
+        fi
+      done
       mark "revision_${svc#proovra-}=$(revision_of "${svc}")"
     done
     if [ -f "${STATE_DIR}/previous-release" ]; then

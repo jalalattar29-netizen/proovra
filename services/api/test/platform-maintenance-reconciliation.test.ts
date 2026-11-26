@@ -238,8 +238,10 @@ describe("platform maintenance sweep — wiring contract", () => {
     expect(SERVER_SRC).toMatch(
       /import\("\.\/jobs\/platform-maintenance-reconciliation\.job\.js"\)/,
     );
+    // Each tick runs as a tracked background operation (its own telemetry scope,
+    // drained before the pool closes; Sentry alert audit, 2026-11-26).
     expect(SERVER_SRC).toMatch(
-      /setInterval\(\(\) => \{\s*void runPlatformMaintenanceSweepSafe\(\{ trigger: "scheduler" \}/,
+      /setInterval\(\(\) => \{\s*void runBackgroundOperation\("platform_maintenance", \(\) => runPlatformMaintenanceSweepSafe\(\{ trigger: "scheduler" \}/,
     );
     expect(SERVER_SRC).toMatch(/clearInterval\(maintenanceHandle\)/);
     expect(SERVER_SRC).toMatch(/platform_maintenance_reconciler\.disabled/);

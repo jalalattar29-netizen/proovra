@@ -12,6 +12,7 @@ import {
   PRESENTATION_CONTRACT_ROUTE_EPOCH,
   PRESENTATION_CONTRACT_ROUTE_EPOCH_HEADER,
   PRESENTATION_CONTRACT_VERSION,
+  imageReferenceDrift,
 } from "@proovra/shared";
 import { randomUUID } from "node:crypto";
 import {
@@ -32,6 +33,7 @@ import { prisma } from "./db.js";
 import { usersRoutes } from "./routes/users.routes.js";
 import { platformContextRoutes } from "./routes/platform-context.routes.js";
 import { captureException, initSentry } from "./observability/sentry.js";
+import { runBackgroundOperation } from "./runtime/background-work.js";
 import { readFastifyClientError } from "./observability/fastify-client-error.js";
 // CR1 Phase D — legacy `auditMiddleware` removed. The canonical audit
 // chain is wired into each route via the canonical audit facade (emitTenantAudit/emitPlatformAudit) from
@@ -638,6 +640,17 @@ export async function buildServer(options: BuildServerOptions = {}) {
     // API_REQUEST_TIMEOUT_MS / API_KEEP_ALIVE_TIMEOUT_MS, middleware/overload-gate.ts.
     ...readServerTimeouts(),
   });
+
+  // Image-reference drift (2026-11-26): a container created from a moving tag
+  // (`IMAGE_TAG=latest` by hand) says so at start-up, loudly, without refusing
+  // to serve: the next release recreates it from its immutable tag.
+  {
+    const drift = imageReferenceDrift(process.env);
+    if (drift) {
+      app.log.error({ ...drift }, "release.image_reference_drift");
+      captureException(new Error(`release_image_reference_drift: created from ${drift.imageTag}, expected ${drift.expectedTag}`), { ...drift });
+    }
+  }
 
   if (options.onHandlerPromise) {
     const track = options.onHandlerPromise;
@@ -1794,13 +1807,13 @@ allowedHeaders: [
         10,
       ) + Math.floor(Math.random() * 30_000);
     const startupHandle = setTimeout(() => {
-      void runWorkspaceOperationsSweepSafe({ trigger: "startup" });
+      void runBackgroundOperation("operations_reconciler", () => runWorkspaceOperationsSweepSafe({ trigger: "startup" }));
     }, startupDelayMs);
     if (typeof (startupHandle as { unref?: () => void }).unref === "function") {
       (startupHandle as { unref?: () => void }).unref!();
     }
     const handle = setInterval(() => {
-      void runWorkspaceOperationsSweepSafe({ trigger: "scheduler" });
+      void runBackgroundOperation("operations_reconciler", () => runWorkspaceOperationsSweepSafe({ trigger: "scheduler" }));
     }, intervalMs);
     if (typeof (handle as { unref?: () => void }).unref === "function") {
       (handle as { unref?: () => void }).unref!();
@@ -1844,13 +1857,13 @@ allowedHeaders: [
       ) + Math.floor(Math.random() * 15000);
 
     const addonStartupHandle = setTimeout(() => {
-      void runDependentCancellationRetrySweep().catch(() => null);
+      void runBackgroundOperation("billing_addon_retry", () => runDependentCancellationRetrySweep()).catch(() => null);
     }, startupDelayMs);
     if (typeof (addonStartupHandle as { unref?: () => void }).unref === 'function') {
       (addonStartupHandle as { unref?: () => void }).unref!();
     }
     const addonHandle = setInterval(() => {
-      void runDependentCancellationRetrySweep().catch(() => null);
+      void runBackgroundOperation("billing_addon_retry", () => runDependentCancellationRetrySweep()).catch(() => null);
     }, intervalMs);
     if (typeof (addonHandle as { unref?: () => void }).unref === 'function') {
       (addonHandle as { unref?: () => void }).unref!();
@@ -1895,7 +1908,7 @@ allowedHeaders: [
       ) + Math.floor(Math.random() * 60_000);
 
     const billingStartupHandle = setTimeout(() => {
-      void runBillingReconciliationSweep().catch(() => null);
+      void runBackgroundOperation("billing_reconciler", () => runBillingReconciliationSweep()).catch(() => null);
     }, startupDelayMs);
     if (
       typeof (billingStartupHandle as { unref?: () => void }).unref === "function"
@@ -1903,7 +1916,7 @@ allowedHeaders: [
       (billingStartupHandle as { unref?: () => void }).unref!();
     }
     const billingHandle = setInterval(() => {
-      void runBillingReconciliationSweep().catch(() => null);
+      void runBackgroundOperation("billing_reconciler", () => runBillingReconciliationSweep()).catch(() => null);
     }, intervalMs);
     if (typeof (billingHandle as { unref?: () => void }).unref === "function") {
       (billingHandle as { unref?: () => void }).unref!();
@@ -1948,7 +1961,7 @@ allowedHeaders: [
       ) + Math.floor(Math.random() * 30_000);
 
     const maintenanceStartupHandle = setTimeout(() => {
-      void runPlatformMaintenanceSweepSafe({ trigger: "startup" }, { logger: app.log });
+      void runBackgroundOperation("platform_maintenance", () => runPlatformMaintenanceSweepSafe({ trigger: "startup" }, { logger: app.log }));
     }, startupDelayMs);
     if (
       typeof (maintenanceStartupHandle as { unref?: () => void }).unref === "function"
@@ -1956,7 +1969,7 @@ allowedHeaders: [
       (maintenanceStartupHandle as { unref?: () => void }).unref!();
     }
     const maintenanceHandle = setInterval(() => {
-      void runPlatformMaintenanceSweepSafe({ trigger: "scheduler" }, { logger: app.log });
+      void runBackgroundOperation("platform_maintenance", () => runPlatformMaintenanceSweepSafe({ trigger: "scheduler" }, { logger: app.log }));
     }, intervalMs);
     if (typeof (maintenanceHandle as { unref?: () => void }).unref === "function") {
       (maintenanceHandle as { unref?: () => void }).unref!();

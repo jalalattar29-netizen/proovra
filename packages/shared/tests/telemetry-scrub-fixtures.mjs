@@ -37,6 +37,28 @@ export const SENSITIVE_KINDS = [
   },
   { kind: "stripe-secret", text: "configured sk_live_51HstripeSecretValue", needles: ["51HstripeSecretValue"] },
   { kind: "email", text: "user jane.doe@example.com failed", needles: ["jane.doe@example.com"] },
+  // Sentry alert audit (2026-11-26): what production breadcrumbs actually carried.
+  {
+    kind: "object-key-file-name (S3 URL)",
+    text: "HEAD https://proovra-evidence-prod-eu.s3.eu-central-1.amazonaws.com/evidence/0f5d2c1e-8a3b-4c2d-9e1f-6a7b8c9d0e1f/original-Medical%20report%20Jane%20Smith.pdf",
+    needles: ["Medical%20report", "Jane%20Smith", "original-Medical"],
+  },
+  {
+    kind: "object-key-file-name (R2 URL)",
+    text: "PUT https://acct.r2.cloudflarestorage.com/proovra-db-backups/reports/0f5d2c1e-8a3b-4c2d-9e1f-6a7b8c9d0e1f/court-bundle-client-x.pdf",
+    needles: ["court-bundle-client-x"],
+  },
+  {
+    kind: "object-key-file-name (free text)",
+    text: "NoSuchKey: The specified key does not exist: /evidence/0f5d2c1e-8a3b-4c2d-9e1f-6a7b8c9d0e1f/parts/003-holiday-photo-anna.jpg",
+    needles: ["holiday-photo-anna"],
+  },
+  {
+    kind: "paypal-resource-id",
+    text: "GET https://api-m.paypal.com/v1/billing/subscriptions/I-BW452GLLEP1G",
+    needles: ["I-BW452GLLEP1G"],
+  },
+  { kind: "stripe-resource-id", text: "customer cus_Q7x8Yz12AbCd subscription sub_1PqRsTuVwXyZ", needles: ["cus_Q7x8Yz12AbCd", "sub_1PqRsTuVwXyZ"] },
 ];
 
 /** Values that are only identifiable by their KEY. */

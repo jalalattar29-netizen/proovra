@@ -77,6 +77,8 @@ type KeyCompromiseNoticeSweepSummary = { materials: number; noticesWritten: numb
 export type PlatformMaintenanceStepOutcome<T> =
   | { status: "completed"; summary: T; durationMs: number }
   | { status: "skipped_locked"; durationMs: number }
+  /** Shutdown had begun: the step did not start (the next process runs it). */
+  | { status: "skipped_shutdown"; durationMs: number }
   | { status: "failed"; error: string; durationMs: number };
 
 export type PlatformMaintenanceSweepResult = {
@@ -113,6 +115,13 @@ export type PlatformMaintenanceDeps = {
   ) => Promise<T>;
   captureException?: (err: unknown, context?: Record<string, unknown>) => void;
   logger?: SweepLogger;
+  /**
+   * True once the API is shutting down (runtime/background-work.ts). Checked
+   * BEFORE each step, so no step starts against a pool about to close; a step
+   * already running finishes inside the shutdown drain. On 2026-11-26 four steps
+   * of one tick queried a closed pool because nothing asked this.
+   */
+  shouldStop?: () => boolean;
 };
 
 async function defaultDeps(): Promise<PlatformMaintenanceDeps> {
@@ -125,6 +134,7 @@ async function defaultDeps(): Promise<PlatformMaintenanceDeps> {
     { recoverSealedRecordObligations },
     { continueKeyCompromiseNotices },
     { runOutageWatchdogNow },
+    { isBackgroundShutdown },
   ] = await Promise.all([
     import("../routes/ops.routes.js"),
     import("../services/reliability/upload-reconciliation.service.js"),
@@ -134,6 +144,7 @@ async function defaultDeps(): Promise<PlatformMaintenanceDeps> {
     import("../services/evidence-complete.service.js"),
     import("../services/operations/signing-key-compromise-owners.service.js"),
     import("../services/operations/outage-watchdog.runtime.js"),
+    import("../runtime/background-work.js"),
   ]);
   return {
     runMasterReconcile,
@@ -146,6 +157,7 @@ async function defaultDeps(): Promise<PlatformMaintenanceDeps> {
     ...(process.env.OPS_WATCHDOG_ENABLED === "false" ? {} : { runOutageWatchdog: (logger?: SweepLogger) => runOutageWatchdogNow(logger) }),
     withLease,
     captureException,
+    shouldStop: isBackgroundShutdown,
   };
 }
 
@@ -162,6 +174,10 @@ async function runStep<T>(
   trigger: string,
 ): Promise<PlatformMaintenanceStepOutcome<T>> {
   const startedAt = Date.now();
+  if (deps.shouldStop?.()) {
+    deps.logger?.info({ step, trigger }, "platform_maintenance.step_skipped_shutdown");
+    return { status: "skipped_shutdown", durationMs: 0 };
+  }
   try {
     const outcome = await deps.withLease<PlatformMaintenanceStepOutcome<T>>(
       leaseKey,
