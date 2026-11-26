@@ -28,6 +28,9 @@ import { randomUUID } from "node:crypto";
 
 import type { Job } from "bullmq";
 import { JOB_NAMES } from "@proovra/shared";
+// OPENAI_API_KEY resolves exactly as the API resolves it: the secrets
+// authority's bundle first, then the trimmed environment value.
+import { resolveSharedSecretValue } from "@proovra/shared-runtime";
 
 import { decodeCanonicalJob } from "./canonical-job.js";
 import { withCronLock } from "./cron-lock.js";
@@ -80,7 +83,7 @@ async function resolveProvider(): Promise<ProviderHandle | null> {
       cachedProvider = null;
       return null;
     }
-    const apiKey = process.env.OPENAI_API_KEY?.trim();
+    const apiKey = resolveSharedSecretValue("OPENAI_API_KEY") ?? undefined;
     if (!apiKey) {
       cachedProvider = null;
       return null;
