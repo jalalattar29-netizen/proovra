@@ -478,7 +478,7 @@ describe("AUD-023 — pg-backup.sh + pg-restore-drill.sh against disposable Post
       it("the copy carries the dump, its .sha256, .counts and .schema, and is verified at the destination", () => {
         const copied = runAws("bash /ops/pg-backup-offhost.sh", { BACKUP_S3_URI: URI, BACKUP_DIR: "/backups" });
         expect(copied.code, copied.out).toBe(0);
-        expect(copied.out).toMatch(/pg-backup-offhost: OK proovra-\d{8}T\d{6}Z\.dump copied and verified \(4 artifacts, sizes and checksum file match\)/);
+        expect(copied.out).toMatch(/pg-backup-offhost: OK proovra-\d{8}T\d{6}Z\.dump copied and verified \(4 artifacts, the SHA-256 of each object at the destination matches\)/);
         const stem = newestDump().replace(/\.dump$/, "");
         const listed = runAws(`aws s3 ls ${URI}/`, {}).out;
         for (const ext of [".dump", ".dump.sha256", ".counts", ".schema"]) expect(listed).toContain(`${stem}${ext}`);
