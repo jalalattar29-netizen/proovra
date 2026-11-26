@@ -32,6 +32,10 @@
 
 import { createHash } from "node:crypto";
 import { openAiClientPrivacyOptions } from "../ai/provider-privacy.service.js";
+// OPENAI_API_KEY resolves like every other AI reader: the secrets authority's
+// bundle first, then the environment. Reading process.env here split the
+// process across two keys once the authority was reachable.
+import { getSecret } from "../../config/runtime-secrets.js";
 
 // -----------------------------------------------------------------------------
 // Interface
@@ -265,7 +269,7 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
         "openai_embeddings_outbound_disabled",
       );
     }
-    if (!process.env.OPENAI_API_KEY || !process.env.OPENAI_API_KEY.trim()) {
+    if (!getSecret("OPENAI_API_KEY")?.trim()) {
       throw new EmbeddingProviderError(
         "AUTH",
         "openai_embeddings_missing_api_key",
@@ -545,7 +549,7 @@ export function buildEmbeddingProviderFromEnv(): EmbeddingProvider {
   if (raw === "openai") {
     const outbound =
       process.env.SEMANTIC_EMBEDDINGS_SEND_CONTENT_OUTBOUND === "true";
-    const apiKey = process.env.OPENAI_API_KEY?.trim() ?? "";
+    const apiKey = getSecret("OPENAI_API_KEY")?.trim() ?? "";
     if (!outbound) {
       logStartupOnce("OPENAI_OUTBOUND_DISABLED");
       return new DisabledEmbeddingProvider();

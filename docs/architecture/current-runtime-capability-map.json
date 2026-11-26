@@ -113402,8 +113402,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mi-embed.processor.ts#semanticUsageDaily.upsert@227",
-      "terminalLocation": "services/worker/src/mi-embed.processor.ts:227",
+      "writerId": "services/worker/src/mi-embed.processor.ts#semanticUsageDaily.upsert@230",
+      "terminalLocation": "services/worker/src/mi-embed.processor.ts:230",
       "file": "services/worker/src/mi-embed.processor.ts",
       "enclosingDeclaration": "recordUsage",
       "kind": "DATABASE",
