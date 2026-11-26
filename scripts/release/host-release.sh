@@ -19,6 +19,10 @@
 #     1. preflight — clean checkout; the running API and worker are ONE immutable
 #        release (same revision label, its sha-<7> images re-pulled and proven),
 #        which is recorded as the rollback point BEFORE anything changes;
+#        ahead of that (before the backup and before any image pull), proven disk and
+#        inode headroom; when short, obsolete PROOVRA images are removed by
+#        exact tag, and when still short the release is refused (nothing
+#        changed);
 #     2. a fresh database backup (scripts/ops/pg-backup.sh in the pinned pg17
 #        backup image), then proven: the dump's checksum verifies and
 #        pg_restore can read its table of contents;
@@ -28,6 +32,9 @@
 #        revision label, Docker health, the worker's /readyz inside each
 #        container, the API's /readyz, and /health's revision, contract and
 #        route epoch against the release commit's own release contract;
+#        once verified, targeted retention removes obsolete PROOVRA API/worker
+#        images (never one a container uses, the release or the rollback
+#        pair); it only reports and can never fail or roll back the release;
 #     5. on ANY failure after a service changed: deploy-prod-pull.sh --rollback
 #        (API first) to the recorded point, then the same verification of the
 #        rollback. A failure before anything changed restores the checkout and
@@ -179,6 +186,144 @@ main() {
     return "${ok}"
   }
 
+  # --- disk headroom and image retention ---------------------------------------
+  # 2026-11-25: a release ran on a root filesystem with almost no space left.
+  # The backup and the image pull took the last of it, the release's own
+  # verification could no longer write its header file, and the automatic
+  # rollback died in `git checkout` ("Out of diskspace"), leaving the release
+  # tracked files empty. Every release adds an API and a worker image (about
+  # 7 GB), and nothing ever removed the old ones.
+  #
+  # So, before the backup and any image pull, the release proves headroom on
+  # every filesystem it writes to. Needed:
+  #   * the backup filesystem: two copies of a dump (pg-backup.sh's own rule),
+  #     sized from the previous release's proven backup;
+  #   * the Docker filesystem: each candidate or rollback image NOT already on
+  #     the host, at 1.5 x its unpacked size (compressed download + extraction);
+  #   * every one of those, plus the checkout's: PROOVRA_RELEASE_MARGIN_MB for
+  #     the checkout, logs, the verification's temp files and a rollback;
+  #   * free inodes: at least PROOVRA_RELEASE_MIN_FREE_INODES.
+  # If that is short, obsolete PROOVRA images are removed (below), and if it is
+  # still short the release is refused before anything changed.
+  local MARGIN_MB="${PROOVRA_RELEASE_MARGIN_MB:-2048}"
+  local MIN_FREE_INODES="${PROOVRA_RELEASE_MIN_FREE_INODES:-200000}"
+  local BACKUP_HOST_DIR="${PROOVRA_BACKUP_DIR:-/opt/proovra/backups/postgres}"
+  local DEFAULT_BACKUP_MB="${PROOVRA_RELEASE_BACKUP_ESTIMATE_MB:-2048}"
+  local DEFAULT_IMAGE_MB="${PROOVRA_RELEASE_IMAGE_ESTIMATE_MB:-6144}"
+
+  # "<mount> <free KiB> <free inodes or ->" of the filesystem holding a path
+  # (its nearest existing ancestor). "-": the filesystem has no inode limit.
+  fs_facts() {
+    local p="$1" k i
+    while [ ! -e "${p}" ] && [ "${p}" != / ] && [ "${p}" != . ]; do p="$(dirname "${p}")"; done
+    k="$(df -Pk "${p}" 2>/dev/null | awk 'NR==2 {print $6, $4}')"
+    i="$(df -Pi "${p}" 2>/dev/null | awk 'NR==2 {print ($2 == 0 ? "-" : $4)}')"
+    [[ "${k}" =~ ^[^[:space:]]+\ [0-9]+$ ]] && [[ "${i}" =~ ^([0-9]+|-)$ ]] || return 1
+    echo "${k} ${i}"
+  }
+
+  # Bytes of an image on the host, or nothing when it is not here.
+  image_bytes() { docker image inspect --format '{{.Size}}' "$1" 2>/dev/null | grep -E '^[0-9]+$' | head -n 1; }
+
+  # The rollback tag recorded on the host now (the pair to restore if THIS
+  # release fails before it records its own), or nothing.
+  recorded_rollback_tag() {
+    [ -f "${STATE_DIR}/previous-release" ] && sed -n 's/^IMAGE_TAG=//p' "${STATE_DIR}/previous-release" | grep -E '^sha-[0-9a-f]{7}$' | head -n 1
+    return 0
+  }
+
+  # Targeted retention: removes `sha-<7>` tags of OUR API and worker images
+  # only, one exact tag at a time, without force. Kept: every image any
+  # container uses (running or stopped), the refs passed in (the candidate
+  # release and the rollback pair) and the rollback pair recorded on the host.
+  # Never touched: other repositories, `latest` or any other tag, untagged
+  # images, volumes, backups, build cache. A tag whose image another tag still
+  # holds is only untagged (Docker frees the space once no tag holds it).
+  # Usage: prune_obsolete_images <mark-key> <keep-ref>...
+  prune_obsolete_images() {
+    local key="$1"; shift
+    local keep=" " cids cid id ref svc repo listing tag removed=0 kept=0 failed=0 rb
+    if ! cids="$(docker ps -aq)"; then
+      echo "  retention: the containers could not be listed; nothing removed"
+      mark "${key}=skipped (containers unreadable)"; return 1
+    fi
+    for cid in ${cids}; do
+      id="$(docker inspect --format '{{.Image}}' "${cid}" 2>/dev/null)"
+      [[ "${id}" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+        echo "  retention: the image of container ${cid:0:12} is unreadable; nothing removed"
+        mark "${key}=skipped (container image unreadable)"; return 1; }
+      keep+="${id} "
+    done
+    rb="$(recorded_rollback_tag)"
+    [ -n "${rb}" ] && set -- "$@" "ghcr.io/${OWNER}/${API_SVC}:${rb}" "ghcr.io/${OWNER}/${WORKER_SVC}:${rb}"
+    for ref in "$@"; do
+      id="$(docker image inspect --format '{{.Id}}' "${ref}" 2>/dev/null)"
+      [[ "${id}" =~ ^sha256:[0-9a-f]{64}$ ]] && keep+="${id} "
+    done
+    for svc in "${API_SVC}" "${WORKER_SVC}"; do
+      repo="ghcr.io/${OWNER}/${svc}"
+      if ! listing="$(docker image ls --no-trunc --format '{{.Tag}} {{.ID}}' "${repo}")"; then
+        echo "  retention: the ${svc} images could not be listed"; failed=$((failed + 1)); continue
+      fi
+      while read -r tag id; do
+        [[ "${tag}" =~ ^sha-[0-9a-f]{7}$ ]] && [[ "${id}" =~ ^sha256:[0-9a-f]{64}$ ]] || continue
+        case "${keep}" in *" ${id} "*) kept=$((kept + 1)); continue ;; esac
+        if docker image rm "${repo}:${tag}" </dev/null >/dev/null; then
+          echo "  retention: removed ${repo}:${tag}"; removed=$((removed + 1))
+        else
+          echo "  retention: could not remove ${repo}:${tag} (left in place)"; failed=$((failed + 1))
+        fi
+      done <<<"${listing}"
+    done
+    mark "${key}=removed ${removed}, kept ${kept}, failed ${failed}"
+    [ "${failed}" -eq 0 ]
+  }
+
+  # Proves headroom for a release of <tag> with rollback pair <rollback tag>.
+  # Prints one line per filesystem and marks the free space. 0: enough;
+  # 1: short (HEADROOM_SHORT says where); 2: the facts are unreadable.
+  headroom_ok() {
+    local tag="$1" rb_tag="$2" docker_root backup_kb=0 image_kb=0 b svc ref t sib
+    local -A need=() free=() inodes=()
+    HEADROOM_SHORT=""
+    docker_root="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null)"
+    [ -n "${docker_root}" ] || docker_root=/var/lib/docker
+    b="$(ls -1t "${STATE_DIR}"/backup-proof-*.txt 2>/dev/null | head -n 1)"
+    b="${b:+$(tail -n 1 "${b}" 2>/dev/null)}"
+    [[ "${b}" =~ ^[0-9]+$ ]] || b=$((DEFAULT_BACKUP_MB * 1048576))
+    backup_kb=$((2 * b / 1024))
+    for svc in "${API_SVC}" "${WORKER_SVC}"; do
+      for t in "${tag}" "${rb_tag}"; do
+        ref="ghcr.io/${OWNER}/${svc}:${t}"
+        [ -n "$(image_bytes "${ref}")" ] && continue
+        sib="$(image_bytes "ghcr.io/${OWNER}/${svc}:${rb_tag}")"
+        [ -n "${sib}" ] || sib=$((DEFAULT_IMAGE_MB * 1048576))
+        image_kb=$((image_kb + sib * 3 / 2 / 1024))
+      done
+    done
+    local p facts m k i
+    for p in "${APP_DIR}:0" "${BACKUP_HOST_DIR}:${backup_kb}" "${docker_root}:${image_kb}"; do
+      facts="$(fs_facts "${p%:*}")" || { HEADROOM_SHORT="free space of ${p%:*} unreadable"; return 2; }
+      read -r m k i <<<"${facts}"
+      need[$m]=$(( ${need[$m]:-0} + ${p##*:} ))
+      free[$m]="${k}"; inodes[$m]="${i}"
+    done
+    local rc=0 want
+    for m in "${!need[@]}"; do
+      want=$(( need[$m] + MARGIN_MB * 1024 ))
+      echo "  disk ${m}: $(( free[$m] / 1024 )) MB free, $(( want / 1024 )) MB needed; inodes free ${inodes[$m]} (minimum ${MIN_FREE_INODES})"
+      mark "disk_free_mb=${m} $(( free[$m] / 1024 ))"
+      if [ "${free[$m]}" -lt "${want}" ]; then
+        HEADROOM_SHORT+="${m} has $(( free[$m] / 1024 )) MB free and needs $(( want / 1024 )) MB; "; rc=1
+      fi
+      if [ "${inodes[$m]}" != - ] && [ "${inodes[$m]}" -lt "${MIN_FREE_INODES}" ]; then
+        HEADROOM_SHORT+="${m} has ${inodes[$m]} free inodes and needs ${MIN_FREE_INODES}; "; rc=1
+      fi
+    done
+    HEADROOM_SHORT="${HEADROOM_SHORT%; }"
+    return "${rc}"
+  }
+
   status_report() {
     local svc
     for svc in "${API_SVC}" "${WORKER_SVC}"; do
@@ -255,6 +400,25 @@ do_release() {
   git merge-base --is-ancestor "${R0}" "${SHA}" ||
     { refuse "the running release ${R0} is not an ancestor of ${SHA}; never deploy over a newer or diverged release"; return 10; }
   R0_TAG="sha-${R0:0:7}"
+
+  # --- 1b. disk headroom, before the backup and before any image pull ---------
+  echo "== Disk headroom"
+  local hr=0 keep_refs=(
+    "ghcr.io/${OWNER}/${API_SVC}:${TAG}" "ghcr.io/${OWNER}/${WORKER_SVC}:${TAG}"
+    "ghcr.io/${OWNER}/${API_SVC}:${R0_TAG}" "ghcr.io/${OWNER}/${WORKER_SVC}:${R0_TAG}"
+  )
+  headroom_ok "${TAG}" "${R0_TAG}" || hr=$?
+  [ "${hr}" -ne 2 ] || { refuse "cannot read the free disk space: ${HEADROOM_SHORT}"; return 10; }
+  if [ "${hr}" -eq 1 ]; then
+    echo "  short: ${HEADROOM_SHORT}"
+    echo "  removing obsolete PROOVRA images (never a running, candidate or rollback image)"
+    ( prune_obsolete_images retention_before "${keep_refs[@]}" ) || true
+    hr=0
+    headroom_ok "${TAG}" "${R0_TAG}" || hr=$?
+    [ "${hr}" -eq 0 ] ||
+      { refuse "insufficient disk space, and removing obsolete PROOVRA images did not free enough: ${HEADROOM_SHORT}"; return 10; }
+  fi
+
   local svc ref rev
   for svc in proovra-api proovra-worker; do
     ref="ghcr.io/${OWNER}/${svc}:${R0_TAG}"
@@ -319,6 +483,15 @@ do_release() {
   if [ "${deploy_rc}" -eq 0 ]; then
     echo "== Verifying the running release"
     if verify_running "${SHA}"; then
+      # Retention after a VERIFIED release only reports: in a subshell, its
+      # result ignored, never a rollback. Kept: what runs now (the candidate)
+      # and the rollback pair just recorded.
+      echo "== Image retention"
+      ( prune_obsolete_images retention "${keep_refs[@]}" ) ||
+        echo "  retention did not complete; the release stands (obsolete images can be removed later)"
+      local after
+      after="$( (fs_facts "$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo /var/lib/docker)") 2>/dev/null )" &&
+        mark "disk_free_after_mb=${after%% *} $(( $(echo "${after}" | awk '{print $2}') / 1024 ))" || true
       mark result=DEPLOYED
       return 0
     fi
