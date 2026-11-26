@@ -116,7 +116,11 @@ const DISCOVERED: Discovered[] = (() => {
     // `setInterval(() => { void <tick>(); }, …)` is the shape every scheduler
     // uses; a launcher that stopped using an interval would fail here rather
     // than be silently credited.
+    // Since 2026-11-26 each tick runs as a tracked background operation:
+    // `void runBackgroundOperation("<name>", () => <tick>(…))`. The tick is the
+    // function inside it, never the wrapper.
     const tick =
+      body.match(/setInterval\(\s*\(\)\s*=>\s*\{?\s*void\s+runBackgroundOperation\(\s*"[^"]+",\s*\(\)\s*=>\s*(\w+)\(/)?.[1] ??
       body.match(/setInterval\(\s*\(\)\s*=>\s*\{?\s*void\s+(\w+)\(/)?.[1] ??
       body.match(/setInterval\(\s*(\w+)\s*,/)?.[1] ??
       null;

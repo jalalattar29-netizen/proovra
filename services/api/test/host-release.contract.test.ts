@@ -41,7 +41,7 @@ case "$args" in
     [ -n "\${STUB_PROOF_FAIL:-}" ] && { echo "sha256sum: WARNING: 1 computed checksum did NOT match"; exit 1; }
     echo 1048576; exit 0 ;;
   "inspect --format {{.Config.Image}} "*)
-    s="$(echo "$last" | cut -d- -f2-3)"; r="$(echo "$last" | cut -d- -f4)"; echo "ghcr.io/owner/$s:sha-\${r:0:7}"; exit 0 ;;
+    s="$(echo "$last" | cut -d- -f2-3)"; r="$(echo "$last" | cut -d- -f4)"; t="sha-\${r:0:7}"; [ "\${STUB_LATEST_REF:-}" = "$s" ] && t=latest; echo "ghcr.io/owner/$s:$t"; exit 0 ;;
   "inspect --format {{ index .Config.Labels "*)
     echo "$last" | cut -d- -f4; exit 0 ;;
   "inspect --format {{if .State.Health}}"*)
@@ -556,6 +556,21 @@ describe("host-release.sh rollback and status", () => {
     expect(r.marks.revision_worker).toBe(NEW);
     expect(r.marks.previous_release).toBe("none");
     expect(r.calls.some((l) => l.startsWith("deploy-prod-pull") || /git checkout/.test(l))).toBe(false);
+    expect(r.marks.image_drift_api).toBeUndefined();
+    expect(r.marks.image_drift_worker).toBeUndefined();
+  });
+
+  it("status reports image-reference drift (a container created from `latest`) without changing anything", () => {
+    // 2026-11-26: the API and worker were recreated by hand with IMAGE_TAG=latest;
+    // the revision was right, the reference was not. Reported, never "fixed" by a
+    // recreate of a healthy container.
+    const w = stubWorld({ running: NEW });
+    const r = w.run(["status"], undefined, { STUB_LATEST_REF: "proovra-api" });
+    expect(r.status).toBe(0);
+    expect(r.marks.revision_api).toBe(NEW);
+    expect(r.marks.image_drift_api).toBe(`latest (runs ${NEW.slice(0, 7)}; want sha-${NEW.slice(0, 7)})`);
+    expect(r.marks.image_drift_worker).toBeUndefined();
+    expect(r.calls.some((l) => /deploy-prod-pull|compose .*up|git checkout|image rm/.test(l))).toBe(false);
   });
 });
 

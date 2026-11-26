@@ -7,6 +7,7 @@ import { installGracefulShutdown, SHUTDOWN_DEADLINE_MS } from "./graceful-shutdo
 import { drainPendingAuditAppends } from "./services/audit/detached-audit-tracker.js";
 import { otelShutdownSettled } from "./observability/otel.js";
 import { buildServer } from "./server.js";
+import { drainBackgroundWork, stopBackgroundWork } from "./runtime/background-work.js";
 
 const port = Number(process.env.PORT ?? 8081);
 
@@ -23,6 +24,7 @@ buildServer()
         if (!result.drained) app.log.warn({ stillPending: result.stillPending }, "api.shutdown_audit_appends_cut");
       },
       flushTelemetry: otelShutdownSettled,
+      backgroundWork: { stop: stopBackgroundWork, drain: drainBackgroundWork },
       exit: (code) => process.exit(code),
       on: (signal, handler) => process.once(signal, handler),
     });

@@ -67,6 +67,7 @@ import {
   processGraphSearchProjectionJob,
 } from "./subsystem-queue-processors.js";
 import { startHealthServer, type HealthServer } from "./health.js";
+import { drainBackgroundWork, runBackgroundOperation } from "./background-work.js";
 import { resolveWorkerId, startTelemetrySampler, type TelemetrySampler } from "./telemetry.js";
 import { clearSchemaRefusal, recordSchemaRefusal, recordWorkerBoot } from "./boot-signal.js";
 import { captureException, initSentry } from "./sentry.js";
@@ -388,7 +389,7 @@ function startDemoFollowUpScheduler() {
   }
 
   followUpTimer = setInterval(() => {
-    void runDemoFollowUps("interval");
+    void runBackgroundOperation("demo_follow_ups", () => runDemoFollowUps("interval"));
   }, followUpIntervalMs);
 
   logger.info(
@@ -502,7 +503,7 @@ function startCaptureDraftReaperScheduler() {
     return;
   }
   captureReaperTimer = setInterval(() => {
-    void runCaptureDraftReaper("interval");
+    void runBackgroundOperation("capture_draft_reaper", () => runCaptureDraftReaper("interval"));
   }, captureReaperIntervalMs);
   logger.info(
     { intervalMs: captureReaperIntervalMs },
@@ -614,7 +615,7 @@ function startIntegrityRecheckScheduler() {
     return;
   }
   integrityRecheckTimer = setInterval(() => {
-    void runIntegrityRecheckTick("interval");
+    void runBackgroundOperation("integrity_recheck", () => runIntegrityRecheckTick("interval"));
   }, integrityRecheckIntervalMs);
   logger.info({ intervalMs: integrityRecheckIntervalMs }, "evidence.integrity.recheck_scheduler.started");
   void runIntegrityRecheckTick("startup");
@@ -659,7 +660,7 @@ function startOrphanScanScheduler() {
     return;
   }
   orphanScanTimer = setInterval(() => {
-    void runOrphanScan("interval");
+    void runBackgroundOperation("orphan_scan", () => runOrphanScan("interval"));
   }, orphanScanIntervalMs);
   logger.info(
     { intervalMs: orphanScanIntervalMs },
@@ -719,7 +720,7 @@ function startLifecycleRecoveryScheduler() {
     return;
   }
   lifecycleRecoveryTimer = setInterval(() => {
-    void runLifecycleRecoverySafe("interval");
+    void runBackgroundOperation("lifecycle_recovery", () => runLifecycleRecoverySafe("interval"));
   }, lifecycleRecoveryIntervalMs);
   logger.info(
     { intervalMs: lifecycleRecoveryIntervalMs },
@@ -823,7 +824,7 @@ function startMfaChallengeGcScheduler() {
     return;
   }
   mfaChallengeGcTimer = setInterval(() => {
-    void runMfaChallengeGcTick("interval");
+    void runBackgroundOperation("mfa_challenge_gc", () => runMfaChallengeGcTick("interval"));
   }, mfaChallengeGcIntervalMs);
   logger.info(
     { intervalMs: mfaChallengeGcIntervalMs },
@@ -883,7 +884,7 @@ function startMfaRecoveryDigestScheduler() {
     return;
   }
   mfaRecoveryDigestTimer = setInterval(() => {
-    void runMfaRecoveryDigestTick("interval");
+    void runBackgroundOperation("mfa_recovery_digest", () => runMfaRecoveryDigestTick("interval"));
   }, mfaRecoveryDigestIntervalMs);
   logger.info(
     { intervalMs: mfaRecoveryDigestIntervalMs },
@@ -941,7 +942,7 @@ async function runRedactionReconciler() {
 function startRedactionReconcilerScheduler() {
   if (!redactionReconcilerEnabled) return;
   redactionReconcilerTimer = setInterval(() => {
-    void runRedactionReconciler();
+    void runBackgroundOperation("redaction_reconciler", () => runRedactionReconciler());
   }, redactionReconcilerIntervalMs);
   redactionReconcilerTimer.unref?.();
 }
@@ -1018,7 +1019,7 @@ const archiveRestoreEnabled = envBoolean("ARCHIVE_RESTORE_ENABLED", true);
 function startTrashGraceReconcilerScheduler() {
   if (trashGraceReconcilerEnabled) {
     trashGraceReconcilerTimer = setInterval(() => {
-      void runTrashGraceReconcilerTick();
+      void runBackgroundOperation("trash_grace_reconciler", () => runTrashGraceReconcilerTick());
     }, trashGraceReconcilerIntervalMs);
     trashGraceReconcilerTimer.unref?.();
     logger.info(
@@ -1041,7 +1042,7 @@ function startTrashGraceReconcilerScheduler() {
 function startArchiveRestoreScheduler() {
   if (archiveRestoreEnabled) {
     archiveRestoreTimer = setInterval(() => {
-      void runArchiveRestoreTick();
+      void runBackgroundOperation("archive_restore", () => runArchiveRestoreTick());
     }, archiveRestoreIntervalMs);
     archiveRestoreTimer.unref?.();
   } else {
@@ -1158,12 +1159,12 @@ function startSearchIndexReconcilerScheduler() {
     Math.max(0, SEARCH_INDEX_RECONCILER_STARTUP_BASE_MS) +
     Math.floor(Math.random() * 30_000);
   searchIndexReconcilerStartupTimer = setTimeout(() => {
-    void runSearchIndexReconcilerTick("startup");
+    void runBackgroundOperation("search_index_reconciler", () => runSearchIndexReconcilerTick("startup"));
   }, startupDelayMs);
   searchIndexReconcilerStartupTimer.unref?.();
 
   searchIndexReconcilerTimer = setInterval(() => {
-    void runSearchIndexReconcilerTick();
+    void runBackgroundOperation("search_index_reconciler", () => runSearchIndexReconcilerTick());
   }, searchIndexReconcilerIntervalMs);
   searchIndexReconcilerTimer.unref?.();
   logger.info(
@@ -1212,7 +1213,7 @@ async function runIntelligenceRunReconcilerTick() {
 function startIntelligenceRunReconcilerScheduler() {
   if (!intelligenceRunReconcilerEnabled) return;
   intelligenceRunReconcilerTimer = setInterval(() => {
-    void runIntelligenceRunReconcilerTick();
+    void runBackgroundOperation("intelligence_run_reconciler", () => runIntelligenceRunReconcilerTick());
   }, intelligenceRunReconcilerIntervalMs);
   intelligenceRunReconcilerTimer.unref?.();
 }
@@ -1268,7 +1269,7 @@ function startRetentionReconciliationScheduler() {
     return;
   }
   retentionReconciliationTimer = setInterval(() => {
-    void runRetentionRecon("interval");
+    void runBackgroundOperation("retention_recon", () => runRetentionRecon("interval"));
   }, retentionReconciliationIntervalMs);
   logger.info(
     { intervalMs: retentionReconciliationIntervalMs },
@@ -1342,7 +1343,7 @@ function startDestructionOrchestratorScheduler() {
     return;
   }
   destructionOrchestratorTimer = setInterval(() => {
-    void runDestructionOrch("interval");
+    void runBackgroundOperation("destruction_orch", () => runDestructionOrch("interval"));
   }, destructionOrchestratorIntervalMs);
   logger.info(
     { intervalMs: destructionOrchestratorIntervalMs },
@@ -1398,7 +1399,7 @@ function startImmutableStorageReconciliationScheduler() {
     return;
   }
   immutableStorageReconciliationTimer = setInterval(() => {
-    void runImmutableRecon("interval");
+    void runBackgroundOperation("immutable_recon", () => runImmutableRecon("interval"));
   }, immutableStorageReconciliationIntervalMs);
   logger.info(
     { intervalMs: immutableStorageReconciliationIntervalMs },
@@ -1459,7 +1460,7 @@ function startArchiveAutoTransitionScheduler() {
     return;
   }
   archiveAutoTransitionTimer = setInterval(() => {
-    void runArchiveAutoTransitionTick("interval");
+    void runBackgroundOperation("archive_auto_transition", () => runArchiveAutoTransitionTick("interval"));
   }, archiveAutoTransitionIntervalMs);
   logger.info(
     { intervalMs: archiveAutoTransitionIntervalMs },
@@ -1488,14 +1489,14 @@ function startWebhookDispatcherScheduler() {
     return;
   }
   webhookDispatcherTimer = setInterval(() => {
-    void runWebhookDispatcherTick().catch((err) =>
+    void runBackgroundOperation("webhook_dispatcher", () => runWebhookDispatcherTick()).catch((err) =>
       logger.warn({ err }, "webhook_dispatcher.tick.error"),
     );
   }, webhookDispatcherIntervalMs);
   void (async () => {
     const readiness = await gateStartupOnApiReadiness("webhook-dispatcher");
     if (!readiness.ready) return;
-    void runWebhookDispatcherTick().catch((err) =>
+    void runBackgroundOperation("webhook_dispatcher", () => runWebhookDispatcherTick()).catch((err) =>
       logger.warn({ err }, "webhook_dispatcher.startup.error"),
     );
   })();
@@ -1529,7 +1530,7 @@ function startExchangePackageBuilderScheduler() {
     return;
   }
   exchangePackageBuilderTimer = setInterval(() => {
-    void pollExchangePackageBuilds().catch((err) =>
+    void runBackgroundOperation("exchange_package_builder", () => pollExchangePackageBuilds()).catch((err) =>
       logger.warn({ err }, "exchange_package_builder.tick.error"),
     );
   }, exchangeBuilderIntervalMs);
@@ -1538,7 +1539,7 @@ function startExchangePackageBuilderScheduler() {
       "exchange-package-builder",
     );
     if (!readiness.ready) return;
-    void pollExchangePackageBuilds().catch((err) =>
+    void runBackgroundOperation("exchange_package_builder", () => pollExchangePackageBuilds()).catch((err) =>
       logger.warn({ err }, "exchange_package_builder.startup.error"),
     );
   })();
@@ -1623,7 +1624,7 @@ function startReviewerReconciliationScheduler() {
     return;
   }
   reviewerReconciliationTimer = setInterval(() => {
-    void runReviewerRecon("interval");
+    void runBackgroundOperation("reviewer_recon", () => runReviewerRecon("interval"));
   }, reviewerReconciliationIntervalMs);
   logger.info(
     {
@@ -1717,7 +1718,7 @@ function startOrgInviteDeliverySweepScheduler() {
     return;
   }
   orgInviteDeliverySweepTimer = setInterval(() => {
-    void runOrgInviteDeliverySweepTick("interval");
+    void runBackgroundOperation("org_invite_delivery_sweep", () => runOrgInviteDeliverySweepTick("interval"));
   }, orgInviteDeliverySweepIntervalMs);
   logger.info(
     {
@@ -1785,7 +1786,7 @@ function startApiDeliverySweepSchedulers() {
   for (const sweep of API_DELIVERY_SWEEPS) {
     apiDeliverySweepTimers.push(
       setInterval(() => {
-        void runApiDeliverySweepTick(sweep, "interval");
+        void runBackgroundOperation("api_delivery_sweep", () => runApiDeliverySweepTick(sweep, "interval"));
       }, sweep.intervalMs),
     );
   }
@@ -1875,7 +1876,7 @@ function startAutomationDispatchScheduler() {
     return;
   }
   automationDispatchSweepTimer = setInterval(() => {
-    void runAutomationDispatchTick("interval");
+    void runBackgroundOperation("automation_dispatch", () => runAutomationDispatchTick("interval"));
   }, automationDispatchSweepIntervalMs);
   logger.info(
     {
@@ -1944,7 +1945,7 @@ function startLifecycleScheduler() {
     return;
   }
   lifecycleSweepTimer = setInterval(() => {
-    void runLifecycleTick("interval");
+    void runBackgroundOperation("lifecycle", () => runLifecycleTick("interval"));
   }, lifecycleSweepIntervalMs);
   logger.info({ intervalMs: lifecycleSweepIntervalMs }, "lifecycle_sweep.scheduler.started");
   void (async () => {
@@ -2101,7 +2102,7 @@ async function sampleQueueHealthOnce() {
 function startQueueHealthSampler() {
   void sampleQueueHealthOnce();
   queueHealthSamplerTimer = setInterval(() => {
-    void sampleQueueHealthOnce();
+    void runBackgroundOperation("queue_health_sampler", () => sampleQueueHealthOnce());
   }, queueHealthSamplerIntervalMs);
   logger.info(
     { intervalMs: queueHealthSamplerIntervalMs },
@@ -2122,6 +2123,18 @@ export function getLatestQueueHealthSnapshot(): unknown {
 }
 
 initSentry();
+
+// Image-reference drift (2026-11-26): a container created from a moving tag
+// (`IMAGE_TAG=latest` by hand) says so at start-up without refusing to work;
+// the next release recreates it from its immutable tag.
+{
+  const { imageReferenceDrift } = await import("@proovra/shared");
+  const drift = imageReferenceDrift(process.env);
+  if (drift) {
+    logger.error({ ...drift }, "release.image_reference_drift");
+    captureException(new Error(`release_image_reference_drift: created from ${drift.imageTag}, expected ${drift.expectedTag}`), { kind: "release.image_reference_drift", ...drift });
+  }
+}
 
 // HOTFIX — Startup readiness protection.
 //
@@ -2523,6 +2536,9 @@ function openConsumers(): void {
     .catch(() => undefined);
 }
 
+/** How long the shutdown waits for running scheduled ticks (background-work.ts). */
+const WORKER_BACKGROUND_DRAIN_MS = 30_000;
+
 let healthServer: HealthServer | null = null;
 let telemetrySampler: TelemetrySampler | null = null;
 let shuttingDown = false;
@@ -2597,6 +2613,15 @@ async function shutdown(exitCode: number) {
   // Phase Y — Observability schedulers.
   stopObservabilityHeartbeat();
   stopQueueHealthSampler();
+
+  // Sentry alert audit (2026-11-26): the schedulers above stop STARTING ticks,
+  // but a tick already running kept using the queues and the Redis connection
+  // closed below. Wait for the running ones (bounded; the job workers' own drain
+  // below has the rest of the deadline), and say so when one is cut.
+  const backgroundDrain = await drainBackgroundWork(WORKER_BACKGROUND_DRAIN_MS);
+  if (!backgroundDrain.drained) {
+    logger.warn({ stillRunning: backgroundDrain.stillRunning }, "worker.shutdown_background_cut");
+  }
 
   // HOTFIX — null-check before pause/close. With startup-readiness
   // protection (safeRegisterWorker), a failed processor returns

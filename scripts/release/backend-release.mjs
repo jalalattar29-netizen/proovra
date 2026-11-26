@@ -220,6 +220,17 @@ export function parseHostOutput(text) {
 
 const first = (marks, k) => (marks?.[k] ?? [])[0] ?? null;
 
+/** "api runs from `latest` …" for each image_drift_<svc> mark. Pure. */
+export function imageDriftWarnings(host) {
+  const out = [];
+  for (const svc of ["api", "worker"]) {
+    for (const v of host?.marks?.[`image_drift_${svc}`] ?? []) {
+      out.push(`image reference drift: the ${svc} container was created from ${v}; deploy only through the release (never IMAGE_TAG=latest)`);
+    }
+  }
+  return out;
+}
+
 /**
  * The host's outcome and the external check → the final status. Pure.
  * external: { ok, revision, epoch, contract, readyz, detail } for the expected release
@@ -546,6 +557,11 @@ export async function runFinish({ env = process.env, fetchImpl = globalThis.fetc
     `- status ${STATUS_CONTEXT}: ${d.status.state} "${d.status.description}"`,
   ];
   let exitCode = d.exitCode;
+  // Image-reference drift (host-release.sh status marks image_drift_<svc>):
+  // the revision is right but a container was created from a moving tag such
+  // as `latest`. Reported on every verify; the next release recreates the
+  // containers from their immutable tag.
+  for (const w of imageDriftWarnings(host)) lines.push(`::warning::${w}`);
 
   // The API now runs something other than the release: the web must be compatible with IT.
   if (d.needsWebCheck) {

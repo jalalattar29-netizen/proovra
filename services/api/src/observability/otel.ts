@@ -41,6 +41,7 @@ import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentation
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { Resource } from "@opentelemetry/resources";
 import { NodeSDK } from "@opentelemetry/sdk-node";
+import { SentryContextManager } from "@sentry/node";
 import {
   SEMRESATTRS_DEPLOYMENT_ENVIRONMENT,
   SEMRESATTRS_SERVICE_NAME,
@@ -160,6 +161,15 @@ export function initOpenTelemetry(input: {
     }
 
     const sdk = new NodeSDK({
+      // SENTRY ISOLATION (Sentry alert audit, 2026-11-26). With OTEL_ENABLED=true
+      // Sentry skips its own OpenTelemetry setup (skipOpenTelemetrySetup), and
+      // Sentry's scopes live on the OpenTelemetry context. Without Sentry's
+      // context manager every `withIsolationScope` collapsed onto ONE process-wide
+      // scope: production events carried other requests' and jobs' breadcrumbs
+      // and tags, and every background error was filed under `GET /readyz`.
+      // This is the context manager Sentry's own setup registers; it forks the
+      // scopes per request, per job and per background run.
+      contextManager: new SentryContextManager(),
       traceExporter: exporter,
       resource: new Resource(resourceAttrs),
       instrumentations: [

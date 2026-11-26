@@ -85,6 +85,55 @@ const KEY_VALUE_CREDENTIAL =
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g;
 const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
 const LONG_TOKEN = /\b[A-Za-z0-9_-]{24,}\b/g;
+const UUID_EXACT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * OBJECT KEYS AND PAYMENT IDENTIFIERS (Sentry alert audit, 2026-11-26).
+ *
+ * Production events carried storage object keys such as
+ * `evidence/<uuid>/original-<the user's file name>` (outgoing S3 calls recorded as
+ * breadcrumbs) and PayPal billing paths with a resource id. The record id stays
+ * (an operator needs it to find the record); the TAIL of an object key, which
+ * embeds user-supplied file names, and payment-provider resource ids are
+ * redacted. Ordinary API paths (`/v1/evidence/<uuid>/report`) are untouched.
+ */
+export const OBJECT_KEY_REDACTED = "[object-key]";
+const OBJECT_KEY_PREFIXES =
+  "evidence|evidence-parts|reports|redactions|exchange-packages|derived-assets|siu-exports|intelligence|destruction-certificates";
+/**
+ * A storage key in free text or a request path ("Key: evidence/<uuid>/original-x.pdf",
+ * "/evidence/<uuid>/parts/003-x.jpg"), never an API route ("/v1/evidence/<uuid>/report").
+ * A file name may contain spaces, so the tail runs to the end of the line or a quote.
+ */
+const OBJECT_KEY_IN_TEXT = new RegExp(
+  `(^|[^\\w/.-]|(?<!/v\\d{1,2})/)((?:${OBJECT_KEY_PREFIXES})/[^"'<>?#\\r\\n]+)`,
+  "g",
+);
+/** Object-store hosts: AWS S3 (virtual-hosted or path style) and Cloudflare R2. */
+const OBJECT_STORE_HOST = /(^|\.)s3[.-][a-z0-9.-]*amazonaws\.com$|^s3\.amazonaws\.com$|\.r2\.cloudflarestorage\.com$|\.r2\.dev$/i;
+const PAYMENT_HOST = /(^|\.)(paypal\.com|stripe\.com)$/i;
+/** PayPal (I-…, P-…, PROD-…, B-…, WH-…) and Stripe (cus_…, sub_…, pi_…) resource ids. */
+const PAYMENT_ID =
+  // A digit is required, so words such as `in_progress` or `P-QUEUED` are never ids.
+  /\b(?:(?:I|P|PROD|PLAN|B|WH|PAYID)-(?=[A-Z0-9]*\d)[A-Z0-9]{8,}|(?:cus|sub|pi|pm|in|ch|price|prod|si|seti|cs|evt|txn|po|ii|il)_(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{8,})\b/g;
+
+/** Keep a key up to and including its first UUID segment; redact what follows. */
+function redactObjectKey(key: string): string {
+  const segs = key.split("/");
+  for (let i = 0; i < segs.length; i += 1) {
+    if (UUID_EXACT.test(segs[i]!)) {
+      const kept = segs.slice(0, i + 1).join("/");
+      return i < segs.length - 1 ? `${kept}/${OBJECT_KEY_REDACTED}` : kept;
+    }
+  }
+  return segs.length > 1 && segs[1] !== "" ? `${segs[0]}/${OBJECT_KEY_REDACTED}` : key;
+}
+
+function hostOf(origin: string): string {
+  const m = /^[a-z][a-z0-9+.-]*:\/\/([^/:]+)/i.exec(origin);
+  return m ? m[1]! : "";
+}
+
 /** An absolute URL, or a path that carries a query string. */
 const URL_LIKE = /(?:https?:\/\/[^\s"'<>]+|\/[A-Za-z0-9._~%!$&()*+,;=:@/-]*\?[^\s"'<>]*)/gi;
 
@@ -122,6 +171,15 @@ export function scrubTelemetryUrl(url: string, options: TelemetryScrubOptions = 
   const origin = pathStart > 0 ? base.slice(0, pathStart) : schemeAt >= 0 ? base : "";
   const path = pathStart >= 0 ? base.slice(pathStart) : "";
   let safePath = redactTokenPath(path);
+  const host = hostOf(origin);
+  if (host && OBJECT_STORE_HOST.test(host) && safePath.length > 1) {
+    safePath = `/${redactObjectKey(safePath.slice(1))}`;
+  } else if (host && PAYMENT_HOST.test(host)) {
+    safePath = safePath
+      .split("/")
+      .map((seg) => (seg.length >= 8 && /\d/.test(seg) ? "[id]" : seg))
+      .join("/");
+  }
   safePath = scrubFreeText(safePath, options, false);
   const safeOrigin = origin.replace(/\/\/[^/@]*@/, "//"); // userinfo
   return `${safeOrigin}${safePath}${queryAt >= 0 ? `?${TELEMETRY_REDACTED}` : ""}`;
@@ -135,7 +193,9 @@ function scrubFreeText(text: string, options: TelemetryScrubOptions, urls: boole
     .replace(AUTH_SCHEME, (_m, scheme: string) => `${scheme} ${TELEMETRY_REDACTED}`)
     .replace(SECRET_PREFIX, TELEMETRY_REDACTED)
     .replace(KEY_VALUE_CREDENTIAL, (_m, key: string) => `${key}=${TELEMETRY_REDACTED}`)
-    .replace(EMAIL, "[email]");
+    .replace(EMAIL, "[email]")
+    .replace(OBJECT_KEY_IN_TEXT, (_m, pre: string, key: string) => `${pre}${redactObjectKey(key)}`)
+    .replace(PAYMENT_ID, "[id]");
   if (options.identifiers) {
     out = out.replace(UUID, "[uuid]").replace(LONG_TOKEN, (m) => (m.startsWith("[") ? m : "[token]"));
   }

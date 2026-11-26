@@ -182,3 +182,33 @@ took is named in the run log (`PROOVRA_RELEASE backup=…`) and in
 - The Vercel build gate (`scripts/vercel-ignore-build.mjs`) and its `--enforce` build
   step are unchanged and still decide every web build.
 - No step commits, pushes, tags, or uses a `latest` image.
+
+## 6. Image-reference drift and the manual path (2026-11-26)
+
+**Observed.** At 2026-11-26 10:14Z the production API and worker were recreated outside
+the release from a login on the host, with this sequence (it appears seven times in the
+host's shell history):
+
+```
+export IMAGE_TAG=latest
+docker compose --env-file /opt/proovra/app/.env -f infra/docker/docker-compose.prod.yml pull proovra-api proovra-worker
+docker compose --env-file /opt/proovra/app/.env -f infra/docker/docker-compose.prod.yml up -d proovra-api proovra-worker
+```
+
+The images were the released ones (identical image IDs to `sha-85b77dd`), but the path
+skips the release's disk-headroom check, backup, schema gate, recorded rollback point and
+orderly drain, and `latest` moves as soon as CI is green, before this runbook's gates.
+Its shutdown cut a running maintenance sweep (Sentry alert of 10:14:18Z).
+
+**Rules.**
+- Deploy only through this release (or a `backend-release` dispatch). By hand, only
+  `scripts/deploy-prod-pull.sh` with `RELEASE_SHA=<40 hex>` and `IMAGE_TAG=sha-<7>`; it
+  refuses `latest`, `main` and every other moving tag.
+- Never `docker compose … up` the API or worker with a hand-set `IMAGE_TAG`.
+
+**Detection.** The compose file passes `IMAGE_TAG` into both containers as
+`PROOVRA_IMAGE_TAG`. A process whose tag is not `sha-<first 7 of its own revision>` logs
+`release.image_reference_drift` and reports it to Sentry at start-up; it keeps serving.
+`host-release.sh status` marks `image_drift_api` / `image_drift_worker`, and a `verify`
+dispatch shows them as warnings. A healthy container is not recreated just to change its
+tag: the next release recreates it from its immutable tag.

@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "0a2e3e98c1494063e4995a43225d318a0795de3cfaf144ba2b586f1fdd57ed99",
-  "consumerInventoryHash": "53a5671c8869bef0e3955d5c1df12ec49585dbdd56454ae9c1e1ed35d0148557",
+  "consumerInventoryHash": "eeac429f83003350a77fad044b3fd0c36a06152616427bfe7b45027086e30d8e",
   "dispositionsHash": "5472155ec04ac336267e75a6cb759f22ce11dced779d3370d0c8d1f974d1651f",
   "totals": {
     "RegisteredRoutes": 1277,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 13017,
-      "UNRESOLVED_IDENTIFIER": 1872
+      "METHOD_ON_VALUE": 13055,
+      "UNRESOLVED_IDENTIFIER": 1885
     },
     "MutationFixpointRounds": 11,
     "MutationClosurePass": false,
@@ -8057,7 +8057,7 @@
       "route": "/v1/admin/demo-requests/follow-up/run",
       "registeringFile": "services/api/src/routes/admin-demo-requests.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:596",
-      "machineConsumer": "services/worker/src/index.ts:299",
+      "machineConsumer": "services/worker/src/index.ts:300",
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "UNPROVEN"
@@ -15631,37 +15631,37 @@
     },
     "registeredQueues": {
       "reportQueueName": [
-        "services/worker/src/index.ts:2230"
+        "services/worker/src/index.ts:2243"
       ],
       "otsUpgradeQueueName": [
-        "services/worker/src/index.ts:2249"
+        "services/worker/src/index.ts:2262"
       ],
       "evidencePurgeQueueName": [
-        "services/worker/src/index.ts:2267"
+        "services/worker/src/index.ts:2280"
       ],
       "searchIndexingQueueName": [
-        "services/worker/src/index.ts:2285"
+        "services/worker/src/index.ts:2298"
       ],
       "mediaIntelligenceQueueName": [
-        "services/worker/src/index.ts:2307"
+        "services/worker/src/index.ts:2320"
       ],
       "derivedAssetsQueueName": [
-        "services/worker/src/index.ts:2329"
+        "services/worker/src/index.ts:2342"
       ],
       "redactionDerivativeQueueName": [
-        "services/worker/src/index.ts:2351"
+        "services/worker/src/index.ts:2364"
       ],
       "redactionPagePreviewQueueName": [
-        "services/worker/src/index.ts:2373"
+        "services/worker/src/index.ts:2386"
       ],
       "graphReconcileQueueName": [
-        "services/worker/src/index.ts:2411"
+        "services/worker/src/index.ts:2424"
       ],
       "miEmbedQueueName": [
-        "services/worker/src/index.ts:2432"
+        "services/worker/src/index.ts:2445"
       ],
       "graphSearchProjectionQueueName": [
-        "services/worker/src/index.ts:2454"
+        "services/worker/src/index.ts:2467"
       ]
     },
     "registryEntries": 34,
@@ -16895,7 +16895,7 @@
         "MODULE services/api/src/routes/workspace-operations.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2166#bindWorkerEvents"
+        "BOOT services/worker/src/index.ts:2179#bindWorkerEvents"
       ],
       "invariants": {
         "authorizationAuthority": "AUTHENTICATED_SUBJECT+BEARER_TOKEN_SUBJECT+CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY+NONE+PLATFORM_SCOPE+RESOURCE_OWNER_COLUMN",
@@ -16929,8 +16929,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:707#runLifecycleRecovery",
-        "SCHEDULE services/worker/src/index.ts:721#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:708#runLifecycleRecovery",
+        "SCHEDULE services/worker/src/index.ts:722#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -16996,8 +16996,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1203#runIntelligenceRunReconciler",
-        "SCHEDULE services/worker/src/index.ts:1214#startIntelligenceRunReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1204#runIntelligenceRunReconciler",
+        "SCHEDULE services/worker/src/index.ts:1215#startIntelligenceRunReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -17096,8 +17096,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1203#runIntelligenceRunReconciler",
-        "SCHEDULE services/worker/src/index.ts:1214#startIntelligenceRunReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1204#runIntelligenceRunReconciler",
+        "SCHEDULE services/worker/src/index.ts:1215#startIntelligenceRunReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -17128,9 +17128,9 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1532#pollExchangePackageBuilds",
-        "BOOT services/worker/src/index.ts:1541#pollExchangePackageBuilds",
-        "SCHEDULE services/worker/src/index.ts:1531#startExchangePackageBuilderScheduler"
+        "BOOT services/worker/src/index.ts:1533#pollExchangePackageBuilds",
+        "BOOT services/worker/src/index.ts:1542#pollExchangePackageBuilds",
+        "SCHEDULE services/worker/src/index.ts:1532#startExchangePackageBuilderScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -17291,18 +17291,18 @@
         "MODULE services/api/src/routes/verification-share.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:460#runCaptureReaperSweep",
-        "BOOT services/worker/src/index.ts:590#runIntegrityRecheckSweep",
-        "BOOT services/worker/src/index.ts:982#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1020#startTrashGraceReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:504#startCaptureDraftReaperScheduler",
-        "SCHEDULE services/worker/src/index.ts:616#startIntegrityRecheckScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:461#runCaptureReaperSweep",
+        "BOOT services/worker/src/index.ts:591#runIntegrityRecheckSweep",
+        "BOOT services/worker/src/index.ts:983#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1021#startTrashGraceReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:505#startCaptureDraftReaperScheduler",
+        "SCHEDULE services/worker/src/index.ts:617#startIntegrityRecheckScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "AUTHENTICATED_SUBJECT+BEARER_TOKEN_SUBJECT+CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY+RESOURCE_OWNER_COLUMN",
@@ -17342,8 +17342,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -17383,8 +17383,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -17424,8 +17424,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -17465,8 +17465,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -17506,8 +17506,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -17547,8 +17547,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -17588,8 +17588,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -17629,8 +17629,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -17670,8 +17670,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -17711,8 +17711,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -17752,8 +17752,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -17793,8 +17793,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -17834,8 +17834,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -17875,8 +17875,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -17916,8 +17916,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -17957,8 +17957,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -17998,8 +17998,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18039,8 +18039,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18080,8 +18080,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18121,8 +18121,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18162,8 +18162,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18203,8 +18203,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18244,8 +18244,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18285,8 +18285,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18326,8 +18326,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18367,8 +18367,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18408,8 +18408,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18449,8 +18449,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18490,8 +18490,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18531,8 +18531,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18572,8 +18572,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18613,8 +18613,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18654,8 +18654,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18695,8 +18695,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18736,8 +18736,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18777,8 +18777,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18818,8 +18818,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18859,8 +18859,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18900,8 +18900,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18941,8 +18941,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -18982,8 +18982,8 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -19016,8 +19016,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -19050,8 +19050,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -19084,8 +19084,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -19118,8 +19118,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -19152,8 +19152,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -19186,8 +19186,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -19231,8 +19231,8 @@
         "MODULE services/api/src/routes/external-intake.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:460#runCaptureReaperSweep",
-        "SCHEDULE services/worker/src/index.ts:504#startCaptureDraftReaperScheduler"
+        "BOOT services/worker/src/index.ts:461#runCaptureReaperSweep",
+        "SCHEDULE services/worker/src/index.ts:505#startCaptureDraftReaperScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY+RESOURCE_OWNER_COLUMN",
@@ -19273,7 +19273,7 @@
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
       ],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler"
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
@@ -19964,8 +19964,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:590#runIntegrityRecheckSweep",
-        "SCHEDULE services/worker/src/index.ts:616#startIntegrityRecheckScheduler"
+        "BOOT services/worker/src/index.ts:591#runIntegrityRecheckSweep",
+        "SCHEDULE services/worker/src/index.ts:617#startIntegrityRecheckScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -20013,10 +20013,10 @@
         "MODULE services/api/src/routes/external-intake.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "BOOT services/worker/src/index.ts:590#runIntegrityRecheckSweep",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler",
-        "SCHEDULE services/worker/src/index.ts:616#startIntegrityRecheckScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "BOOT services/worker/src/index.ts:591#runIntegrityRecheckSweep",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler",
+        "SCHEDULE services/worker/src/index.ts:617#startIntegrityRecheckScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY",
@@ -20131,10 +20131,10 @@
         "MODULE services/api/src/routes/external-intake.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "BOOT services/worker/src/index.ts:590#runIntegrityRecheckSweep",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler",
-        "SCHEDULE services/worker/src/index.ts:616#startIntegrityRecheckScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "BOOT services/worker/src/index.ts:591#runIntegrityRecheckSweep",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler",
+        "SCHEDULE services/worker/src/index.ts:617#startIntegrityRecheckScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY",
@@ -20240,8 +20240,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1203#runIntelligenceRunReconciler",
-        "SCHEDULE services/worker/src/index.ts:1214#startIntelligenceRunReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1204#runIntelligenceRunReconciler",
+        "SCHEDULE services/worker/src/index.ts:1215#startIntelligenceRunReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -23018,18 +23018,18 @@
         "MODULE services/api/src/routes/workspace-operations.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1376#runImmutableStorageReconciliation",
-        "BOOT services/worker/src/index.ts:707#runLifecycleRecovery",
-        "BOOT services/worker/src/index.ts:982#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1020#startTrashGraceReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1400#startImmutableStorageReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:721#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1377#runImmutableStorageReconciliation",
+        "BOOT services/worker/src/index.ts:708#runLifecycleRecovery",
+        "BOOT services/worker/src/index.ts:983#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1021#startTrashGraceReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1401#startImmutableStorageReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:722#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "AUTHENTICATED_SUBJECT+BEARER_TOKEN_SUBJECT+CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY+NONE+PLATFORM_SCOPE+RESOURCE_OWNER_COLUMN",
@@ -24176,18 +24176,18 @@
         "MODULE services/api/src/routes/workspace-operations.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1376#runImmutableStorageReconciliation",
-        "BOOT services/worker/src/index.ts:707#runLifecycleRecovery",
-        "BOOT services/worker/src/index.ts:982#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1020#startTrashGraceReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1400#startImmutableStorageReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:721#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1377#runImmutableStorageReconciliation",
+        "BOOT services/worker/src/index.ts:708#runLifecycleRecovery",
+        "BOOT services/worker/src/index.ts:983#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1021#startTrashGraceReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1401#startImmutableStorageReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:722#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "AUTHENTICATED_SUBJECT+BEARER_TOKEN_SUBJECT+CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY+NONE+PLATFORM_SCOPE+RESOURCE_OWNER_COLUMN",
@@ -26467,18 +26467,18 @@
         "MODULE services/api/src/routes/workspace-operations.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1376#runImmutableStorageReconciliation",
-        "BOOT services/worker/src/index.ts:707#runLifecycleRecovery",
-        "BOOT services/worker/src/index.ts:982#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1020#startTrashGraceReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1400#startImmutableStorageReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:721#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1377#runImmutableStorageReconciliation",
+        "BOOT services/worker/src/index.ts:708#runLifecycleRecovery",
+        "BOOT services/worker/src/index.ts:983#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1021#startTrashGraceReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1401#startImmutableStorageReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:722#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "AUTHENTICATED_SUBJECT+BEARER_TOKEN_SUBJECT+CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY+NONE+PLATFORM_SCOPE+RESOURCE_OWNER_COLUMN",
@@ -28758,18 +28758,18 @@
         "MODULE services/api/src/routes/workspace-operations.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1376#runImmutableStorageReconciliation",
-        "BOOT services/worker/src/index.ts:707#runLifecycleRecovery",
-        "BOOT services/worker/src/index.ts:982#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1020#startTrashGraceReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1400#startImmutableStorageReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:721#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1377#runImmutableStorageReconciliation",
+        "BOOT services/worker/src/index.ts:708#runLifecycleRecovery",
+        "BOOT services/worker/src/index.ts:983#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1021#startTrashGraceReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1401#startImmutableStorageReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:722#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "AUTHENTICATED_SUBJECT+BEARER_TOKEN_SUBJECT+CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY+NONE+PLATFORM_SCOPE+RESOURCE_OWNER_COLUMN",
@@ -28849,21 +28849,21 @@
         "MODULE services/api/src/routes/search.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "BOOT services/worker/src/index.ts:1087#runSearchIndexReconciler",
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1376#runImmutableStorageReconciliation",
-        "BOOT services/worker/src/index.ts:460#runCaptureReaperSweep",
-        "BOOT services/worker/src/index.ts:590#runIntegrityRecheckSweep",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler",
-        "SCHEDULE services/worker/src/index.ts:1160#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1165#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1400#startImmutableStorageReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:504#startCaptureDraftReaperScheduler",
-        "SCHEDULE services/worker/src/index.ts:616#startIntegrityRecheckScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "BOOT services/worker/src/index.ts:1088#runSearchIndexReconciler",
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1377#runImmutableStorageReconciliation",
+        "BOOT services/worker/src/index.ts:461#runCaptureReaperSweep",
+        "BOOT services/worker/src/index.ts:591#runIntegrityRecheckSweep",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler",
+        "SCHEDULE services/worker/src/index.ts:1161#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1166#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1401#startImmutableStorageReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:505#startCaptureDraftReaperScheduler",
+        "SCHEDULE services/worker/src/index.ts:617#startIntegrityRecheckScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NAMED_AUTHORITY+PLATFORM_SCOPE",
@@ -28910,21 +28910,21 @@
         "MODULE services/api/src/routes/search.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "BOOT services/worker/src/index.ts:1087#runSearchIndexReconciler",
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1376#runImmutableStorageReconciliation",
-        "BOOT services/worker/src/index.ts:460#runCaptureReaperSweep",
-        "BOOT services/worker/src/index.ts:590#runIntegrityRecheckSweep",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler",
-        "SCHEDULE services/worker/src/index.ts:1160#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1165#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1400#startImmutableStorageReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:504#startCaptureDraftReaperScheduler",
-        "SCHEDULE services/worker/src/index.ts:616#startIntegrityRecheckScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "BOOT services/worker/src/index.ts:1088#runSearchIndexReconciler",
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1377#runImmutableStorageReconciliation",
+        "BOOT services/worker/src/index.ts:461#runCaptureReaperSweep",
+        "BOOT services/worker/src/index.ts:591#runIntegrityRecheckSweep",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler",
+        "SCHEDULE services/worker/src/index.ts:1161#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1166#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1401#startImmutableStorageReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:505#startCaptureDraftReaperScheduler",
+        "SCHEDULE services/worker/src/index.ts:617#startIntegrityRecheckScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NAMED_AUTHORITY+PLATFORM_SCOPE",
@@ -28955,8 +28955,8 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2538#markActiveReconciliationRunsInterrupted",
-        "BOOT services/worker/src/index.ts:2782#markActiveReconciliationRunsInterrupted"
+        "BOOT services/worker/src/index.ts:2554#markActiveReconciliationRunsInterrupted",
+        "BOOT services/worker/src/index.ts:2807#markActiveReconciliationRunsInterrupted"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -29003,21 +29003,21 @@
         "MODULE services/api/src/routes/search.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "BOOT services/worker/src/index.ts:1087#runSearchIndexReconciler",
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1376#runImmutableStorageReconciliation",
-        "BOOT services/worker/src/index.ts:460#runCaptureReaperSweep",
-        "BOOT services/worker/src/index.ts:590#runIntegrityRecheckSweep",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler",
-        "SCHEDULE services/worker/src/index.ts:1160#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1165#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1400#startImmutableStorageReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:504#startCaptureDraftReaperScheduler",
-        "SCHEDULE services/worker/src/index.ts:616#startIntegrityRecheckScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "BOOT services/worker/src/index.ts:1088#runSearchIndexReconciler",
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1377#runImmutableStorageReconciliation",
+        "BOOT services/worker/src/index.ts:461#runCaptureReaperSweep",
+        "BOOT services/worker/src/index.ts:591#runIntegrityRecheckSweep",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler",
+        "SCHEDULE services/worker/src/index.ts:1161#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1166#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1401#startImmutableStorageReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:505#startCaptureDraftReaperScheduler",
+        "SCHEDULE services/worker/src/index.ts:617#startIntegrityRecheckScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NAMED_AUTHORITY+PLATFORM_SCOPE",
@@ -29064,21 +29064,21 @@
         "MODULE services/api/src/routes/search.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "BOOT services/worker/src/index.ts:1087#runSearchIndexReconciler",
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1376#runImmutableStorageReconciliation",
-        "BOOT services/worker/src/index.ts:460#runCaptureReaperSweep",
-        "BOOT services/worker/src/index.ts:590#runIntegrityRecheckSweep",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler",
-        "SCHEDULE services/worker/src/index.ts:1160#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1165#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1400#startImmutableStorageReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:504#startCaptureDraftReaperScheduler",
-        "SCHEDULE services/worker/src/index.ts:616#startIntegrityRecheckScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "BOOT services/worker/src/index.ts:1088#runSearchIndexReconciler",
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1377#runImmutableStorageReconciliation",
+        "BOOT services/worker/src/index.ts:461#runCaptureReaperSweep",
+        "BOOT services/worker/src/index.ts:591#runIntegrityRecheckSweep",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler",
+        "SCHEDULE services/worker/src/index.ts:1161#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1166#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1401#startImmutableStorageReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:505#startCaptureDraftReaperScheduler",
+        "SCHEDULE services/worker/src/index.ts:617#startIntegrityRecheckScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NAMED_AUTHORITY+PLATFORM_SCOPE",
@@ -29143,8 +29143,8 @@
         "MODULE services/api/src/routes/reviewer-ops.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:707#runLifecycleRecovery",
-        "SCHEDULE services/worker/src/index.ts:721#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:708#runLifecycleRecovery",
+        "SCHEDULE services/worker/src/index.ts:722#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY",
@@ -29187,8 +29187,8 @@
         "MODULE services/api/src/routes/ops.routes.ts"
       ],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:707#runLifecycleRecovery",
-        "SCHEDULE services/worker/src/index.ts:721#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:708#runLifecycleRecovery",
+        "SCHEDULE services/worker/src/index.ts:722#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NAMED_AUTHORITY",
@@ -33058,8 +33058,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/ops.routes.ts#bulkOperationalActionRun.update@4005",
-      "terminalLocation": "services/api/src/routes/ops.routes.ts:4005",
+      "writerId": "services/api/src/routes/ops.routes.ts#bulkOperationalActionRun.update@4017",
+      "terminalLocation": "services/api/src/routes/ops.routes.ts:4017",
       "file": "services/api/src/routes/ops.routes.ts",
       "enclosingDeclaration": "opsRoutes",
       "kind": "DATABASE",
@@ -109982,8 +109982,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:460#runCaptureReaperSweep",
-        "SCHEDULE services/worker/src/index.ts:504#startCaptureDraftReaperScheduler"
+        "BOOT services/worker/src/index.ts:461#runCaptureReaperSweep",
+        "SCHEDULE services/worker/src/index.ts:505#startCaptureDraftReaperScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110016,8 +110016,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:460#runCaptureReaperSweep",
-        "SCHEDULE services/worker/src/index.ts:504#startCaptureDraftReaperScheduler"
+        "BOOT services/worker/src/index.ts:461#runCaptureReaperSweep",
+        "SCHEDULE services/worker/src/index.ts:505#startCaptureDraftReaperScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110050,8 +110050,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:460#runCaptureReaperSweep",
-        "SCHEDULE services/worker/src/index.ts:504#startCaptureDraftReaperScheduler"
+        "BOOT services/worker/src/index.ts:461#runCaptureReaperSweep",
+        "SCHEDULE services/worker/src/index.ts:505#startCaptureDraftReaperScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110084,8 +110084,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:460#runCaptureReaperSweep",
-        "SCHEDULE services/worker/src/index.ts:504#startCaptureDraftReaperScheduler"
+        "BOOT services/worker/src/index.ts:461#runCaptureReaperSweep",
+        "SCHEDULE services/worker/src/index.ts:505#startCaptureDraftReaperScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110118,8 +110118,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:460#runCaptureReaperSweep",
-        "SCHEDULE services/worker/src/index.ts:504#startCaptureDraftReaperScheduler"
+        "BOOT services/worker/src/index.ts:461#runCaptureReaperSweep",
+        "SCHEDULE services/worker/src/index.ts:505#startCaptureDraftReaperScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110152,8 +110152,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:460#runCaptureReaperSweep",
-        "SCHEDULE services/worker/src/index.ts:504#startCaptureDraftReaperScheduler"
+        "BOOT services/worker/src/index.ts:461#runCaptureReaperSweep",
+        "SCHEDULE services/worker/src/index.ts:505#startCaptureDraftReaperScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110186,8 +110186,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:460#runCaptureReaperSweep",
-        "SCHEDULE services/worker/src/index.ts:504#startCaptureDraftReaperScheduler"
+        "BOOT services/worker/src/index.ts:461#runCaptureReaperSweep",
+        "SCHEDULE services/worker/src/index.ts:505#startCaptureDraftReaperScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110220,8 +110220,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:460#runCaptureReaperSweep",
-        "SCHEDULE services/worker/src/index.ts:504#startCaptureDraftReaperScheduler"
+        "BOOT services/worker/src/index.ts:461#runCaptureReaperSweep",
+        "SCHEDULE services/worker/src/index.ts:505#startCaptureDraftReaperScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110254,8 +110254,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:460#runCaptureReaperSweep",
-        "SCHEDULE services/worker/src/index.ts:504#startCaptureDraftReaperScheduler"
+        "BOOT services/worker/src/index.ts:461#runCaptureReaperSweep",
+        "SCHEDULE services/worker/src/index.ts:505#startCaptureDraftReaperScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110288,8 +110288,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:460#runCaptureReaperSweep",
-        "SCHEDULE services/worker/src/index.ts:504#startCaptureDraftReaperScheduler"
+        "BOOT services/worker/src/index.ts:461#runCaptureReaperSweep",
+        "SCHEDULE services/worker/src/index.ts:505#startCaptureDraftReaperScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110510,9 +110510,9 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1532#pollExchangePackageBuilds",
-        "BOOT services/worker/src/index.ts:1541#pollExchangePackageBuilds",
-        "SCHEDULE services/worker/src/index.ts:1531#startExchangePackageBuilderScheduler"
+        "BOOT services/worker/src/index.ts:1533#pollExchangePackageBuilds",
+        "BOOT services/worker/src/index.ts:1542#pollExchangePackageBuilds",
+        "SCHEDULE services/worker/src/index.ts:1532#startExchangePackageBuilderScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110543,9 +110543,9 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1532#pollExchangePackageBuilds",
-        "BOOT services/worker/src/index.ts:1541#pollExchangePackageBuilds",
-        "SCHEDULE services/worker/src/index.ts:1531#startExchangePackageBuilderScheduler"
+        "BOOT services/worker/src/index.ts:1533#pollExchangePackageBuilds",
+        "BOOT services/worker/src/index.ts:1542#pollExchangePackageBuilds",
+        "SCHEDULE services/worker/src/index.ts:1532#startExchangePackageBuilderScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110580,8 +110580,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110616,8 +110616,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110652,8 +110652,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110688,8 +110688,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110724,8 +110724,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110758,8 +110758,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1443#runArchiveTierAutoTransitions",
-        "SCHEDULE services/worker/src/index.ts:1461#startArchiveAutoTransitionScheduler"
+        "BOOT services/worker/src/index.ts:1444#runArchiveTierAutoTransitions",
+        "SCHEDULE services/worker/src/index.ts:1462#startArchiveAutoTransitionScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110792,8 +110792,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1443#runArchiveTierAutoTransitions",
-        "SCHEDULE services/worker/src/index.ts:1461#startArchiveAutoTransitionScheduler"
+        "BOOT services/worker/src/index.ts:1444#runArchiveTierAutoTransitions",
+        "SCHEDULE services/worker/src/index.ts:1462#startArchiveAutoTransitionScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110826,8 +110826,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1443#runArchiveTierAutoTransitions",
-        "SCHEDULE services/worker/src/index.ts:1461#startArchiveAutoTransitionScheduler"
+        "BOOT services/worker/src/index.ts:1444#runArchiveTierAutoTransitions",
+        "SCHEDULE services/worker/src/index.ts:1462#startArchiveAutoTransitionScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110860,8 +110860,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1443#runArchiveTierAutoTransitions",
-        "SCHEDULE services/worker/src/index.ts:1461#startArchiveAutoTransitionScheduler"
+        "BOOT services/worker/src/index.ts:1444#runArchiveTierAutoTransitions",
+        "SCHEDULE services/worker/src/index.ts:1462#startArchiveAutoTransitionScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110894,8 +110894,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110928,8 +110928,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110962,8 +110962,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -110996,8 +110996,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111030,8 +111030,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111064,8 +111064,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111098,8 +111098,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111132,8 +111132,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111166,8 +111166,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111200,8 +111200,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111234,8 +111234,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111268,8 +111268,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111302,8 +111302,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler"
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111336,8 +111336,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1376#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1400#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1377#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1401#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111370,8 +111370,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1376#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1400#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1377#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1401#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111414,18 +111414,18 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1376#runImmutableStorageReconciliation",
-        "BOOT services/worker/src/index.ts:707#runLifecycleRecovery",
-        "BOOT services/worker/src/index.ts:982#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1020#startTrashGraceReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1400#startImmutableStorageReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:721#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1377#runImmutableStorageReconciliation",
+        "BOOT services/worker/src/index.ts:708#runLifecycleRecovery",
+        "BOOT services/worker/src/index.ts:983#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1021#startTrashGraceReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1401#startImmutableStorageReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:722#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111468,18 +111468,18 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1376#runImmutableStorageReconciliation",
-        "BOOT services/worker/src/index.ts:707#runLifecycleRecovery",
-        "BOOT services/worker/src/index.ts:982#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1020#startTrashGraceReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1400#startImmutableStorageReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:721#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1377#runImmutableStorageReconciliation",
+        "BOOT services/worker/src/index.ts:708#runLifecycleRecovery",
+        "BOOT services/worker/src/index.ts:983#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1021#startTrashGraceReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1401#startImmutableStorageReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:722#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111522,18 +111522,18 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1376#runImmutableStorageReconciliation",
-        "BOOT services/worker/src/index.ts:707#runLifecycleRecovery",
-        "BOOT services/worker/src/index.ts:982#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1020#startTrashGraceReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1400#startImmutableStorageReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:721#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1377#runImmutableStorageReconciliation",
+        "BOOT services/worker/src/index.ts:708#runLifecycleRecovery",
+        "BOOT services/worker/src/index.ts:983#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1021#startTrashGraceReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1401#startImmutableStorageReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:722#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111576,18 +111576,18 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1376#runImmutableStorageReconciliation",
-        "BOOT services/worker/src/index.ts:707#runLifecycleRecovery",
-        "BOOT services/worker/src/index.ts:982#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1020#startTrashGraceReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1400#startImmutableStorageReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:721#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1377#runImmutableStorageReconciliation",
+        "BOOT services/worker/src/index.ts:708#runLifecycleRecovery",
+        "BOOT services/worker/src/index.ts:983#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1021#startTrashGraceReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1401#startImmutableStorageReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:722#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111622,12 +111622,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1376#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1400#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1377#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1401#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111662,12 +111662,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1376#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1400#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1377#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1401#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111702,12 +111702,12 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "BOOT services/worker/src/index.ts:1326#runDestructionOrchestration",
-        "BOOT services/worker/src/index.ts:1376#runImmutableStorageReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler",
-        "SCHEDULE services/worker/src/index.ts:1344#startDestructionOrchestratorScheduler",
-        "SCHEDULE services/worker/src/index.ts:1400#startImmutableStorageReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "BOOT services/worker/src/index.ts:1327#runDestructionOrchestration",
+        "BOOT services/worker/src/index.ts:1377#runImmutableStorageReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler",
+        "SCHEDULE services/worker/src/index.ts:1345#startDestructionOrchestratorScheduler",
+        "SCHEDULE services/worker/src/index.ts:1401#startImmutableStorageReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111740,8 +111740,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111774,8 +111774,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111808,8 +111808,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111842,8 +111842,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111876,8 +111876,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111910,8 +111910,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111944,8 +111944,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -111978,8 +111978,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112012,8 +112012,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112046,8 +112046,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1243#runRetentionReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1270#startRetentionReconciliationScheduler"
+        "BOOT services/worker/src/index.ts:1244#runRetentionReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1271#startRetentionReconciliationScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112080,8 +112080,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:982#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1020#startTrashGraceReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:983#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1021#startTrashGraceReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112114,8 +112114,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:982#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1020#startTrashGraceReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:983#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1021#startTrashGraceReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112148,8 +112148,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:982#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1020#startTrashGraceReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:983#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1021#startTrashGraceReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112182,8 +112182,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:982#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1020#startTrashGraceReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:983#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1021#startTrashGraceReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112216,8 +112216,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:982#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1020#startTrashGraceReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:983#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1021#startTrashGraceReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112250,8 +112250,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:982#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1020#startTrashGraceReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:983#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1021#startTrashGraceReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112284,8 +112284,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:982#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1020#startTrashGraceReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:983#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1021#startTrashGraceReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112318,8 +112318,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:982#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1020#startTrashGraceReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:983#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1021#startTrashGraceReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112387,10 +112387,10 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "BOOT services/worker/src/index.ts:590#runIntegrityRecheckSweep",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler",
-        "SCHEDULE services/worker/src/index.ts:616#startIntegrityRecheckScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "BOOT services/worker/src/index.ts:591#runIntegrityRecheckSweep",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler",
+        "SCHEDULE services/worker/src/index.ts:617#startIntegrityRecheckScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112427,10 +112427,10 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "BOOT services/worker/src/index.ts:590#runIntegrityRecheckSweep",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler",
-        "SCHEDULE services/worker/src/index.ts:616#startIntegrityRecheckScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "BOOT services/worker/src/index.ts:591#runIntegrityRecheckSweep",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler",
+        "SCHEDULE services/worker/src/index.ts:617#startIntegrityRecheckScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112464,8 +112464,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1203#runIntelligenceRunReconciler",
-        "SCHEDULE services/worker/src/index.ts:1214#startIntelligenceRunReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1204#runIntelligenceRunReconciler",
+        "SCHEDULE services/worker/src/index.ts:1215#startIntelligenceRunReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112499,8 +112499,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1203#runIntelligenceRunReconciler",
-        "SCHEDULE services/worker/src/index.ts:1214#startIntelligenceRunReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1204#runIntelligenceRunReconciler",
+        "SCHEDULE services/worker/src/index.ts:1215#startIntelligenceRunReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112534,8 +112534,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1203#runIntelligenceRunReconciler",
-        "SCHEDULE services/worker/src/index.ts:1214#startIntelligenceRunReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1204#runIntelligenceRunReconciler",
+        "SCHEDULE services/worker/src/index.ts:1215#startIntelligenceRunReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112568,8 +112568,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1203#runIntelligenceRunReconciler",
-        "SCHEDULE services/worker/src/index.ts:1214#startIntelligenceRunReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1204#runIntelligenceRunReconciler",
+        "SCHEDULE services/worker/src/index.ts:1215#startIntelligenceRunReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112602,8 +112602,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1203#runIntelligenceRunReconciler",
-        "SCHEDULE services/worker/src/index.ts:1214#startIntelligenceRunReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1204#runIntelligenceRunReconciler",
+        "SCHEDULE services/worker/src/index.ts:1215#startIntelligenceRunReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112636,8 +112636,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1203#runIntelligenceRunReconciler",
-        "SCHEDULE services/worker/src/index.ts:1214#startIntelligenceRunReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1204#runIntelligenceRunReconciler",
+        "SCHEDULE services/worker/src/index.ts:1215#startIntelligenceRunReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112856,7 +112856,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:825#startMfaChallengeGcScheduler"
+        "SCHEDULE services/worker/src/index.ts:826#startMfaChallengeGcScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112889,7 +112889,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:825#startMfaChallengeGcScheduler"
+        "SCHEDULE services/worker/src/index.ts:826#startMfaChallengeGcScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112922,7 +112922,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:825#startMfaChallengeGcScheduler"
+        "SCHEDULE services/worker/src/index.ts:826#startMfaChallengeGcScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112955,7 +112955,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:885#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:886#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -112988,7 +112988,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:885#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:886#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -113021,7 +113021,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:885#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:886#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -113054,7 +113054,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:885#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:886#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -113087,7 +113087,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:885#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:886#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -113120,7 +113120,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:885#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:886#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -113153,7 +113153,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:885#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:886#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -113186,7 +113186,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:885#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:886#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -113219,7 +113219,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:885#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:886#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -113252,7 +113252,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:885#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:886#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -113285,7 +113285,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:885#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:886#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -113318,7 +113318,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:885#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:886#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -113351,7 +113351,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:885#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:886#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -113384,7 +113384,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:885#startMfaRecoveryDigestScheduler"
+        "SCHEDULE services/worker/src/index.ts:886#startMfaRecoveryDigestScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -113446,7 +113446,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2907#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2932#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -113477,7 +113477,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2907#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2932#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -113933,17 +113933,17 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1003#runArchiveRestoreSweep",
-        "BOOT services/worker/src/index.ts:1087#runSearchIndexReconciler",
-        "BOOT services/worker/src/index.ts:1203#runIntelligenceRunReconciler",
-        "BOOT services/worker/src/index.ts:707#runLifecycleRecovery",
-        "BOOT services/worker/src/index.ts:982#runTrashGraceReconciliation",
-        "SCHEDULE services/worker/src/index.ts:1020#startTrashGraceReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1043#startArchiveRestoreScheduler",
-        "SCHEDULE services/worker/src/index.ts:1160#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1165#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1214#startIntelligenceRunReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:721#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:1004#runArchiveRestoreSweep",
+        "BOOT services/worker/src/index.ts:1088#runSearchIndexReconciler",
+        "BOOT services/worker/src/index.ts:1204#runIntelligenceRunReconciler",
+        "BOOT services/worker/src/index.ts:708#runLifecycleRecovery",
+        "BOOT services/worker/src/index.ts:983#runTrashGraceReconciliation",
+        "SCHEDULE services/worker/src/index.ts:1021#startTrashGraceReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1044#startArchiveRestoreScheduler",
+        "SCHEDULE services/worker/src/index.ts:1161#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1166#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1215#startIntelligenceRunReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:722#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -113978,8 +113978,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:707#runLifecycleRecovery",
-        "SCHEDULE services/worker/src/index.ts:721#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:708#runLifecycleRecovery",
+        "SCHEDULE services/worker/src/index.ts:722#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -114292,8 +114292,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:931#reconcileStrandedRedactionPagePreviews",
-        "SCHEDULE services/worker/src/index.ts:943#startRedactionReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:932#reconcileStrandedRedactionPagePreviews",
+        "SCHEDULE services/worker/src/index.ts:944#startRedactionReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -114327,8 +114327,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:931#reconcileStrandedRedactionPagePreviews",
-        "SCHEDULE services/worker/src/index.ts:943#startRedactionReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:932#reconcileStrandedRedactionPagePreviews",
+        "SCHEDULE services/worker/src/index.ts:944#startRedactionReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -114518,8 +114518,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:707#runLifecycleRecovery",
-        "SCHEDULE services/worker/src/index.ts:721#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:708#runLifecycleRecovery",
+        "SCHEDULE services/worker/src/index.ts:722#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -114646,8 +114646,8 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:707#runLifecycleRecovery",
-        "SCHEDULE services/worker/src/index.ts:721#startLifecycleRecoveryScheduler"
+        "BOOT services/worker/src/index.ts:708#runLifecycleRecovery",
+        "SCHEDULE services/worker/src/index.ts:722#startLifecycleRecoveryScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -114681,9 +114681,9 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1087#runSearchIndexReconciler",
-        "SCHEDULE services/worker/src/index.ts:1160#startSearchIndexReconcilerScheduler",
-        "SCHEDULE services/worker/src/index.ts:1165#startSearchIndexReconcilerScheduler"
+        "BOOT services/worker/src/index.ts:1088#runSearchIndexReconciler",
+        "SCHEDULE services/worker/src/index.ts:1161#startSearchIndexReconcilerScheduler",
+        "SCHEDULE services/worker/src/index.ts:1166#startSearchIndexReconcilerScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -114968,9 +114968,9 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1532#pollExchangePackageBuilds",
-        "BOOT services/worker/src/index.ts:1541#pollExchangePackageBuilds",
-        "SCHEDULE services/worker/src/index.ts:1531#startExchangePackageBuilderScheduler"
+        "BOOT services/worker/src/index.ts:1533#pollExchangePackageBuilds",
+        "BOOT services/worker/src/index.ts:1542#pollExchangePackageBuilds",
+        "SCHEDULE services/worker/src/index.ts:1532#startExchangePackageBuilderScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -115001,7 +115001,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2907#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2932#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -115032,7 +115032,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2907#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2932#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -115065,7 +115065,7 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "SCHEDULE services/worker/src/index.ts:504#startCaptureDraftReaperScheduler"
+        "SCHEDULE services/worker/src/index.ts:505#startCaptureDraftReaperScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -115098,9 +115098,9 @@
       ],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1491#runWebhookDispatcherTick",
-        "BOOT services/worker/src/index.ts:1498#runWebhookDispatcherTick",
-        "SCHEDULE services/worker/src/index.ts:1490#startWebhookDispatcherScheduler"
+        "BOOT services/worker/src/index.ts:1492#runWebhookDispatcherTick",
+        "BOOT services/worker/src/index.ts:1499#runWebhookDispatcherTick",
+        "SCHEDULE services/worker/src/index.ts:1491#startWebhookDispatcherScheduler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -115131,7 +115131,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2907#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2932#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -115162,7 +115162,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2907#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2932#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -115193,7 +115193,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2907#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2932#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -115224,7 +115224,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2907#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2932#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -117677,7 +117677,7 @@
       "method": "DELETE",
       "path": "/v1/ops/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3701",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3713",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -119254,7 +119254,7 @@
       "method": "GET",
       "path": "/healthz",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:797",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:809",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -119299,7 +119299,7 @@
       "method": "GET",
       "path": "/metrics",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:966",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:978",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "handler body -> handler: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)"
@@ -119554,7 +119554,7 @@
       "method": "GET",
       "path": "/readyz",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:807",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:819",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -122133,7 +122133,7 @@
       "method": "GET",
       "path": "/v1/admin/platform/release",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:939",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:951",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -122317,7 +122317,7 @@
       "method": "GET",
       "path": "/v1/admin/runtime/schema-status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1048",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1060",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -144773,7 +144773,7 @@
       "method": "GET",
       "path": "/v1/ops/alerts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1017",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1029",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -144816,7 +144816,7 @@
       "method": "GET",
       "path": "/v1/ops/assignable-operators",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2501",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2513",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -144885,7 +144885,7 @@
       "method": "GET",
       "path": "/v1/ops/bulk-actions/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:4037",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:4049",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -144943,7 +144943,7 @@
       "method": "GET",
       "path": "/v1/ops/causality/chains",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3298",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3310",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -145008,7 +145008,7 @@
       "method": "GET",
       "path": "/v1/ops/causality/chains/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3322",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3334",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -145075,7 +145075,7 @@
       "method": "GET",
       "path": "/v1/ops/health",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:815",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:827",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolvePlatformAdmin -> services/api/src/services/platform-admin.service.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -145138,7 +145138,7 @@
       "method": "GET",
       "path": "/v1/ops/incident-groups",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1762",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1774",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -145221,7 +145221,7 @@
       "method": "GET",
       "path": "/v1/ops/incident-groups/:groupKey/affected",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1942",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1954",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -145297,7 +145297,7 @@
       "method": "GET",
       "path": "/v1/ops/incidents",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1561",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1573",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -145406,7 +145406,7 @@
       "method": "GET",
       "path": "/v1/ops/incidents/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1993",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2005",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -145507,7 +145507,7 @@
       "method": "GET",
       "path": "/v1/ops/media-intelligence/runs",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:4153",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:4165",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -145562,7 +145562,7 @@
       "method": "GET",
       "path": "/v1/ops/metrics",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:948",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:960",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -145614,7 +145614,7 @@
       "method": "GET",
       "path": "/v1/ops/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3528",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3540",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -145730,7 +145730,7 @@
       "method": "GET",
       "path": "/v1/ops/summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1158",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1170",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -145838,7 +145838,7 @@
       "method": "GET",
       "path": "/v1/ops/workflows",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2810",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2822",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -145903,7 +145903,7 @@
       "method": "GET",
       "path": "/v1/ops/workflows/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2854",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2866",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -146734,7 +146734,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/operations/incidents",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1343",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1355",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -146816,7 +146816,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/operations/rollup",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1233",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1245",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -161087,7 +161087,7 @@
       "method": "PATCH",
       "path": "/v1/ops/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3623",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3635",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -162893,7 +162893,7 @@
       "nonProductConsumers": [
         {
           "file": "services/worker/src/index.ts",
-          "line": 299,
+          "line": 300,
           "caller": "runDemoFollowUps",
           "class": "WORKER",
           "primitive": "fetch"
@@ -196027,7 +196027,7 @@
       "method": "POST",
       "path": "/v1/ops/bulk-actions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3812",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3824",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -196127,7 +196127,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/ack",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2359",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2371",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -196220,7 +196220,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2532",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2544",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -196297,7 +196297,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/remediate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2221",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2233",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -196398,7 +196398,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2386",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2398",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -196491,7 +196491,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/suppress",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2414",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2426",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -196584,7 +196584,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/unsuppress",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2452",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2464",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -196653,7 +196653,7 @@
       "method": "POST",
       "path": "/v1/ops/media-intelligence/dlq/replay",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:4326",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:4338",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -196712,7 +196712,7 @@
       "method": "POST",
       "path": "/v1/ops/media-intelligence/runs/:runId/dismiss",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:4283",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:4295",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -196768,7 +196768,7 @@
       "method": "POST",
       "path": "/v1/ops/media-intelligence/runs/:runId/retry",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:4223",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:4235",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -196827,7 +196827,7 @@
       "method": "POST",
       "path": "/v1/ops/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1090",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1102",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)"
@@ -196839,7 +196839,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "CRON_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/ops.routes.ts:1090 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
+      "dispositionEvidence": "services/api/src/routes/ops.routes.ts:1102 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
       "dispositionReason": "gated by the canonical constant-time cron/internal shared secret, so only a scheduler or operator holding it can call it",
       "replacement": null,
       "result": "DISPOSED_CRON_CONSUMER",
@@ -196889,7 +196889,7 @@
       "method": "POST",
       "path": "/v1/ops/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3546",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3558",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -197061,7 +197061,7 @@
       "method": "POST",
       "path": "/v1/ops/upload-telemetry",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:4429",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:4441",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -197120,7 +197120,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2916",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2928",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -197219,7 +197219,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/escalate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3035",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3047",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -197315,7 +197315,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/mitigation",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3078",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3090",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -197411,7 +197411,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/reopen",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3209",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3221",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -197507,7 +197507,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3122",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3134",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -197603,7 +197603,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/schedule-retry",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3252",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3264",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -197699,7 +197699,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/start",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2992",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3004",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -197795,7 +197795,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/suppress",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3166",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3178",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -197891,7 +197891,7 @@
       "method": "POST",
       "path": "/v1/ops/workspace-reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1473",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1485",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
