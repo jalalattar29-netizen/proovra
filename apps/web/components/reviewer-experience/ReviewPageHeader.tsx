@@ -27,6 +27,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
 
+import { AssistantInlineEntry } from "../ai/AssistantInlineEntry";
 import { PageHeader } from "../ui/PageShell";
 import { useReviewDestination } from "./reviewDestination";
 import { routeIconFor } from "../../lib/navigation/routeIcons";
@@ -45,6 +46,12 @@ export interface ReviewPageHeaderProps {
   /** "← Review" to /review, only where the review hub opens (resolver). */
   backToHub?: boolean;
   className?: string;
+  /**
+   * F-23 (review remediation 2026-11-27) — the assistant's inline entry in
+   * the header actions, which replaces the floating launcher on Review pages
+   * (it covered form fields and actions). Default on; `false` opts out.
+   */
+  assistantEntry?: boolean;
 }
 
 /** The hub's own back target for the advanced tool pages. */
@@ -78,6 +85,7 @@ export function ReviewPageHeader({
   back,
   backToHub,
   className,
+  assistantEntry = true,
 }: ReviewPageHeaderProps) {
   return (
     <div
@@ -97,7 +105,16 @@ export function ReviewPageHeader({
         subtitle={subtitle}
         contextStrip={contextStrip}
         primaryAction={primaryAction}
-        secondaryActions={secondaryActions}
+        secondaryActions={
+          assistantEntry ? (
+            <>
+              {secondaryActions}
+              <AssistantInlineEntry />
+            </>
+          ) : (
+            secondaryActions
+          )
+        }
       />
     </div>
   );

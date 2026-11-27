@@ -132,7 +132,8 @@ describe("Review remediation — coding (live PostgreSQL 16)", () => {
 
       const cleared = await call({ method: "POST", url: codeUrl(wf), token: a.memberToken, payload: { fieldId: notes.id, clear: true } });
       expect(cleared.statusCode, cleared.body).toBe(200);
-      expect(cleared.json()).toEqual({ cleared: true, codingValueId: valueId });
+      // Review remediation A — every answer carries the field revision (history count).
+      expect(cleared.json()).toEqual({ cleared: true, codingValueId: valueId, revision: 2 });
       expect(await prisma.codingValue.count({ where: { workflowId: wf } })).toBe(0);
       const history = await prisma.codingValueHistory.findMany({
         where: { workflowId: wf, fieldId: notes.id },
@@ -147,7 +148,7 @@ describe("Review remediation — coding (live PostgreSQL 16)", () => {
 
       const again = await call({ method: "POST", url: codeUrl(wf), token: a.memberToken, payload: { fieldId: notes.id, clear: true } });
       expect(again.statusCode, again.body).toBe(200);
-      expect(again.json()).toEqual({ cleared: false, codingValueId: null });
+      expect(again.json()).toEqual({ cleared: false, codingValueId: null, revision: 2 });
       expect(await prisma.codingValueHistory.count({ where: { workflowId: wf, fieldId: notes.id } })).toBe(2);
 
       const sheet = await call({ method: "GET", url: codingUrl(wf), token: a.memberToken });
@@ -248,6 +249,7 @@ describe("Review remediation — coding (live PostgreSQL 16)", () => {
         expect(res.json()).toEqual({
           values: [],
           otherSchemaValues: [],
+          revisions: {},
           coverage: { totalRequired: 0, fulfilled: 0, unfulfilledFieldIds: [] },
           schemaBinding: null,
           history: [],

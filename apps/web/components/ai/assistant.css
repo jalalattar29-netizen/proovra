@@ -553,3 +553,27 @@
     display: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   INLINE MODE — F-23 (review remediation 2026-11-27).
+   A page that renders AssistantInlineEntry in its header sets
+   `data-assistant-inline` on <html> while it is mounted. The floating
+   launcher then stands down (the widget stops rendering it; this rule covers
+   the frame before it re-renders) and the panel needs no launcher reserve.
+   Pages without an inline entry never match these rules.
+--------------------------------------------------------------------------- */
+:root[data-assistant-inline="true"] .assistant-dock {
+  --assistant-launcher: 0px;
+}
+
+:root[data-assistant-inline="true"] .assistant-launcher-slot {
+  display: none;
+}
+
+.assistant-inline-entry {
+  gap: 6px;
+}
+
+.assistant-inline-entry svg {
+  flex: none;
+}

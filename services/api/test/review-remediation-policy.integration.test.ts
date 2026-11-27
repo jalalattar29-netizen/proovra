@@ -18,7 +18,7 @@ let prisma: typeof import("../src/db.js").prisma;
 let requiredLegalVersions: Record<string, unknown>;
 let ensurePersonalWorkspace: typeof import("../src/services/platform-context/workspace-bootstrap.service.js").ensurePersonalWorkspace;
 let countEligibleSecondReviewers: typeof import("../src/services/reviewer-ops/review-handoff.service.js").countEligibleSecondReviewers;
-let reconcile: typeof import("../src/services/reviewer-ops/review-remediation-reconcile.service.js").reconcileReviewRemediation;
+let reconcileSvc: typeof import("../src/services/reviewer-ops/review-remediation-reconcile.service.js");
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- route bodies are asserted field by field
 type Res = { status: number; body: any; raw: string };
@@ -121,7 +121,7 @@ beforeAll(async () => {
   ({ REQUIRED_LEGAL_VERSIONS: requiredLegalVersions } = await import("../src/legal/legal-versioning.js"));
   ({ ensurePersonalWorkspace } = await import("../src/services/platform-context/workspace-bootstrap.service.js"));
   ({ countEligibleSecondReviewers } = await import("../src/services/reviewer-ops/review-handoff.service.js"));
-  ({ reconcileReviewRemediation: reconcile } = await import("../src/services/reviewer-ops/review-remediation-reconcile.service.js"));
+  reconcileSvc = await import("../src/services/reviewer-ops/review-remediation-reconcile.service.js");
 
   const solo = await newUser("solo");
   S = { teamId: await teamWorkspace(solo), owner: solo };
@@ -218,16 +218,22 @@ describe("§2 ordinary versus independent review", () => {
       } as never,
     });
     expect((await o.lineage(S.owner, r.workflowId)).body.secondReview.cause).toBe("legacy_escalation");
-    // The owner-approved reconciliation reclassifies it; only then does it stop forcing.
-    const dry = await reconcile({ teamId: S.teamId }, prisma);
-    expect(dry.categories.legacy_administrative_escalations.count).toBeGreaterThanOrEqual(1);
-    expect(dry.categories.legacy_administrative_escalations.applied).toBe(0);
+    // The owner-approved, plan-bound reconciliation reclassifies it; only then does it stop forcing.
+    const plan = await reconcileSvc.buildReconciliationPlan({ teamId: S.teamId }, prisma);
+    expect(plan.counts.legacy_administrative_escalations.count).toBeGreaterThanOrEqual(1);
     expect((await o.lineage(S.owner, r.workflowId)).body.secondReview.cause).toBe("legacy_escalation");
-    const applied = await reconcile({ teamId: S.teamId, apply: ["legacy_administrative_escalations"] }, prisma);
-    expect(applied.categories.legacy_administrative_escalations.applied).toBeGreaterThanOrEqual(1);
+    const applied = await reconcileSvc.applyReconciliationPlan(
+      { plan, expectedPlanHash: plan.planHash, categories: ["legacy_administrative_escalations"], operator: "integration test" },
+      prisma,
+    );
+    expect(applied.summary.applied).toBeGreaterThanOrEqual(1);
     expect((await o.lineage(S.owner, r.workflowId)).body.secondReview.required).toBe(false);
-    const again = await reconcile({ teamId: S.teamId, apply: ["legacy_administrative_escalations"] }, prisma);
-    expect(again.categories.legacy_administrative_escalations.applied).toBe(0); // idempotent
+    const again = await reconcileSvc.applyReconciliationPlan(
+      { plan, expectedPlanHash: plan.planHash, categories: ["legacy_administrative_escalations"], operator: "integration test" },
+      prisma,
+    );
+    expect(again.summary.applied).toBe(0); // idempotent
+    expect(again.summary.already_applied).toBe(applied.summary.applied);
   });
 
   it("the explicit Request independent review action and the workspace policy both require it", async () => {

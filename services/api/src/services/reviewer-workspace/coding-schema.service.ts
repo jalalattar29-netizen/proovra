@@ -37,6 +37,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { lockReviewWorkflowRow } from "./coding-value.service.js";
 // Phase 4 — wire audit emission via the canonical tenant-audit facade.
 // `.catch(() => {})` keeps emission best-effort so audit failure cannot
 // roll back the primary schema mutation. Bounded metadata only — field
@@ -287,15 +288,32 @@ export async function bindSchemaToWorkflow(input: {
     select: { id: true, version: true, slug: true },
   });
   if (!schema) return deny("SCHEMA_NOT_FOUND");
-  const workflow = await prisma.evidenceReviewWorkflow.findFirst({
-    where: { id: input.workflowId, teamId: input.teamId },
-    select: { id: true, codingSchemaId: true },
-  });
+  /*
+   * Review remediation C (2026-11-27) — the rebind takes the SAME workflow row
+   * lock as a coding write/clear and the final decision (see
+   * `lockReviewWorkflowRow`), so a write that checked the old binding cannot
+   * commit after the rebind, and a snapshot never straddles one.
+   */
+  const rebind = async (tx: PrismaClient) => {
+    if (!(await lockReviewWorkflowRow(tx, { workflowId: input.workflowId, teamId: input.teamId }))) {
+      return null;
+    }
+    const wf = await tx.evidenceReviewWorkflow.findFirst({
+      where: { id: input.workflowId, teamId: input.teamId },
+      select: { id: true, codingSchemaId: true },
+    });
+    if (!wf) return null;
+    await tx.evidenceReviewWorkflow.update({
+      where: { id: wf.id },
+      data: { codingSchemaId: schema.id, codingSchemaVersion: schema.version },
+    });
+    return wf;
+  };
+  const workflow =
+    typeof (prisma as { $transaction?: unknown }).$transaction === "function"
+      ? await prisma.$transaction((tx) => rebind(tx as unknown as PrismaClient))
+      : await rebind(prisma);
   if (!workflow) return deny("WORKFLOW_NOT_FOUND");
-  await prisma.evidenceReviewWorkflow.update({
-    where: { id: workflow.id },
-    data: { codingSchemaId: schema.id, codingSchemaVersion: schema.version },
-  });
   // Binding decides which coded fields a review collects, so it is a
   // material change to the review record and is audited like the schema
   // lifecycle above. Bounded metadata: IDs, slug and version only.

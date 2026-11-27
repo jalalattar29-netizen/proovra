@@ -137,7 +137,9 @@ describe("CodingPanel — boolean is Not set / Yes / No (F-24)", () => {
     expect(onWrite).toHaveBeenCalledWith({ fieldId: "f-siu", value: { boolean: false } });
     expect(within(group).getByLabelText("No")).toHaveProperty("checked", true);
     fireEvent.click(within(group).getByLabelText("Not set"));
-    expect(onClear).toHaveBeenCalledWith({ fieldId: "f-siu" });
+    // Review remediation A — one request per field: the clear is sent once
+    // the write before it has settled (never in parallel with it).
+    await waitFor(() => expect(onClear).toHaveBeenCalledWith({ fieldId: "f-siu" }));
   });
 
   it("shows a stored No as No (not as unchecked)", () => {
@@ -149,20 +151,23 @@ describe("CodingPanel — boolean is Not set / Yes / No (F-24)", () => {
 });
 
 describe("CodingPanel — save status, ordering and retry (F-17)", () => {
-  it("ignores a response older than the latest request for the field", async () => {
+  it("review remediation A: a newer edit waits for the request in flight; the newer value is sent last", async () => {
     const { fn, pending } = deferredWrites();
     render(<CodingPanel fields={[NOTES]} values={[]} unfulfilledFieldIds={new Set()} onWrite={fn} onClear={vi.fn()} />);
     fireEvent.change(textarea(), { target: { value: "first" } });
     fireEvent.blur(textarea());
     fireEvent.change(textarea(), { target: { value: "second" } });
     fireEvent.blur(textarea());
-    expect(fn).toHaveBeenCalledTimes(2);
+    // One request in flight per field; the newer edit is the pending intent.
+    expect(fn).toHaveBeenCalledTimes(1);
     expect(statusOf("f-notes")!.textContent).toBe("Saving…");
     expect(textarea().disabled).toBe(false);
+    // The older request settles: never "Saved" while the newer one is still to go.
+    await act(async () => pending[0]!.resolve({ ok: true }));
+    expect(fn).toHaveBeenCalledTimes(2);
+    expect(fn).toHaveBeenLastCalledWith({ fieldId: "f-notes", value: { text: "second" } });
+    expect(statusOf("f-notes")!.textContent).toBe("Saving…");
     await act(async () => pending[1]!.resolve({ ok: true }));
-    expect(statusOf("f-notes")!.textContent).toBe("Saved");
-    // The OLDER request fails late: it must not overwrite the newer outcome.
-    await act(async () => pending[0]!.resolve({ ok: false, kind: "refused", message: "Too late." }));
     expect(statusOf("f-notes")!.textContent).toBe("Saved");
     expect(live().textContent).toBe("Notes: saved.");
     expect(textarea().value).toBe("second");
@@ -211,7 +216,8 @@ describe("CodingPanel — save status, ordering and retry (F-17)", () => {
     expect(onWrite).toHaveBeenCalledWith({ fieldId: "f-est", value: { number: 12 } });
     fireEvent.change(input, { target: { value: "" } });
     fireEvent.blur(input);
-    expect(onClear).toHaveBeenCalledWith({ fieldId: "f-est" });
+    // Sent after the write before it settles (one request per field).
+    await waitFor(() => expect(onClear).toHaveBeenCalledWith({ fieldId: "f-est" }));
   });
 
   it("re-renders a new server value (controlled input)", () => {

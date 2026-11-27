@@ -294,6 +294,10 @@ function ReviewWorkspacePageInner() {
   // A failed READ of the workspace, kept apart from an action refusal so a
   // reload after a refusal never wipes the refusal off the screen.
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Journeys D-1 — a reload the server REFUSES (403: the viewer's membership
+  // or review access ended meanwhile) means the last projection no longer
+  // speaks for this viewer: every action is withdrawn and "You" is never shown.
+  const [accessEnded, setAccessEnded] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<ViewerActionName | null>(null);
   // Bumped after every action so the lineage and notes panels reread.
@@ -345,13 +349,15 @@ function ReviewWorkspacePageInner() {
       .then((r: WorkspaceResponse) => {
         setData(r);
         setLoadError(null);
+        setAccessEnded(false);
         // Capture the first signature; subsequent reloads update
         // `data` (the current side) but never overwrite this snapshot.
         setInitialSignature((prev) => prev ?? deriveSignature(r));
       })
-      .catch((err: { message?: string }) =>
-        setLoadError(toSafeUserError(err, { message: "Could not load workspace." }).message),
-      );
+      .catch((err: { message?: string; statusCode?: number }) => {
+        if (err?.statusCode === 403) setAccessEnded(true);
+        setLoadError(toSafeUserError(err, { message: "Could not load workspace." }).message);
+      });
   }, [teamId, workflowId]);
 
   useEffect(() => {
@@ -446,9 +452,18 @@ function ReviewWorkspacePageInner() {
     [teamId, workflowId, reloadAll],
   );
 
+  const ACCESS_ENDED_REASON = "Your access to this review has ended. Nothing more can be done here.";
+  const effectiveViewer =
+    accessEnded && data?.viewer
+      ? {
+          ...data.viewer,
+          isAssignee: false,
+          actions: data.viewer.actions.map((a) => ({ action: a.action, allowed: false as const, reason: ACCESS_ENDED_REASON })),
+        }
+      : data?.viewer;
   const actions: ActionMap | null = data
     ? deriveActions({
-        viewer: data.viewer,
+        viewer: effectiveViewer,
         lifecycleState: data.projection.lifecycleState,
         paused: Boolean(data.projection.slaPausedAtUtc),
         assigned: Boolean(data.projection.assignedToUserId),
@@ -791,8 +806,10 @@ function ReviewWorkspacePageInner() {
         ? "Adjudication needs a workspace owner or admin who made neither decision."
         : null;
   // T-086 — the one identity rendering (display name, else masked e-mail).
-  const assignee = p.assignedToUserId
-    ? data.viewer?.isAssignee
+  const assignee = accessEnded
+    ? "Unknown — your access to this review has ended"
+    : p.assignedToUserId
+    ? effectiveViewer?.isAssignee
       ? "You"
       : reviewerIdentityLabel(
           { userId: p.assignedToUserId, displayName: p.assignedToDisplayName ?? null, maskedEmail: p.assignedToMaskedEmail ?? null },

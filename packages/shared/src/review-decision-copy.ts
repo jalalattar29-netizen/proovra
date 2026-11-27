@@ -33,6 +33,7 @@ export const SECOND_REVIEW_CAUSE_LABELS: Readonly<Record<string, string>> = {
   independent_review_requested: "an independent review was requested",
   integrity_escalation: "an integrity concern was escalated",
   legacy_escalation: "an escalation raised before 27 Nov 2026 requires it",
+  legacy_escalated_status: "the review was escalated before 27 Nov 2026",
   workspace_policy: "this workspace requires two reviewers for every review",
   open_escalation: "an escalation is open",
   active_legal_hold: "the evidence is under legal hold",

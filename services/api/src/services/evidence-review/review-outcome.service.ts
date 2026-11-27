@@ -33,6 +33,7 @@ import {
   REVIEWER_DISAGREEMENT_ESCALATION_REASON,
   deriveDecisionProjection,
   escalationForcesIndependentReview,
+  legacyEscalatedStatusForces,
   legacyReviewDecisionFromStatus,
   reviewDecisionFromProjection,
   type ReviewDecision,
@@ -334,6 +335,40 @@ export async function secondReviewRequiredForRounds(
       .filter((w) => w.status === "ESCALATED" && w.escalationReason === REVIEWER_DISAGREEMENT_ESCALATION_REASON)
       .map((w) => w.id),
   );
+  // Source review E.2 — a stored ESCALATED status keeps forcing unless the
+  // escalation that SET it (newest ESCALATED event's escalationId) was
+  // recorded after the change (legacyEscalatedStatusForces). Same reading as
+  // second-review.service.ts escalationThatSetStatus.
+  const otherEscalated = statuses.filter((w) => w.status === "ESCALATED" && !escalated.has(w.id)).map((w) => w.id);
+  if (otherEscalated.length > 0) {
+    const teamOf = new Map(rounds.map((w) => [w.id, w.teamId]));
+    const evs = await client.evidenceReviewWorkflowEvent.findMany({
+      where: { workflowId: { in: otherEscalated }, eventType: "ESCALATED" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { workflowId: true, nextValue: true },
+    });
+    const setterIdByWf = new Map<string, string | null>();
+    for (const e of evs) {
+      if (setterIdByWf.has(e.workflowId)) continue;
+      const id = (e.nextValue as { escalationId?: unknown } | null)?.escalationId;
+      setterIdByWf.set(e.workflowId, typeof id === "string" ? id : null);
+    }
+    const setterIds = [...new Set([...setterIdByWf.values()].filter((v): v is string => !!v))];
+    const setters =
+      setterIds.length === 0
+        ? []
+        : await client.reviewEscalation.findMany({
+            where: { id: { in: setterIds } },
+            select: { id: true, workflowId: true, teamId: true, requiresIndependentReview: true },
+          });
+    const setterById = new Map(setters.map((e) => [e.id, e]));
+    for (const id of otherEscalated) {
+      const sid = setterIdByWf.get(id) ?? null;
+      const row = sid ? setterById.get(sid) : undefined;
+      const setter = row && row.workflowId === id && row.teamId === teamOf.get(id) ? row : null;
+      if (legacyEscalatedStatusForces(setter)) escalated.add(id);
+    }
+  }
   const policyTeams = new Set(policies.map((p) => p.teamId));
   // Only escalations that FORCE independent review count (review remediation).
   const escByWf = new Set(

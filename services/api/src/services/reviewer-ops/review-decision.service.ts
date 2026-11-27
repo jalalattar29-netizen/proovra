@@ -357,6 +357,13 @@ export async function recordReviewDecision(
   }
 
   const result: RecordReviewDecisionResult = await client.$transaction(async (tx): Promise<RecordReviewDecisionResult> => {
+    // Review remediation C (2026-11-27) — the workflow row lock FIRST, the
+    // same statement coding write/clear, bulk coding and schema rebind take
+    // (coding-value.service `lockReviewWorkflowRow`; written inline so this
+    // file does not depend on that module for the lock). A coding change
+    // either committed before this (and the completeness check and the
+    // snapshot below see it) or waits and then sees the finalized status.
+    await tx.$queryRaw`SELECT "id" FROM "evidence_review_workflows" WHERE "id" = ${input.workflowId}::uuid AND "team_id" = ${input.teamId}::uuid FOR UPDATE`;
     // (i) Workspace isolation — cross-workspace probes are
     // indistinguishable from missing workflows. So is a record closed to the
     // actor by a restricted case (WORKFLOW-003).
@@ -983,6 +990,22 @@ export async function recordReviewDecision(
  *     the eventual verdict still needs an independent second decision.
  *   - The same requester repeating it while the review waits is a replay.
  */
+/**
+ * The `evidence_review_workflow_events.note` column holds at most 1000
+ * characters. An information request keeps its FULL reason in the event value
+ * (`nextValue.reason`); the note is a summary that says when it was shortened.
+ */
+export const EVENT_NOTE_MAX = 1000;
+export function informationRequestNoteSummary(reason: string): string | null {
+  if (!reason) return null;
+  if (reason.length <= EVENT_NOTE_MAX) return reason;
+  const marker = " … (shortened; the full reason is kept with the request)";
+  // Cut on whole code points (never half of a surrogate pair).
+  return Array.from(reason.slice(0, EVENT_NOTE_MAX - marker.length + 1))
+    .slice(0, -1)
+    .join("") + marker;
+}
+
 async function recordInformationRequest(
   input: RecordReviewDecisionInput,
   rationale: string,
@@ -1121,8 +1144,14 @@ async function recordInformationRequest(
               }
             : {}),
           ...(input.source ? { source: input.source } : {}),
+          // Source review D — the FULL accepted reason (up to
+          // REVIEW_DECISION_RATIONALE_MAX = 4000). No decision row carries it,
+          // and the `note` column is VARCHAR(1000), so the event value is the
+          // durable record; the history reads it from here.
+          reason: rationale,
         } as Prisma.InputJsonValue,
-        note: rationale.slice(0, 1000) || null,
+        // A bounded display summary only, explicitly marked when shortened.
+        note: informationRequestNoteSummary(rationale),
       },
     });
     return {

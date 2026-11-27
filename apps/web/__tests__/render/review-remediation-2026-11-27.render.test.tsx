@@ -285,6 +285,29 @@ describe("F-11 / F-22 Challenged decisions", () => {
     expect(document.querySelector("[data-disagreement-banner]")!.textContent).toMatch(/partially overturned: the review's round restarted/);
   });
 
+  it("a supersede failure (finding B) says nothing was recorded and keeps the rationale for a retry", async () => {
+    routes["GET /v1/reviewer/disagreements"] = () => ({ status: 200, body: { disagreements: [disagreement()] } });
+    // The route's real (flat) body.
+    routes[`POST /v1/reviewer/disagreements/${DIS}/transition`] = () => ({
+      status: 409,
+      body: { denial: "DISAGREEMENT_SUPERSEDE_FAILED", code: "DISAGREEMENT_SUPERSEDE_FAILED" },
+    });
+    render(shell(<DisagreementsPage />));
+    await settle();
+    fireEvent.click(document.querySelector('[data-disagreement-transition-btn="RESOLVED_OVERTURNED"]')!);
+    await settle();
+    chooseListbox(document.querySelector("[data-disagreement-resolve-verdict-select]"), "REJECT");
+    fireEvent.change(document.querySelector("[data-disagreement-resolve-rationale]")!, { target: { value: "Custody gap confirmed." } });
+    await settle();
+    fireEvent.click(document.querySelector("[data-disagreement-resolve-submit]")!);
+    await settle();
+    const banner = document.querySelector("[data-disagreement-banner]")!.textContent!;
+    expect(banner).toMatch(/^Not recorded: the challenged outcome could not be superseded/);
+    expect(banner).toMatch(/the review is unchanged/);
+    expect(banner).not.toMatch(/overturned: the review was reopened/);
+    expect((document.querySelector("[data-disagreement-resolve-rationale]") as HTMLTextAreaElement).value).toBe("Custody gap confirmed.");
+  });
+
   it("the challenger is not offered review or resolution, and is told who resolves it", async () => {
     routes["GET /v1/reviewer/disagreements"] = () => ({
       status: 200,

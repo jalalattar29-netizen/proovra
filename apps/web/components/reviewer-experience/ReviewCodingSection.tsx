@@ -22,6 +22,14 @@
  *     earlier schema are listed, collapsed, as not current (F-26).
  *   * A failed load says so, with Retry (it used to be silent).
  *
+ * Review remediation A/C (2026-11-27):
+ *   * Every write/clear carries the field revision it is based on; a stale
+ *     change (another tab, another reviewer) is refused by the server with
+ *     "CODING_VALUE_CONFLICT" and shown in plain words, the draft kept.
+ *   * The panel is keyed by workspace + review + bound schema, and a read
+ *     only lands for the context it was made for, so switching review,
+ *     workspace or schema never sends an edit to the wrong one.
+ *
  * A coded value is the reviewer's assessment, never the decision.
  */
 
@@ -30,13 +38,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
 import {
+  clearCodingValue,
   fetchSchema,
   writeCodingValue,
+  type CodingClearResult,
   type CodingFieldRow,
   type CodingValueRow,
+  type CodingWriteResult,
 } from "../../lib/reviewer-workspace/reviewer-api";
-import { reviewerDenialFromError } from "../../lib/reviewer-workspace/reviewer-denial";
 import {
+  CODING_CONFLICT_MESSAGE,
   CodingPanel,
   formatCodingValue,
   type CodingWritable,
@@ -61,6 +72,10 @@ type CodingLoad =
   | { kind: "unbound"; otherSchemaValues: OtherSchemaCodingValue[] }
   | {
       kind: "ready";
+      /** `teamId:workflowId` the read was made for. */
+      context: string;
+      schemaId: string;
+      revisions: Record<string, number> | undefined;
       schemaLabel: string;
       fields: CodingFieldRow[];
       values: CodingValueRow[];
@@ -76,11 +91,23 @@ type CodingRead = {
   otherSchemaValues?: OtherSchemaCodingValue[];
   coverage?: { unfulfilledFieldIds?: string[] };
   writable?: CodingWritable;
+  /** Review remediation A — field revisions (absent on an older API). */
+  revisions?: Record<string, number>;
 };
 
 function outcomeFromDenial(denial: string): CodingWriteOutcome {
   if (denial === "NETWORK_ERROR") return { ok: false, kind: "network", message: "" };
   return { ok: false, kind: "refused", message: reviewerDenialMessage(denial) };
+}
+
+/** A write/clear answer as the panel's outcome (review remediation A). */
+function outcomeOf(res: CodingWriteResult | CodingClearResult): CodingWriteOutcome {
+  if (res.ok) return typeof res.revision === "number" ? { ok: true, revision: res.revision } : { ok: true };
+  if (res.denial === "CODING_VALUE_CONFLICT") {
+    const current = "current" in res ? res.current : null;
+    return { ok: false, kind: "conflict", message: CODING_CONFLICT_MESSAGE, ...(current ? { current } : {}) };
+  }
+  return outcomeFromDenial(res.denial);
 }
 
 export function ReviewCodingSection({
@@ -97,6 +124,9 @@ export function ReviewCodingSection({
 }) {
   const [load, setLoad] = useState<CodingLoad>({ kind: "loading" });
   const readSeq = useRef(0);
+  const context = `${teamId}:${workflowId}`;
+  const contextRef = useRef(context);
+  contextRef.current = context;
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -108,7 +138,10 @@ export function ReviewCodingSection({
   const read = useCallback(async () => {
     // Only the latest read may land (writes trigger reads that can overlap).
     const seq = ++readSeq.current;
-    const current = () => alive.current && seq === readSeq.current;
+    const madeFor = `${teamId}:${workflowId}`;
+    // A read lands only for the review it was made for (a write's follow-up
+    // read of a previous review never replaces the current one).
+    const current = () => alive.current && seq === readSeq.current && contextRef.current === madeFor;
     try {
       const res = (await apiFetch(
         `/v1/reviewer/work/${encodeURIComponent(workflowId)}/coding?teamId=${encodeURIComponent(teamId)}`,
@@ -124,6 +157,9 @@ export function ReviewCodingSection({
       if (!current()) return;
       setLoad({
         kind: "ready",
+        context: madeFor,
+        schemaId: binding.id,
+        revisions: res?.revisions && typeof res.revisions === "object" ? res.revisions : undefined,
         schemaLabel: binding.label,
         fields: schema?.fields ?? [],
         values: res?.values ?? [],
@@ -138,6 +174,12 @@ export function ReviewCodingSection({
     }
   }, [teamId, workflowId]);
 
+  // A new review / workspace: nothing of the previous one stays editable
+  // while the new one loads.
+  useEffect(() => {
+    setLoad({ kind: "loading" });
+  }, [context]);
+
   useEffect(() => {
     void read();
   }, [read, refreshKey]);
@@ -145,30 +187,26 @@ export function ReviewCodingSection({
   const onWrite = useCallback(
     async (input: { fieldId: string; value: Record<string, unknown>; rationale?: string }): Promise<CodingWriteOutcome> => {
       const res = await writeCodingValue({ workflowId, teamId, ...input });
-      if (!res.ok) return outcomeFromDenial(res.denial);
-      void read();
-      return { ok: true };
+      if (res.ok) void read();
+      return outcomeOf(res);
     },
     [read, teamId, workflowId],
   );
 
   const onClear = useCallback(
-    async (input: { fieldId: string }): Promise<CodingWriteOutcome> => {
-      try {
-        await apiFetch(
-          `/v1/reviewer/work/${encodeURIComponent(workflowId)}/code?teamId=${encodeURIComponent(teamId)}`,
-          { method: "POST", body: JSON.stringify({ fieldId: input.fieldId, clear: true }) },
-        );
-      } catch (err) {
-        return outcomeFromDenial(reviewerDenialFromError(err));
-      }
-      void read();
-      return { ok: true };
+    async (input: { fieldId: string; expectedRevision?: number }): Promise<CodingWriteOutcome> => {
+      const res = await clearCodingValue({ workflowId, teamId, ...input });
+      if (res.ok) void read();
+      return outcomeOf(res);
     },
     [read, teamId, workflowId],
   );
 
   const onBound = useCallback(() => {
+    void read();
+  }, [read]);
+
+  const onReload = useCallback(() => {
     void read();
   }, [read]);
 
@@ -193,7 +231,7 @@ export function ReviewCodingSection({
           </button>
         </div>
       ) : null}
-      {load.kind === "ready" ? (
+      {load.kind === "ready" && load.context === context ? (
         <section className="app-panel" aria-labelledby="review-coding-title" data-review-coding-panel>
           <div className="app-panel__head">
             <h2 id="review-coding-title" className="app-panel__title">
@@ -206,6 +244,10 @@ export function ReviewCodingSection({
               Coded values record your assessment of this review. They do not decide it.
             </p>
             <CodingPanel
+              key={`${load.context}:${load.schemaId}`}
+              contextKey={`${load.context}:${load.schemaId}`}
+              revisions={load.revisions}
+              onReload={onReload}
               fields={load.fields}
               values={load.values}
               unfulfilledFieldIds={load.unfulfilled}

@@ -44,6 +44,13 @@ import {
   SENSITIVE_ROUTE_STATE,
   type AssistantState,
 } from "../../lib/ai/assistant-state";
+import {
+  ASSISTANT_CLOSE_EVENT,
+  ASSISTANT_INLINE_EVENT,
+  ASSISTANT_OPEN_EVENT,
+  announceAssistantState,
+  isAssistantInline,
+} from "../../lib/ai/assistant-bridge";
 import { hasPreferencesConsent } from "../../lib/consent";
 import {
   classifyRouteClass,
@@ -122,6 +129,50 @@ export function ProovraChatWidget() {
   const fieldRef = useRef<HTMLTextAreaElement | null>(null);
   /** Availability is read once per open, not once per keystroke. */
   const probedRef = useRef(false);
+
+  /*
+   * F-23 (review remediation 2026-11-27) — INLINE MODE. A page that renders
+   * an `AssistantInlineEntry` in its header marks <html> with
+   * `data-assistant-inline`; while it is set this widget draws NO floating
+   * launcher (it covered form fields and actions on the Review pages) and the
+   * entry opens the panel by event. Pages without an entry are unchanged.
+   */
+  const [inline, setInline] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sync = () => setInline(isAssistantInline());
+    sync();
+    const openIt = () => setOpen(true);
+    const closeIt = () => setOpen(false);
+    window.addEventListener(ASSISTANT_INLINE_EVENT, sync);
+    window.addEventListener(ASSISTANT_OPEN_EVENT, openIt);
+    window.addEventListener(ASSISTANT_CLOSE_EVENT, closeIt);
+    return () => {
+      window.removeEventListener(ASSISTANT_INLINE_EVENT, sync);
+      window.removeEventListener(ASSISTANT_OPEN_EVENT, openIt);
+      window.removeEventListener(ASSISTANT_CLOSE_EVENT, closeIt);
+      announceAssistantState({ available: false, open: false });
+    };
+  }, []);
+
+  // Tell an inline entry the panel exists and whether it is open
+  // (its aria-expanded), and when an inline-opened panel closes, return focus
+  // to the entry — the control the reader opened it from.
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    announceAssistantState({ available: true, open });
+    const wasOpen = wasOpenRef.current;
+    wasOpenRef.current = open;
+    if (!wasOpen || open || !isAssistantInline() || typeof document === "undefined") return;
+    const active = document.activeElement;
+    const focusLost = !active || active === document.body || Boolean(dockRef.current?.contains(active));
+    if (!focusLost) return;
+    const entry = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-assistant-inline-entry]"),
+    ).find((el) => el.getClientRects().length > 0) ??
+      document.querySelector<HTMLElement>("[data-assistant-inline-entry]");
+    entry?.focus();
+  }, [open]);
 
   // ---- the one-time nudge -------------------------------------------------
   useEffect(() => {
@@ -341,6 +392,18 @@ export function ProovraChatWidget() {
           role="dialog"
           aria-label="PROOVRA assistant"
           data-assistant-panel
+          onKeyDown={
+            inline
+              ? (e) => {
+                  // Inline mode has no launcher to toggle with, so Escape
+                  // closes the panel (focus returns to the inline entry).
+                  if (e.key === "Escape") {
+                    e.stopPropagation();
+                    setOpen(false);
+                  }
+                }
+              : undefined
+          }
         >
           <div className="assistant-panel__header">
             <div>
@@ -484,6 +547,7 @@ export function ProovraChatWidget() {
         </div>
       ) : null}
 
+      {inline ? null : (
       <div className="assistant-launcher-slot">
         {showHint && !open ? (
           <div className="assistant-hint" role="status">
@@ -507,6 +571,7 @@ export function ProovraChatWidget() {
           </svg>
         </button>
       </div>
+      )}
     </div>
   );
 }

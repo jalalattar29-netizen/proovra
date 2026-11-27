@@ -48,6 +48,7 @@ export function Modal({
   footer,
   testid,
   dismissDisabled = false,
+  initialFocus,
 }: {
   open: boolean;
   title: string;
@@ -63,6 +64,14 @@ export function Modal({
   footer?: React.ReactNode;
   testid: string;
   dismissDisabled?: boolean;
+  /**
+   * OPT-IN initial focus (review remediation 2026-11-27): a selector for the
+   * first meaningful field. When it matches nothing yet (the field is still
+   * loading) the dialog box itself takes focus — never a footer "Cancel" —
+   * and the host moves focus to the field once it renders. Omitted: the
+   * first focusable control, as before.
+   */
+  initialFocus?: string;
 }) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
@@ -81,9 +90,11 @@ export function Modal({
    */
   const onCloseRef = useRef(onClose);
   const dismissDisabledRef = useRef(dismissDisabled);
+  const initialFocusRef = useRef(initialFocus);
   useEffect(() => {
     onCloseRef.current = onClose;
     dismissDisabledRef.current = dismissDisabled;
+    initialFocusRef.current = initialFocus;
   });
 
   // Focus trap + restore focus on close. Installed once per opening, never on
@@ -95,8 +106,23 @@ export function Modal({
         ? (document.activeElement as HTMLElement | null)
         : null) ?? null;
 
+    /*
+     * A control INSIDE the dialog may own a popup portaled OUTSIDE it (an
+     * AppListbox list, an AppRowMenu menu). While focus is in that popup the
+     * popup owns Escape (it closes itself and returns focus to its trigger),
+     * so Escape there must not also close the whole dialog — review
+     * remediation 2026-11-27: Escape on an open "Reason" list in Escalate
+     * discarded the dialog.
+     */
+    const inForeignPopup = (node: EventTarget | null): boolean => {
+      const dialog = dialogRef.current;
+      if (!(node instanceof Element) || !dialog || dialog.contains(node)) return false;
+      return Boolean(node.closest('[role="listbox"], [role="menu"]'));
+    };
+
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !dismissDisabledRef.current) {
+        if (inForeignPopup(e.target)) return;
         e.stopPropagation();
         onCloseRef.current();
         return;
@@ -115,13 +141,19 @@ export function Modal({
         const first = focusables[0]!;
         const last = focusables[focusables.length - 1]!;
         const active = document.activeElement as HTMLElement | null;
+        // Focus on the dialog box itself (its initial focus when it has no
+        // field yet) or lost to <body>: the next Tab enters the dialog
+        // instead of leaving it — Shift+Tab from the box used to land on the
+        // page behind (review remediation 2026-11-27).
+        const onBoxOrLost =
+          active === dialog || active === null || active === document.body;
         if (e.shiftKey) {
-          if (active === first || !dialog.contains(active)) {
+          if (active === first || onBoxOrLost || (!dialog.contains(active) && !inForeignPopup(active))) {
             e.preventDefault();
             last.focus();
           }
         } else {
-          if (active === last) {
+          if (active === last || onBoxOrLost) {
             e.preventDefault();
             first.focus();
           }
@@ -197,6 +229,12 @@ export function Modal({
     const focusFirst = () => {
       const dialog = dialogRef.current;
       if (!dialog) return;
+      const wanted = initialFocusRef.current;
+      if (wanted) {
+        const target = dialog.querySelector<HTMLElement>(wanted);
+        (target && !target.matches(":disabled") ? target : dialog).focus();
+        return;
+      }
       const focusables = Array.from(
         dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
       ).filter((el) => !el.hasAttribute("data-matter-modal-close"));

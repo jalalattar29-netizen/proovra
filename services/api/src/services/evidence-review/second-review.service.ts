@@ -4,6 +4,7 @@ import {
   SECOND_REVIEW_REEVALUATION_SOURCE,
   decisionEventPinsSecondReview,
   escalationIndependenceCause,
+  legacyEscalatedStatusForces,
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
@@ -109,10 +110,35 @@ export async function requiresSecondReview(
     return { required: true, reason: "workflow_escalated", escalation };
   }
   if (forcing) return { required: true, reason: forcing.cause as string, escalation };
+  // Source review E.2 — a stored ESCALATED status set before the change keeps
+  // its pre-change meaning (it forced); see legacyEscalatedStatusForces.
+  if (wf?.status === "ESCALATED") {
+    if (legacyEscalatedStatusForces(await escalationThatSetStatus(input, client))) {
+      return { required: true, reason: "legacy_escalated_status" };
+    }
+  }
   if (holdCount > 0) return { required: true, reason: "active_legal_hold" };
   if (redactionCount > 0) return { required: true, reason: "redaction_required" };
   if (policy?.reviewRequiresIndependentApproval) return { required: true, reason: "workspace_policy" };
   return { required: false, reason: null };
+}
+
+/** The escalation recorded on the review's newest ESCALATED event (the one that set the status), or null. */
+export async function escalationThatSetStatus(
+  input: { workflowId: string; teamId: string },
+  client: Db,
+): Promise<{ requiresIndependentReview: boolean | null } | null> {
+  const ev = await client.evidenceReviewWorkflowEvent.findFirst({
+    where: { workflowId: input.workflowId, eventType: "ESCALATED" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { nextValue: true },
+  });
+  const escalationId = (ev?.nextValue as { escalationId?: unknown } | null)?.escalationId;
+  if (typeof escalationId !== "string") return null;
+  return client.reviewEscalation.findFirst({
+    where: { id: escalationId, workflowId: input.workflowId, teamId: input.teamId },
+    select: { requiresIndependentReview: true },
+  });
 }
 
 /**

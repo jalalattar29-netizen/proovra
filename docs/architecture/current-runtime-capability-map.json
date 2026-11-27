@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "3ec8d4aa2d9f8dfbc5182e2a95e1cc01ccb639be6bf6d5ea953fdf27a7f29538",
-  "consumerInventoryHash": "d077eaaf094673dd8232659d2088443a6a37a6e58d9e131dee750e7f9ccdfcfc",
+  "consumerInventoryHash": "883e6cc17546814ad8709d155d86b676a8174a53a94583c73a6a729beb42a12c",
   "dispositionsHash": "5472155ec04ac336267e75a6cb759f22ce11dced779d3370d0c8d1f974d1651f",
   "totals": {
     "RegisteredRoutes": 1278,
@@ -56,12 +56,12 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 14
     },
-    "TerminalWriters": 1744,
+    "TerminalWriters": 1743,
     "ReachableSensitiveMutations": 1704,
     "ClassifiedSensitiveMutations": 1704,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
-    "NonRequestWriters": 40,
+    "NonRequestWriters": 39,
     "ModuleScopedAttributionWriters": 0,
     "DeadUnreachableWriters": 15,
     "DeadUnreachableWritersPending": 15,
@@ -79,7 +79,7 @@
       "CASE": 99,
       "EVIDENCE_CUSTODY_FINALIZATION": 414,
       "LEGAL_HOLD_RETENTION_DELETION": 63,
-      "EXTERNAL_REVIEW_INTAKE_SHARE": 109,
+      "EXTERNAL_REVIEW_INTAKE_SHARE": 108,
       "BILLING_SUBSCRIPTION_SEAT": 121,
       "SSO_OIDC_SCIM_PROVISIONING": 66,
       "AUTOMATION_QUEUE_WEBHOOK": 134,
@@ -92,7 +92,7 @@
       "TEST_ONLY": 0,
       "BUILD_ONLY": 0,
       "STARTUP_TASK": 0,
-      "RECONCILER_OR_SWEEP": 15,
+      "RECONCILER_OR_SWEEP": 14,
       "SEED": 0,
       "INJECTED_PORT_IMPLEMENTATION": 0,
       "PRESERVED_PLANNED_WRITER": 0,
@@ -104,7 +104,7 @@
       "JOB_ATTRIBUTED_REACHABLE": 181,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 10,
-      "STARTUP_OR_SCHEDULED": 27,
+      "STARTUP_OR_SCHEDULED": 26,
       "MIGRATION_ONLY": 0,
       "TEST_OR_BUILD_ONLY": 0,
       "PRESERVED_PLANNED_WRITER": 0,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 13098,
-      "UNRESOLVED_IDENTIFIER": 1886
+      "METHOD_ON_VALUE": 13123,
+      "UNRESOLVED_IDENTIFIER": 1893
     },
     "MutationFixpointRounds": 11,
     "MutationClosurePass": false,
@@ -6352,7 +6352,7 @@
       "method": "GET",
       "route": "/v1/reviewer-ops/workspace/:workflowId",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:339",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:343",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6364,7 +6364,7 @@
       "method": "GET",
       "route": "/v1/reviewer-ops/workspace/:workflowId/decisions",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/_components/DecisionLineagePanel.tsx:417",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/_components/DecisionLineagePanel.tsx:425",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6376,7 +6376,7 @@
       "method": "GET",
       "route": "/v1/reviewer-ops/workspace/:workflowId/notes",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1357",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1374",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6388,7 +6388,7 @@
       "method": "GET",
       "route": "/v1/reviewer/disagreements",
       "registeringFile": "services/api/src/routes/reviewer-workspace.routes.ts",
-      "productConsumer": "apps/web/app/(app)/review/disagreements/page.tsx:194",
+      "productConsumer": "apps/web/app/(app)/review/disagreements/page.tsx:198",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6400,7 +6400,7 @@
       "method": "GET",
       "route": "/v1/reviewer/evidence/:evidenceId/annotations",
       "registeringFile": "services/api/src/routes/reviewer-workspace.routes.ts",
-      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:401",
+      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:488",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6412,7 +6412,7 @@
       "method": "GET",
       "route": "/v1/reviewer/metrics",
       "registeringFile": "services/api/src/routes/reviewer-workspace.routes.ts",
-      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:312",
+      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:399",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -9640,7 +9640,7 @@
       "method": "POST",
       "route": "/v1/coding/schemas/seed-defaults",
       "registeringFile": "services/api/src/routes/reviewer-workspace.routes.ts",
-      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:328",
+      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:415",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -14188,7 +14188,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/escalations",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:622",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:637",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14284,7 +14284,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/:workflowId/approve",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:864",
+      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:951",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14296,7 +14296,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/:workflowId/archive",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:685",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:700",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14332,7 +14332,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/:workflowId/reassign",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:598",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:613",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14344,7 +14344,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/:workflowId/reject",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:886",
+      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:973",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14356,7 +14356,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/:workflowId/request-independent-review",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:656",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:671",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14368,7 +14368,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/:workflowId/request-info",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:911",
+      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:998",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14452,7 +14452,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/workspace/:workflowId/decisions",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:562",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:577",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14464,7 +14464,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/workspace/:workflowId/notes",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1386",
+      "productConsumer": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1403",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14512,7 +14512,7 @@
       "method": "POST",
       "route": "/v1/reviewer/bulk/assign",
       "registeringFile": "services/api/src/routes/reviewer-workspace.routes.ts",
-      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:752",
+      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:839",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -14524,7 +14524,7 @@
       "method": "POST",
       "route": "/v1/reviewer/bulk/code",
       "registeringFile": "services/api/src/routes/reviewer-workspace.routes.ts",
-      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:802",
+      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:889",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -14536,7 +14536,7 @@
       "method": "POST",
       "route": "/v1/reviewer/bulk/decide",
       "registeringFile": "services/api/src/routes/reviewer-workspace.routes.ts",
-      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:776",
+      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:863",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -14548,7 +14548,7 @@
       "method": "POST",
       "route": "/v1/reviewer/disagreements/:id/transition",
       "registeringFile": "services/api/src/routes/reviewer-workspace.routes.ts",
-      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:244",
+      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:331",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -14572,7 +14572,7 @@
       "method": "POST",
       "route": "/v1/reviewer/qc/samples/:id/verdict",
       "registeringFile": "services/api/src/routes/reviewer-workspace.routes.ts",
-      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:288",
+      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:375",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -14596,7 +14596,7 @@
       "method": "POST",
       "route": "/v1/reviewer/work/:workflowId/code",
       "registeringFile": "services/api/src/routes/reviewer-workspace.routes.ts",
-      "productConsumer": "apps/web/components/reviewer-experience/ReviewCodingSection.tsx:158",
+      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:183",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -14608,7 +14608,7 @@
       "method": "POST",
       "route": "/v1/reviewer/work/:workflowId/disagree",
       "registeringFile": "services/api/src/routes/reviewer-workspace.routes.ts",
-      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:158",
+      "productConsumer": "apps/web/lib/reviewer-workspace/reviewer-api.ts:241",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -31209,8 +31209,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@14347",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:14347",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@14353",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:14353",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -31308,8 +31308,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@17135",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:17135",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@17141",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:17141",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -31341,8 +31341,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@17152",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:17152",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@17158",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:17158",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -31473,8 +31473,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAiCategorization.create@10757",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:10757",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAiCategorization.create@10763",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:10763",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -31836,8 +31836,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@17161",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:17161",
+      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@17167",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:17167",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -99912,15 +99912,15 @@
       }
     },
     {
-      "writerId": "services/api/src/services/review-operations/review-operations.service.ts#evidenceReviewWorkflowEvent.create@816",
-      "terminalLocation": "services/api/src/services/review-operations/review-operations.service.ts:816",
+      "writerId": "services/api/src/services/review-operations/review-operations.service.ts#evidenceReviewWorkflowEvent.create@897",
+      "terminalLocation": "services/api/src/services/review-operations/review-operations.service.ts:897",
       "file": "services/api/src/services/review-operations/review-operations.service.ts",
-      "enclosingDeclaration": "recordLifecycleTransition",
+      "enclosingDeclaration": "recordLifecycleTransitionTx",
       "kind": "DATABASE",
       "target": "evidenceReviewWorkflowEvent",
       "mutationKind": "create",
       "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": true,
+      "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/review-operations/bulk",
         "POST /v1/review-operations/evidence/:evidenceId/decision",
@@ -99942,7 +99942,7 @@
         "tenantBinding": "BOUND",
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "INSIDE_TRANSACTION",
+        "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
@@ -99951,15 +99951,15 @@
       }
     },
     {
-      "writerId": "services/api/src/services/review-operations/review-operations.service.ts#evidenceReviewWorkflowEvent.create@879",
-      "terminalLocation": "services/api/src/services/review-operations/review-operations.service.ts:879",
+      "writerId": "services/api/src/services/review-operations/review-operations.service.ts#evidenceReviewWorkflowEvent.create@951",
+      "terminalLocation": "services/api/src/services/review-operations/review-operations.service.ts:951",
       "file": "services/api/src/services/review-operations/review-operations.service.ts",
-      "enclosingDeclaration": "recordLifecycleTransition",
+      "enclosingDeclaration": "recordLifecycleTransitionTx",
       "kind": "DATABASE",
       "target": "evidenceReviewWorkflowEvent",
       "mutationKind": "create",
       "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": true,
+      "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/review-operations/bulk",
         "POST /v1/review-operations/evidence/:evidenceId/decision",
@@ -99981,7 +99981,7 @@
         "tenantBinding": "BOUND",
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "INSIDE_TRANSACTION",
+        "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
@@ -99990,8 +99990,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/review-operations/review-operations.service.ts#workerSweepCursor.createMany@1689",
-      "terminalLocation": "services/api/src/services/review-operations/review-operations.service.ts:1689",
+      "writerId": "services/api/src/services/review-operations/review-operations.service.ts#workerSweepCursor.createMany@1760",
+      "terminalLocation": "services/api/src/services/review-operations/review-operations.service.ts:1760",
       "file": "services/api/src/services/review-operations/review-operations.service.ts",
       "enclosingDeclaration": "presentedSlaRolloutAt",
       "kind": "DATABASE",
@@ -100502,8 +100502,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@1073",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:1073",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@1096",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:1096",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "recordInformationRequest",
       "kind": "DATABASE",
@@ -100542,8 +100542,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@1084",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:1084",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@1107",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:1107",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "recordInformationRequest",
       "kind": "DATABASE",
@@ -100582,8 +100582,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@1369",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:1369",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@1398",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:1398",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "reconcileWorkflowProjection",
       "kind": "DATABASE",
@@ -100617,8 +100617,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@402",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:402",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@409",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:409",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "recordReviewDecision",
       "kind": "DATABASE",
@@ -100657,8 +100657,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@445",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:445",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@452",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:452",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "recordReviewDecision",
       "kind": "DATABASE",
@@ -100697,8 +100697,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@759",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:759",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@766",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:766",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "recordReviewDecision",
       "kind": "DATABASE",
@@ -100737,8 +100737,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflowEvent.create@1104",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:1104",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflowEvent.create@1127",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:1127",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "recordInformationRequest",
       "kind": "DATABASE",
@@ -100777,8 +100777,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflowEvent.create@1385",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:1385",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflowEvent.create@1414",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:1414",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "reconcileWorkflowProjection",
       "kind": "DATABASE",
@@ -100812,8 +100812,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflowEvent.create@799",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:799",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflowEvent.create@806",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:806",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "recordReviewDecision",
       "kind": "DATABASE",
@@ -100852,8 +100852,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#teamActivity.create@835",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:835",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#teamActivity.create@842",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:842",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "recordReviewDecision",
       "kind": "DATABASE",
@@ -100892,8 +100892,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#workflowReviewDecision.create@695",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:695",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#workflowReviewDecision.create@702",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:702",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "recordReviewDecision",
       "kind": "DATABASE",
@@ -100932,15 +100932,15 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-remediation-reconcile.service.ts#codingField.updateMany@182",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-remediation-reconcile.service.ts:182",
+      "writerId": "services/api/src/services/reviewer-ops/review-remediation-reconcile.service.ts#codingField.updateMany@448",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-remediation-reconcile.service.ts:448",
       "file": "services/api/src/services/reviewer-ops/review-remediation-reconcile.service.ts",
-      "enclosingDeclaration": "reconcileReviewRemediation",
+      "enclosingDeclaration": "casWrite",
       "kind": "DATABASE",
       "target": "codingField",
       "mutationKind": "updateMany",
       "primaryFamily": "CASE",
-      "insideTransaction": true,
+      "insideTransaction": false,
       "entryRoutes": [],
       "entryJobs": [],
       "entryModules": [],
@@ -100952,7 +100952,7 @@
         "tenantBinding": "NON_REQUEST",
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "INSIDE_TRANSACTION",
+        "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
@@ -100962,15 +100962,15 @@
       "nonRequestDisposition": "RECONCILER_OR_SWEEP"
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-remediation-reconcile.service.ts#evidenceReviewWorkflow.updateMany@172",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-remediation-reconcile.service.ts:172",
+      "writerId": "services/api/src/services/reviewer-ops/review-remediation-reconcile.service.ts#evidenceReviewWorkflow.updateMany@441",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-remediation-reconcile.service.ts:441",
       "file": "services/api/src/services/reviewer-ops/review-remediation-reconcile.service.ts",
-      "enclosingDeclaration": "reconcileReviewRemediation",
+      "enclosingDeclaration": "casWrite",
       "kind": "DATABASE",
       "target": "evidenceReviewWorkflow",
       "mutationKind": "updateMany",
       "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": true,
+      "insideTransaction": false,
       "entryRoutes": [],
       "entryJobs": [],
       "entryModules": [],
@@ -100982,7 +100982,7 @@
         "tenantBinding": "NON_REQUEST",
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "INSIDE_TRANSACTION",
+        "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
@@ -100992,15 +100992,15 @@
       "nonRequestDisposition": "RECONCILER_OR_SWEEP"
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-remediation-reconcile.service.ts#reviewEscalation.updateMany@156",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-remediation-reconcile.service.ts:156",
+      "writerId": "services/api/src/services/reviewer-ops/review-remediation-reconcile.service.ts#reviewEscalation.updateMany@434",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-remediation-reconcile.service.ts:434",
       "file": "services/api/src/services/reviewer-ops/review-remediation-reconcile.service.ts",
-      "enclosingDeclaration": "reconcileReviewRemediation",
+      "enclosingDeclaration": "casWrite",
       "kind": "DATABASE",
       "target": "reviewEscalation",
       "mutationKind": "updateMany",
       "primaryFamily": "EXTERNAL_REVIEW_INTAKE_SHARE",
-      "insideTransaction": true,
+      "insideTransaction": false,
       "entryRoutes": [],
       "entryJobs": [],
       "entryModules": [],
@@ -101012,37 +101012,7 @@
         "tenantBinding": "NON_REQUEST",
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      },
-      "nonRequestDisposition": "RECONCILER_OR_SWEEP"
-    },
-    {
-      "writerId": "services/api/src/services/reviewer-ops/review-remediation-reconcile.service.ts#reviewEscalation.updateMany@163",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-remediation-reconcile.service.ts:163",
-      "file": "services/api/src/services/reviewer-ops/review-remediation-reconcile.service.ts",
-      "enclosingDeclaration": "reconcileReviewRemediation",
-      "kind": "DATABASE",
-      "target": "reviewEscalation",
-      "mutationKind": "updateMany",
-      "primaryFamily": "EXTERNAL_REVIEW_INTAKE_SHARE",
-      "insideTransaction": true,
-      "entryRoutes": [],
-      "entryJobs": [],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "INSIDE_TRANSACTION",
+        "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
@@ -101859,8 +101829,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-workspace/coding-schema.service.ts#codingSchema.create@107",
-      "terminalLocation": "services/api/src/services/reviewer-workspace/coding-schema.service.ts:107",
+      "writerId": "services/api/src/services/reviewer-workspace/coding-schema.service.ts#codingSchema.create@108",
+      "terminalLocation": "services/api/src/services/reviewer-workspace/coding-schema.service.ts:108",
       "file": "services/api/src/services/reviewer-workspace/coding-schema.service.ts",
       "enclosingDeclaration": "createSchema",
       "kind": "DATABASE",
@@ -101892,8 +101862,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-workspace/coding-schema.service.ts#codingSchema.update@173",
-      "terminalLocation": "services/api/src/services/reviewer-workspace/coding-schema.service.ts:173",
+      "writerId": "services/api/src/services/reviewer-workspace/coding-schema.service.ts#codingSchema.update@174",
+      "terminalLocation": "services/api/src/services/reviewer-workspace/coding-schema.service.ts:174",
       "file": "services/api/src/services/reviewer-workspace/coding-schema.service.ts",
       "enclosingDeclaration": "publishSchema",
       "kind": "DATABASE",
@@ -101925,8 +101895,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-workspace/coding-schema.service.ts#codingSchema.update@213",
-      "terminalLocation": "services/api/src/services/reviewer-workspace/coding-schema.service.ts:213",
+      "writerId": "services/api/src/services/reviewer-workspace/coding-schema.service.ts#codingSchema.update@214",
+      "terminalLocation": "services/api/src/services/reviewer-workspace/coding-schema.service.ts:214",
       "file": "services/api/src/services/reviewer-workspace/coding-schema.service.ts",
       "enclosingDeclaration": "archiveSchema",
       "kind": "DATABASE",
@@ -101958,10 +101928,10 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-workspace/coding-schema.service.ts#evidenceReviewWorkflow.update@295",
-      "terminalLocation": "services/api/src/services/reviewer-workspace/coding-schema.service.ts:295",
+      "writerId": "services/api/src/services/reviewer-workspace/coding-schema.service.ts#evidenceReviewWorkflow.update@306",
+      "terminalLocation": "services/api/src/services/reviewer-workspace/coding-schema.service.ts:306",
       "file": "services/api/src/services/reviewer-workspace/coding-schema.service.ts",
-      "enclosingDeclaration": "bindSchemaToWorkflow",
+      "enclosingDeclaration": "rebind",
       "kind": "DATABASE",
       "target": "evidenceReviewWorkflow",
       "mutationKind": "update",
@@ -101991,8 +101961,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-workspace/coding-value.service.ts#codingValue.deleteMany@238",
-      "terminalLocation": "services/api/src/services/reviewer-workspace/coding-value.service.ts:238",
+      "writerId": "services/api/src/services/reviewer-workspace/coding-value.service.ts#codingValue.deleteMany@397",
+      "terminalLocation": "services/api/src/services/reviewer-workspace/coding-value.service.ts:397",
       "file": "services/api/src/services/reviewer-workspace/coding-value.service.ts",
       "enclosingDeclaration": "clearBoth",
       "kind": "DATABASE",
@@ -102024,8 +101994,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-workspace/coding-value.service.ts#codingValue.upsert@119",
-      "terminalLocation": "services/api/src/services/reviewer-workspace/coding-value.service.ts:119",
+      "writerId": "services/api/src/services/reviewer-workspace/coding-value.service.ts#codingValue.upsert@256",
+      "terminalLocation": "services/api/src/services/reviewer-workspace/coding-value.service.ts:256",
       "file": "services/api/src/services/reviewer-workspace/coding-value.service.ts",
       "enclosingDeclaration": "writeBoth",
       "kind": "DATABASE",
@@ -102059,8 +102029,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-workspace/coding-value.service.ts#codingValueHistory.create@141",
-      "terminalLocation": "services/api/src/services/reviewer-workspace/coding-value.service.ts:141",
+      "writerId": "services/api/src/services/reviewer-workspace/coding-value.service.ts#codingValueHistory.create@278",
+      "terminalLocation": "services/api/src/services/reviewer-workspace/coding-value.service.ts:278",
       "file": "services/api/src/services/reviewer-workspace/coding-value.service.ts",
       "enclosingDeclaration": "writeBoth",
       "kind": "DATABASE",
@@ -102094,8 +102064,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-workspace/coding-value.service.ts#codingValueHistory.create@242",
-      "terminalLocation": "services/api/src/services/reviewer-workspace/coding-value.service.ts:242",
+      "writerId": "services/api/src/services/reviewer-workspace/coding-value.service.ts#codingValueHistory.create@401",
+      "terminalLocation": "services/api/src/services/reviewer-workspace/coding-value.service.ts:401",
       "file": "services/api/src/services/reviewer-workspace/coding-value.service.ts",
       "enclosingDeclaration": "clearBoth",
       "kind": "DATABASE",
@@ -102227,8 +102197,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts#evidenceReviewWorkflow.updateMany@322",
-      "terminalLocation": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts:322",
+      "writerId": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts#evidenceReviewWorkflow.updateMany@374",
+      "terminalLocation": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts:374",
       "file": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts",
       "enclosingDeclaration": "transitionDisagreement",
       "kind": "DATABASE",
@@ -102260,8 +102230,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts#evidenceReviewWorkflowEvent.create@327",
-      "terminalLocation": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts:327",
+      "writerId": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts#evidenceReviewWorkflowEvent.create@379",
+      "terminalLocation": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts:379",
       "file": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts",
       "enclosingDeclaration": "transitionDisagreement",
       "kind": "DATABASE",
@@ -102293,8 +102263,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts#reviewerDisagreement.create@78",
-      "terminalLocation": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts:78",
+      "writerId": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts#reviewerDisagreement.create@90",
+      "terminalLocation": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts:90",
       "file": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts",
       "enclosingDeclaration": "fileDisagreement",
       "kind": "DATABASE",
@@ -102326,8 +102296,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts#reviewerDisagreement.updateMany@307",
-      "terminalLocation": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts:307",
+      "writerId": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts#reviewerDisagreement.updateMany@320",
+      "terminalLocation": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts:320",
       "file": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts",
       "enclosingDeclaration": "transitionDisagreement",
       "kind": "DATABASE",
@@ -117469,7 +117439,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/relationships/:relationshipId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10452",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10458",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -120009,7 +119979,7 @@
       "method": "GET",
       "path": "/public/verify/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:15029",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:15035",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -123461,7 +123431,7 @@
         },
         {
           "file": "apps/web/components/ai/ProovraChatWidget.tsx",
-          "line": 163,
+          "line": 214,
           "caller": "ProovraChatWidget",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -123471,7 +123441,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/native-chat-assistant.tsx:216 (NativeChatAssistant, MOBILE); apps/web/components/ai/ProovraChatWidget.tsx:163 (ProovraChatWidget, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/native-chat-assistant.tsx:216 (NativeChatAssistant, MOBILE); apps/web/components/ai/ProovraChatWidget.tsx:214 (ProovraChatWidget, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -127896,7 +127866,7 @@
       "method": "GET",
       "path": "/v1/coding/schemas",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:577",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:611",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -127970,7 +127940,7 @@
       "method": "GET",
       "path": "/v1/coding/schemas/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:633",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:667",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -131152,7 +131122,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12248",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12254",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveCaptureLocationDisclosure -> services/api/src/services/privacy/capture-location-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -131269,7 +131239,7 @@
         },
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 523,
+          "line": 610,
           "caller": "fetchEvidenceSidePaneDetail",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -131347,7 +131317,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/ai-categorization",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10490",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10496",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -131567,7 +131537,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/artifacts/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12959",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12965",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -131650,7 +131620,7 @@
         },
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 676,
+          "line": 763,
           "caller": "fetchEvidenceArtifactsStatus",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -131723,7 +131693,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/certifications",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14862",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14868",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -132322,7 +132292,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/original",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14226",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14232",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -132498,7 +132468,7 @@
         },
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 446,
+          "line": 533,
           "caller": "fetchEvidencePreview",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -132508,7 +132478,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:870 (EvidenceDetailScreen, MOBILE); apps/web/app/(app)/evidence/[id]/_hooks/useOriginalDownload.ts:43 (downloadOriginalParts, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:446 (fetchEvidencePreview, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:870 (EvidenceDetailScreen, MOBILE); apps/web/app/(app)/evidence/[id]/_hooks/useOriginalDownload.ts:43 (downloadOriginalParts, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:533 (fetchEvidencePreview, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -132565,7 +132535,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10348",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10354",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -132619,7 +132589,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/report/latest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13620",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13626",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -132745,7 +132715,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reports/:version",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13868",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13874",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -132846,7 +132816,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/review-workspace",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10811",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10817",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveCaptureLocationDisclosure -> services/api/src/services/privacy/capture-location-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -133049,11 +133019,7 @@
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared-runtime/src/standing-creator-authority.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate",
-        "services/api/src/services/evidence-review/reviewer-workflow.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: reviewEscalation.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceLegalHold.findMany — no tenant or self predicate"
+        "services/api/src/services/evidence-review/reviewer-workflow.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -133275,7 +133241,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-package",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14472",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14478",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -133405,7 +133371,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-packages/:version",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13978",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13984",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -133499,7 +133465,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-packages/:version/external-disclosure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14122",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14128",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -134161,10 +134127,7 @@
         "services/api/src/services/intelligence/executive-metrics.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
         "services/api/src/services/intelligence/executive-metrics.service.ts: evidence.count — no tenant or self predicate",
         "services/api/src/services/intelligence/executive-metrics.service.ts: evidence.aggregate — no tenant or self predicate",
-        "services/api/src/services/intelligence/executive-metrics.service.ts: evidence.groupBy — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: reviewEscalation.findMany — no tenant or self predicate"
+        "services/api/src/services/intelligence/executive-metrics.service.ts: evidence.groupBy — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -134251,10 +134214,7 @@
         "services/api/src/services/intelligence/executive-metrics.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
         "services/api/src/services/intelligence/executive-metrics.service.ts: evidence.count — no tenant or self predicate",
         "services/api/src/services/intelligence/executive-metrics.service.ts: evidence.aggregate — no tenant or self predicate",
-        "services/api/src/services/intelligence/executive-metrics.service.ts: evidence.groupBy — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: reviewEscalation.findMany — no tenant or self predicate"
+        "services/api/src/services/intelligence/executive-metrics.service.ts: evidence.groupBy — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -141475,7 +141435,7 @@
         },
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 614,
+          "line": 701,
           "caller": "fetchExtractedTextsForEvidence",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -141485,7 +141445,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/intelligence.ts:93 (readEvidenceIntelligence, WEB); apps/web/lib/api/intelligence.ts:129 (fetchEvidenceIntelligence, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:614 (fetchExtractedTextsForEvidence, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/intelligence.ts:93 (readEvidenceIntelligence, WEB); apps/web/lib/api/intelligence.ts:129 (fetchEvidenceIntelligence, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:701 (fetchExtractedTextsForEvidence, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -150088,7 +150048,7 @@
         },
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 1026,
+          "line": 1113,
           "caller": "lookupRedactionProjectForEvidence",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -150098,7 +150058,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/redaction/page.tsx:100 (RedactionProjectsShell, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:1026 (lookupRedactionProjectForEvidence, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/redaction/page.tsx:100 (RedactionProjectsShell, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:1113 (lookupRedactionProjectForEvidence, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -151450,11 +151410,7 @@
         "services/api/src/middleware/authorize.ts: the canonical authorization evaluator (ACTIVE membership + tenant + capability)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared-runtime/src/standing-creator-authority.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: reviewEscalation.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceLegalHold.findMany — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -151970,11 +151926,7 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: reviewEscalation.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceLegalHold.findMany — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -152006,7 +151958,7 @@
         },
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/_components/InspectorDialogs.tsx",
-          "line": 130,
+          "line": 133,
           "caller": "ReassignDialog",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -152024,7 +151976,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/review/qc/_section.tsx:221 (QcWorkspace, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/_components/InspectorDialogs.tsx:130 (ReassignDialog, WEB); apps/web/components/reviewer-experience/ReviewerPickerModal.tsx:78 (useReviewerPicker, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/review/qc/_section.tsx:221 (QcWorkspace, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/_components/InspectorDialogs.tsx:133 (ReassignDialog, WEB); apps/web/components/reviewer-experience/ReviewerPickerModal.tsx:78 (useReviewerPicker, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -152121,13 +152073,13 @@
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
         "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
         "services/api/src/services/reviewer-ops/review-handoff.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: reviewEscalation.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceLegalHold.findMany — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate",
         "services/api/src/services/reviewer-ops/review-sla-read-facts.ts: workflowReviewDecision.groupBy — no tenant or self predicate",
-        "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate"
+        "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/escalation-engine.service.ts: reviewEscalation.findMany — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/escalation-engine.service.ts: reviewEscalation.count — no tenant or self predicate",
+        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.groupBy — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -152211,7 +152163,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/decisions/summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:3573",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:3576",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -152268,9 +152220,6 @@
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
         "services/api/src/services/reviewer-ops/review-handoff.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: reviewEscalation.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceLegalHold.findMany — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate"
       ],
@@ -152443,7 +152392,7 @@
         },
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 493,
+          "line": 508,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -152461,7 +152410,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/review/workspace/page.tsx:55 (FocusModeRedirect, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:493 (ReviewWorkspacePageInner, WEB); apps/web/components/reviewer-experience/ReviewInbox.tsx:256 (ReviewInbox, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/review/workspace/page.tsx:55 (FocusModeRedirect, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:508 (ReviewWorkspacePageInner, WEB); apps/web/components/reviewer-experience/ReviewInbox.tsx:256 (ReviewInbox, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -152499,9 +152448,6 @@
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
         "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
         "services/api/src/services/reviewer-ops/review-handoff.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: reviewEscalation.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceLegalHold.findMany — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate",
         "services/api/src/services/reviewer-ops/review-sla-read-facts.ts: workflowReviewDecision.groupBy — no tenant or self predicate",
@@ -152842,7 +152788,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 339,
+          "line": 343,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -152850,7 +152796,7 @@
         },
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 365,
+          "line": 452,
           "caller": "fetchReviewerOpsWorkspace",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -152860,7 +152806,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:339 (ReviewWorkspacePageInner, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:365 (fetchReviewerOpsWorkspace, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:343 (ReviewWorkspacePageInner, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:452 (fetchReviewerOpsWorkspace, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -152927,7 +152873,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/_components/DecisionLineagePanel.tsx",
-          "line": 417,
+          "line": 425,
           "caller": "ReviewerDecisionLineagePanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -152935,7 +152881,7 @@
         },
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/_components/InspectorDialogs.tsx",
-          "line": 297,
+          "line": 312,
           "caller": "useOtherEligibleCount",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -152943,7 +152889,7 @@
         },
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 217,
+          "line": 300,
           "caller": "listWorkflowDecisions",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -152953,7 +152899,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/_components/DecisionLineagePanel.tsx:417 (ReviewerDecisionLineagePanel, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/_components/InspectorDialogs.tsx:297 (useOtherEligibleCount, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:217 (listWorkflowDecisions, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/_components/DecisionLineagePanel.tsx:425 (ReviewerDecisionLineagePanel, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/_components/InspectorDialogs.tsx:312 (useOtherEligibleCount, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:300 (listWorkflowDecisions, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -153020,7 +152966,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 1357,
+          "line": 1374,
           "caller": "ReviewerNotesPanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -153030,7 +152976,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1357 (ReviewerNotesPanel, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1374 (ReviewerNotesPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -153073,7 +153019,7 @@
       "method": "GET",
       "path": "/v1/reviewer/disagreements",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:868",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:918",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -153086,7 +153032,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/review/disagreements/page.tsx",
-          "line": 194,
+          "line": 198,
           "caller": "DisagreementsShell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -153096,7 +153042,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/review/disagreements/page.tsx:194 (DisagreementsShell, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/review/disagreements/page.tsx:198 (DisagreementsShell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -153141,7 +153087,7 @@
       "method": "GET",
       "path": "/v1/reviewer/evidence/:evidenceId/annotations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:1041",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:1101",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -153154,7 +153100,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 401,
+          "line": 488,
           "caller": "fetchAnnotationsForEvidence",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -153164,7 +153110,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:401 (fetchAnnotationsForEvidence, WEB)",
+      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:488 (fetchAnnotationsForEvidence, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -153208,7 +153154,7 @@
       "method": "GET",
       "path": "/v1/reviewer/metrics",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:562",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:596",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -153221,7 +153167,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 312,
+          "line": 399,
           "caller": "fetchReviewerMetrics",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -153231,7 +153177,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:312 (fetchReviewerMetrics, WEB)",
+      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:399 (fetchReviewerMetrics, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -153278,7 +153224,7 @@
       "method": "GET",
       "path": "/v1/reviewer/qc/samples",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:959",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:1019",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -153299,7 +153245,7 @@
         },
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 274,
+          "line": 361,
           "caller": "fetchQcSamples",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -153309,7 +153255,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/review/qc/_section.tsx:173 (QcWorkspace, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:274 (fetchQcSamples, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/review/qc/_section.tsx:173 (QcWorkspace, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:361 (fetchQcSamples, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -153425,7 +153371,7 @@
       "method": "GET",
       "path": "/v1/reviewer/work/:workflowId/coding",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:763",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:797",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -153446,7 +153392,7 @@
         },
         {
           "file": "apps/web/components/reviewer-experience/ReviewCodingSection.tsx",
-          "line": 113,
+          "line": 146,
           "caller": "ReviewCodingSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -153454,7 +153400,7 @@
         },
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 109,
+          "line": 114,
           "caller": "fetchCodingState",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -153464,7 +153410,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/components/CodingSchemaBindingPanel.tsx:113 (BindingWorkspace, WEB); apps/web/components/reviewer-experience/ReviewCodingSection.tsx:113 (ReviewCodingSection, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:109 (fetchCodingState, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/components/CodingSchemaBindingPanel.tsx:113 (BindingWorkspace, WEB); apps/web/components/reviewer-experience/ReviewCodingSection.tsx:146 (ReviewCodingSection, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:114 (fetchCodingState, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -153511,7 +153457,7 @@
       "method": "GET",
       "path": "/v1/reviewer/workspace",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:534",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:568",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -160741,7 +160687,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/relationships/:relationshipId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10407",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10413",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -166125,7 +166071,7 @@
         },
         {
           "file": "apps/web/components/ai/ProovraChatWidget.tsx",
-          "line": 281,
+          "line": 332,
           "caller": "ProovraChatWidget",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -166135,7 +166081,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/native-chat-assistant.tsx:272 (send, MOBILE); apps/web/components/ai/ProovraChatWidget.tsx:281 (ProovraChatWidget, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/native-chat-assistant.tsx:272 (send, MOBILE); apps/web/components/ai/ProovraChatWidget.tsx:332 (ProovraChatWidget, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -171910,10 +171856,10 @@
         "packages/shared-runtime/src/evidence-reservation/reservation.ts: uploadSession.count — no tenant or self predicate",
         "services/api/src/services/governance/finalization-governance.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/governance.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: reviewEscalation.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceLegalHold.findMany — no tenant or self predicate"
+        "services/api/src/services/governance.service.ts: evidence.findUnique — no tenant or self predicate",
+        "services/api/src/services/governance/finalization-governance.service.ts: evidence.updateMany — no tenant or self predicate",
+        "packages/shared-runtime/src/evidence-reservation/reservation.ts: evidence.count — no tenant or self predicate",
+        "packages/shared-runtime/src/evidence-reservation/reservation.ts: captureSession.count — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -172027,10 +171973,10 @@
         "packages/shared-runtime/src/evidence-reservation/reservation.ts: uploadSession.count — no tenant or self predicate",
         "services/api/src/services/governance/finalization-governance.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/governance.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: reviewEscalation.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceLegalHold.findMany — no tenant or self predicate"
+        "services/api/src/services/governance.service.ts: evidence.findUnique — no tenant or self predicate",
+        "services/api/src/services/governance/finalization-governance.service.ts: evidence.updateMany — no tenant or self predicate",
+        "packages/shared-runtime/src/evidence-reservation/reservation.ts: evidence.count — no tenant or self predicate",
+        "packages/shared-runtime/src/evidence-reservation/reservation.ts: captureSession.count — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -172587,10 +172533,10 @@
         "packages/shared-runtime/src/evidence-reservation/reservation.ts: uploadSession.count — no tenant or self predicate",
         "services/api/src/services/governance/finalization-governance.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/governance.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: reviewEscalation.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceLegalHold.findMany — no tenant or self predicate"
+        "services/api/src/services/governance.service.ts: evidence.findUnique — no tenant or self predicate",
+        "services/api/src/services/governance/finalization-governance.service.ts: evidence.updateMany — no tenant or self predicate",
+        "packages/shared-runtime/src/evidence-reservation/reservation.ts: evidence.count — no tenant or self predicate",
+        "packages/shared-runtime/src/evidence-reservation/reservation.ts: captureSession.count — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -172695,10 +172641,10 @@
         "packages/shared-runtime/src/evidence-reservation/reservation.ts: uploadSession.count — no tenant or self predicate",
         "services/api/src/services/governance/finalization-governance.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/governance.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: reviewEscalation.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceLegalHold.findMany — no tenant or self predicate"
+        "services/api/src/services/governance.service.ts: evidence.findUnique — no tenant or self predicate",
+        "services/api/src/services/governance/finalization-governance.service.ts: evidence.updateMany — no tenant or self predicate",
+        "packages/shared-runtime/src/evidence-reservation/reservation.ts: evidence.count — no tenant or self predicate",
+        "packages/shared-runtime/src/evidence-reservation/reservation.ts: captureSession.count — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -174334,7 +174280,7 @@
       "method": "POST",
       "path": "/v1/coding/schemas",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:601",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:635",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -174390,7 +174336,7 @@
       "method": "POST",
       "path": "/v1/coding/schemas/:id/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:671",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:705",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -174458,7 +174404,7 @@
       "method": "POST",
       "path": "/v1/coding/schemas/:id/publish",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:657",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:691",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -174497,7 +174443,7 @@
       "method": "POST",
       "path": "/v1/coding/schemas/seed-defaults",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:690",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:724",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -174510,7 +174456,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 328,
+          "line": 415,
           "caller": "seedDefaultSchemas",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -174520,7 +174466,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:328 (seedDefaultSchemas, WEB)",
+      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:415 (seedDefaultSchemas, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -178857,7 +178803,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/ai-categorization/run",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10559",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10565",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -179190,7 +179136,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/attest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14939",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14945",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -179262,7 +179208,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/request",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14892",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14898",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -179334,7 +179280,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14987",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14993",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -179479,7 +179425,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/complete",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12453",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12459",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -179932,7 +179878,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10362",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10368",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -180014,7 +179960,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/reports/regenerate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13055",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13061",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -180732,12 +180678,12 @@
         "services/api/src/services/governance/verification-share.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/governance/public-disclosure-governance.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/governance.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: reviewEscalation.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceLegalHold.findMany — no tenant or self predicate",
         "services/api/src/services/governance.service.ts: evidence.findUnique — no tenant or self predicate",
-        "packages/shared-runtime/src/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate"
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidence.findUnique — no tenant or self predicate",
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
+        "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -180832,11 +180778,11 @@
         "services/api/src/services/governance/verification-share.service.ts: verificationShareToken.findFirst — no tenant or self predicate",
         "services/api/src/services/governance/public-disclosure-governance.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/governance.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: reviewEscalation.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceLegalHold.findMany — no tenant or self predicate",
-        "services/api/src/services/governance.service.ts: evidence.findUnique — no tenant or self predicate"
+        "services/api/src/services/governance.service.ts: evidence.findUnique — no tenant or self predicate",
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidence.findUnique — no tenant or self predicate",
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -181008,11 +180954,11 @@
         "services/api/src/services/governance/verification-share.service.ts: verificationShareToken.findFirst — no tenant or self predicate",
         "services/api/src/services/governance/public-disclosure-governance.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/governance.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: reviewEscalation.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceLegalHold.findMany — no tenant or self predicate",
-        "services/api/src/services/governance.service.ts: evidence.findUnique — no tenant or self predicate"
+        "services/api/src/services/governance.service.ts: evidence.findUnique — no tenant or self predicate",
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidence.findUnique — no tenant or self predicate",
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -182708,8 +182654,8 @@
         "services/api/src/services/external-intake-orchestration.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/governance/finalization-governance.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/governance.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate"
+        "services/api/src/services/governance.service.ts: evidence.findUnique — no tenant or self predicate",
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -202312,7 +202258,7 @@
         },
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 1084,
+          "line": 1171,
           "caller": "openRedactionProjectForEvidence",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -202322,7 +202268,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/redaction/page.tsx:343 (RedactionOpenForm, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:1084 (openRedactionProjectForEvidence, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/redaction/page.tsx:343 (RedactionOpenForm, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:1171 (openRedactionProjectForEvidence, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -204183,10 +204129,7 @@
         "packages/shared-runtime/src/ops/sla-policy-resolution.ts: evidenceWorkflowTemplate.findUnique — no tenant or self predicate",
         "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
         "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUniqueOrThrow — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUniqueOrThrow — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: reviewEscalation.findMany — no tenant or self predicate"
+        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUniqueOrThrow — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -204236,7 +204179,7 @@
         },
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 719,
+          "line": 734,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -204760,7 +204703,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 622,
+          "line": 637,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -204768,7 +204711,7 @@
         },
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 959,
+          "line": 1046,
           "caller": "createEscalation",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -204778,7 +204721,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:622 (ReviewWorkspacePageInner, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:959 (createEscalation, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:637 (ReviewWorkspacePageInner, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:1046 (createEscalation, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -205481,7 +205424,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 864,
+          "line": 951,
           "caller": "approveReview",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -205491,7 +205434,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:864 (approveReview, WEB)",
+      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:951 (approveReview, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -205606,7 +205549,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 685,
+          "line": 700,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -205616,7 +205559,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:685 (ReviewWorkspacePageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:700 (ReviewWorkspacePageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -205647,7 +205590,6 @@
         "operationalIncidentEvent",
         "organization",
         "organizationMembership",
-        "organizationNotificationPolicy",
         "organizationSecurityPolicy",
         "reviewEscalation",
         "revokedSession",
@@ -205659,7 +205601,6 @@
         "teamMember",
         "trustedDevice",
         "user",
-        "webhookEndpoint",
         "workflowReviewDecision",
         "workspaceGovernancePolicy",
         "workspaceNotificationPreference"
@@ -205669,7 +205610,6 @@
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
         "evidenceReviewerAuditEvent",
-        "integrationWebhookDelivery",
         "notificationDelivery",
         "operationalIncident",
         "operationalIncidentEvent",
@@ -205701,9 +205641,7 @@
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.create",
-        "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.create",
-        "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.create"
+        "services/api/src/services/notifications/index.ts: notificationDelivery.create"
       ],
       "tenantUnboundInsertSites": []
     },
@@ -205830,7 +205768,7 @@
         },
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 419,
+          "line": 425,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -205848,7 +205786,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:419 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:425 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -205908,7 +205846,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 598,
+          "line": 613,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -205918,7 +205856,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:598 (ReviewWorkspacePageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:613 (ReviewWorkspacePageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -206007,7 +205945,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 886,
+          "line": 973,
           "caller": "rejectReview",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -206017,7 +205955,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:886 (rejectReview, WEB)",
+      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:973 (rejectReview, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -206132,7 +206070,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 656,
+          "line": 671,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -206142,7 +206080,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:656 (ReviewWorkspacePageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:671 (ReviewWorkspacePageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -206237,7 +206175,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 911,
+          "line": 998,
           "caller": "requestInfoReview",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -206247,7 +206185,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:911 (requestInfoReview, WEB)",
+      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:998 (requestInfoReview, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -206353,7 +206291,7 @@
         },
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 419,
+          "line": 425,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -206371,7 +206309,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:419 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:425 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -206455,7 +206393,7 @@
         },
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 419,
+          "line": 425,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -206473,7 +206411,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:419 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:425 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -206541,7 +206479,7 @@
         },
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 419,
+          "line": 425,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -206559,7 +206497,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:419 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:367 (declared-by-review, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:425 (ReviewWorkspacePageInner, WEB); apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx|POST|ReviewWorkspacePageInner|/v1/reviewer-ops/reviews/<interp>/<interp:NaN (declared-by-review, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -206881,7 +206819,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/workspace/:workflowId/decisions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:3425",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:3428",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -206892,7 +206830,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 562,
+          "line": 577,
           "caller": "ReviewWorkspacePageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -206902,7 +206840,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:562 (ReviewWorkspacePageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:577 (ReviewWorkspacePageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -207014,7 +206952,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx",
-          "line": 1386,
+          "line": 1403,
           "caller": "ReviewerNotesPanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -207024,7 +206962,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1386 (ReviewerNotesPanel, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/[reviewId]/page.tsx:1403 (ReviewerNotesPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -207071,7 +207009,7 @@
       "method": "POST",
       "path": "/v1/reviewer/annotations/:id/reply",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:1060",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:1120",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -207144,7 +207082,7 @@
       "method": "POST",
       "path": "/v1/reviewer/annotations/:id/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:1082",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:1142",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -207217,7 +207155,7 @@
       "method": "POST",
       "path": "/v1/reviewer/annotations/bulk-resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:1100",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:1160",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -207291,7 +207229,7 @@
       "method": "POST",
       "path": "/v1/reviewer/bulk/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:1123",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:1183",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -207304,7 +207242,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 752,
+          "line": 839,
           "caller": "bulkAssign",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -207314,7 +207252,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:752 (bulkAssign, WEB)",
+      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:839 (bulkAssign, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -207406,7 +207344,7 @@
       "method": "POST",
       "path": "/v1/reviewer/bulk/code",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:1195",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:1255",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -207419,7 +207357,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 802,
+          "line": 889,
           "caller": "bulkCode",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -207429,7 +207367,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:802 (bulkCode, WEB)",
+      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:889 (bulkCode, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -207444,6 +207382,8 @@
       "modelsRead": [
         "authenticatedSession",
         "codingField",
+        "codingValue",
+        "codingValueHistory",
         "enterpriseContract",
         "evidenceReviewWorkflow",
         "externalIdentityMapping",
@@ -207497,7 +207437,7 @@
       "method": "POST",
       "path": "/v1/reviewer/bulk/decide",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:1157",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:1217",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -207510,7 +207450,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 776,
+          "line": 863,
           "caller": "bulkDecide",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -207520,7 +207460,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:776 (bulkDecide, WEB)",
+      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:863 (bulkDecide, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -207535,6 +207475,8 @@
       "modelsRead": [
         "authenticatedSession",
         "codingField",
+        "codingValue",
+        "codingValueHistory",
         "enterpriseContract",
         "evidenceReviewWorkflow",
         "externalIdentityMapping",
@@ -207588,7 +207530,7 @@
       "method": "POST",
       "path": "/v1/reviewer/disagreements/:id/transition",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:920",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:970",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -207601,7 +207543,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 244,
+          "line": 331,
           "caller": "transitionDisagreement",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -207611,7 +207553,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:244 (transitionDisagreement, WEB)",
+      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:331 (transitionDisagreement, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -207668,15 +207610,15 @@
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate",
-        "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
         "services/api/src/services/reviewer-ops/escalation-engine.service.ts: evidenceReviewWorkflow.update — no tenant or self predicate",
         "services/api/src/services/reviewer-ops/escalation-engine.service.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate"
+        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
+        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/escalation-engine.service.ts: reviewEscalation.update — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -207695,7 +207637,7 @@
       "method": "POST",
       "path": "/v1/reviewer/qc/samples/:id/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:984",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:1044",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -207771,7 +207713,7 @@
       "method": "POST",
       "path": "/v1/reviewer/qc/samples/:id/verdict",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:1010",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:1070",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -207784,7 +207726,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 288,
+          "line": 375,
           "caller": "renderQcVerdict",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -207794,7 +207736,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:288 (renderQcVerdict, WEB)",
+      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:375 (renderQcVerdict, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -207841,7 +207783,7 @@
       "method": "POST",
       "path": "/v1/reviewer/work/:workflowId/bind-schema",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:732",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:766",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -207910,7 +207852,7 @@
       "method": "POST",
       "path": "/v1/reviewer/work/:workflowId/code",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:823",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:862",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -207922,17 +207864,17 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/components/reviewer-experience/ReviewCodingSection.tsx",
-          "line": 158,
-          "caller": "ReviewCodingSection",
+          "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
+          "line": 183,
+          "caller": "writeCodingValue",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
         },
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 132,
-          "caller": "writeCodingValue",
+          "line": 213,
+          "caller": "clearCodingValue",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -207941,7 +207883,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/reviewer-experience/ReviewCodingSection.tsx:158 (ReviewCodingSection, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:132 (writeCodingValue, WEB)",
+      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:183 (writeCodingValue, WEB); apps/web/lib/reviewer-workspace/reviewer-api.ts:213 (clearCodingValue, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -207957,6 +207899,7 @@
         "authenticatedSession",
         "codingField",
         "codingValue",
+        "codingValueHistory",
         "enterpriseContract",
         "evidenceReviewWorkflow",
         "organization",
@@ -207994,7 +207937,7 @@
       "method": "POST",
       "path": "/v1/reviewer/work/:workflowId/disagree",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:893",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:943",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -208007,7 +207950,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/reviewer-workspace/reviewer-api.ts",
-          "line": 158,
+          "line": 241,
           "caller": "fileDisagreement",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -208017,7 +207960,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:158 (fileDisagreement, WEB)",
+      "dispositionEvidence": "apps/web/lib/reviewer-workspace/reviewer-api.ts:241 (fileDisagreement, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -213420,11 +213363,11 @@
         "services/api/src/routes/evidence-retention-verification.routes.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/governance/public-disclosure-governance.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/governance.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: reviewEscalation.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: evidenceLegalHold.findMany — no tenant or self predicate",
-        "services/api/src/services/governance.service.ts: evidence.findUnique — no tenant or self predicate"
+        "services/api/src/services/governance.service.ts: evidence.findUnique — no tenant or self predicate",
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidence.findUnique — no tenant or self predicate",
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -213529,7 +213472,7 @@
         "services/api/src/services/governance/output-hold.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/governance/finalization-governance.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/governance.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate"
+        "services/api/src/services/governance.service.ts: evidence.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",

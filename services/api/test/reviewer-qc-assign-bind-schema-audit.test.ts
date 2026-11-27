@@ -35,6 +35,21 @@ const prismaStub = {
   evidenceReviewWorkflow: { findFirst: vi.fn(), update: vi.fn() },
   externalReviewDecision: { findMany: vi.fn() },
 };
+// Review remediation C (2026-11-27) — a bind runs in a transaction that takes
+// the workflow row lock first. Non-enumerable, so the per-test reset loop over
+// the model stubs leaves them alone.
+const lockQueries: string[] = [];
+Object.defineProperty(prismaStub, "$queryRaw", {
+  enumerable: false,
+  value: async (strings: TemplateStringsArray) => {
+    lockQueries.push(strings.join("?"));
+    return [{ id: "locked" }];
+  },
+});
+Object.defineProperty(prismaStub, "$transaction", {
+  enumerable: false,
+  value: async <T,>(fn: (tx: typeof prismaStub) => Promise<T>): Promise<T> => fn(prismaStub),
+});
 vi.mock("../src/db.js", () => ({ prisma: prismaStub }));
 
 // THE ONE ASSIGNEE AUTHORITY (`assertWorkAssigneeEligible`: capability, reach
@@ -213,6 +228,7 @@ describe("bindSchemaToWorkflow + getWorkflowSchemaBinding", () => {
       teamId: TEAM, workflowId: WORKFLOW, schemaId: SCHEMA, actorUserId: ACTOR,
     });
     expect(res).toEqual({ ok: true });
+    expect(lockQueries.at(-1)).toMatch(/FROM "evidence_review_workflows".*FOR UPDATE/s);
     const a = audit("reviewer.coding_schema.bound");
     expect(a).toBeDefined();
     expect(a!.actorUserId).toBe(ACTOR);

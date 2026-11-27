@@ -137,7 +137,7 @@ async function referenceDecisions(workflows: ReadonlyArray<Ref>, client: any): P
 
 // --- Seeding ------------------------------------------------------------------
 
-type Trigger = "none" | "escalatedStatus" | "adminEscalatedStatus" | "openEsc" | "autoEsc" | "openEscOtherTeam" | "resolvedEsc" | "hold" | "holdOtherTeam" | "releasedHold" | "redaction";
+type Trigger = "none" | "escalatedStatus" | "adminEscalatedStatus" | "legacyEscalatedStatus" | "openEsc" | "autoEsc" | "openEscOtherTeam" | "resolvedEsc" | "hold" | "holdOtherTeam" | "releasedHold" | "redaction";
 type EventShape = "none" | "round" | "noRound" | "noRoundSettledByInfo" | "roundSettledByInfo" | "sameMs" | "noRoundBefore";
 type Spec = {
   status: string;
@@ -249,8 +249,25 @@ async function mk(spec: Spec): Promise<Ref> {
         data: { status: "ESCALATED", escalationReason: "reviewer_disagreement" },
       });
       break;
-    case "adminEscalatedStatus":
-      // An administrative Escalate moved the status: it adds no second reviewer.
+    case "adminEscalatedStatus": {
+      // A post-change administrative Escalate moved the status: its escalation
+      // stores an explicit requires_independent_review = false and the
+      // ESCALATED event names it. It adds no second reviewer.
+      await prisma.evidenceReviewWorkflow.update({ where: { id }, data: { status: "ESCALATED", escalationReason: "counsel please" } });
+      const e = await prisma.reviewEscalation.create({
+        data: {
+          teamId: team.teamId, workflowId: id, evidenceId, reason: "REVIEWER_ESCALATED", severity: "WARNING", status: "OPEN",
+          safeSummary: "counsel please", fingerprint: `trp:${randomUUID()}`, createdByUserId: team.ownerId, requiresIndependentReview: false,
+        } as never,
+      });
+      await prisma.evidenceReviewWorkflowEvent.create({
+        data: { workflowId: id, evidenceId, actorUserId: team.ownerId, eventType: "ESCALATED", nextValue: { stage: "ESCALATED", escalationId: e.id } } as never,
+      });
+      break;
+    }
+    case "legacyEscalatedStatus":
+      // Source review E.2 — escalated before the change (no identifiable
+      // post-change escalation set it): the status keeps forcing.
       await prisma.evidenceReviewWorkflow.update({ where: { id }, data: { status: "ESCALATED", escalationReason: "counsel please" } });
       break;
     case "openEsc":
@@ -302,7 +319,7 @@ function rnd(): number {
 }
 const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(rnd() * xs.length)]!;
 
-const TRIGGERS: Trigger[] = ["none", "escalatedStatus", "adminEscalatedStatus", "openEsc", "autoEsc", "openEscOtherTeam", "resolvedEsc", "hold", "holdOtherTeam", "releasedHold", "redaction"];
+const TRIGGERS: Trigger[] = ["none", "escalatedStatus", "adminEscalatedStatus", "legacyEscalatedStatus", "openEsc", "autoEsc", "openEscOtherTeam", "resolvedEsc", "hold", "holdOtherTeam", "releasedHold", "redaction"];
 const EVENTS: EventShape[] = ["none", "round", "noRound", "noRoundSettledByInfo", "roundSettledByInfo", "sameMs", "noRoundBefore"];
 
 const named: Record<string, Spec> = {};
@@ -405,7 +422,7 @@ describe("batched current-round decisions equal the per-workflow derivation", ()
       expect(v(`first-REJECT-${t}-round`), t).toBe("NO_DECISION");
     }
     // Each live trigger holds the round at "second review required".
-    for (const t of ["escalatedStatus", "openEsc", "hold", "redaction"]) {
+    for (const t of ["escalatedStatus", "legacyEscalatedStatus", "openEsc", "hold", "redaction"]) {
       expect(v(`first-APPROVE-${t}-noRound`), t).toBe("NO_DECISION");
       expect(v(`first-APPROVE-${t}-none`), t).toBe("NO_DECISION");
       expect(v(`first-APPROVE-${t}-noRoundBefore`), t).toBe("NO_DECISION");

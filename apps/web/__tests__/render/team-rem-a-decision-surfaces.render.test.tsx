@@ -385,6 +385,77 @@ describe("the decision panel's requirement and history (T-015, T-022, T-023, T-0
     // No decision row was invented for it.
     expect(document.querySelectorAll("[data-decision-row]")).toHaveLength(0);
   });
+
+  it("a FIRST decision a request for information superseded is labelled 'set aside', never read as the outcome (journeys J5)", async () => {
+    decisions = decisionsBody("first_required", "submit_first", {
+      round: 1,
+      rounds: [
+        { round: 0, current: false, settledBy: "decision", governing: { reviewers: 1, secondReviewRequired: true, cause: "active_legal_hold" }, decisions: [rowOf("d-first", "FIRST", "APPROVE", 0)] },
+      ],
+      informationRequests: [
+        {
+          id: "i1",
+          requestedInRound: 0,
+          requestedBy: { userId: "u-a", displayName: "Reviewer A" },
+          requestedFrom: { role: "evidence_owner" },
+          reason: "Need the original file",
+          requestedAtUtc: "2026-11-21T10:00:00.000Z",
+          supersededDecisionId: "d-first",
+        },
+      ],
+    });
+    panel();
+    await waitFor(() => expect(document.querySelector('[data-decision-row][data-decision-set-aside="true"]')).toBeTruthy());
+    expect(document.querySelector("[data-decision-set-aside-chip]")!.textContent).toBe("Set aside — information was requested");
+  });
+
+  it("the refused draft stays readable when the panel can no longer load (membership ended; journeys D-1)", async () => {
+    const onSubmitDecision = vi.fn(async () => ({
+      message: "Not recorded: You are no longer eligible to review this record.",
+    }));
+    const { rerender } = render(
+      <ReviewerDecisionLineagePanel
+        workflowId={workflowId}
+        teamId={teamId}
+        onSubmitDecision={onSubmitDecision}
+        actions={actions}
+        mayDecide
+        mayAdjudicate={false}
+        adjudicationBlockedReason={null}
+        focusRequest={null}
+      />,
+    );
+    await waitFor(() => expect(document.querySelector("[data-decision-form]")).toBeTruthy());
+    fireEvent.click(document.querySelector('[data-decision-choice="APPROVE"]')!);
+    fireEvent.change(document.querySelector("[data-decision-form-rationale]")!, { target: { value: "My careful reasoning." } });
+    fireEvent.click(document.querySelector("[data-decision-form-submit]")!);
+    await waitFor(() => expect(onSubmitDecision).toHaveBeenCalled());
+    // The next read is refused: the reviewer's membership ended.
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: unknown, init?: RequestInit) => {
+      const path = String(url).replace(/^https?:\/\/[^/]+/, "");
+      if ((init?.method ?? "GET").toUpperCase() === "GET" && path === decPath) {
+        return json(403, { error: { code: "REVIEW_ACTOR_BLOCKED", details: { reason: "member_inactive" } } });
+      }
+      return original(url, init);
+    });
+    rerender(
+      <ReviewerDecisionLineagePanel
+        workflowId={workflowId}
+        teamId={teamId}
+        refreshKey={1}
+        onSubmitDecision={onSubmitDecision}
+        actions={actions}
+        mayDecide
+        mayAdjudicate={false}
+        adjudicationBlockedReason={null}
+        focusRequest={null}
+      />,
+    );
+    await waitFor(() => expect(document.querySelector('[data-decision-state="error"]')).toBeTruthy());
+    expect((document.querySelector("[data-decision-kept-rationale]") as HTMLTextAreaElement).value).toBe("My careful reasoning.");
+    expect(document.querySelector("[data-decision-kept-draft]")!.textContent).toMatch(/Not recorded: /);
+  });
 });
 
 describe("Review page controls (T-009, T-019, T-020)", () => {

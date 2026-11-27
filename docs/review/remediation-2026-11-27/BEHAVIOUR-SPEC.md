@@ -26,9 +26,10 @@ A round needs an independent SECOND decision **only** for one of these explicit 
 | `workspace_policy` | The workspace policy "Every review needs an independent second decision" (`review_requires_independent_approval`) is on. |
 | `active_legal_hold` | Unchanged: an active legal hold on the evidence. |
 | `redaction_required` | Unchanged: a redaction-required visibility decision. |
-| `workflow_escalated` | The stored status is ESCALATED **because of a reviewer disagreement** (a conflict or an unresolved adjudication; `escalation_reason = 'reviewer_disagreement'`, written since before this change). An administrative Escalate that moved the status to ESCALATED does not force. |
+| `workflow_escalated` | The stored status is ESCALATED **because of a reviewer disagreement** (a conflict or an unresolved adjudication; `escalation_reason = 'reviewer_disagreement'`, written since before this change). An administrative Escalate made **after** this change that moved the status to ESCALATED does not force. |
+| `legacy_escalated_status` | Compatibility (§10, source review E.2): the stored status is ESCALATED and the escalation that moved it there (the `escalationId` on the review's newest ESCALATED event) was recorded **before** this change (`requires_independent_review IS NULL`) or cannot be identified. Before the change every ESCALATED status forced, so these keep forcing. A later escalation (e.g. an overdue sweep) never changes the answer. |
 | `unresolved_adjudication` | Unchanged. |
-| `legacy_escalation` | Compatibility (§10): an escalation created **before** this change by a person, for a non-sweep reason, with `requires_independent_review IS NULL`. It keeps forcing until an owner reclassifies it. |
+| `legacy_escalation` | Compatibility (§10, source review E.1): an escalation created **before** this change (`requires_independent_review IS NULL`) keeps exactly the pre-change rule — it forces unless it is an automatic-sweep escalation (no creator **and** a sweep reason: REVIEW_OVERDUE, FIRST_REVIEW_OVERDUE, COMPLETION_OVERDUE, WORKFLOW_STALLED). That includes creator-less escalations with any other reason. It keeps forcing until an owner reclassifies the specific record through the plan-bound reconciliation. |
 
 **Administrative escalations do not require independent review.** These are lateness, workload or stalled work: REVIEW_OVERDUE, FIRST_/COMPLETION_OVERDUE, WORKFLOW_STALLED, NO_REVIEWER_ASSIGNED, REVIEWER_INACTIVE, EVIDENCE_REQUEST_UNRESOLVED, GOVERNANCE_BLOCKED, REPEATED_REJECTION_LOOP and REVIEWER_ESCALATED. This holds whether they are raised manually or automatically, unless the raiser explicitly asks for independent review. The Escalate dialog states the effect before raising.
 
@@ -99,6 +100,7 @@ The server projection `viewer.actions[]` (`computeViewerActions`) carries `allow
 - A repeat by the same requester while the review still waits is a replay: nothing new is recorded.
 - The request is the reviewer's first substantive response, so it completes the FIRST_REVIEW deadline (`first_decided_at_utc`) exactly as a first decision did before. It still uses no FIRST/SECOND slot.
 - The decision history (`GET …/decisions`) lists requests in `informationRequests`: who asked, of whom, why, when, and any superseded decision. They are never shown as decision rows.
+- The reason keeps the decision rationale contract: required, at most 4,000 characters, same wording checks on every door (Review page, legacy request-info route, Evidence page / mobile door). The **full** reason is stored in the request's event value (`nextValue.reason`). The event `note` column (VARCHAR 1000) holds a summary that says so when it is shortened. Every history read returns the full reason (source review D).
 
 **After a FIRST decision** (round `second_required`):
 
@@ -172,11 +174,12 @@ Review-scoped CSS only; no global primitive restyle.
 |---|---|
 | Open escalations with `requires_independent_review IS NULL` | Read with the legacy rule (a person-raised, non-sweep escalation forces). The reconciliation dry-run lists them; an owner may approve reclassifying administrative ones. |
 | Rounds pinned by a recorded FIRST decision | Unchanged: they keep their requirement. |
-| Open reviews whose stored status is ESCALATED from an administrative Escalate (not a reviewer disagreement), not yet decided | **Read change.** The status alone no longer requires a second decision. A person-raised escalation that is still open keeps forcing through the legacy rule above. So the change reaches only reviews whose escalation was raised automatically or is already resolved. The dry run reports them (`administratively_escalated_status`) before release; nothing is rewritten. |
+| Open reviews whose stored status is ESCALATED (not a reviewer disagreement), set before this change | **Unchanged** (source review E.2): the status keeps forcing (`legacy_escalated_status`). The plan lists each one: `legacy_escalated_status` (the setting escalation is known; the owner may approve reclassifying it) or `legacy_escalated_status_unknown` (report only). |
+| Creator-less escalations recorded before this change with a non-sweep, non-integrity reason | **Unchanged** (source review E.1): they keep forcing. Listed as `legacy_creatorless_escalations`. |
 | Historical REQUEST_INFO decision rows | Read as before. |
 | Challenges already resolved OVERTURNED | Not retro-applied; the dry-run lists them. |
 | Coding values | Untouched. There are no snapshots for past rounds. |
 | Seeded help text | Corrected at read time; optional data update. |
 | Older mobile/API clients | Still receive `viewer.actions` (superset) and `outcome` fields. REQUEST_INFO responses carry `stageRecorded:"NONE"`, `reviewState:"first_required"` and `nextRequirement:"information"`, and `decision: null`. |
 
-The reconciliation procedure is `services/api/src/scripts/review-remediation-reconcile.ts`. It runs as a dry run by default and prints counts; it applies only with `--apply` and named categories.
+The reconciliation is `services/api/src/scripts/review-remediation-reconcile.ts` (`plan` → `apply` → `compensate`), documented in `RECONCILIATION.md`. `plan` is read-only and lists every affected record with its precondition and effect, identified by a content hash. `apply` is bound to that hash, touches only listed records (compare-and-set), writes a durable audit row per change, reports records changed since planning, and is idempotent. `compensate` restores the captured values of exactly what the plan applied.

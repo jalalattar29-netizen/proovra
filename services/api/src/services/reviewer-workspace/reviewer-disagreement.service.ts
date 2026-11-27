@@ -15,7 +15,7 @@
  *   * Workspace-anchored reads + bounded denial reasons.
  */
 
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import {
   DISAGREEMENT_STATES,
   isAllowedDisagreementTransition,
@@ -39,10 +39,22 @@ import {
 import { withinAssignmentWrite } from "../assignment/assignment-write.js";
 import { mapDbStatusToReviewStage } from "@proovra/shared";
 import { secondReviewForRound } from "../evidence-review/second-review.service.js";
-import {
-  precheckLifecycleTransition,
-  recordLifecycleTransition,
-} from "../review-operations/review-operations.service.js";
+import { recordLifecycleTransitionTx } from "../review-operations/review-operations.service.js";
+
+/** What resolving a challenge OVERTURNED / PARTIAL did to the challenged outcome. */
+export type SupersedePlan = "reopen" | "advance_round" | "already_superseded";
+
+/**
+ * The superseding write failed inside the resolution's transaction: the whole
+ * transaction (resolution included) is rolled back and the caller answers
+ * DISAGREEMENT_SUPERSEDE_FAILED.
+ */
+class ChallengeSupersedeError extends Error {
+  constructor(readonly failure: unknown) {
+    super("challenge_supersede_failed");
+    this.name = "ChallengeSupersedeError";
+  }
+}
 
 export type FileDisagreementInput = {
   prisma?: PrismaClient;
@@ -140,10 +152,14 @@ function buildResolutionSummary(input: {
 export async function transitionDisagreement(
   input: TransitionDisagreementInput,
 ): Promise<
-  | { ok: true; superseded?: "reopen" | "advance_round" | "already_superseded" | null }
+  | { ok: true; superseded?: SupersedePlan | null }
   | {
       ok: false;
-      denial: ReviewerDenialReason;
+      /**
+       * DISAGREEMENT_SUPERSEDE_FAILED (finding B) — an OVERTURNED / PARTIAL
+       * resolution whose superseding write failed: nothing was recorded.
+       */
+      denial: ReviewerDenialReason | "DISAGREEMENT_SUPERSEDE_FAILED";
       /** Which assignee rule refused a second-review take (re-audit B10); the route may forward it. */
       code?: "REVIEW_ASSIGNEE_NOT_PLACED" | "REVIEW_ASSIGNEE_NOT_ELIGIBLE";
     }
@@ -250,35 +266,32 @@ export async function transitionDisagreement(
    * Approval-dependent projections and gates follow from the derivation;
    * previously issued artifacts are untouched.
    */
+  /*
+   * Finding B (review remediation 2026-11-27) — the resolution and the
+   * superseding are ONE transaction. Decided under the workflow row lock
+   * (taken first, as every Close / Reopen takes it), from the state read
+   * under it: the challenged decision must still be in the review's CURRENT
+   * round. A stale challenge resolves as "already superseded" and changes no
+   * workflow; a supersede that fails rolls the resolution back with it.
+   */
   const supersedes = input.to === "RESOLVED_OVERTURNED" || input.to === "RESOLVED_PARTIAL";
-  let supersedePlan: "reopen" | "advance_round" | "already_superseded" | null = null;
-  let supersedeWorkflow: { id: string; evidenceId: string; status: string; decisionRound: number; teamId: string } | null = null;
-  if (supersedes) {
-    const wf = await prisma.evidenceReviewWorkflow.findFirst({
-      where: { id: row.workflowId, teamId: input.teamId },
-      select: { id: true, evidenceId: true, status: true, decisionRound: true },
-    });
-    const challenged = row.originalDecisionId
-      ? await prisma.workflowReviewDecision.findFirst({ where: { id: row.originalDecisionId }, select: { round: true } })
-      : null;
-    if (!wf) return deny("DISAGREEMENT_NOT_FOUND");
-    supersedeWorkflow = { ...wf, status: String(wf.status), teamId: input.teamId };
-    const stage = mapDbStatusToReviewStage(String(wf.status));
-    if (!challenged || challenged.round !== wf.decisionRound) supersedePlan = "already_superseded";
-    else if (stage === "APPROVED_INTERNAL" || stage === "REJECTED_INSUFFICIENT" || stage === "CLOSED") {
-      supersedePlan = "reopen";
-      try {
-        await precheckLifecycleTransition(
-          { evidenceId: wf.evidenceId, decision: "REOPEN", note: "Challenge overturned" },
-          prisma,
-        );
-      } catch {
-        return deny("DISAGREEMENT_STATE_INVALID");
-      }
-    } else supersedePlan = "advance_round";
-  }
+  let supersedePlan: SupersedePlan | null = null;
+  let supersedeAfterCommit: (() => Promise<void>) | undefined;
+  const supersedeNote = `Challenge ${input.to === "RESOLVED_PARTIAL" ? "partially overturned" : "overturned"}: ${trimmedRationale ?? "the challenged outcome was superseded"}`.slice(0, 1000);
 
-  const refusal = await withinAssignmentWrite(prisma, async (tx): Promise<AssigneeIneligibility | "STATE_MOVED" | null> => {
+  let refusal: AssigneeIneligibility | "STATE_MOVED" | "WORKFLOW_GONE" | null;
+  try {
+  refusal = await withinAssignmentWrite(prisma, async (tx): Promise<AssigneeIneligibility | "STATE_MOVED" | "WORKFLOW_GONE" | null> => {
+    let lockedWorkflow: { id: string; evidenceId: string; status: string; decisionRound: number } | null = null;
+    if (supersedes) {
+      await tx.$queryRaw`SELECT "id" FROM "evidence_review_workflows" WHERE "id" = ${row.workflowId}::uuid FOR UPDATE`;
+      const wf = await tx.evidenceReviewWorkflow.findFirst({
+        where: { id: row.workflowId, teamId: input.teamId },
+        select: { id: true, evidenceId: true, status: true, decisionRound: true },
+      });
+      if (!wf) return "WORKFLOW_GONE";
+      lockedWorkflow = { ...wf, status: String(wf.status) };
+    }
     if (input.to === "UNDER_SECOND_REVIEW" || input.to === "UNDER_SUPERVISOR_REVIEW") {
       const workflow = await tx.evidenceReviewWorkflow.findFirst({
         where: { id: row.workflowId, teamId: input.teamId },
@@ -309,43 +322,137 @@ export async function transitionDisagreement(
       data: data as never,
     });
     if (moved.count === 0) return "STATE_MOVED" as const;
-    if (supersedePlan === "advance_round" && supersedeWorkflow) {
-      const carried = await secondReviewForRound(
-        {
-          workflowId: supersedeWorkflow.id,
-          teamId: input.teamId,
-          evidenceId: supersedeWorkflow.evidenceId,
-          round: supersedeWorkflow.decisionRound,
-        },
-        tx,
-      );
-      const bumped = await tx.evidenceReviewWorkflow.updateMany({
-        where: { id: supersedeWorkflow.id, decisionRound: supersedeWorkflow.decisionRound },
-        data: { decisionRound: supersedeWorkflow.decisionRound + 1 },
-      });
-      if (bumped.count !== 1) throw new Error("challenge_supersede_round_moved");
-      await tx.evidenceReviewWorkflowEvent.create({
-        data: {
-          workflowId: supersedeWorkflow.id,
-          evidenceId: supersedeWorkflow.evidenceId,
-          actorUserId: input.actorUserId,
-          eventType: "STAGE_CHANGED",
-          previousValue: { round: supersedeWorkflow.decisionRound },
-          nextValue: {
-            round: supersedeWorkflow.decisionRound + 1,
-            source: "challenge_overturned",
-            disagreementId: row.id,
-            supersededRound: supersedeWorkflow.decisionRound,
-            supersededDecisionId: row.originalDecisionId,
-            carriedSecondReviewCause: carried.required ? carried.reason ?? "recorded_requirement" : null,
+    if (supersedes && lockedWorkflow) {
+      const wf = lockedWorkflow;
+      // Revalidated under the lock: the challenged decision is in the CURRENT round.
+      const challenged = row.originalDecisionId
+        ? await tx.workflowReviewDecision.findFirst({
+            where: { id: row.originalDecisionId, workflowId: wf.id, teamId: input.teamId },
+            select: { round: true },
+          })
+        : null;
+      const stage = mapDbStatusToReviewStage(wf.status);
+      supersedePlan =
+        !challenged || challenged.round !== wf.decisionRound
+          ? "already_superseded"
+          : stage === "APPROVED_INTERNAL" || stage === "REJECTED_INSUFFICIENT" || stage === "CLOSED"
+            ? "reopen"
+            : "advance_round";
+      try {
+        if (supersedePlan === "reopen") {
+          // The canonical Reopen (event REOPENED referencing the challenge, a
+          // new round, terminal markers cleared, its audit entry) in THIS
+          // transaction; its after-commit work runs only once this commits.
+          const done = await recordLifecycleTransitionTx(
+            tx as unknown as Prisma.TransactionClient,
+            {
+              evidenceId: wf.evidenceId,
+              decision: "REOPEN",
+              actorUserId: input.actorUserId,
+              note: supersedeNote,
+              eventContext: {
+                source: "challenge_overturned",
+                disagreementId: row.id,
+                resolution: input.to,
+                supersededRound: wf.decisionRound,
+                supersededDecisionId: row.originalDecisionId,
+              },
+            },
+            prisma,
+          );
+          supersedeAfterCommit = done.afterCommit;
+        } else if (supersedePlan === "advance_round") {
+          const carried = await secondReviewForRound(
+            {
+              workflowId: wf.id,
+              teamId: input.teamId,
+              evidenceId: wf.evidenceId,
+              round: wf.decisionRound,
+            },
+            tx,
+          );
+          const bumped = await tx.evidenceReviewWorkflow.updateMany({
+            where: { id: wf.id, decisionRound: wf.decisionRound },
+            data: { decisionRound: wf.decisionRound + 1 },
+          });
+          if (bumped.count !== 1) throw new Error("challenge_supersede_round_moved");
+          await tx.evidenceReviewWorkflowEvent.create({
+            data: {
+              workflowId: wf.id,
+              evidenceId: wf.evidenceId,
+              actorUserId: input.actorUserId,
+              eventType: "STAGE_CHANGED",
+              previousValue: { round: wf.decisionRound },
+              nextValue: {
+                round: wf.decisionRound + 1,
+                source: "challenge_overturned",
+                disagreementId: row.id,
+                resolution: input.to,
+                supersededRound: wf.decisionRound,
+                supersededDecisionId: row.originalDecisionId,
+                carriedSecondReviewCause: carried.required ? carried.reason ?? "recorded_requirement" : null,
+              },
+              note: trimmedRationale,
+            },
+          });
+        }
+        // The resolution's audit entry commits WITH the resolution and says
+        // what it did to the review (or that nothing was left to supersede).
+        await emitTenantAudit(
+          {
+            action: "reviewer.disagreement.transitioned",
+            outcome: "success",
+            sourceApp: "API",
+            actorUserId: input.actorUserId,
+            workspaceId: input.teamId,
+            resourceType: "reviewer_disagreement",
+            resourceId: row.id,
+            metadata: {
+              disagreementId: row.id,
+              workflowId: wf.id,
+              fromState: row.state,
+              toState: input.to,
+              resolution: input.verdict ?? null,
+              actorUserId: input.actorUserId,
+              superseded: supersedePlan,
+              originalDecisionId: row.originalDecisionId,
+              challengedDecisionRound: challenged?.round ?? null,
+              workflowRoundBefore: wf.decisionRound,
+              workflowRoundAfter: supersedePlan === "already_superseded" ? wf.decisionRound : wf.decisionRound + 1,
+            },
           },
-          note: trimmedRationale,
-        },
-      });
+          tx,
+        );
+      } catch (err) {
+        throw new ChallengeSupersedeError(err);
+      }
     }
     return null;
   });
+  } catch (err) {
+    if (!(err instanceof ChallengeSupersedeError)) throw err;
+    // Rolled back whole: the challenge keeps its prior state, the review is
+    // untouched. Audited after the rollback, best-effort.
+    await emitTenantAudit({
+      action: "reviewer.disagreement.supersede_failed",
+      outcome: "error",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: input.teamId,
+      resourceType: "reviewer_disagreement",
+      resourceId: row.id,
+      metadata: {
+        disagreementId: row.id,
+        fromState: row.state,
+        toState: input.to,
+        plannedSupersede: supersedePlan,
+        reason: String((err.failure as Error)?.message ?? err.failure).slice(0, 200),
+      },
+    }).catch(() => {});
+    return { ok: false, denial: "DISAGREEMENT_SUPERSEDE_FAILED" };
+  }
   if (refusal === "STATE_MOVED") return deny("DISAGREEMENT_STATE_INVALID");
+  if (refusal === "WORKFLOW_GONE") return deny("DISAGREEMENT_NOT_FOUND");
   if (refusal) {
     return {
       ok: false,
@@ -353,36 +460,16 @@ export async function transitionDisagreement(
       code: refusal === "NOT_PLACED" ? "REVIEW_ASSIGNEE_NOT_PLACED" : "REVIEW_ASSIGNEE_NOT_ELIGIBLE",
     };
   }
+  if (supersedes) {
+    // Committed: the Reopen's after-commit work (escalations the finished
+    // review left behind), best-effort. The audit entry is already committed.
+    await supersedeAfterCommit?.().catch(() => null);
+    return { ok: true, superseded: supersedePlan };
+  }
   // Phase 4 — best-effort audit emission for state transitions.
   // Bounded metadata: IDs, enum states, and (when present) the
   // bounded verdict enum. Raw rationale text is intentionally NOT
   // included.
-  if (supersedePlan === "reopen" && supersedeWorkflow) {
-    // The canonical Reopen door (event REOPENED, a new round, terminal markers
-    // cleared). Run after the challenge is recorded as resolved; a refusal here
-    // (the review moved meanwhile) leaves the resolution recorded and is audited.
-    await recordLifecycleTransition(
-      {
-        evidenceId: supersedeWorkflow.evidenceId,
-        decision: "REOPEN",
-        actorUserId: input.actorUserId,
-        note: `Challenge ${input.to === "RESOLVED_PARTIAL" ? "partially overturned" : "overturned"}: ${trimmedRationale ?? "the challenged outcome was superseded"}`.slice(0, 1000),
-      },
-      prisma,
-    ).catch((err) => {
-      supersedePlan = null;
-      void emitTenantAudit({
-        action: "reviewer.disagreement.supersede_failed",
-        outcome: "error",
-        sourceApp: "API",
-        actorUserId: input.actorUserId,
-        workspaceId: input.teamId,
-        resourceType: "reviewer_disagreement",
-        resourceId: row.id,
-        metadata: { reason: String((err as Error)?.message ?? err).slice(0, 200) },
-      }).catch(() => {});
-    });
-  }
   await emitTenantAudit({
     action: "reviewer.disagreement.transitioned",
     outcome: "success",

@@ -39,11 +39,33 @@ export type WriteCodingValueInput = {
   value: Record<string, unknown>;
   authorUserId: string;
   rationale?: string;
+  /**
+   * Review remediation A (2026-11-27) — optimistic concurrency. The field
+   * revision the caller based this change on (see {@link codingFieldRevision}).
+   * When given and the field has moved on, nothing is written and the result
+   * is a {@link CodingValueConflict}. Omitted (older clients, bulk coding):
+   * last writer wins, still inside the locked transaction.
+   */
+  expectedRevision?: number;
+};
+
+/**
+ * Review remediation A — the typed refusal for a stale coding change: the
+ * field was written or cleared (another tab, another reviewer) after the
+ * revision the caller based its change on. Carries what is stored now so the
+ * client can show it without guessing.
+ */
+export const CODING_VALUE_CONFLICT = "CODING_VALUE_CONFLICT" as const;
+export type CodingValueConflict = {
+  ok: false;
+  denial: typeof CODING_VALUE_CONFLICT;
+  current: { revision: number; value: unknown | null };
 };
 
 export type WriteCodingValueResult =
-  | { ok: true; codingValueId: string }
-  | { ok: false; denial: ReviewerDenialReason };
+  | { ok: true; codingValueId: string; revision: number }
+  | { ok: false; denial: ReviewerDenialReason }
+  | CodingValueConflict;
 
 const TERMINAL_WORKFLOW_STATES = new Set<string>([
   "CLOSED",
@@ -51,20 +73,128 @@ const TERMINAL_WORKFLOW_STATES = new Set<string>([
   "REJECTED_INSUFFICIENT",
 ]);
 
+/*
+ * Review remediation C (2026-11-27) — ONE LOCK FOR EVERYTHING THAT READS OR
+ * CHANGES A REVIEW'S CODING STATE.
+ *
+ * A coding write/clear used to read the workflow (status, bound schema) and
+ * then write in a separate transaction, so a final decision (completeness
+ * check + snapshot) or a schema rebind could interleave: a value could land
+ * on a review that had just closed, a snapshot could disagree with the stored
+ * values, an old-schema write could be stored after the rebind.
+ *
+ * Every participant now takes the workflow row lock FIRST, inside the
+ * transaction that does its work, and only then reads the state it decides
+ * on (READ COMMITTED: a statement after the lock sees everything committed
+ * by whoever held it before):
+ *
+ *   * writeCodingValue / clearCodingValue (and bulk coding, which calls them)
+ *   * bindSchemaToWorkflow (coding-schema.service)
+ *   * recordReviewDecision's decision transaction (review-decision.service)
+ *   * Close (review-operations.service, pre-existing, same statement)
+ *
+ * Lock order is always: workflow row, then the coding / decision rows. No
+ * participant takes a coding row lock before the workflow row, so the lock
+ * cannot deadlock between them.
+ */
+/** The read surface + raw query the locked coding transaction uses. */
+type CodingTxClient = Pick<
+  PrismaClient,
+  "evidenceReviewWorkflow" | "codingField" | "codingValue" | "codingValueHistory" | "$queryRaw"
+>;
+
+/**
+ * Take the workflow row lock (`SELECT … FOR UPDATE`) inside the caller's
+ * transaction. Returns false when no such workflow exists in this workspace.
+ */
+export async function lockReviewWorkflowRow(
+  tx: Pick<PrismaClient, "$queryRaw">,
+  input: { workflowId: string; teamId: string },
+): Promise<boolean> {
+  const rows = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT "id" FROM "evidence_review_workflows"
+     WHERE "id" = ${input.workflowId}::uuid AND "team_id" = ${input.teamId}::uuid
+       FOR UPDATE`;
+  return rows.length === 1;
+}
+
+/**
+ * Review remediation A — the revision of one coded field: the number of
+ * `coding_value_history` rows for (workflow, field). Every write and every
+ * effective clear appends exactly one history row, the table is append-only
+ * (no code path updates or deletes it), so the count only ever grows and two
+ * different stored states never share a revision (no A-B-A). It needs no
+ * schema migration. Read it under the workflow lock to decide a write.
+ */
+export async function codingFieldRevision(
+  client: Pick<PrismaClient, "codingValueHistory">,
+  input: { teamId: string; workflowId: string; fieldId: string },
+): Promise<number> {
+  return client.codingValueHistory.count({
+    where: { teamId: input.teamId, workflowId: input.workflowId, fieldId: input.fieldId },
+  });
+}
+
+/**
+ * Run `fn` in a transaction holding the workflow lock. A caller that is
+ * already inside a transaction passes its client (no `$transaction`): the
+ * lock and the work then run in theirs.
+ */
+async function inLockedWorkflowTx<T>(
+  prisma: PrismaClient,
+  input: { workflowId: string; teamId: string },
+  fn: (tx: CodingTxClient) => Promise<T>,
+  onMissing: () => T,
+): Promise<T> {
+  const body = async (tx: CodingTxClient): Promise<T> => {
+    if (!(await lockReviewWorkflowRow(tx, input))) return onMissing();
+    return fn(tx);
+  };
+  return typeof (prisma as { $transaction?: unknown }).$transaction === "function"
+    ? prisma.$transaction((tx) => body(tx as unknown as CodingTxClient))
+    : body(prisma as unknown as CodingTxClient);
+}
+
+async function conflictFor(
+  tx: CodingTxClient,
+  input: { teamId: string; workflowId: string; fieldId: string },
+  revision: number,
+): Promise<CodingValueConflict> {
+  const stored = await tx.codingValue.findFirst({
+    where: { teamId: input.teamId, workflowId: input.workflowId, fieldId: input.fieldId },
+    select: { value: true },
+  });
+  return {
+    ok: false,
+    denial: CODING_VALUE_CONFLICT,
+    current: { revision, value: stored?.value ?? null },
+  };
+}
+
 export async function writeCodingValue(
   input: WriteCodingValueInput,
 ): Promise<WriteCodingValueResult> {
   const prisma = input.prisma ?? defaultPrisma;
+  return inLockedWorkflowTx<WriteCodingValueResult>(
+    prisma,
+    input,
+    (tx) => writeCodingValueLocked(tx, input),
+    () => deny("WORKFLOW_NOT_FOUND"),
+  );
+}
 
-  // Workflow + workspace anchoring.
-  const workflow = await prisma.evidenceReviewWorkflow.findFirst({
+async function writeCodingValueLocked(
+  tx: CodingTxClient,
+  input: WriteCodingValueInput,
+): Promise<WriteCodingValueResult> {
+  // Workflow + workspace anchoring — read UNDER the lock, so a decision or a
+  // rebind that committed first is seen, and one still pending waits for us.
+  const workflow = await tx.evidenceReviewWorkflow.findFirst({
     where: { id: input.workflowId, teamId: input.teamId },
     select: {
       id: true,
       status: true,
-      assignedToUserId: true,
       codingSchemaId: true,
-      codingSchemaVersion: true,
     },
   });
   if (!workflow) return deny("WORKFLOW_NOT_FOUND");
@@ -72,8 +202,8 @@ export async function writeCodingValue(
     return deny("WORKFLOW_CLOSED");
   }
 
-  // Field anchoring — must belong to the workflow's bound schema.
-  const field = await prisma.codingField.findFirst({
+  // Field anchoring — must belong to the workflow's CURRENTLY bound schema.
+  const field = await tx.codingField.findFirst({
     where: { id: input.fieldId },
     select: {
       id: true,
@@ -98,6 +228,12 @@ export async function writeCodingValue(
   );
   if (valError) return deny(valError);
 
+  // Review remediation A — refuse a change based on a superseded revision.
+  const revision = await codingFieldRevision(tx, input);
+  if (input.expectedRevision !== undefined && input.expectedRevision !== revision) {
+    return conflictFor(tx, input, revision);
+  }
+
   /*
    * PRO-099 (FEATURES-17) — ONE WRITE ON THE UNIQUE KEY.
    *
@@ -114,6 +250,7 @@ export async function writeCodingValue(
    * written, by whom and why, so a later reviewer's value never erases an
    * earlier one. (A caller that is already inside a transaction passes its
    * client, which has no $transaction: both statements then run in theirs.)
+   * Both now run inside the locked transaction (review remediation C).
    */
   const writeBoth = async (client: Pick<PrismaClient, "codingValue" | "codingValueHistory">) => {
     const row = await client.codingValue.upsert({
@@ -151,12 +288,10 @@ export async function writeCodingValue(
     });
     return row;
   };
-  const saved =
-    typeof (prisma as { $transaction?: unknown }).$transaction === "function"
-      ? await prisma.$transaction((tx) => writeBoth(tx))
-      : await writeBoth(prisma);
+  const saved = await writeBoth(tx);
 
-  return { ok: true, codingValueId: saved.id };
+  // Exactly one history row was appended: the new revision.
+  return { ok: true, codingValueId: saved.id, revision: revision + 1 };
 }
 
 /**
@@ -173,6 +308,8 @@ export type ClearCodingValueInput = {
   fieldId: string;
   actorUserId: string;
   rationale?: string;
+  /** Same contract as {@link WriteCodingValueInput.expectedRevision}. */
+  expectedRevision?: number;
 };
 
 export type ClearCodingValueResult =
@@ -182,8 +319,11 @@ export type ClearCodingValueResult =
       cleared: boolean;
       /** The id of the removed current-value row, or null. */
       codingValueId: string | null;
+      /** The field's revision after this clear (unchanged by a no-op). */
+      revision: number;
     }
-  | { ok: false; denial: ReviewerDenialReason };
+  | { ok: false; denial: ReviewerDenialReason }
+  | CodingValueConflict;
 
 /**
  * Review remediation §6 (F-13) — explicitly clear a coded field.
@@ -203,7 +343,20 @@ export async function clearCodingValue(
   input: ClearCodingValueInput,
 ): Promise<ClearCodingValueResult> {
   const prisma = input.prisma ?? defaultPrisma;
-  const workflow = await prisma.evidenceReviewWorkflow.findFirst({
+  return inLockedWorkflowTx<ClearCodingValueResult>(
+    prisma,
+    input,
+    (tx) => clearCodingValueLocked(tx, input),
+    () => deny("WORKFLOW_NOT_FOUND"),
+  );
+}
+
+async function clearCodingValueLocked(
+  tx: CodingTxClient,
+  input: ClearCodingValueInput,
+): Promise<ClearCodingValueResult> {
+  // Read under the workflow lock (review remediation C), as for writes.
+  const workflow = await tx.evidenceReviewWorkflow.findFirst({
     where: { id: input.workflowId, teamId: input.teamId },
     select: { id: true, status: true, codingSchemaId: true },
   });
@@ -211,7 +364,7 @@ export async function clearCodingValue(
   if (TERMINAL_WORKFLOW_STATES.has(workflow.status)) {
     return deny("WORKFLOW_CLOSED");
   }
-  const field = await prisma.codingField.findFirst({
+  const field = await tx.codingField.findFirst({
     where: { id: input.fieldId },
     select: { id: true, schemaId: true, schema: { select: { teamId: true } } },
   });
@@ -219,6 +372,12 @@ export async function clearCodingValue(
   if (field.schema.teamId !== input.teamId) return deny("FIELD_NOT_FOUND");
   if (workflow.codingSchemaId !== field.schemaId) {
     return deny("SCHEMA_VERSION_MISMATCH");
+  }
+
+  // Review remediation A — refuse a clear based on a superseded revision.
+  const revision = await codingFieldRevision(tx, input);
+  if (input.expectedRevision !== undefined && input.expectedRevision !== revision) {
+    return conflictFor(tx, input, revision);
   }
 
   const clearBoth = async (
@@ -252,11 +411,8 @@ export async function clearCodingValue(
     });
     return { cleared: true, codingValueId: existing.id };
   };
-  const res =
-    typeof (prisma as { $transaction?: unknown }).$transaction === "function"
-      ? await prisma.$transaction((tx) => clearBoth(tx))
-      : await clearBoth(prisma);
-  return { ok: true, ...res };
+  const res = await clearBoth(tx);
+  return { ok: true, ...res, revision: res.cleared ? revision + 1 : revision };
 }
 
 /**
@@ -371,6 +527,59 @@ export async function readCodingValuesPartitioned(input: {
       a.fieldLabel.localeCompare(b.fieldLabel),
   );
   return { boundSchemaId, values, otherSchemaValues };
+}
+
+/**
+ * Review remediation A — every coded field's revision for a workflow
+ * (`fieldId → revision`, see {@link codingFieldRevision}). A field missing
+ * from the map has revision 0 (never written).
+ */
+export async function readCodingFieldRevisions(
+  client: Pick<PrismaClient, "codingValueHistory">,
+  input: { teamId: string; workflowId: string },
+): Promise<Record<string, number>> {
+  const groups = await client.codingValueHistory.groupBy({
+    by: ["fieldId"],
+    where: { teamId: input.teamId, workflowId: input.workflowId },
+    _count: { _all: true },
+  });
+  const out: Record<string, number> = {};
+  for (const g of groups) out[g.fieldId] = g._count._all;
+  return out;
+}
+
+/**
+ * Review remediation A — the current values (partitioned as
+ * {@link readCodingValuesPartitioned}) and the field revisions read from ONE
+ * snapshot (REPEATABLE READ), so a value is never paired with a revision from
+ * a later write. Each current/other value carries its field's `revision`.
+ */
+export async function readCodingValuesWithRevisions(input: {
+  prisma?: PrismaClient;
+  teamId: string;
+  workflowId: string;
+}): Promise<{
+  boundSchemaId: string | null;
+  values: Array<CodingValueProjectionRow & { revision: number }>;
+  otherSchemaValues: Array<OtherSchemaCodingValueRow & { revision: number }>;
+  revisions: Record<string, number>;
+}> {
+  const prisma = input.prisma ?? defaultPrisma;
+  return prisma.$transaction(
+    async (tx) => {
+      const client = tx as unknown as PrismaClient;
+      const partition = await readCodingValuesPartitioned({ ...input, prisma: client });
+      const revisions = await readCodingFieldRevisions(client, input);
+      const rev = (fieldId: string) => revisions[fieldId] ?? 0;
+      return {
+        boundSchemaId: partition.boundSchemaId,
+        values: partition.values.map((v) => ({ ...v, revision: rev(v.fieldId) })),
+        otherSchemaValues: partition.otherSchemaValues.map((v) => ({ ...v, revision: rev(v.fieldId) })),
+        revisions,
+      };
+    },
+    { isolationLevel: "RepeatableRead" },
+  );
 }
 
 export type CodingSnapshot = {

@@ -70,7 +70,7 @@ import {
   clearCodingValue,
   evaluateRequiredFieldsCoverage,
   readCodingValueHistoryForWorkflow,
-  readCodingValuesPartitioned,
+  readCodingValuesWithRevisions,
   writeCodingValue,
 } from "../services/reviewer-workspace/coding-value.service.js";
 import { correctedFieldHelpText } from "../services/reviewer-workspace/coding-schema-defaults.js";
@@ -443,6 +443,7 @@ async function sendClearCodingValue(
   workflowId: string,
   fieldId: string,
   rationale: string | undefined,
+  expectedRevision?: number,
 ): Promise<FastifyReply> {
   const res = await clearCodingValue({
     teamId: ctx.teamId,
@@ -450,6 +451,7 @@ async function sendClearCodingValue(
     fieldId,
     actorUserId: ctx.userId,
     rationale,
+    expectedRevision,
   });
   await auditCodingWrite({
     action: "reviewer.code.clear",
@@ -460,18 +462,49 @@ async function sendClearCodingValue(
     denial: res.ok ? null : res.denial,
     metadata: { fieldId, cleared: res.ok ? res.cleared : false },
   });
-  if (!res.ok) return denyWith(reply, 409, res.denial);
-  return reply.code(200).send({ cleared: res.cleared, codingValueId: res.codingValueId });
+  if (!res.ok) {
+    if (res.denial === "CODING_VALUE_CONFLICT") return sendCodingConflict(reply, res.current);
+    return denyWith(reply, 409, res.denial);
+  }
+  return reply
+    .code(200)
+    .send({ cleared: res.cleared, codingValueId: res.codingValueId, revision: res.revision });
+}
+
+/**
+ * Review remediation A (2026-11-27) — a coding change based on a superseded
+ * field revision (another tab or another reviewer changed it first). Typed
+ * 409; nothing was written. `current` is what is stored now, so the client can
+ * offer a reload without guessing; its own draft is kept.
+ */
+function sendCodingConflict(
+  reply: FastifyReply,
+  current: { revision: number; value: unknown | null },
+): FastifyReply {
+  return reply.code(409).send({
+    code: "CODING_VALUE_CONFLICT",
+    denial: "CODING_VALUE_CONFLICT",
+    message: "This field was changed in another tab or by another reviewer.",
+    current,
+  });
 }
 
 // =============================================================================
 // Schemas
 // =============================================================================
 
+/**
+ * Review remediation A — the field revision the change is based on (from the
+ * coding read or the previous write/clear answer). Optional: older clients
+ * keep last-writer-wins.
+ */
+const ExpectedRevision = z.number().int().min(0).optional();
+
 const WriteCodingValueBody = z.object({
   fieldId: z.string().uuid(),
   value: z.record(z.string(), z.unknown()),
   rationale: z.string().max(240).optional(),
+  expectedRevision: ExpectedRevision,
 });
 
 /** Review remediation §6 (F-13) — an explicit clear through the write door. */
@@ -479,6 +512,7 @@ const ClearCodingValueBody = z.object({
   fieldId: z.string().uuid(),
   clear: z.literal(true),
   rationale: z.string().max(240).optional(),
+  expectedRevision: ExpectedRevision,
 });
 
 /** Workflow states in which coding is read-only (mirrors coding-value.service). */
@@ -776,6 +810,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         return reply.code(200).send({
           values: [],
           otherSchemaValues: [],
+          revisions: {},
           coverage: { totalRequired: 0, fulfilled: 0, unfulfilledFieldIds: [] },
           schemaBinding: null,
           history: [],
@@ -785,7 +820,10 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
       }
       const [partition, coverage, binding, history, workflow] = await Promise.all([
         // Review remediation F-26 — only the bound schema's values are current.
-        readCodingValuesPartitioned({ teamId: ctx.teamId, workflowId }),
+        // Review remediation A — each value carries its field revision, and
+        // `revisions` covers fields with history but no current value
+        // (cleared), all read from one snapshot.
+        readCodingValuesWithRevisions({ teamId: ctx.teamId, workflowId }),
         evaluateRequiredFieldsCoverage({ teamId: ctx.teamId, workflowId }),
         getWorkflowSchemaBinding({ teamId: ctx.teamId, workflowId }),
         // PRO-R2-17 — every value written, oldest first (additive).
@@ -812,6 +850,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
       return reply.code(200).send({
         values: partition.values,
         otherSchemaValues: partition.otherSchemaValues,
+        revisions: partition.revisions,
         coverage,
         schemaBinding,
         history,
@@ -837,7 +876,14 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
       // Review remediation F-13 — `{ fieldId, clear: true }` is an explicit clear.
       if ((req.body as { clear?: unknown } | null)?.clear === true) {
         const clearBody = ClearCodingValueBody.parse(req.body);
-        return sendClearCodingValue(reply, ctx, workflowId, clearBody.fieldId, clearBody.rationale);
+        return sendClearCodingValue(
+          reply,
+          ctx,
+          workflowId,
+          clearBody.fieldId,
+          clearBody.rationale,
+          clearBody.expectedRevision,
+        );
       }
       const body = WriteCodingValueBody.parse(req.body);
       const res = await writeCodingValue({
@@ -847,6 +893,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         value: body.value,
         authorUserId: ctx.userId,
         rationale: body.rationale,
+        expectedRevision: body.expectedRevision,
       });
       await auditCodingWrite({
         action: "reviewer.code.write",
@@ -857,8 +904,11 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         denial: res.ok ? null : res.denial,
         metadata: { fieldId: body.fieldId },
       });
-      if (!res.ok) return denyWith(reply, 409, res.denial);
-      return reply.code(200).send({ codingValueId: res.codingValueId });
+      if (!res.ok) {
+        if (res.denial === "CODING_VALUE_CONFLICT") return sendCodingConflict(reply, res.current);
+        return denyWith(reply, 409, res.denial);
+      }
+      return reply.code(200).send({ codingValueId: res.codingValueId, revision: res.revision });
     },
   );
 
@@ -947,8 +997,18 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         verdict: body.verdict,
         rationale: body.rationale,
       });
-      if (!res.ok) return denyWith(reply, 409, res.denial, "code" in res ? (res as { code?: string | null }).code : null);
-      // F-11 — say what an overturned / partial resolution did to the review.
+      if (!res.ok) {
+        const denial = res.denial;
+        if (denial === "DISAGREEMENT_SUPERSEDE_FAILED") {
+          // Finding B — the superseding write failed and the whole resolution
+          // rolled back with it: nothing was recorded.
+          return reply.code(409).send({ denial, code: "DISAGREEMENT_SUPERSEDE_FAILED" });
+        }
+        return denyWith(reply, 409, denial, "code" in res ? (res as { code?: string | null }).code : null);
+      }
+      // F-11 — say what an overturned / partial resolution did to the review
+      // ("already_superseded": the challenged decision was no longer current,
+      // so the resolution changed no review).
       return reply.code(200).send({ ok: true, superseded: res.superseded ?? null });
     },
   );

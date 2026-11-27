@@ -155,9 +155,16 @@ function makeDb(seed: {
     activities: [] as Array<Record<string, unknown>>,
     workflowUpdates: [] as Array<Record<string, unknown>>,
     txCalls: 0,
+    lockQueries: [] as string[],
   };
 
   const tx = {
+    // Review remediation C (2026-11-27) — the decision transaction takes the
+    // workflow row lock first (`SELECT … FOR UPDATE`); recorded, no rows needed.
+    $queryRaw: async (strings: TemplateStringsArray) => {
+      state.lockQueries.push(strings.join("?"));
+      return [];
+    },
     evidenceReviewWorkflow: {
       findFirst: async (args: {
         where: { id: string; teamId?: string };
@@ -356,6 +363,9 @@ describe("canonical recordReviewDecision — decision success", () => {
 
     expect(result.idempotent).toBe(false);
     expect(result.state).toBe("resolved");
+    // Review remediation C — the workflow row lock is the first statement.
+    expect(state.lockQueries).toHaveLength(1);
+    expect(state.lockQueries[0]).toMatch(/FROM "evidence_review_workflows".*FOR UPDATE/s);
     // Immutable row appended.
     expect(state.decisions).toHaveLength(1);
     expect(state.decisions[0]).toMatchObject({

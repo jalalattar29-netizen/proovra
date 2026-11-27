@@ -242,9 +242,13 @@ export function defaultRequiresIndependentReview(reason: string, explicitRequest
  *     an explicit request, or an integrity reason;
  *   - `=== false`: administrative — never forces, EXCEPT an integrity reason,
  *     which always forces (integrity controls are not weakened);
- *   - `null`/absent (recorded before 2026-11-27): the legacy rule — every
- *     escalation a person raised forces; the automatic sweep's do not. An
- *     owner may reclassify these through the audited reconciliation.
+ *   - `null`/absent (recorded before 2026-11-27): EXACTLY the pre-change rule
+ *     (base `escalationForcesIndependentReview`): every escalation forces
+ *     except one the automatic sweep raised (no creator AND a sweep reason).
+ *     That includes creator-less escalations with any non-sweep reason
+ *     (source review E.1: they must not stop forcing on deployment). An owner
+ *     may reclassify specific rows through the plan-bound, audited
+ *     reconciliation (`ops:review-remediation-reconcile`).
  */
 export function escalationIndependenceCause(escalation: {
   reason: string;
@@ -256,7 +260,7 @@ export function escalationIndependenceCause(escalation: {
   if (escalation.requiresIndependentReview === true) return "independent_review_requested";
   if (escalation.requiresIndependentReview === false) return null;
   if (escalation.createdByUserId == null && AUTOMATIC_SWEEP_REASON_SET.has(reason)) return null;
-  return escalation.createdByUserId == null ? null : "legacy_escalation";
+  return "legacy_escalation";
 }
 
 /** Whether an escalation requires an independent second decision (see escalationIndependenceCause). */
@@ -282,12 +286,34 @@ export function escalationNoteForStorage(note: string | null | undefined): strin
   return note.trim().toLowerCase() === REVIEWER_DISAGREEMENT_ESCALATION_REASON ? `Note: ${note.trim()}` : note;
 }
 
+/**
+ * Source review E.2 (2026-11-27) — a stored ESCALATED status that is NOT a
+ * reviewer disagreement. Before the change ANY stored ESCALATED status forced
+ * an independent second decision; after it, a NEW administrative Escalate
+ * does not. So that existing records are not weakened on deployment, the
+ * status keeps forcing unless the escalation that MOVED the review into
+ * ESCALATED (the `escalationId` on its newest ESCALATED workflow event) was
+ * recorded after the change, i.e. stores an explicit
+ * `requires_independent_review`. Unknown (no event, no id, a missing row) or
+ * a pre-change escalation (NULL) keeps the old meaning. Later escalations (an
+ * overdue sweep, say) never change the answer: only the one that set the
+ * status does. An owner may reclassify specific reviews through the
+ * plan-bound reconciliation.
+ */
+export function legacyEscalatedStatusForces(
+  settingEscalation: { requiresIndependentReview?: boolean | null } | null | undefined,
+): boolean {
+  if (!settingEscalation) return true;
+  return settingEscalation.requiresIndependentReview == null;
+}
+
 /** Why the current round needs an independent second review. */
 export type SecondReviewCause =
   | "workflow_escalated"
   | "independent_review_requested"
   | "integrity_escalation"
   | "legacy_escalation"
+  | "legacy_escalated_status"
   | "workspace_policy"
   | "open_escalation"
   | "active_legal_hold"
@@ -308,6 +334,7 @@ export const STICKY_SECOND_REVIEW_CAUSES: ReadonlyArray<SecondReviewCause> = [
   "independent_review_requested",
   "integrity_escalation",
   "legacy_escalation",
+  "legacy_escalated_status",
   "workspace_policy",
   "open_escalation",
   "unresolved_adjudication",

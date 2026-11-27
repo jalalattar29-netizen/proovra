@@ -74,6 +74,22 @@ export function isTypingTarget(target: EventTarget | null): boolean {
   return typeof t.getAttribute === "function" && t.getAttribute("role") === "textbox";
 }
 
+/**
+ * `true` when Enter / Space on this target already means "activate this
+ * control" (a link, a button, a tab, an option…). A page shortcut on those
+ * keys must never take that over: a keyboard user pressing Enter on a focused
+ * Review tool card follows the card, not "open the selected review".
+ */
+export function isActivationTarget(target: EventTarget | null): boolean {
+  const t = target as HTMLElement | null;
+  if (!t || typeof t !== "object" || typeof t.closest !== "function") return false;
+  return Boolean(
+    t.closest(
+      'a[href], button, summary, [role="button"], [role="link"], [role="tab"], [role="option"], [role="menuitem"], [role="radio"], [role="checkbox"], [role="switch"]',
+    ),
+  );
+}
+
 /** The binding a key event selects, if any. */
 export function bindingForEvent<A extends string>(
   keymap: ReadonlyArray<KeyBinding<A>>,
@@ -109,6 +125,7 @@ export function useKeymap<A extends string>(
     if (!enabled) return;
     const onKey = (e: KeyboardEvent) => {
       if (isTypingTarget(e.target)) return;
+      if ((e.key === "Enter" || e.key === " ") && isActivationTarget(e.target)) return;
       const binding = bindingForEvent(keymap, e);
       if (!binding) return;
       const handler = handlersRef.current[binding.action];

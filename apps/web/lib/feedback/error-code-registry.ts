@@ -243,6 +243,10 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   // Members re-audit B3 — the Evidence Request reviewer passes the one assignee authority.
   REVIEW_ASSIGNEE_NOT_PLACED: { disposition: "customer", where: "global" },
   REVIEW_ASSIGNEE_NOT_ELIGIBLE: { disposition: "customer", where: "global" },
+  // Review remediation 2026-11-27 finding B — an OVERTURNED / PARTIAL challenge
+  // resolution whose superseding (Reopen / round advance) failed; the whole
+  // resolution rolled back. The Challenged decisions page says so.
+  DISAGREEMENT_SUPERSEDE_FAILED: { disposition: "customer", where: "apps/web/app/(app)/review/disagreements/page.tsx" },
   CASE_RENAME_DENIED: { disposition: "customer", where: "global" },
   CASE_ACCESS_TARGET_NOT_MEMBER: { disposition: "customer", where: "global" },
   NOT_A_MEMBER: {
@@ -443,6 +447,13 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   DISCLOSURE_POLICY_INVALID: { disposition: "customer", where: MANAGE_VERIFICATION_PAGE },
   DISCLOSURE_RECORD_NOT_CHANGEABLE: { disposition: "customer", where: MANAGE_VERIFICATION_PAGE },
   DISCLOSURE_VERSION_CONFLICT: { disposition: "customer", where: MANAGE_VERIFICATION_PAGE },
+  // Review remediation A (2026-11-27) — a coding change based on a superseded
+  // field revision; the panel says "Changed in another tab or by another
+  // reviewer" and keeps the draft.
+  CODING_VALUE_CONFLICT: {
+    disposition: "customer",
+    where: "apps/web/components/reviewer-experience/ReviewCodingSection.tsx",
+  },
   PACKAGE_BLOCKED_BY_POLICY: { disposition: "customer", where: "global" },
   REPORT_BLOCKED_BY_TEMPLATE_POLICY: { disposition: "customer", where: "global" },
   PACKAGE_BLOCKED_BY_TEMPLATE_POLICY: { disposition: "customer", where: "global" },

@@ -302,10 +302,11 @@ function decisionTone(kind: string): AppTone {
   return "slate";
 }
 
-function DecisionRowItem({ d, index }: { d: DecisionRow; index: number }) {
+function DecisionRowItem({ d, index, setAside = false }: { d: DecisionRow; index: number; setAside?: boolean }) {
   return (
     <li
       data-decision-row
+      data-decision-set-aside={setAside ? "true" : "false"}
       data-decision-stage={d.stage}
       data-decision-kind={d.decision}
       data-decision-reason-code={d.reasonCode ?? ""}
@@ -321,6 +322,13 @@ function DecisionRowItem({ d, index }: { d: DecisionRow; index: number }) {
           <AppStatusText tone={decisionTone(d.decision)} data-decision-kind-chip={d.decision}>
             {DECISION_KIND_LABELS[d.decision] ?? "Decision"}
           </AppStatusText>
+          {/* Journeys J5 — a FIRST decision a later request for information
+              superseded never reads as the outcome. */}
+          {setAside ? (
+            <AppStatusText tone="slate" data-decision-set-aside-chip>
+              Set aside — information was requested
+            </AppStatusText>
+          ) : null}
           {d.reasonCode ? (
             <AppStatusText tone="slate" data-decision-reason-chip={d.reasonCode}>
               {REASON_CODE_LABELS[d.reasonCode] ?? "Other reason"}
@@ -470,17 +478,42 @@ export function ReviewerDecisionLineagePanel({
     );
   }
 
+  // F-21 / journeys D-1 — a refused draft stays readable even when the panel
+  // can no longer load (e.g. the reviewer's membership ended meanwhile).
+  const keptDraft = kept ? (
+    <div role="alert" data-decision-kept-draft style={{ display: "grid", gap: 4, minWidth: 0 }}>
+      <p className="app-field-error" data-decision-form-error style={{ margin: 0, overflowWrap: "anywhere" }}>
+        {kept.failure.message}
+      </p>
+      <label className="app-field-label" htmlFor="review-decision-kept-text">
+        Your text (not recorded)
+      </label>
+      <textarea
+        id="review-decision-kept-text"
+        className="app-input app-textarea"
+        readOnly
+        rows={3}
+        value={kept.body.rationale}
+        data-decision-kept-rationale
+        style={{ boxSizing: "border-box" }}
+      />
+    </div>
+  ) : null;
+
   if (state.kind === "error") {
     return shell(
       "Record decision",
-      <p role="alert" className="app-field-error" style={{ margin: 0 }}>
-        {/* raw-identifier-ok: state.status here is the HTTP status number of a failed read */}
-        {state.status === 404
-          ? "Workflow not found in this workspace."
-          : state.status === 403
-            ? "You don't have permission to view review decisions."
-            : "Could not load decisions."}
-      </p>,
+      <div style={{ display: "grid", gap: 8, minWidth: 0 }}>
+        <p role="alert" className="app-field-error" style={{ margin: 0 }}>
+          {/* raw-identifier-ok: state.status here is the HTTP status number of a failed read */}
+          {state.status === 404
+            ? "Workflow not found in this workspace."
+            : state.status === 403
+              ? "You don't have permission to view review decisions."
+              : "Could not load decisions."}
+        </p>
+        {keptDraft}
+      </div>,
       { "data-decision-state": "error" },
     );
   }
@@ -560,6 +593,7 @@ export function ReviewerDecisionLineagePanel({
   const totalDecisions = rounds.reduce((n, r) => n + r.decisions.length, 0);
   const external = data.externalFeedback ?? [];
   const infoRequests = data.informationRequests ?? [];
+  const setAsideIds = new Set(infoRequests.map((r) => r.supersededDecisionId).filter((v): v is string => !!v));
 
   return (
     <section
@@ -701,25 +735,7 @@ export function ReviewerDecisionLineagePanel({
                     : verdictClosedReason ?? "No decision is open to you on this review right now."}
             </p>
             {/* F-21 — the refused text survives a refresh that closed the form. */}
-            {kept ? (
-              <div role="alert" data-decision-kept-draft style={{ display: "grid", gap: 4, minWidth: 0 }}>
-                <p className="app-field-error" data-decision-form-error style={{ margin: 0, overflowWrap: "anywhere" }}>
-                  {kept.failure.message}
-                </p>
-                <label className="app-field-label" htmlFor="review-decision-kept-text">
-                  Your text (not recorded)
-                </label>
-                <textarea
-                  id="review-decision-kept-text"
-                  className="app-input app-textarea"
-                  readOnly
-                  rows={3}
-                  value={kept.body.rationale}
-                  data-decision-kept-rationale
-                  style={{ boxSizing: "border-box" }}
-                />
-              </div>
-            ) : null}
+            {keptDraft}
           </>
         )}
 
@@ -744,7 +760,7 @@ export function ReviewerDecisionLineagePanel({
                   style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 6 }}
                 >
                   {round.decisions.map((d, idx) => (
-                    <DecisionRowItem key={d.id} d={d} index={idx} />
+                    <DecisionRowItem key={d.id} d={d} index={idx} setAside={setAsideIds.has(d.id)} />
                   ))}
                 </ol>
               </div>

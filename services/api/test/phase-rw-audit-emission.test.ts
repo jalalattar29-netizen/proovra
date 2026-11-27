@@ -549,6 +549,13 @@ describe("Phase 4 — service-source wiring contract", () => {
           else if (c === ")") depth -= 1;
           i += 1;
         }
+        // Finding B (review remediation 2026-11-27) — the one deliberate
+        // exception: an emission written INSIDE the mutation's own transaction
+        // (its client argument is the transaction `tx`) is not best-effort; it
+        // commits or rolls back with the mutation it records, like
+        // recordReviewActivityTx.
+        const args = src.slice(m.index + "emitTenantAudit(".length, i - 1);
+        if (/,\s*tx\s*,?\s*$/.test(args)) continue;
         const tail = src.slice(i, i + 60);
         expect(tail).toMatch(/^\s*\.catch\(\(\)\s*=>\s*\{\s*\}\)/);
       }

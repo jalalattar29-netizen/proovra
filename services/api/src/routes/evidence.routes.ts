@@ -10335,7 +10335,13 @@ return {
         items: items.map((item) => ({
           id: item.id,
           eventType: item.eventType,
-          note: item.note ?? null,
+          // Source review D — an information request keeps its full reason
+          // in the event value; the note column holds a bounded summary.
+          note:
+            String(item.eventType) === "NEEDS_MORE_INFO" &&
+            typeof (item.nextValue as { reason?: unknown } | null)?.reason === "string"
+              ? ((item.nextValue as { reason: string }).reason)
+              : item.note ?? null,
           previousValue: toJsonSafe(item.previousValue ?? null),
           nextValue: toJsonSafe(item.nextValue ?? null),
           createdAt: item.createdAt.toISOString(),

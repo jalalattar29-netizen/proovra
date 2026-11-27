@@ -455,6 +455,26 @@ describe("T-094 / T-095 — keys and fan-out", () => {
     expect(nav.push).toHaveBeenLastCalledWith(`/reviewer-ops/${WF2}?from=inbox&view=OVERDUE`);
   });
 
+  it("Enter on a focused link or button activates that control, never the 'open the selected review' shortcut", async () => {
+    nav.search = "view=OVERDUE";
+    await mount();
+    fireEvent.keyDown(window, { key: "j" });
+    nav.push.mockClear();
+    const link = Array.from(document.querySelectorAll("a[href]")).find((a) => !(a.getAttribute("href") ?? "").includes("/reviewer-ops/"))!;
+    expect(link).toBeTruthy();
+    (link as HTMLElement).focus();
+    fireEvent.keyDown(link, { key: "Enter" });
+    expect(nav.push).not.toHaveBeenCalled();
+    const button = document.querySelector("button")!;
+    button.focus();
+    fireEvent.keyDown(button, { key: "Enter" });
+    expect(nav.push).not.toHaveBeenCalled();
+    // Elsewhere the shortcut still works.
+    (document.activeElement as HTMLElement | null)?.blur();
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(nav.push).toHaveBeenCalledTimes(1);
+  });
+
   it("the first paint reads the view, its signals, saved views and the QC count — no console aggregator", async () => {
     await mount();
     const v1 = calls.filter((c) => c.path.startsWith("/v1/") && !c.path.startsWith("/v1/me/") && !c.path.startsWith("/v1/platform"));

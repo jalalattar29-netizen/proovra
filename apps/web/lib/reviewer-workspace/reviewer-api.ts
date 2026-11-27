@@ -78,6 +78,11 @@ export type CodingValueRow = {
   rationale: string | null;
   authorUserId: string;
   updatedAt: string;
+  /**
+   * Review remediation A — the field's revision (history count) from the same
+   * read; absent on an older API.
+   */
+  revision?: number;
 };
 
 export type CodingCoverage = {
@@ -117,9 +122,53 @@ export async function fetchCodingState(
   };
 }
 
+/**
+ * Review remediation A (2026-11-27) — the typed refusal of a coding change
+ * based on a superseded field revision (another tab or another reviewer
+ * changed it first). Nothing was written; `current` is what is stored now.
+ */
+export const CODING_VALUE_CONFLICT = "CODING_VALUE_CONFLICT" as const;
+export type CodingConflictCurrent = { revision: number; value: Record<string, unknown> | null };
+
 export type CodingWriteResult =
-  | { ok: true; codingValueId: string }
-  | { ok: false; denial: ReviewerDenialReason };
+  | { ok: true; codingValueId: string; revision?: number }
+  | { ok: false; denial: ReviewerDenialReason }
+  | { ok: false; denial: typeof CODING_VALUE_CONFLICT; current: CodingConflictCurrent | null };
+
+export type CodingClearResult =
+  | { ok: true; cleared: boolean; revision?: number }
+  | { ok: false; denial: ReviewerDenialReason }
+  | { ok: false; denial: typeof CODING_VALUE_CONFLICT; current: CodingConflictCurrent | null };
+
+/** The conflict's `current` from a flat 409 (apiFetch promotes the body to details). */
+function conflictCurrent(err: unknown): CodingConflictCurrent | null {
+  const e = (err ?? {}) as { details?: unknown; body?: { error?: Record<string, unknown> } };
+  const candidates = [
+    (e.details as { current?: unknown } | undefined)?.current,
+    e.body?.error?.["current"],
+  ];
+  for (const c of candidates) {
+    if (c && typeof c === "object" && typeof (c as { revision?: unknown }).revision === "number") {
+      const v = (c as { value?: unknown }).value;
+      return {
+        revision: (c as { revision: number }).revision,
+        value: v && typeof v === "object" ? (v as Record<string, unknown>) : null,
+      };
+    }
+  }
+  return null;
+}
+
+function codingRefusal(err: unknown):
+  | { ok: false; denial: ReviewerDenialReason }
+  | { ok: false; denial: typeof CODING_VALUE_CONFLICT; current: CodingConflictCurrent | null } {
+  // PRO-R2Z-06 — the fields apiFetch actually sets.
+  const denial = reviewerDenialFromError(err);
+  if (denial === CODING_VALUE_CONFLICT) {
+    return { ok: false, denial: CODING_VALUE_CONFLICT, current: conflictCurrent(err) };
+  }
+  return { ok: false, denial: denial as ReviewerDenialReason };
+}
 
 export async function writeCodingValue(input: {
   workflowId: string;
@@ -127,6 +176,8 @@ export async function writeCodingValue(input: {
   value: Record<string, unknown>;
   rationale?: string;
   teamId?: string | null;
+  /** Review remediation A — the field revision this change is based on. */
+  expectedRevision?: number;
 }): Promise<CodingWriteResult> {
   try {
     const res = await apiFetch(
@@ -137,14 +188,46 @@ export async function writeCodingValue(input: {
           fieldId: input.fieldId,
           value: input.value,
           rationale: input.rationale,
+          ...(typeof input.expectedRevision === "number" ? { expectedRevision: input.expectedRevision } : {}),
         }),
       },
     );
-    return { ok: true, codingValueId: res.codingValueId };
+    return {
+      ok: true,
+      codingValueId: res.codingValueId,
+      ...(typeof res?.revision === "number" ? { revision: res.revision as number } : {}),
+    };
   } catch (err) {
-    // PRO-R2Z-06 — the fields apiFetch actually sets.
-    const denial = reviewerDenialFromError(err) as ReviewerDenialReason;
-    return { ok: false, denial };
+    return codingRefusal(err);
+  }
+}
+
+/** Review remediation F-13 / A — an explicit clear through POST /code { clear: true }. */
+export async function clearCodingValue(input: {
+  workflowId: string;
+  fieldId: string;
+  teamId?: string | null;
+  expectedRevision?: number;
+}): Promise<CodingClearResult> {
+  try {
+    const res = await apiFetch(
+      withTeamId(`/v1/reviewer/work/${encodeURIComponent(input.workflowId)}/code`, input.teamId),
+      {
+        method: "POST",
+        body: JSON.stringify({
+          fieldId: input.fieldId,
+          clear: true,
+          ...(typeof input.expectedRevision === "number" ? { expectedRevision: input.expectedRevision } : {}),
+        }),
+      },
+    );
+    return {
+      ok: true,
+      cleared: Boolean(res?.cleared),
+      ...(typeof res?.revision === "number" ? { revision: res.revision as number } : {}),
+    };
+  } catch (err) {
+    return codingRefusal(err);
   }
 }
 
@@ -239,7 +322,11 @@ export async function transitionDisagreement(input: {
   verdict?: ReviewerVerdict;
   rationale?: string;
   teamId?: string | null;
-}): Promise<{ ok: true; superseded: DisagreementSuperseded } | { ok: false; denial: ReviewerDenialReason }> {
+}): Promise<
+  | { ok: true; superseded: DisagreementSuperseded }
+  // DISAGREEMENT_SUPERSEDE_FAILED — the API rolled the whole resolution back (finding B).
+  | { ok: false; denial: ReviewerDenialReason | "DISAGREEMENT_SUPERSEDE_FAILED" }
+> {
   try {
     const res = await apiFetch(
       withTeamId(

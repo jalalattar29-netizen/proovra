@@ -1126,7 +1126,12 @@ describe("workflow state and decision are separate — Close never decides, race
 });
 
 describe("a lifecycle move that commits between a verdict's read and its write is never overwritten (deterministic interleaving)", () => {
-  it("Close commits after the verdict read the review: the verdict is refused and rolled back; the review stays Closed with no decision", async () => {
+  it("Close commits while the verdict waits for the review: the verdict is refused and rolled back; the review stays Closed with no decision", async () => {
+    // Source review C (2026-11-27): the decision authority now takes the
+    // review's row lock (SELECT … FOR UPDATE) before it reads the review, so a
+    // Close can no longer commit BETWEEN the verdict's read and its write. The
+    // same invariant is proven against the lock: a Close that holds the lock
+    // and commits first is never overwritten by a verdict that was waiting.
     await setPlan(A, "TEAM");
     const ev = await freshEvidence(A, "decision-interleave");
     await patchWorkflow(A.adminToken, ev, { status: "NOT_STARTED" });
@@ -1135,45 +1140,40 @@ describe("a lifecycle move that commits between a verdict's read and its write i
     expect((await patchWorkflow(A.memberToken, ev, { status: "IN_REVIEW", expectedUpdatedAt: wf0.updatedAt.toISOString() })).status).toBe(200);
     const wf = await workflowOf(ev);
     const { recordReviewDecision } = await import("../src/services/reviewer-ops/review-decision.service.js");
-    let interleaved = false;
-    // The verdict's own transaction, with one seam: right after it reads the
-    // review, a Close commits from ANOTHER connection.
-    const client = new Proxy(prisma, {
-      get(target, prop, receiver) {
-        if (prop !== "$transaction") return Reflect.get(target, prop, receiver);
-        return (fn: (tx: unknown) => Promise<unknown>, opts?: unknown) =>
-          (target as typeof prisma).$transaction(async (tx) => {
-            const wrapped = new Proxy(tx, {
-              get(t, p2, r2) {
-                const model = Reflect.get(t, p2, r2);
-                if (p2 !== "evidenceReviewWorkflow") return model;
-                return new Proxy(model as object, {
-                  get(m, method, r3) {
-                    const f = Reflect.get(m, method, r3) as (...a: unknown[]) => Promise<unknown>;
-                    if (method !== "findFirst") return f;
-                    return async (...args: unknown[]) => {
-                      const read = await f.apply(m, args);
-                      if (!interleaved) {
-                        interleaved = true;
-                        await prisma.evidenceReviewWorkflow.update({ where: { id: wf.id }, data: { status: "CLOSED", closedAt: new Date() } });
-                      }
-                      return read;
-                    };
-                  },
-                });
-              },
-            });
-            return fn(wrapped);
-          }, opts as never);
+    let releaseClose!: () => void;
+    const closeMayCommit = new Promise<void>((r) => (releaseClose = r));
+    // The Close: takes the lock, moves the review to CLOSED, commits only when released.
+    const close = prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT id FROM evidence_review_workflows WHERE id = ${wf.id}::uuid FOR UPDATE`;
+        await tx.evidenceReviewWorkflow.update({ where: { id: wf.id }, data: { status: "CLOSED", closedAt: new Date() } });
+        await closeMayCommit;
       },
-    });
-    await expect(
-      recordReviewDecision(
-        { workflowId: wf.id, teamId: A.teamId, actorUserId: A.memberUserId, decision: "APPROVE", rationale: "Consistent", actorIsAdjudicator: false } as never,
-        client as never,
-      ),
-    ).rejects.toMatchObject({ code: "stale_decision" });
-    expect(interleaved).toBe(true);
+      { timeout: 60_000 },
+    );
+    // The verdict starts and is observed WAITING on the review's lock.
+    const verdict = recordReviewDecision(
+      { workflowId: wf.id, teamId: A.teamId, actorUserId: A.memberUserId, decision: "APPROVE", rationale: "Consistent", actorIsAdjudicator: false } as never,
+      prisma as never,
+    ).then(
+      () => ({ ok: true as const }),
+      (err: unknown) => ({ ok: false as const, err }),
+    );
+    let waiting = false;
+    for (let i = 0; i < 5000 && !waiting; i++) {
+      const rows = await prisma.$queryRaw<Array<{ c: bigint }>>`
+        SELECT count(*)::bigint AS c FROM pg_stat_activity
+         WHERE datname = current_database() AND wait_event_type = 'Lock'
+           AND query ILIKE '%evidence_review_workflows%FOR UPDATE%'`;
+      waiting = Number(rows[0]!.c) >= 1;
+      if (!waiting) await new Promise((r) => setImmediate(r));
+    }
+    expect(waiting, "the verdict waits for the review's lock").toBe(true);
+    releaseClose();
+    await close;
+    const res = await verdict;
+    expect(res.ok).toBe(false);
+    expect((res as { err: { code?: string } }).err).toMatchObject({ code: expect.stringMatching(/^(stale_decision|decision_not_from_stage|review_already_resolved)$/) });
     const after = await workflowOf(ev);
     expect(after.status).toBe("CLOSED");
     expect(await prisma.workflowReviewDecision.count({ where: { workflowId: wf.id } })).toBe(0);

@@ -715,11 +715,34 @@ export async function recordLifecycleTransition(
   input: RecordLifecycleTransitionInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<DbWorkflow> {
-  const workflow = await client.evidenceReviewWorkflow.findUnique({
+  // The review as the caller saw it: the move is decided against THIS state
+  // (strict CAS), so a racing move that commits first refuses this one rather
+  // than this one silently applying to the newer state (Escalate racing Close).
+  const observed = await client.evidenceReviewWorkflow.findUnique({
     where: { evidenceId: input.evidenceId },
   });
-  if (!workflow) throw new ReviewOperationError("workflow_not_found");
+  if (!observed) throw new ReviewOperationError("workflow_not_found");
+  // Refusals that need no lock are given before any transaction opens (and
+  // re-checked inside it): a refused click writes nothing.
+  assertLifecycleMoveRequest(observed, input);
+  let afterCommit: (() => Promise<void>) | undefined;
+  const updated = await client.$transaction(async (txc) => {
+    const done = await recordLifecycleTransitionTx(txc, input, client, { observed });
+    afterCommit = done.afterCommit;
+    return done.workflow;
+  });
+  // Escalation notifications / security events (Escalate) and the resolution
+  // of escalations a closed or reopened review leaves behind (Close / Reopen)
+  // — after commit, best-effort, exactly as before the Tx entry point existed.
+  await afterCommit?.().catch(() => null);
+  return updated;
+}
 
+/** The note and same-stage refusals of a lifecycle move (no I/O). */
+function assertLifecycleMoveRequest(
+  workflow: Pick<DbWorkflow, "status">,
+  input: Pick<RecordLifecycleTransitionInput, "decision" | "note" | "escalationReason">,
+): { fromStage: ReviewStage; toStage: ReviewStage } {
   if (decisionRequiresNote(input.decision)) {
     const noteText = (input.note ?? input.escalationReason ?? "").trim();
     if (!noteText) {
@@ -728,7 +751,6 @@ export async function recordLifecycleTransition(
       });
     }
   }
-
   const fromStage = mapDbStatusToReviewStage(workflow.status as string);
   const toStage = decisionTargetStage(input.decision);
   // NOT A HEARTBEAT (2026-10-23). The shared matrix allows a stage to
@@ -740,6 +762,69 @@ export async function recordLifecycleTransition(
   if (fromStage === toStage) {
     throw new ReviewOperationError("already_in_stage", { stage: fromStage });
   }
+  return { fromStage, toStage };
+}
+
+/** What a lifecycle transition recorded inside the caller's transaction leaves to do. */
+export type LifecycleTransitionTxResult = {
+  workflow: DbWorkflow;
+  /**
+   * Side effects that must never run inside the transaction (notifications,
+   * security events, escalation resolution). The CALLER runs it only after
+   * its transaction committed; never when it rolled back.
+   */
+  afterCommit: () => Promise<void>;
+};
+
+/**
+ * THE CANONICAL LIFECYCLE TRANSITION, INSIDE THE CALLER'S TRANSACTION
+ * (review remediation 2026-11-27, finding B).
+ *
+ * `recordLifecycleTransition` is this function in a transaction of its own. A
+ * caller that must commit the lifecycle move together with its own write — a
+ * challenge resolved OVERTURNED reopens the review it superseded — calls this
+ * with its transaction, so the move, its event, its audit entry and the
+ * caller's write commit together or not at all. Same rules, same events, same
+ * audit: one implementation.
+ *
+ * Close and Reopen take the workflow row lock first (a caller that already
+ * holds it re-takes it as a no-op). `eventContext` adds the caller's reference
+ * (e.g. the challenge) to the lifecycle event's nextValue.
+ */
+export async function recordLifecycleTransitionTx(
+  txc: Prisma.TransactionClient,
+  input: RecordLifecycleTransitionInput & { eventContext?: Record<string, unknown> },
+  /** The non-transactional client the after-commit work runs on. */
+  client: PrismaClient = defaultPrisma,
+  options: {
+    /**
+     * The review as the caller read it before its transaction. When given,
+     * the move is decided against it (the strict CAS refuses it if the review
+     * moved meanwhile). When absent, the review is read inside the
+     * transaction — under the row lock for Close / Reopen.
+     */
+    observed?: DbWorkflow;
+  } = {},
+): Promise<LifecycleTransitionTxResult> {
+  const tx = txc as unknown as PrismaClient;
+  let workflow =
+    options.observed ??
+    (await txc.evidenceReviewWorkflow.findUnique({
+      where: { evidenceId: input.evidenceId },
+    }));
+  if (!workflow) throw new ReviewOperationError("workflow_not_found");
+  let locked: { status: string; decisionRound: number } = { status: String(workflow.status), decisionRound: workflow.decisionRound };
+  if (input.decision === "CLOSE" || input.decision === "REOPEN") {
+    // TEAM-SPEC §2.2 / finding B — decided under the row lock: a decision or
+    // a challenge resolution that committed before is read here, one in flight
+    // waits (or is refused by its own conditional write).
+    await txc.$queryRaw`SELECT "id" FROM "evidence_review_workflows" WHERE "id" = ${workflow.id}::uuid FOR UPDATE`;
+    const fresh = await txc.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: workflow.id } });
+    locked = { status: String(fresh.status), decisionRound: fresh.decisionRound };
+    if (!options.observed) workflow = fresh;
+  }
+
+  const { fromStage, toStage } = assertLifecycleMoveRequest(workflow, input);
   const now = new Date();
 
   const patch: TransitionPatch = {};
@@ -788,131 +873,117 @@ export async function recordLifecycleTransition(
   // is not Escalated.
   if (input.decision === "ESCALATE" && workflow.teamId) {
     const teamId = workflow.teamId;
-    let afterCommit: (() => Promise<void>) | undefined;
-    const updated = await client.$transaction(async (txc) => {
-      const tx = txc as unknown as PrismaClient;
-      const moved = await applyTransition(workflow, toStage, patch, tx, { strict: true });
-      const opened = await createEscalation(
-        {
-          teamId,
-          workflowId: workflow.id,
-          reason: "REVIEWER_ESCALATED",
-          safeSummary: (input.escalationReason ?? input.note ?? "").trim(),
-          severity: "WARNING",
-          evidenceId: workflow.evidenceId,
-          createdByUserId: input.actorUserId,
-          routeToWorkspaceAdmins: true,
-          bypassDedup: true,
-          // The transition above already counted the level and kept the note.
-          workflowCountersAlreadySet: true,
-          deferAuditToCaller: true,
-        },
-        tx,
-      );
-      if (!opened.ok) throw new ReviewOperationError("workflow_not_found");
-      afterCommit = opened.afterCommit;
-      // Written directly, not through recordEvent: a swallowed failure would
-      // abort this transaction without the caller hearing of it.
-      await tx.evidenceReviewWorkflowEvent.create({
-        data: {
-          workflowId: workflow.id,
-          evidenceId: workflow.evidenceId,
-          actorUserId: input.actorUserId,
-          eventType,
-          previousValue: { stage: fromStage } as Prisma.InputJsonValue,
-          nextValue: { stage: toStage, decision: input.decision, escalationId: opened.escalation.id } as Prisma.InputJsonValue,
-          note: input.note?.slice(0, 1000) ?? null,
-        },
-      });
-      await recordReviewActivityTx(txc, {
-        evidenceId: workflow.evidenceId,
-        workflowId: workflow.id,
-        teamId,
-        actorUserId: input.actorUserId,
-        code: "REVIEW_ESCALATION_CREATED",
-        previousState: String(workflow.status),
-        resultingState: String(moved.status),
-      });
-      return moved;
-    });
-    // The escalation's security event and audit entry, then the operational
-    // notification — after commit, best-effort.
-    // The escalation engine notifies whoever holds it (T-170), once.
-    await afterCommit?.().catch(() => null);
-    return updated;
-  }
-
-  // Reopen / Close: the move, its event and its audit entry are one
-  // transaction (ET-CUS-12, 2026-10-23).
-  const updated = await client.$transaction(async (txc) => {
-    const tx = txc as unknown as PrismaClient;
-    // TEAM-SPEC §2.2 — Close never skips a pending second review or an
-    // unresolved disagreement (every Close door funnels through here: the
-    // single-item route, both bulk paths). Decided ATOMICALLY: the workflow row
-    // is locked first, so a decision that committed before is read here, and
-    // a decision still in flight cannot land after — its own write is
-    // conditional on the status this Close is about to change, and is refused.
-    if (input.decision === "CLOSE" && workflow.teamId) {
-      await txc.$queryRaw`SELECT "id" FROM "evidence_review_workflows" WHERE "id" = ${workflow.id}::uuid FOR UPDATE`;
-      const locked = await txc.evidenceReviewWorkflow.findUniqueOrThrow({
-        where: { id: workflow.id },
-        select: { status: true, decisionRound: true },
-      });
-      const round = await loadCurrentRoundDecisionState(
-        {
-          id: workflow.id,
-          teamId: workflow.teamId,
-          evidenceId: workflow.evidenceId,
-          status: String(locked.status),
-          decisionRound: locked.decisionRound,
-        },
-        txc,
-      );
-      if (round.state === "second_required" || round.state === "conflict_detected") {
-        throw new ReviewDecisionAuthorityError("second_review_pending", {
-          reason: "second_review_pending",
-          reviewState: round.state,
-        });
-      }
-    }
     const moved = await applyTransition(workflow, toStage, patch, tx, { strict: true });
-    await txc.evidenceReviewWorkflowEvent.create({
+    const opened = await createEscalation(
+      {
+        teamId,
+        workflowId: workflow.id,
+        reason: "REVIEWER_ESCALATED",
+        safeSummary: (input.escalationReason ?? input.note ?? "").trim(),
+        severity: "WARNING",
+        evidenceId: workflow.evidenceId,
+        createdByUserId: input.actorUserId,
+        routeToWorkspaceAdmins: true,
+        bypassDedup: true,
+        // The transition above already counted the level and kept the note.
+        workflowCountersAlreadySet: true,
+        deferAuditToCaller: true,
+      },
+      tx,
+    );
+    if (!opened.ok) throw new ReviewOperationError("workflow_not_found");
+    // Written directly, not through recordEvent: a swallowed failure would
+    // abort this transaction without the caller hearing of it.
+    await tx.evidenceReviewWorkflowEvent.create({
       data: {
         workflowId: workflow.id,
         evidenceId: workflow.evidenceId,
         actorUserId: input.actorUserId,
         eventType,
         previousValue: { stage: fromStage } as Prisma.InputJsonValue,
-        nextValue: { stage: toStage, decision: input.decision } as Prisma.InputJsonValue,
+        nextValue: { stage: toStage, decision: input.decision, escalationId: opened.escalation.id, ...(input.eventContext ?? {}) } as Prisma.InputJsonValue,
         note: input.note?.slice(0, 1000) ?? null,
       },
     });
     await recordReviewActivityTx(txc, {
       evidenceId: workflow.evidenceId,
       workflowId: workflow.id,
-      teamId: workflow.teamId ?? null,
+      teamId,
       actorUserId: input.actorUserId,
-      code: input.decision === "REOPEN" ? "REVIEW_REOPENED" : "REVIEW_CLOSED",
+      code: "REVIEW_ESCALATION_CREATED",
       previousState: String(workflow.status),
       resultingState: String(moved.status),
     });
-    return moved;
+    // The escalation's security event and audit entry, then the operational
+    // notification — after commit, best-effort.
+    // The escalation engine notifies whoever holds it (T-170), once.
+    const escalationAfterCommit = opened.afterCommit;
+    return { workflow: moved, afterCommit: async () => { await escalationAfterCommit?.(); } };
+  }
+
+  // Reopen / Close: the move, its event and its audit entry are one
+  // transaction (ET-CUS-12, 2026-10-23).
+  // TEAM-SPEC §2.2 — Close never skips a pending second review or an
+  // unresolved disagreement (every Close door funnels through here: the
+  // single-item route, both bulk paths). Decided ATOMICALLY: the workflow row
+  // was locked above, so a decision that committed before is read here, and
+  // a decision still in flight cannot land after — its own write is
+  // conditional on the status this Close is about to change, and is refused.
+  if (input.decision === "CLOSE" && workflow.teamId) {
+    const round = await loadCurrentRoundDecisionState(
+      {
+        id: workflow.id,
+        teamId: workflow.teamId,
+        evidenceId: workflow.evidenceId,
+        status: locked.status,
+        decisionRound: locked.decisionRound,
+      },
+      txc,
+    );
+    if (round.state === "second_required" || round.state === "conflict_detected") {
+      throw new ReviewDecisionAuthorityError("second_review_pending", {
+        reason: "second_review_pending",
+        reviewState: round.state,
+      });
+    }
+  }
+  const moved = await applyTransition(workflow, toStage, patch, tx, { strict: true });
+  await txc.evidenceReviewWorkflowEvent.create({
+    data: {
+      workflowId: workflow.id,
+      evidenceId: workflow.evidenceId,
+      actorUserId: input.actorUserId,
+      eventType,
+      previousValue: { stage: fromStage } as Prisma.InputJsonValue,
+      nextValue: { stage: toStage, decision: input.decision, ...(input.eventContext ?? {}) } as Prisma.InputJsonValue,
+      note: input.note?.slice(0, 1000) ?? null,
+    },
+  });
+  await recordReviewActivityTx(txc, {
+    evidenceId: workflow.evidenceId,
+    workflowId: workflow.id,
+    teamId: workflow.teamId ?? null,
+    actorUserId: input.actorUserId,
+    code: input.decision === "REOPEN" ? "REVIEW_REOPENED" : "REVIEW_CLOSED",
+    previousState: String(workflow.status),
+    resultingState: String(moved.status),
   });
   // Close resolves the escalations raised about the review. Reopen resolves
   // any a failed Close left behind: they belong to the closed review, and an
   // open one would demand a second reviewer in every new round (third audit).
-  if (input.decision === "CLOSE" || input.decision === "REOPEN") {
+  const finished = workflow;
+  const afterCommit = async (): Promise<void> => {
+    if (input.decision !== "CLOSE" && input.decision !== "REOPEN") return;
     await resolveOpenReviewEscalation(
       {
-        workflow,
+        workflow: finished,
         actorUserId: input.actorUserId,
         note: input.decision === "CLOSE" ? "Review closed." : "Review reopened; the closed review's escalation is resolved.",
       },
       client,
     );
-  }
-
-  return updated;
+  };
+  return { workflow: moved, afterCommit };
 }
 
 // -----------------------------------------------------------------------------

@@ -34,6 +34,14 @@
 .review-rows__ref {
   font-weight: 650;
   color: var(--app-ink-heading);
+  overflow-wrap: anywhere;
+}
+/* Review remediation 2026-11-27 — a long evidence name or attention sentence
+   wraps inside its cell; it never pushes the row wider or gets cut. */
+.review-rows td[data-review-cell="ref"],
+.review-rows td[data-review-cell="status"] {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
 }
 
 .review-rows__outcome {
@@ -137,20 +145,34 @@
   gap: 2px 12px;
   min-block-size: 44px;
   padding: 10px 12px;
+  /* Review remediation 2026-11-27 — a destination, not a paragraph: a
+     bordered card (visible without hover, so touch readers see it too), the
+     pointer, and a hover/focus state on the whole card. */
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md, 10px);
   color: inherit;
   text-decoration: none;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
 }
-.review-tool-card:hover { background: var(--surface-translucent-selected); }
+.review-tool-card:hover,
+.review-tool-card:focus-visible {
+  background: var(--surface-translucent-selected);
+  border-color: var(--accent-500);
+}
 .review-tool-card:focus-visible {
   outline: 2px solid var(--accent-500);
   outline-offset: 2px;
 }
+.review-tool-card:focus-visible .review-tool-card__title { text-decoration: underline; }
+.review-tool-card:hover .review-tool-card__chevron,
+.review-tool-card:focus-visible .review-tool-card__chevron { color: var(--accent-500); }
 .review-tool-card__text { display: grid; gap: 2px; min-inline-size: 0; }
 .review-tool-card__title {
   font-size: 14px;
   font-weight: 600;
   color: var(--app-ink-heading);
+  overflow-wrap: anywhere;
 }
 .review-tool-card__purpose {
   font-size: 13px;
@@ -427,6 +449,11 @@
    and no clipped label at any width (1440 / 1024 / 768 / 390 px, 200 % zoom).
    The shared .app-tabs primitive is a fixed-height scroller; these Review
    classes lift that for the two Review rows only. */
+/* Review remediation 2026-11-27 — doubled with `.app-tabs` so the lift wins
+   over the shared nowrap scroller whatever order the two stylesheets load in
+   (one class each tied before, and order decided it). */
+.app-tabs.review-hub-tabs,
+.app-tabs.review-view-tabs,
 .review-hub-tabs,
 .review-view-tabs {
   display: flex;
@@ -441,9 +468,14 @@
 .review-hub-tabs > .app-tab,
 .review-view-tabs > .app-tab {
   flex: 0 1 auto;
+  /* The shared tab is a fixed 36 px; a label that wraps (200 % zoom, a
+     narrow column) grows the tab instead of being cut. */
+  height: auto;
   min-block-size: 36px;
+  padding-block: 6px;
   max-inline-size: 100%;
   white-space: normal;
+  overflow-wrap: anywhere;
   text-align: center;
   line-height: 1.2;
 }
@@ -672,3 +704,21 @@
 .review-header-deadlines { font-size: 13px; }
 .review-header-deadlines > summary { cursor: pointer; color: var(--app-ink-secondary, var(--ink-secondary)); }
 .review-header-deadlines ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
+
+/* Review remediation 2026-11-27 — the review inspector's dialogs (Modal
+   testids `reviewer-*`) keep a long title, label, error or confirm label
+   readable: the footer wraps and a confirm grows to two lines instead of
+   running past the dialog edge. Scoped to the Review dialogs only. */
+[data-matter-modal^="reviewer-"] .app-dialog__title,
+[data-matter-modal^="reviewer-"] .app-dialog__body {
+  overflow-wrap: anywhere;
+  min-inline-size: 0;
+}
+[data-matter-modal^="reviewer-"] .app-dialog__footer { flex-wrap: wrap; }
+[data-matter-modal^="reviewer-"] .app-dialog__footer > button {
+  max-inline-size: 100%;
+  white-space: normal;
+  block-size: auto;
+  min-block-size: 36px;
+  text-align: center;
+}

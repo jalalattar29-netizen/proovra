@@ -91,6 +91,9 @@ function ConfirmFooter({
 // Reassign
 // ---------------------------------------------------------------------------
 
+/** The reviewer picker's trigger: the dialog's first meaningful field. */
+const REASSIGN_PICKER = "[data-reviewer-reassign-picker]";
+
 export function ReassignDialog({
   open,
   teamId,
@@ -144,6 +147,16 @@ export function ReassignDialog({
     };
   }, [open, teamId, excludeUserId, currentAssigneeUserId, handoff, describeError]);
 
+  // Initial focus is the picker (Modal `initialFocus`). While the list loads
+  // the dialog box holds focus; once the picker renders, focus moves to it —
+  // only if the person has not moved focus themselves in the meantime.
+  useEffect(() => {
+    if (!open || reviewers === null) return;
+    const active = typeof document !== "undefined" ? document.activeElement : null;
+    if (!(active instanceof HTMLElement) || !active.matches('[role="dialog"][data-matter-modal="reviewer-reassign"]')) return;
+    active.querySelector<HTMLElement>(REASSIGN_PICKER)?.focus();
+  }, [open, reviewers]);
+
   if (!open) return null;
   const title = handoff ? "Assign an independent second reviewer" : "Reassign this review";
   return (
@@ -158,6 +171,7 @@ export function ReassignDialog({
       onClose={onCancel}
       dismissDisabled={busy}
       testid="reviewer-reassign"
+      initialFocus={REASSIGN_PICKER}
       footer={
         <ConfirmFooter
           formId={formId}
@@ -219,6 +233,7 @@ export function ReassignDialog({
             ]}
             onChange={(next) => setChoice(next)}
             disabled={busy}
+            wrapValue
             style={{ maxWidth: "100%" }}
             triggerProps={{ "data-review-handoff-picker": "", "data-reviewer-reassign-picker": "" }}
           />
@@ -411,6 +426,7 @@ export function EscalateDialog({
           options={ESCALATE_REASONS.map((r) => ({ value: r, label: escalationReasonLabel(r) }))}
           onChange={(next) => setReason(next)}
           disabled={busy}
+          wrapValue
           style={{ maxWidth: "100%" }}
           triggerProps={{ "data-reviewer-escalate-reason": "" }}
         />

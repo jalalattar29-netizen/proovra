@@ -3247,6 +3247,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             round?: unknown;
             requestedFrom?: { userId?: unknown; role?: unknown };
             supersededDecisionId?: unknown;
+            reason?: unknown;
           };
           const fromUserId = typeof next.requestedFrom?.userId === "string" ? next.requestedFrom.userId : null;
           return {
@@ -3256,7 +3257,9 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             requestedFrom: fromUserId
               ? { userId: fromUserId, displayName: await displayNameOf(fromUserId) }
               : { role: typeof next.requestedFrom?.role === "string" ? next.requestedFrom.role : "evidence_owner" },
-            reason: e.note ?? null,
+            // Source review D — the full reason lives in the event value; a
+            // request recorded before that fix has only its note.
+            reason: typeof next.reason === "string" ? next.reason : e.note ?? null,
             requestedAtUtc: e.createdAt.toISOString(),
             supersededDecisionId: typeof next.supersededDecisionId === "string" ? next.supersededDecisionId : null,
           };

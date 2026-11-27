@@ -150,6 +150,10 @@ function supersededMessage(to: DisagreementState, superseded: DisagreementSupers
 const RESOLVER_INDEPENDENCE_COPY =
   "Only a workspace owner or admin who neither filed this challenge nor made the challenged decision can review or resolve it. If nobody in this workspace qualifies, invite one from Members & access.";
 
+/** Finding B — an overturn whose superseding failed is not half-recorded. */
+const SUPERSEDE_FAILED_COPY =
+  "the challenged outcome could not be superseded, so the challenge was not resolved and the review is unchanged. Your rationale is kept; try again.";
+
 const RATIONALE_MAX = 600;
 const CHALLENGER_RATIONALE_PREVIEW_MAX = 300;
 
@@ -259,6 +263,11 @@ function DisagreementsShell() {
           // F-22 — why not, who can, and the staffing path. The picker and its
           // text stay open for whoever may retry.
           setBanner({ text: `Not recorded: ${reviewerDenialMessage(res.denial)} ${RESOLVER_INDEPENDENCE_COPY}`, staffing: true });
+        } else if (res.denial === "DISAGREEMENT_SUPERSEDE_FAILED") {
+          // Finding B — the review could not be reopened / restarted, so the
+          // server recorded nothing (the challenge keeps its state). The
+          // picker and its rationale stay open for a retry.
+          setBanner({ text: `Not recorded: ${SUPERSEDE_FAILED_COPY}` });
         } else {
           setBanner({ text: `Not recorded: ${reviewerDenialMessage(res.denial)}` });
         }

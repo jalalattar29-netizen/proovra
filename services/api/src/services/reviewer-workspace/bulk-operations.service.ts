@@ -307,13 +307,29 @@ export async function bulkDecide(input: {
       authorUserId: input.actorUserId,
       rationale: input.rationale,
     });
-    if (wrote.ok) {
-      outcomes.push({ workflowId: id, ok: true });
-    } else {
-      outcomes.push({ workflowId: id, ok: false, denial: wrote.denial });
-    }
+    outcomes.push(codingWriteOutcome(id, wrote));
   }
   return codingEnvelope(outcomes);
+}
+
+/**
+ * Review remediation A/C (2026-11-27) — one bulk item's outcome. Bulk coding
+ * sends no expected revision (last writer wins), but every item still goes
+ * through writeCodingValue's locked transaction: a workflow that closed or
+ * was rebound to another schema before the item obtained the workflow lock
+ * is refused (WORKFLOW_CLOSED / SCHEMA_VERSION_MISMATCH), never written. The
+ * conflict branch is unreachable without a revision; it is mapped to the
+ * existing "another change won the race" outcome for type completeness.
+ */
+function codingWriteOutcome(
+  workflowId: string,
+  res: Awaited<ReturnType<typeof writeCodingValue>>,
+): BulkItemOutcome {
+  if (res.ok) return { workflowId, ok: true };
+  if (res.denial === "CODING_VALUE_CONFLICT") {
+    return { workflowId, ok: false, denial: "POLICY_REJECTED", code: "concurrent_change" };
+  }
+  return { workflowId, ok: false, denial: res.denial };
 }
 
 // ---------------------------------------------------------------------------
@@ -365,11 +381,7 @@ export async function bulkCode(input: {
       value: input.value,
       authorUserId: input.actorUserId,
     });
-    outcomes.push(
-      res.ok
-        ? { workflowId: id, ok: true }
-        : { workflowId: id, ok: false, denial: res.denial },
-    );
+    outcomes.push(codingWriteOutcome(id, res));
   }
   return codingEnvelope(outcomes);
 }

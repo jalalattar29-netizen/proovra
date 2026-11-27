@@ -168,7 +168,24 @@ export function DecisionForm({
     setError(null);
   };
 
+  /*
+   * WAI-ARIA radio group (review remediation 2026-11-27, keyboard-only
+   * decisions): the arrows move AND select among the OPEN choices only
+   * (a closed choice is skipped, the ends wrap), Home/End go to the first/last
+   * open choice, Space selects the focused one (the button's own click).
+   */
+  const moveTo = (next: number) => {
+    pick(choices[next]!);
+    radioRefs.current[next]?.focus();
+  };
   const onRadioKey = (e: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (e.key === "Home" || e.key === "End") {
+      const open = choices.map((c, i) => (isOpen(c) ? i : -1)).filter((i) => i >= 0);
+      const target = e.key === "Home" ? open[0] : open[open.length - 1];
+      e.preventDefault();
+      if (target !== undefined) moveTo(target);
+      return;
+    }
     const forward = e.key === "ArrowRight" || e.key === "ArrowDown";
     const back = e.key === "ArrowLeft" || e.key === "ArrowUp";
     if (!forward && !back) return;
@@ -176,12 +193,15 @@ export function DecisionForm({
     for (let step = 1; step <= choices.length; step++) {
       const next = (index + (forward ? step : -step) + choices.length) % choices.length;
       if (isOpen(choices[next]!)) {
-        pick(choices[next]!);
-        radioRefs.current[next]?.focus();
+        moveTo(next);
         return;
       }
     }
   };
+  // The ONE tab stop of the group: the checked choice while it is open, else
+  // the first open choice (a choice closed by a reload never strands Tab).
+  const checkedIndex = choices.indexOf(choice);
+  const tabStop = checkedIndex >= 0 && isOpen(choice) ? checkedIndex : choices.findIndex((c) => isOpen(c));
 
   const trimmed = rationale.trim();
   // F-01 — submit follows the server's action for the chosen kind (a closed
@@ -269,12 +289,14 @@ export function DecisionForm({
           className="app-tabs"
           data-decision-form-decision
           {...(mode === "adjudication" ? { "data-adjudication-kind": "" } : {})}
-          style={{ flexWrap: "wrap", height: "auto", minWidth: 0 }}
+          // `.app-tabs` is a fixed-height horizontal scroller: here it wraps,
+          // grows and never clips a long label or the focus ring.
+          style={{ flexWrap: "wrap", height: "auto", minWidth: 0, maxWidth: "100%", overflow: "visible" }}
         >
           {choices.map((c, index) => {
             const checked = choice === c;
             const open = isOpen(c);
-            const focusable = checked || (choice === "" && index === choices.findIndex((x) => isOpen(x)));
+            const focusable = index === tabStop;
             return (
               <button
                 key={c}
@@ -291,7 +313,15 @@ export function DecisionForm({
                 data-decision-choice-allowed={open ? "true" : "false"}
                 onClick={() => pick(c)}
                 onKeyDown={(e) => onRadioKey(e, index)}
-                style={{ whiteSpace: "normal", height: "auto", minHeight: 36 }}
+                style={{
+                  whiteSpace: "normal",
+                  height: "auto",
+                  minHeight: 36,
+                  maxWidth: "100%",
+                  overflowWrap: "anywhere",
+                  lineHeight: 1.25,
+                  paddingBlock: 6,
+                }}
               >
                 {DECISION_OPTION_LABELS[c] ?? c}
               </button>
@@ -381,7 +411,7 @@ export function DecisionForm({
             {error}
           </p>
           {missingLabels.length > 0 ? (
-            <ul className="app-field-error" data-decision-form-missing-fields style={{ margin: "4px 0 0 1.25rem", padding: 0 }}>
+            <ul className="app-field-error" data-decision-form-missing-fields style={{ margin: "4px 0 0 1.25rem", padding: 0, overflowWrap: "anywhere" }}>
               {missingLabels.map((label) => (
                 <li key={label}>{label}</li>
               ))}
