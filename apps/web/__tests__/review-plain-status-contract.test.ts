@@ -92,14 +92,21 @@ test("T-089 — every Review page reserves the assistant launcher's clearance", 
     "app/(app)/reviewer-ops/[reviewId]/page.tsx",
     "app/(app)/reviewer-ops/sla/page.tsx",
     "app/(app)/review/settings/page.tsx",
+    // F-23 (2026-11-27) — External Review reserves it too.
+    "app/(app)/review/external/page.tsx",
   ]) {
     assert.match(read(rel), /review-launcher-clearance/, rel);
   }
   const css = read("components/reviewer-experience/review-surfaces.css");
-  const rule = css.slice(css.indexOf(".review-launcher-clearance {"));
-  const px = Number(/var\(--review-launcher-clearance,\s*(\d+)px\)/.exec(rule)?.[1] ?? 0);
-  // The launcher sits 1.5rem (24 px) above the bottom edge (assistant.css).
-  assert.ok(px >= 72, `clearance ${px}px clears the launcher`);
+  const rule = css.slice(css.indexOf(".review-launcher-clearance {"), css.indexOf("}", css.indexOf(".review-launcher-clearance {")));
+  // F-23 — the reserve is launcher (3rem) + edge (1.5rem) + a gap, in rem
+  // (assistant.css), at least 72 px at a 16 px root …
+  const calc = /--review-launcher-clearance:\s*calc\(([^;]+)\);/.exec(rule)?.[1] ?? "";
+  const rem = Array.from(calc.matchAll(/([\d.]+)rem/g)).reduce((sum, m) => sum + Number(m[1]), 0);
+  assert.ok(rem * 16 >= 72, `clearance ${rem}rem clears the launcher`);
+  // … and it must beat PageShell's INLINE padding-block, which silently won
+  // over the plain class rule (the audited bubble overlap).
+  assert.match(rule, /padding-block-end:\s*var\(--review-launcher-clearance\)\s*!important/);
 });
 
 test("T-092 — one label per Inbox view: 'Assigned to me' is the only name for MY_REVIEWS", () => {

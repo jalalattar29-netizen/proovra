@@ -245,6 +245,8 @@ describe("internal-grant rollout — migration state", () => {
       "20281123060000_derived_asset_storage_intent",
       // Team remediation stage C (T-044): the review's first decision time. EXPAND.
       "20281124010000_review_first_decided_at",
+      // Review remediation (2026-11-27): explicit independence + Review policies. EXPAND.
+      "20281127120000_review_remediation_policy",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

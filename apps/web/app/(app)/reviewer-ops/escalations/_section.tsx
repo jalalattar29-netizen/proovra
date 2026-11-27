@@ -30,6 +30,14 @@
  * are secondary (Acknowledge, Reassign, Resolve) and Suppress is the
  * destructive entry point (`app-secondary-action--danger`) — its dialog owns
  * the confirm. No row carries a primary.
+ *
+ * Review remediation 2026-11-27 (F-03): every Acknowledge / Reassign /
+ * Resolve / Suppress control follows the row's `viewerActions` (the same
+ * independence rule the mutation enforces); a closed control stays visible,
+ * disabled, with its reason. Each row says whether the escalation requires an
+ * independent second decision, and a refusal shows the review refusal copy.
+ * The reassign target is still typed as a member id (ReviewerReasonModal) —
+ * a picker is a follow-up.
  */
 
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
@@ -60,7 +68,15 @@ import { escalationSeverityLabel, escalationSeverityTone } from "../../../../lib
 import { FilterBar } from "../../../../components/ui/FilterBar";
 import { recordReference } from "../../../../lib/short-id";
 import "../../../../components/reviewer-experience/review-surfaces.css";
-import { presentReviewEscalationSummary } from "@proovra/shared";
+import {
+  REVIEW_REFUSAL_MESSAGES,
+  presentReviewEscalationSummary,
+  secondReviewCauseLabel,
+} from "@proovra/shared";
+import type {
+  EscalationRowRemediation,
+  EscalationViewerAction,
+} from "../../../../lib/reviewer-workspace/reviewer-api";
 import { escalationReasonLabel } from "../../../../lib/labels/governanceReviewLabels";
 import { useReviewDestinationResolver } from "../../../../components/reviewer-experience/reviewDestination";
 import {
@@ -94,7 +110,66 @@ type EscalationProjection = {
   suppressionReason: string | null;
   assignedToUserId: string | null;
   incidentId: string | null;
+  /** Display name of the person who raised it; null for an automatic escalation. */
+  createdByName?: string | null;
+} & EscalationRowRemediation;
+
+type EscalationMove = EscalationViewerAction["action"];
+
+/** Why a move on an escalation is closed, in words (F-03). */
+const ESCALATION_MOVE_REASONS: Readonly<Record<string, string>> = {
+  already_acknowledged: "Already acknowledged.",
+  escalation_not_active: "This escalation is no longer active.",
+  owner_or_admin_required: "Only a workspace owner or admin can suppress an escalation.",
+  review_assign_required: "Reassigning an escalation needs assignment permission (owner, admin or assignment manager).",
 };
+
+export function escalationMoveReason(reason: string | null | undefined): string {
+  const key = (reason ?? "").trim();
+  return (
+    REVIEW_REFUSAL_MESSAGES[key] ??
+    ESCALATION_MOVE_REASONS[key] ??
+    "You cannot do this on this escalation."
+  );
+}
+
+/**
+ * F-03 — the control state of one move. With `viewerActions` (current API)
+ * the server decides; without it (older API) the old status rule applies.
+ * "hidden" for a move that does not apply to the escalation's state at all.
+ */
+function moveState(
+  e: EscalationProjection,
+  move: EscalationMove,
+): { kind: "open" } | { kind: "closed"; reason: string } | { kind: "hidden" } {
+  const live = !["RESOLVED", "SUPPRESSED"].includes(e.status);
+  if (Array.isArray(e.viewerActions)) {
+    const a = e.viewerActions.find((x) => x.action === move);
+    if (!a) return { kind: "hidden" };
+    if (a.allowed) return { kind: "open" };
+    if (a.reason === "escalation_not_active" || (move === "acknowledge" && a.reason === "already_acknowledged")) {
+      return { kind: "hidden" };
+    }
+    return { kind: "closed", reason: escalationMoveReason(a.reason) };
+  }
+  if (move === "acknowledge") return e.status === "OPEN" ? { kind: "open" } : { kind: "hidden" };
+  return live ? { kind: "open" } : { kind: "hidden" };
+}
+
+/** F-03 — whether the escalation requires an independent second decision, in words. */
+function independenceText(e: EscalationProjection): string | null {
+  if (e.independenceCause === undefined) return null;
+  if (e.independenceCause === null) return "Administrative — does not change who decides the review.";
+  const cause = secondReviewCauseLabel(e.independenceCause);
+  return `Requires an independent second decision${cause ? ` because ${cause}` : ""}.`;
+}
+
+/** The refusal sentence for a move (details.reason first), else null. */
+function escalationRefusal(err: unknown): string | null {
+  const x = (err ?? {}) as { details?: { reason?: unknown } | null; body?: { error?: { details?: { reason?: unknown } | null } } };
+  const reason = x.details?.reason ?? x.body?.error?.details?.reason;
+  return typeof reason === "string" && REVIEW_REFUSAL_MESSAGES[reason] ? REVIEW_REFUSAL_MESSAGES[reason]! : null;
+}
 
 
 const SEVERITY_FILTERS: ReadonlyArray<{ value: string; label: string }> = [
@@ -219,7 +294,7 @@ export function EscalationsSection() {
         setError(
           isStepUpCancelled(err)
             ? stepUpCancelMessage(err, `The escalation was not ${label === "suppress" ? "suppressed" : label === "resolve" ? "resolved" : "changed"}: identity confirmation was cancelled.`)
-            : toSafeUserError(err, { message: `Could not ${label} the escalation.` }).message,
+            : escalationRefusal(err) ?? toSafeUserError(err, { message: `Could not ${label} the escalation.` }).message,
         );
         return false;
       } finally {
@@ -320,7 +395,6 @@ export function EscalationsSection() {
             <tbody>
               {rows.map((e) => {
                 const highlighted = e.id === focusEscalationId;
-                const live = !["RESOLVED", "SUPPRESSED"].includes(e.status);
                 const ref = e.evidenceId
                   ? recordReference("Evidence", e.evidenceId)
                   : recordReference("Review", e.workflowId);
@@ -355,9 +429,26 @@ export function EscalationsSection() {
                     </td>
                     <td data-review-cell="extra" data-label="Reason">
                       <span className="app-table__muted">{escalationReasonLabel(e.reason)}</span>
+                      {independenceText(e) ? (
+                        <span
+                          className="app-field-help"
+                          data-escalation-independence={e.independenceCause ?? "administrative"}
+                          style={{ display: "block", margin: "2px 0 0" }}
+                        >
+                          {independenceText(e)}
+                          {e.independenceNote ? ` Note: ${e.independenceNote}` : ""}
+                        </span>
+                      ) : null}
                     </td>
                     <td data-review-cell="extra" data-label="Summary">
                       <span className="app-table__muted">{presentReviewEscalationSummary(e.safeSummary)}</span>
+                      <span
+                        className="app-field-help"
+                        data-escalation-raised-by={e.createdByName ? "person" : "automatic"}
+                        style={{ display: "block", margin: "2px 0 0" }}
+                      >
+                        {e.createdByName ? `Raised by ${e.createdByName}` : "Raised automatically"}
+                      </span>
                       {e.incidentId && operationsDestination ? (
                         <>
                           {" "}
@@ -375,52 +466,35 @@ export function EscalationsSection() {
                             Open
                           </Link>
                         ) : null}
-                        {e.status === "OPEN" ? (
-                          <button
-                            type="button"
-                            className="app-secondary-action"
-                            data-row-action
-                            disabled={busy !== null}
-                            onClick={() => act("acknowledge", e.id, "acknowledge", {})}
-                            data-escalation-action-acknowledge
-                          >
-                            Acknowledge
-                          </button>
-                        ) : null}
-                        {live ? (
-                          <>
-                            <button
-                              type="button"
-                              className="app-secondary-action"
-                              data-row-action
-                              disabled={busy !== null}
-                              onClick={() => setReasonModal({ kind: "ESCALATION_REASSIGN", escalationId: e.id })}
-                              data-escalation-action-reassign
-                            >
-                              Reassign
-                            </button>
-                            <button
-                              type="button"
-                              className="app-secondary-action"
-                              data-row-action
-                              disabled={busy !== null}
-                              onClick={() => setReasonModal({ kind: "ESCALATION_RESOLVE", escalationId: e.id })}
-                              data-escalation-action-resolve
-                            >
-                              Resolve
-                            </button>
-                            <button
-                              type="button"
-                              className="app-secondary-action app-secondary-action--danger"
-                              data-row-action
-                              disabled={busy !== null}
-                              onClick={() => setReasonModal({ kind: "ESCALATION_SUPPRESS", escalationId: e.id })}
-                              data-escalation-action-suppress
-                            >
-                              Suppress
-                            </button>
-                          </>
-                        ) : null}
+                        <EscalationMoveButton
+                          e={e}
+                          move="acknowledge"
+                          label="Acknowledge"
+                          disabledByBusy={busy !== null}
+                          onClick={() => act("acknowledge", e.id, "acknowledge", {})}
+                        />
+                        <EscalationMoveButton
+                          e={e}
+                          move="reassign"
+                          label="Reassign"
+                          disabledByBusy={busy !== null}
+                          onClick={() => setReasonModal({ kind: "ESCALATION_REASSIGN", escalationId: e.id })}
+                        />
+                        <EscalationMoveButton
+                          e={e}
+                          move="resolve"
+                          label="Resolve"
+                          disabledByBusy={busy !== null}
+                          onClick={() => setReasonModal({ kind: "ESCALATION_RESOLVE", escalationId: e.id })}
+                        />
+                        <EscalationMoveButton
+                          e={e}
+                          move="suppress"
+                          label="Suppress"
+                          danger
+                          disabledByBusy={busy !== null}
+                          onClick={() => setReasonModal({ kind: "ESCALATION_SUPPRESS", escalationId: e.id })}
+                        />
                       </div>
                     </td>
                   </tr>
@@ -459,6 +533,50 @@ export function EscalationsSection() {
       />
       <StepUpModal control={stepUp} />
     </div>
+  );
+}
+
+/** One escalation move, following the row's viewerActions (F-03). */
+function EscalationMoveButton({
+  e,
+  move,
+  label,
+  danger = false,
+  disabledByBusy,
+  onClick,
+}: {
+  e: EscalationProjection;
+  move: EscalationMove;
+  label: string;
+  danger?: boolean;
+  disabledByBusy: boolean;
+  onClick: () => void;
+}) {
+  const state = moveState(e, move);
+  if (state.kind === "hidden") return null;
+  const closed = state.kind === "closed";
+  const reasonId = `escalation-${e.id}-${move}-reason`;
+  return (
+    <span style={{ display: "inline-flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+      <button
+        type="button"
+        className={danger ? "app-secondary-action app-secondary-action--danger" : "app-secondary-action"}
+        data-row-action
+        disabled={disabledByBusy || closed}
+        aria-describedby={closed ? reasonId : undefined}
+        title={closed ? state.reason : undefined}
+        onClick={onClick}
+        {...{ [`data-escalation-action-${move}`]: "" }}
+        data-escalation-action-allowed={closed ? "false" : "true"}
+      >
+        {label}
+      </button>
+      {closed ? (
+        <span id={reasonId} className="app-field-help" data-escalation-action-reason={move} style={{ margin: 0, maxWidth: 260 }}>
+          {state.reason}
+        </span>
+      ) : null}
+    </span>
   );
 }
 

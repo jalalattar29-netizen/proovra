@@ -45,10 +45,10 @@ export const HANDOFF_COPY = {
 } as const;
 
 /** The Members & access link, only where that page opens for the viewer. */
-function MembersAccessLink() {
+export function MembersAccessLink({ testId = "review-handoff-people-link" }: { testId?: string } = {}) {
   const destination = useReviewDestination("workspace.people", { label: "Open Members & access" });
   if (!destination) return null;
-  return <ReviewDestinationLink destination={destination} testId="review-handoff-people-link" className="app-ghost-action" />;
+  return <ReviewDestinationLink destination={destination} testId={testId} className="app-ghost-action" />;
 }
 
 /** True when the banner's manager variant applies (the Next step primary assigns). */

@@ -86,12 +86,25 @@ export type CodingCoverage = {
   unfulfilledFieldIds: string[];
 };
 
+/**
+ * Review remediation F-15 — whether a coding write by this caller would be
+ * accepted now (advisory; the write door decides), and why not.
+ */
+export type CodingWritable = {
+  allowed: boolean;
+  reason: "workflow_closed" | "no_permission" | "no_schema" | null;
+};
+
 export async function fetchCodingState(
   workflowId: string,
   teamId?: string | null,
 ): Promise<{
   values: CodingValueRow[];
   coverage: CodingCoverage;
+  /** F-26 — values of a schema the review is no longer bound to (history, never current). */
+  otherSchemaValues: CodingValueRow[];
+  /** F-15 — absent on an older API. */
+  writable: CodingWritable | null;
 }> {
   const res = await apiFetch(withTeamId(`/v1/reviewer/work/${workflowId}/coding`, teamId), {
     method: "GET",
@@ -99,6 +112,8 @@ export async function fetchCodingState(
   return {
     values: (res?.values ?? []) as CodingValueRow[],
     coverage: res?.coverage as CodingCoverage,
+    otherSchemaValues: (Array.isArray(res?.otherSchemaValues) ? res.otherSchemaValues : []) as CodingValueRow[],
+    writable: res?.writable && typeof res.writable === "object" ? (res.writable as CodingWritable) : null,
   };
 }
 
@@ -210,15 +225,23 @@ export async function listWorkflowDecisions(input: {
   }
 }
 
+/**
+ * F-11 — what an OVERTURNED / PARTIAL resolution did to the challenged
+ * outcome: the finished review was reopened for a new round, the open round
+ * restarted, the challenged decision was already from an earlier round, or
+ * nothing (upheld, or an API that does not say).
+ */
+export type DisagreementSuperseded = "reopen" | "advance_round" | "already_superseded" | null;
+
 export async function transitionDisagreement(input: {
   disagreementId: string;
   to: string;
   verdict?: ReviewerVerdict;
   rationale?: string;
   teamId?: string | null;
-}): Promise<{ ok: true } | { ok: false; denial: ReviewerDenialReason }> {
+}): Promise<{ ok: true; superseded: DisagreementSuperseded } | { ok: false; denial: ReviewerDenialReason }> {
   try {
-    await apiFetch(
+    const res = await apiFetch(
       withTeamId(
         `/v1/reviewer/disagreements/${input.disagreementId}/transition`,
         input.teamId,
@@ -232,7 +255,14 @@ export async function transitionDisagreement(input: {
         }),
       },
     );
-    return { ok: true };
+    const superseded = (res as { superseded?: unknown } | null)?.superseded;
+    return {
+      ok: true,
+      superseded:
+        superseded === "reopen" || superseded === "advance_round" || superseded === "already_superseded"
+          ? superseded
+          : null,
+    };
   } catch (err) {
     // PRO-R2Z-06 — the fields apiFetch actually sets.
     const denial = reviewerDenialFromError(err) as ReviewerDenialReason;
@@ -909,6 +939,9 @@ export async function createEscalation(input: {
   safeSummary: string;
   severity?: "INFO" | "WARNING" | "HIGH" | "CRITICAL";
   assignedToUserId?: string | null;
+  /** 2026-11-27 — explicitly require an independent second decision (integrity reasons always do). */
+  requireIndependentReview?: boolean;
+  independenceNote?: string | null;
 }): Promise<LifecycleCallResult> {
   try {
     const body: Record<string, unknown> = {
@@ -921,6 +954,8 @@ export async function createEscalation(input: {
     if (input.assignedToUserId !== undefined) {
       body.assignedToUserId = input.assignedToUserId;
     }
+    if (input.requireIndependentReview !== undefined) body.requireIndependentReview = input.requireIndependentReview;
+    if (input.independenceNote) body.independenceNote = input.independenceNote;
     const res = await apiFetch("/v1/reviewer-ops/escalations", {
       method: "POST",
       body: JSON.stringify(body),
@@ -1077,3 +1112,38 @@ export async function openRedactionProjectForEvidence(input: {
     return { ok: false, reason: "ERROR" };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Review remediation 2026-11-27 — escalation rows and decision projections.
+// ---------------------------------------------------------------------------
+
+/** One move on an escalation the viewer may (or may not) make, with why not. */
+export type EscalationViewerAction = {
+  action: "acknowledge" | "reassign" | "resolve" | "suppress";
+  allowed: boolean;
+  reason?: string;
+};
+
+/** Why an escalation requires an independent second decision (null = administrative). */
+export type EscalationIndependenceCause =
+  | "independent_review_requested"
+  | "integrity_escalation"
+  | "legacy_escalation"
+  | null;
+
+/** The additive fields GET /v1/reviewer-ops/escalations rows now carry. */
+export type EscalationRowRemediation = {
+  viewerActions?: EscalationViewerAction[];
+  independenceCause?: EscalationIndependenceCause;
+  independenceNote?: string | null;
+};
+
+/** F-06 — who requested the independent second decision, and when. */
+export type DecisionsSecondReviewEscalation = {
+  reason: string;
+  severity: string;
+  requestedByUserId?: string | null;
+  requestedByName?: string | null;
+  requestedAtUtc?: string | null;
+  note?: string | null;
+};

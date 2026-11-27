@@ -34,6 +34,7 @@ import {
 } from "@proovra/shared";
 
 import { apiFetch } from "../../lib/api";
+import { formatUserDateTime } from "../../lib/date";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import "./review-surfaces.css";
 import {
@@ -67,7 +68,36 @@ type Flags = {
   requireStepUpForEscalationResolve: boolean;
   requireStepUpForBulk: boolean;
   reviewerInactivityHours: number | null;
+  // Review remediation 2026-11-27 — explicit Review policies (BEHAVIOUR-SPEC §2, §3, §6).
+  reviewRequiresIndependentApproval?: boolean;
+  reviewRequiresTeamPlacement?: boolean;
+  reviewRequiresCompleteCoding?: boolean;
+  /** Read-only: when complete-coding enforcement was turned on (reviews started after it are enforced). */
+  reviewRequiresCompleteCodingSince?: string | null;
 };
+
+type StepUpFlagKey = "requireStepUpForApprove" | "requireStepUpForReject" | "requireStepUpForEscalationResolve" | "requireStepUpForBulk";
+
+type ReviewPolicyKey = "reviewRequiresIndependentApproval" | "reviewRequiresTeamPlacement" | "reviewRequiresCompleteCoding";
+
+/** The three Review policies, each with what it does in plain words. */
+const REVIEW_POLICY_FIELDS: ReadonlyArray<{ key: ReviewPolicyKey; label: string; help: string }> = [
+  {
+    key: "reviewRequiresIndependentApproval",
+    label: "Every review needs an independent second decision",
+    help: "When on, a reviewer's approval or rejection is recorded as the first decision and stays pending until a different reviewer confirms it. When off, one reviewer's decision finalizes the review unless an escalation, a legal hold or a redaction requires a second decision.",
+  },
+  {
+    key: "reviewRequiresTeamPlacement",
+    label: "Reviewers must be placed in a Collaboration Team",
+    help: "When on, only members placed in a Collaboration Team can be assigned, claim or give a second decision on reviews; members who leave their last team release the reviews they hold. When off, every active member with review permission and access to the evidence can review.",
+  },
+  {
+    key: "reviewRequiresCompleteCoding",
+    label: "Approving or rejecting requires complete coding (applies to reviews started after you turn it on)",
+    help: "When on, approve and reject are refused until the required coding fields are filled. Requesting information is never blocked. Reviews already started before you turn it on are not affected.",
+  },
+];
 
 /**
  * `version` / `teamId` (T-041, additive): the policy version the panel read,
@@ -97,7 +127,7 @@ const HOUR_FIELDS: ReadonlyArray<{ key: keyof PolicyHours; label: string; help: 
  * the same shared table the server gate reads (`reviewStepUpFlagGoverns`), so
  * the copy cannot drift from enforcement.
  */
-const FLAG_FIELDS: ReadonlyArray<{ key: Exclude<keyof Flags, "reviewerInactivityHours">; label: string }> = [
+const FLAG_FIELDS: ReadonlyArray<{ key: StepUpFlagKey; label: string }> = [
   { key: "requireStepUpForApprove", label: "Ask for a second factor to approve" },
   { key: "requireStepUpForReject", label: "Ask for a second factor to reject, close, reopen or archive" },
   { key: "requireStepUpForEscalationResolve", label: "Ask for a second factor to resolve or suppress an escalation" },
@@ -447,6 +477,58 @@ export function ReviewerSlaPolicyPanel({
               ))}
             </ul>
           </div>
+        </div>
+      </section>
+
+      <section className="app-panel" aria-labelledby="review-policy-title" data-review-policy-section>
+        <div className="app-panel__head">
+          <h2 className="app-panel__title" id="review-policy-title">Review policy</h2>
+        </div>
+        <div className="app-panel__body">
+          <p className="app-field-help">
+            Rules every review in this workspace follows. They change who may decide, never past decisions.
+          </p>
+          {REVIEW_POLICY_FIELDS.map((f) => {
+            const value = Boolean(flagDraft[f.key] ?? flags[f.key] ?? false);
+            const helpId = `review-policy-${f.key}-help`;
+            const since =
+              f.key === "reviewRequiresCompleteCoding" && flags.reviewRequiresCompleteCoding && flags.reviewRequiresCompleteCodingSince
+                ? ` On since ${formatUserDateTime(flags.reviewRequiresCompleteCodingSince)}.`
+                : "";
+            return canEdit ? (
+              <div key={f.key}>
+                <label className="review-check-row">
+                  <input
+                    type="checkbox"
+                    className="app-checkbox"
+                    checked={value}
+                    aria-describedby={helpId}
+                    data-review-policy-flag-input={f.key}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setFlagDraft((p) => ({ ...p, [f.key]: checked }));
+                    }}
+                  />
+                  <span>{f.label}</span>
+                </label>
+                <p id={helpId} className="app-field-help" style={{ margin: "2px 0 8px 1.5rem" }}>
+                  {f.help}
+                  {since}
+                </p>
+              </div>
+            ) : (
+              <div key={f.key}>
+                <div className="review-check-row" data-review-policy-flag={f.key}>
+                  <span>{f.label}:</span>
+                  <AppStatusText tone={value ? "green" : "slate"}>{value ? "On" : "Off"}</AppStatusText>
+                </div>
+                <p className="app-field-help" style={{ margin: "2px 0 8px 1.5rem" }}>
+                  {f.help}
+                  {since}
+                </p>
+              </div>
+            );
+          })}
         </div>
       </section>
 

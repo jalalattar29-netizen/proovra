@@ -349,7 +349,7 @@ import type { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import { CertificationType as PrismaCertificationType } from "@prisma/client";
 import { prisma } from "../db.js";
-import { meetsPlacementPolicy } from "../services/assignment/assignee-eligibility.js";
+import { meetsReviewPlacementPolicy } from "../services/assignment/assignee-eligibility.js";
 import { RESTRICTED_CASE_WHERE } from "../services/cases/case-visibility.js";
 import {
   appendCustodyEventTx,
@@ -11755,7 +11755,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
           viewerMayReview,
           viewerMayAdjudicate: viewerRole === "OWNER" || viewerRole === "ADMIN",
           viewerMayReceiveWork: evidence.teamId
-            ? await meetsPlacementPolicy({ workspaceId: evidence.teamId, userId: ownerUserId }, prisma)
+            ? await meetsReviewPlacementPolicy({ workspaceId: evidence.teamId, userId: ownerUserId }, prisma)
             : true,
           hasWorkspace: Boolean(evidence.teamId),
           planIncludesReview: reviewIncluded,

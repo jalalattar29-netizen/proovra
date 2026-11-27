@@ -56,7 +56,13 @@ export type ReleaseReason =
    * the reviewer floor (`evidence_request.review`): they stay a member but can
    * no longer act on the work they held.
    */
-  | "role_demoted";
+  | "role_demoted"
+  /**
+   * Review remediation 2026-11-27 (F-31) — the workspace's explicit Review
+   * placement policy requires a Collaboration Team, and the holder is no
+   * longer placed in any: their held REVIEWS go back to the queue.
+   */
+  | "review_placement_lost";
 
 export type ReleasedWork = {
   reviewWorkflows: number;
@@ -89,7 +95,48 @@ const NOTE: Record<ReleaseReason, string> = {
   group_member_removed: "Released: the assignee was removed from this Collaboration Team.",
   group_member_suspended: "Released: the assignee was suspended in this Collaboration Team.",
   role_demoted: "Released: the assignee's workspace role no longer allows reviewing.",
+  review_placement_lost:
+    "Released: this workspace requires reviewers to be placed in a Collaboration Team, and the assignee no longer is.",
 };
+
+/**
+ * F-31 — release only the REVIEW workflows `userIds` hold in workspace
+ * `teamId` (back to the queue, UNASSIGNED event, decision history kept).
+ * Used when a Collaboration Team departure ends Review eligibility under an
+ * explicit placement policy; other held work follows its own group rules.
+ */
+export async function releaseReviewWorkflowsHeldByTx(
+  tx: ReleaseTx,
+  input: { teamId: string; userIds: readonly string[]; actorUserId: string | null; reason: ReleaseReason },
+): Promise<number> {
+  if (input.userIds.length === 0) return 0;
+  const workflows = await tx.evidenceReviewWorkflow.findMany({
+    where: heldWorkWhere.reviewWorkflows(input.teamId, [...input.userIds]) as never,
+    select: { id: true, evidenceId: true, status: true, assignedToUserId: true },
+  });
+  let released = 0;
+  for (const wf of workflows) {
+    const nextStatus = releasedReviewStatus(wf.status) as typeof wf.status;
+    const written = await tx.evidenceReviewWorkflow.updateMany({
+      where: { id: wf.id, assignedToUserId: wf.assignedToUserId, status: wf.status },
+      data: { assignedToUserId: null, status: nextStatus },
+    });
+    if (written.count === 0) continue;
+    released += 1;
+    await tx.evidenceReviewWorkflowEvent.create({
+      data: {
+        workflowId: wf.id,
+        evidenceId: wf.evidenceId,
+        actorUserId: input.actorUserId,
+        eventType: "UNASSIGNED",
+        previousValue: { assignedToUserId: wf.assignedToUserId, status: wf.status } as Prisma.InputJsonValue,
+        nextValue: { assignedToUserId: null, status: nextStatus, reason: input.reason } as Prisma.InputJsonValue,
+        note: NOTE[input.reason],
+      },
+    });
+  }
+  return released;
+}
 
 /**
  * Team remediation T-100 (MEM-11) — the status a held review returns to when

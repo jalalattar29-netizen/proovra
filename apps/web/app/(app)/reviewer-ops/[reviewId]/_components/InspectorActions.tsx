@@ -47,6 +47,8 @@ export type NextStepHandlers = {
   archive: () => void;
   /** T-009 — reopen a finished review (same transition as the Evidence page). */
   reopen?: () => void;
+  /** 2026-11-27 — explicitly require an independent second decision. */
+  request_independent_review?: () => void;
   /** Focus the decision panel (Go to decision / Go to adjudication). */
   go_to_decision: () => void;
 };
@@ -102,8 +104,17 @@ export function InspectorActions({
   const showEscalate = fromViewer ? actions.escalate.allowed : canEscalate;
   // T-009 — Reopen on the Review page.
   const showReopen = actions.reopen.allowed && !!handlers.reopen;
+  // 2026-11-27 — only where the server allows it (viewer.actions).
+  const showRequestIndependent =
+    fromViewer && actions.request_independent_review.allowed && !!handlers.request_independent_review;
   const anything =
-    primary !== null || pauseSlot !== null || showReassign || showEscalate || showArchive || showReopen;
+    primary !== null ||
+    pauseSlot !== null ||
+    showReassign ||
+    showEscalate ||
+    showArchive ||
+    showReopen ||
+    showRequestIndependent;
   const disabled = busy !== null;
 
   return (
@@ -165,7 +176,7 @@ export function InspectorActions({
           </div>
         ) : null}
 
-        {pauseSlot !== null || showReassign || showEscalate || showReopen ? (
+        {pauseSlot !== null || showReassign || showEscalate || showReopen || showRequestIndependent ? (
           <div data-reviewer-next-step-secondary className="review-next-step__group">
             {pauseSlot ? (
               <button
@@ -216,6 +227,18 @@ export function InspectorActions({
                 data-reviewer-action-allowed="true"
               >
                 Escalate
+              </button>
+            ) : null}
+            {showRequestIndependent ? (
+              <button
+                type="button"
+                className="app-secondary-action"
+                disabled={disabled}
+                onClick={handlers.request_independent_review}
+                data-reviewer-action="request_independent_review"
+                data-reviewer-action-allowed="true"
+              >
+                {ACTION_LABELS.request_independent_review}
               </button>
             ) : null}
 

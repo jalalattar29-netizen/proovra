@@ -9,14 +9,42 @@
  *
  * Schemas use the bounded field-type vocabulary from
  * `@proovra/shared/reviewer-workspace.ts`. Every schema includes a
- * REVIEWER_VERDICT field so a final decision can always be recorded.
+ * REVIEWER_VERDICT field: the reviewer's ASSESSMENT (a recommendation).
+ * It is not the review decision — the decision is recorded separately by
+ * the decision authority and is authoritative (Review remediation §6).
  *
  * Hard rules:
  *   * Slugs are bounded `^[a-z0-9][a-z0-9-_]{0,78}[a-z0-9]$`.
- *   * orderIndex values are 0-based and contiguous within each schema.
- *   * Required fields drive the gate that prevents a non-PENDING
- *     verdict before all required fields are written.
+ *   * orderIndex values are 0-based within each schema.
+ *   * Required fields mark the assessment as incomplete (a warning). There
+ *     is NO unconditional gate: a decision is refused for missing required
+ *     coding only when the workspace policy
+ *     `review_requires_complete_coding` is on, and only for rounds whose
+ *     current Start happened at or after the policy's `since` timestamp
+ *     (see `codingCompletenessRefusal` in coding-value.service.ts).
  */
+
+/** The help text seeded before the Review remediation (2026-11-27). */
+export const LEGACY_VERDICT_HELP_TEXT =
+  "Bounded reviewer decision; recorded on closure.";
+
+/** The corrected REVIEWER_VERDICT help text. */
+export const VERDICT_HELP_TEXT =
+  "Your assessment (recommendation). The review decision is recorded separately.";
+
+/**
+ * Read-time help-text correction (Review remediation §6, F-20). Stored rows
+ * seeded with the legacy text are presented with the corrected text; the
+ * rows themselves are not rewritten here (a scoped reconciliation may).
+ */
+export function correctedFieldHelpText(
+  helpText: string | null | undefined,
+): string | null {
+  if (helpText === null || helpText === undefined) return null;
+  return helpText.trim() === LEGACY_VERDICT_HELP_TEXT
+    ? VERDICT_HELP_TEXT
+    : helpText;
+}
 
 import type {
   CodingFieldType,
@@ -45,7 +73,7 @@ const VERDICT_FIELD = {
   fieldType: "REVIEWER_VERDICT" as CodingFieldType,
   required: true,
   orderIndex: 0,
-  helpText: "Bounded reviewer decision; recorded on closure.",
+  helpText: VERDICT_HELP_TEXT,
 };
 const RISK_FIELD = {
   slug: "risk",

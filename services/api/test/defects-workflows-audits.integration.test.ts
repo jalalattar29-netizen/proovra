@@ -398,15 +398,16 @@ describe("D48 + D52 — workflow instances and audit rows (live PostgreSQL 16)",
 
     async function publishedSchema() {
       const a = h.fixtures.teamA;
-      const created = await call({
-        method: "POST",
-        url: `/v1/coding/schemas?teamId=${a.teamId}`,
-        token: a.ownerToken,
-        payload: schemaBody(`d52-${tag()}`),
-      });
-      expect(created.statusCode, created.body).toBe(201);
-      const schemaId = created.json().schemaId as string;
-      const { publishSchema } = await import("../src/services/reviewer-workspace/coding-schema.service.js");
+      // POST /v1/coding/schemas is retired (Review remediation F-27); a draft
+      // is created through the service, the way seed-defaults creates one.
+      const { createSchema, publishSchema } = await import("../src/services/reviewer-workspace/coding-schema.service.js");
+      const created = await createSchema({
+        teamId: a.teamId,
+        authorUserId: a.ownerUserId,
+        ...schemaBody(`d52-${tag()}`),
+      } as never);
+      expect(created).toMatchObject({ ok: true });
+      const schemaId = (created as { schemaId: string }).schemaId;
       expect(await publishSchema({ teamId: a.teamId, schemaId })).toMatchObject({ ok: true });
       const fields = await prisma.codingField.findMany({ where: { schemaId }, orderBy: { orderIndex: "asc" } });
       return { schemaId, fields };
@@ -509,8 +510,9 @@ describe("D48 + D52 — workflow instances and audit rows (live PostgreSQL 16)",
         token: a.adminToken,
         payload: { fieldSlug: "estimate", value: { number: 987654 }, workflowIds: [w1, w2, unbound] },
       });
-      expect(code.statusCode, code.body).toBe(200);
-      expect(code.json().succeeded).toBe(2);
+      // Review remediation (F-30): a partial batch answers 207 with counts and per-item reasons.
+      expect(code.statusCode, code.body).toBe(207);
+      expect(code.json()).toMatchObject({ ok: true, total: 3, succeeded: 2, failed: 1 });
       for (const w of [w1, w2]) {
         const rows = await auditRows("reviewer.code.bulk_write", w);
         expect(rows).toEqual([

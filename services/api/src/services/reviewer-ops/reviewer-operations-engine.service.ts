@@ -26,7 +26,6 @@ import {
   REVIEW_FINISHED_DB_STATUSES,
   computeReviewerOpsSlaSnapshot,
   deriveLifecycleState,
-  escalationForcesIndependentReview,
   isAllowedLifecycleTransition,
   isReviewOpenDbStatus,
   mapDbStatusToReviewStage,
@@ -798,6 +797,10 @@ export const REVIEWER_VIEWER_ACTIONS = [
   // availability computed by the server, like every other action).
   "reopen",
   "escalate",
+  // Review remediation 2026-11-27 — the explicit independence request and the
+  // formal challenge are offered by the same server projection.
+  "request_independent_review",
+  "challenge",
 ] as const;
 export type ReviewerViewerAction = (typeof REVIEWER_VIEWER_ACTIONS)[number];
 
@@ -805,12 +808,8 @@ export type ReviewerViewerProjection = {
   userId: string;
   isAssignee: boolean;
   actions: ReadonlyArray<{ action: ReviewerViewerAction; allowed: boolean; reason?: string }>;
-  /**
-   * T-019 — whether an escalation this viewer raises will require an
-   * independent second review (escalationForcesIndependentReview: every
-   * escalation a person raises does). The Escalate dialog states it.
-   */
-  escalationForcesIndependentReview: boolean;
+  /** 2026-11-27 — recorded decisions of the current round this viewer may challenge. */
+  challengeableDecisionIds?: string[];
 };
 
 export type ReviewerOpsWorkspaceProjection = {
@@ -859,6 +858,8 @@ export function computeViewerActions(input: {
   escalationIncluded?: boolean;
   /** The review was handed over to its assignee (reviewWasHandedOver). Absent = not. */
   handedOver?: boolean;
+  /** 2026-11-27 — current-round decisions recorded by someone else (challengeable). */
+  challengeableDecisionIds?: ReadonlyArray<string>;
 }): ReviewerViewerProjection {
   const { row, lifecycle, viewerUserId, facts, decision } = input;
   const isAssignee = !!row.assignedToUserId && row.assignedToUserId === viewerUserId;
@@ -972,11 +973,31 @@ export function computeViewerActions(input: {
           : finished
             ? "review_finished"
             : null,
+    // 2026-11-27 — an explicit, auditable request for an independent second
+    // decision (BEHAVIOUR-SPEC §2.1). Not offered when the round already waits
+    // for one or cannot take one.
+    request_independent_review:
+      input.escalationIncluded === false
+        ? "review_escalation_not_included"
+        : !facts.isReviewerCapable
+          ? "reviewer_required"
+          : finished
+            ? "review_finished"
+            : decision.secondReviewRequired || decision.state !== "first_required"
+              ? "independent_review_already_required"
+              : null,
+    // F-07 — a challenge is offered only for a recorded decision this viewer
+    // did not make (the server refuses the rest: DISAGREEMENT_SELF_FILE / NOT_FOUND).
+    challenge: !facts.isReviewerCapable
+      ? "reviewer_required"
+      : (input.challengeableDecisionIds?.length ?? 0) === 0
+        ? "no_challengeable_decision"
+        : null,
   };
   return {
     userId: viewerUserId,
     isAssignee,
-    escalationForcesIndependentReview: escalationForcesIndependentReview({ reason: "REVIEWER_ESCALATED", createdByUserId: viewerUserId }),
+    challengeableDecisionIds: [...(input.challengeableDecisionIds ?? [])],
     actions: REVIEWER_VIEWER_ACTIONS.map((action) => {
       const reason = reasons[action];
       return reason ? { action, allowed: false, reason } : { action, allowed: true };
@@ -1033,6 +1054,13 @@ export async function getReviewerOpsWorkspace(
       assignmentsIncluded,
       escalationIncluded,
       handedOver: await reviewHandedOver(row, client),
+      challengeableDecisionIds: (
+        await client.workflowReviewDecision.findMany({
+          where: { workflowId: row.id, round: row.decisionRound, reviewerUserId: { not: input.viewerUserId } },
+          select: { id: true },
+          orderBy: { decidedAt: "asc" },
+        })
+      ).map((d) => d.id),
     });
     handoff = await computeReviewHandoff(row, decision, client);
   }
@@ -1612,10 +1640,10 @@ export async function resumeReview(
 // ----- Decision outcome (TEAM-SPEC §2.3) --------------------------------------
 
 export type ReviewerOpsDecisionOutcome = {
-  stageRecorded: "FIRST" | "SECOND" | "ADJUDICATION";
+  stageRecorded: "FIRST" | "SECOND" | "ADJUDICATION" | "NONE";
   statusChanged: boolean;
   reviewState: string;
-  nextRequirement: "second_review" | "adjudication" | null;
+  nextRequirement: "second_review" | "adjudication" | "information" | null;
   idempotent: boolean;
   /** T-015 — the second-review cause and staffing, when the round waits for one. */
   secondReview?: ReviewDecisionOutcome["secondReview"];

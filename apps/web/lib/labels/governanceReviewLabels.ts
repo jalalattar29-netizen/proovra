@@ -265,6 +265,8 @@ const ESCALATION_REASON_LABELS: Readonly<Record<string, string>> = {
   REVIEWER_INACTIVE: "Reviewer inactive",
   GOVERNANCE_BLOCKED: "Blocked by governance policy",
   REPEATED_REJECTION_LOOP: "Repeatedly rejected",
+  // Review remediation 2026-11-27 — the explicit "Request independent review".
+  INDEPENDENT_REVIEW_REQUESTED: "Independent review requested",
 };
 export function escalationReasonLabel(reason: string): string {
   return curated(ESCALATION_REASON_LABELS, reason);

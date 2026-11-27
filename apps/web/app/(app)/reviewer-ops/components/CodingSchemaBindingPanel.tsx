@@ -60,15 +60,32 @@ function codeOf(err: unknown): string {
 export function CodingSchemaBindingPanel({
   teamId,
   workflowId,
+  onBound,
 }: {
   teamId: string;
   workflowId: string;
+  /**
+   * Review remediation §6 (F-19) — called once a bind is confirmed by the
+   * server reread, so the parent re-reads the coding values and fields
+   * immediately (no page reload).
+   */
+  onBound?: () => void;
 }) {
   // Keyed so a workspace or review switch drops every pending response.
-  return <BindingWorkspace key={`${teamId}:${workflowId}`} teamId={teamId} workflowId={workflowId} />;
+  return (
+    <BindingWorkspace key={`${teamId}:${workflowId}`} teamId={teamId} workflowId={workflowId} onBound={onBound} />
+  );
 }
 
-function BindingWorkspace({ teamId, workflowId }: { teamId: string; workflowId: string }) {
+function BindingWorkspace({
+  teamId,
+  workflowId,
+  onBound,
+}: {
+  teamId: string;
+  workflowId: string;
+  onBound?: () => void;
+}) {
   const { confirm } = useConfirmAction();
   const formId = useId();
   const q = `teamId=${encodeURIComponent(teamId)}`;
@@ -232,6 +249,7 @@ function BindingWorkspace({ teamId, workflowId }: { teamId: string; workflowId: 
         setOpen(false);
         setSelected("");
         toggleRef.current?.focus();
+        onBound?.();
       } else {
         setFailure(
           reread === undefined

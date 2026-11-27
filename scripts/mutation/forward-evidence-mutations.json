@@ -8213,8 +8213,8 @@
     "aud": "DECISION-5",
     "name": "MEM-B2-QC-AUTHORITY",
     "file": "services/api/src/services/reviewer-workspace/qc-sample.service.ts",
-    "find": "          assigneeUserId: input.qcReviewerUserId,\n          permission: \"evidence_request.review\",\n          evidenceId: workflow.evidenceId,\n        },\n        tx,\n        { inTransaction: true },\n      );\n    } catch (err) {\n      if (err instanceof AssigneeEligibilityError) return err.reason;",
-    "replace": "          assigneeUserId: input.qcReviewerUserId,\n          permission: \"evidence_request.review\",\n          evidenceId: workflow.evidenceId,\n        },\n        tx,\n        { inTransaction: true },\n      );\n    } catch (err) {\n      if (err instanceof AssigneeEligibilityError) { void err; } else",
+    "find": "          assigneeUserId: input.qcReviewerUserId,\n          permission: \"evidence_request.review\",\n          evidenceId: workflow.evidenceId,\n        },\n        tx,\n        { inTransaction: true, placementRule: \"review\" },\n      );\n    } catch (err) {\n      if (err instanceof AssigneeEligibilityError) return err.reason;",
+    "replace": "          assigneeUserId: input.qcReviewerUserId,\n          permission: \"evidence_request.review\",\n          evidenceId: workflow.evidenceId,\n        },\n        tx,\n        { inTransaction: true, placementRule: \"review\" },\n      );\n    } catch (err) {\n      if (err instanceof AssigneeEligibilityError) { void err; } else",
     "tests": [
       {
         "cwd": "services/api",
@@ -8389,8 +8389,8 @@
     "aud": "DECISION-5",
     "name": "MEM-B5-ESCALATION-IN-WRITE",
     "file": "services/api/src/services/reviewer-ops/escalation-engine.service.ts",
-    "find": "      client,\n      { inTransaction: true },\n    );\n  } catch (err) {\n    if (err instanceof AssigneeEligibilityError) {\n      throw new EscalationEngineError(",
-    "replace": "      client,\n      { inTransaction: false },\n    );\n  } catch (err) {\n    if (err instanceof AssigneeEligibilityError) {\n      throw new EscalationEngineError(",
+    "find": "      client,\n      { inTransaction: true, placementRule: \"review\" },\n    );\n  } catch (err) {\n    if (err instanceof AssigneeEligibilityError) {\n      throw new EscalationEngineError(",
+    "replace": "      client,\n      { inTransaction: false, placementRule: \"review\" },\n    );\n  } catch (err) {\n    if (err instanceof AssigneeEligibilityError) {\n      throw new EscalationEngineError(",
     "tests": [
       {
         "cwd": "services/api",
@@ -8411,8 +8411,8 @@
     "aud": "DECISION-5",
     "name": "MEM-B5-CT-REVIEW-TASK-IN-WRITE",
     "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
-    "find": "        { inTransaction: options.inTransaction === true },",
-    "replace": "        { inTransaction: false },",
+    "find": "        { inTransaction: options.inTransaction === true, placementRule: \"review\" },",
+    "replace": "        { inTransaction: false, placementRule: \"review\" },",
     "tests": [
       {
         "cwd": "services/api",

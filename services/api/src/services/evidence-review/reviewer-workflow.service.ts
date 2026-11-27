@@ -376,7 +376,7 @@ export async function upsertEvidenceReviewerWorkflow(params: {
           evidenceId: params.evidenceId,
         },
         tx as unknown as prismaPkg.PrismaClient,
-        { inTransaction: true },
+        { inTransaction: true, placementRule: "review" },
       );
     }
 

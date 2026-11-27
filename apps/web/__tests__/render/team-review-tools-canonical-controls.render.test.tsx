@@ -36,6 +36,8 @@ vi.mock("../../lib/api", () => ({ apiFetch: mocks.fetch, ApiError: class ApiErro
 vi.mock("../../lib/platform-context", () => ({
   useActiveSpaceId: () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   useTeamId: () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  // F-33 — the External Review page reads the canonical active workspace id.
+  useActiveWorkspaceId: () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   useActiveSpace: () => ({ type: "ORGANIZATION", roleLabel: mocks.role.value }),
   useCan: () => true,
   usePlatformContext: () => ({ envelope: { account: { userId: "99999999-9999-4999-8999-999999999991" } } }),
@@ -119,7 +121,7 @@ function reply(path: string): unknown {
   if (path.startsWith("/v1/reviewer/disagreements")) {
     return {
       disagreements: [
-        { id: DISAGREEMENT, workflowId: WORKFLOW, state: "UNDER_SECOND_REVIEW", challengerUserId: ME, challengerRationale: "Wrong call", secondReviewerUserId: null, supervisorUserId: null, originalDecisionId: null, filedAtUtc: "2026-02-01T00:00:00.000Z", resolvedAtUtc: null },
+        { id: DISAGREEMENT, workflowId: WORKFLOW, state: "UNDER_SECOND_REVIEW", challengerUserId: "99999999-9999-4999-8999-99999999c0de", challengerRationale: "Wrong call", secondReviewerUserId: null, supervisorUserId: null, originalDecisionId: null, filedAtUtc: "2026-02-01T00:00:00.000Z", resolvedAtUtc: null },
       ],
     };
   }

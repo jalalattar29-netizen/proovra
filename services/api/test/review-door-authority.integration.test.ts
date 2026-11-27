@@ -11,6 +11,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { placeInCollaborationTeam } from "./support/place-in-collaboration-team.js";
 
 type Prisma = (typeof import("../src/db.js"))["prisma"];
 type Person = { id: string; token: string };
@@ -143,6 +144,16 @@ describe("review door authority (live PostgreSQL)", () => {
       person("ADMIN"),
       person("MEMBER"),
     ]);
+    // This workspace is on ENTERPRISE without an active contract, so Review
+    // placement fails closed (required). The decision authority re-checks the
+    // assignee's eligibility at write time (review remediation 2026-11-27), so
+    // the reviewers this suite seeds as assignees are placed, as a workspace
+    // would organise them; the placement rule itself is proven elsewhere.
+    await placeInCollaborationTeam(prisma, {
+      workspaceId: A().teamId,
+      createdByUserId: A().ownerUserId,
+      userIds: [reviewer.id, admin.id, listed.id],
+    });
     restrictedCaseId = (
       await prisma.case.create({
         data: { name: `restricted-${tag()}`, teamId: A().teamId, ownerUserId: A().ownerUserId, restrictedAtUtc: new Date() } as never,

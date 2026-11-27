@@ -129,8 +129,8 @@ describe("coding schema archive", () => {
 });
 
 describe("coding schema binding on a review", () => {
-  async function openBinding() {
-    render(<CodingSchemaBindingPanel teamId={teamId} workflowId={workflowId} />);
+  async function openBinding(onBound?: () => void) {
+    render(<CodingSchemaBindingPanel teamId={teamId} workflowId={workflowId} onBound={onBound} />);
     await screen.findByText("No coding schema is bound, so reviewers see no coding fields for this review.");
     const toggle = screen.getByRole("button", { name: "Choose coding schema" });
     await waitFor(() => expect(toggle.hasAttribute("disabled")).toBe(false));
@@ -155,6 +155,26 @@ describe("coding schema binding on a review", () => {
     expect(calls.lastIndexOf(codingUrl)).toBeGreaterThan(calls.indexOf(bindUrl));
     expect(screen.getByText("Privilege review (version 1)")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Change coding schema" })).toBeTruthy();
+  });
+
+  it("calls onBound once the reread confirms the bind (Review remediation F-19)", async () => {
+    const onBound = vi.fn();
+    const { select } = await openBinding(onBound);
+    chooseListbox(select, schemaId);
+    fireEvent.click(screen.getByRole("button", { name: "Bind schema" }));
+    await screen.findByText(BOUND);
+    expect(onBound).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not call onBound when the confirmation is cancelled", async () => {
+    mocks.confirm.mockResolvedValue(false);
+    const onBound = vi.fn();
+    const { select } = await openBinding(onBound);
+    chooseListbox(select, schemaId);
+    fireEvent.click(screen.getByRole("button", { name: "Bind schema" }));
+    await waitFor(() => expect(mocks.confirm).toHaveBeenCalled());
+    expect(writes(bindUrl)).toHaveLength(0);
+    expect(onBound).not.toHaveBeenCalled();
   });
 
   it("cancelling the confirmation makes no write", async () => {
@@ -255,6 +275,7 @@ describe("coding schema binding on a review", () => {
     const src = readFileSync(join(__dirname, "../../app/(app)/reviewer-ops/[reviewId]/page.tsx"), "utf8");
     expect(src).toMatch(/<ReviewCodingSection teamId=\{teamId\} workflowId=\{workflowId\}/);
     const section = readFileSync(join(__dirname, "../../components/reviewer-experience/ReviewCodingSection.tsx"), "utf8");
-    expect(section).toMatch(/<CodingSchemaBindingPanel teamId=\{teamId\} workflowId=\{workflowId\} \/>/);
+    // Review remediation F-19 — a bind re-reads the coding section at once.
+    expect(section).toMatch(/<CodingSchemaBindingPanel teamId=\{teamId\} workflowId=\{workflowId\} onBound=\{onBound\} \/>/);
   });
 });

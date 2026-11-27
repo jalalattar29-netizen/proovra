@@ -12,7 +12,12 @@
  * operational: no claim of authenticity, admissibility or truth.
  */
 
-import { REVIEW_WORKFLOW_BLOCK_COPY } from "@proovra/shared";
+import {
+  INFORMATION_REQUESTED_MESSAGE,
+  REVIEW_WORKFLOW_BLOCK_COPY,
+  describeReviewOutcome,
+  type ReviewDecisionOutcomeCopyInput,
+} from "@proovra/shared";
 
 export type ReviewStage =
   | "QUEUED"
@@ -208,4 +213,22 @@ export function isPlacementRefusal(err: unknown): boolean {
   if (code === "REVIEW_ASSIGNEE_NOT_PLACED" || code === "ASSIGNEE_NOT_PLACED") return true;
   const details = e.details && typeof e.details === "object" ? (e.details as Record<string, unknown>) : {};
   return details.reason === "assignee_not_placed";
+}
+
+/**
+ * What a recorded decision did, in the copy every surface shares (review
+ * remediation 2026-11-27). Null-safe: a request for information records NO
+ * decision (`decision: null`, `outcome.stageRecorded: "NONE"`,
+ * `nextRequirement: "information"`), and an older API may send no outcome at
+ * all. Never reads `decision`; null when there is nothing certain to say.
+ */
+export function reviewDecisionResultMessage(d: ReviewDecision, response: unknown): string | null {
+  const kind =
+    d === "APPROVE_INTERNAL" ? "approve" : d === "REJECT_INSUFFICIENT" ? "reject" : d === "REQUEST_MORE_INFO" ? "request_info" : null;
+  if (!kind) return null;
+  const body = response && typeof response === "object" ? (response as { outcome?: unknown }) : null;
+  const outcome =
+    body && body.outcome && typeof body.outcome === "object" ? (body.outcome as ReviewDecisionOutcomeCopyInput) : null;
+  if (outcome) return describeReviewOutcome(kind, outcome);
+  return kind === "request_info" ? INFORMATION_REQUESTED_MESSAGE : null;
 }

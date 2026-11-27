@@ -275,6 +275,8 @@ export const REVIEW_ESCALATION_REASONS = [
   "REPEATED_REJECTION_LOOP",
   // 2026-10-23 — a reviewer escalated the review from the Evidence page.
   "REVIEWER_ESCALATED",
+  // 2026-11-27 — the explicit "Request independent review" action.
+  "INDEPENDENT_REVIEW_REQUESTED",
 ] as const;
 export const ReviewEscalationReasonSchema = z.enum(REVIEW_ESCALATION_REASONS);
 export type ReviewEscalationReason = z.infer<typeof ReviewEscalationReasonSchema>;

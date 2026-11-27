@@ -260,16 +260,18 @@ describe("TEAM personal workspace — assignment → start → request info → 
     expect((await o.resume(T.member, workflowId)).status).toBe(200);
     expect((await wfRow(workflowId)).slaPausedAtUtc).toBeNull();
 
-    // Request info — FIRST stage, status moved: outcome says so, event emitted.
+    // Request info — a workflow action (review remediation F-04): no decision
+    // slot, status moved, the review now waits for information.
     const asked = await o.requestInfo(T.member, workflowId);
     expect(asked.status, asked.raw).toBe(200);
     expect(asked.body.outcome).toEqual({
-      stageRecorded: "FIRST",
+      stageRecorded: "NONE",
       statusChanged: true,
-      reviewState: "resolved",
-      nextRequirement: null,
+      reviewState: "first_required",
+      nextRequirement: "information",
       idempotent: false,
     });
+    expect(await decisionRows(workflowId)).toHaveLength(0);
     expect((await wfRow(workflowId)).status).toBe("NEEDS_INFO");
     expect(await waitForSecurityEvents("reviewer_information_requested", workflowId, 1)).toHaveLength(1);
 
@@ -305,8 +307,7 @@ describe("TEAM personal workspace — assignment → start → request info → 
     expect((await wfRow(workflowId)).status).toBe("APPROVED_INTERNAL");
     const log = await decisionRows(workflowId);
     expect(log.map((d) => [d.round, d.stage, d.decision, d.reviewerUserId])).toEqual([
-      [0, "FIRST", "REQUEST_INFO", T.member.userId],
-      [1, "FIRST", "APPROVE", T.member.userId],
+      [0, "FIRST", "APPROVE", T.member.userId],
     ]);
     expect(await waitForSecurityEvents("reviewer_review_approved", workflowId, 1)).toHaveLength(1);
   });

@@ -14,7 +14,12 @@
  *   ReassignDialog   POST /v1/reviewer-ops/reviews/:id/reassign
  *                    (second-review handoff mode never offers the first reviewer)
  *   EscalateDialog   POST /v1/reviewer-ops/escalations
- *                    { teamId, workflowId, reason, severity, safeSummary }
+ *                    { teamId, workflowId, reason, severity, safeSummary,
+ *                      requireIndependentReview, independenceNote? } — states
+ *                    the effect before raising (F-09)
+ *   RequestIndependentReviewDialog
+ *                    POST /v1/reviewer-ops/reviews/:id/request-independent-review
+ *   LeaveUnsavedCodingDialog  the in-app navigation guard (F-16)
  *   ArchiveDialog    the irreversible archive confirm
  *
  * Each dialog's `onSubmit` resolves to an error message, or null on success;
@@ -22,7 +27,7 @@
  */
 
 import { useEffect, useId, useState } from "react";
-import { describeEscalationIndependence } from "@proovra/shared";
+import { INTEGRITY_ESCALATION_REASONS, describeEscalationIndependence, describeIndependenceStaffing } from "@proovra/shared";
 import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { Modal } from "../../../../../components/cases-experience/matter-modals/Modal";
 import { apiFetch } from "../../../../../lib/api";
@@ -263,43 +268,97 @@ const ESCALATE_SEVERITIES: ReadonlyArray<{ value: string; label: string }> = [
 ];
 
 const SUMMARY_MAX = 400;
+const INDEPENDENCE_NOTE_MAX = 400;
 
-export type EscalateInput = { reason: string; severity: string; safeSummary: string };
+/** Integrity controls always require an independent second decision (§2.1) — the shared list. */
+const INTEGRITY_REASONS: ReadonlySet<string> = new Set<string>(INTEGRITY_ESCALATION_REASONS);
+
+export type EscalateInput = {
+  reason: string;
+  severity: string;
+  safeSummary: string;
+  /** F-09 — the raiser explicitly asks for an independent second decision. */
+  requireIndependentReview: boolean;
+  independenceNote: string | null;
+};
+
+/**
+ * F-09 — how many OTHER people could give an independent second decision:
+ * the SERVER's count (`countEligibleSecondReviewers`, read through the
+ * decisions endpoint's `independentReviewerCount`), never a client recount.
+ * null while unknown or unreadable (nothing is then claimed).
+ */
+function useOtherEligibleCount(open: boolean, teamId: string | null | undefined, workflowId: string | null | undefined) {
+  const [count, setCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!open || !teamId || !workflowId) return;
+    let live = true;
+    setCount(null);
+    apiFetch(
+      `/v1/reviewer-ops/workspace/${encodeURIComponent(workflowId)}/decisions?teamId=${encodeURIComponent(teamId)}`,
+      { method: "GET" },
+    )
+      .then((r: { independentReviewerCount?: number | null } | null) => {
+        if (!live) return;
+        setCount(typeof r?.independentReviewerCount === "number" ? r.independentReviewerCount : null);
+      })
+      .catch(() => {
+        if (live) setCount(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, [open, teamId, workflowId]);
+  return count;
+}
 
 export function EscalateDialog({
   open,
   onCancel,
   onSubmit,
-  forcesIndependentReview = true,
+  teamId = null,
+  workflowId = null,
 }: {
   open: boolean;
   onCancel: () => void;
   onSubmit: (input: EscalateInput) => Promise<string | null>;
-  /**
-   * T-019 — whether the escalation will require an independent second review
-   * (server: viewer.escalationForcesIndependentReview). Stated before raising.
-   */
-  forcesIndependentReview?: boolean;
+  /** For the "nobody else is eligible" warning when independence is required. */
+  teamId?: string | null;
+  workflowId?: string | null;
 }) {
   const id = useId();
   const formId = `${id}-form`;
   const [reason, setReason] = useState<string>(ESCALATE_REASONS[0]);
   const [severity, setSeverity] = useState("WARNING");
   const [summary, setSummary] = useState("");
+  const [requireIndependent, setRequireIndependent] = useState(false);
+  const [independenceNote, setIndependenceNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const forcesNow = INTEGRITY_REASONS.has(reason) || requireIndependent;
+  // Read only when independence is being required — the only time it matters.
+  const otherEligible = useOtherEligibleCount(open && forcesNow, teamId, workflowId);
 
   useEffect(() => {
     if (!open) return;
     setReason(ESCALATE_REASONS[0]);
     setSeverity("WARNING");
     setSummary("");
+    setRequireIndependent(false);
+    setIndependenceNote("");
     setError(null);
     setBusy(false);
   }, [open]);
 
   if (!open) return null;
   const trimmed = summary.trim();
+  // F-09 / §2.1 — the effect is stated BEFORE raising: an integrity reason
+  // always requires an independent second decision; any other reason only
+  // when the raiser asks for it.
+  const integrity = INTEGRITY_REASONS.has(reason);
+  const forces = integrity || requireIndependent;
+  const effect = describeEscalationIndependence(forces);
+  const staffing = forces ? describeIndependenceStaffing(otherEligible) : null;
   return (
     <Modal
       open
@@ -329,7 +388,13 @@ export function EscalateDialog({
           if (!trimmed || busy) return;
           setBusy(true);
           setError(null);
-          void onSubmit({ reason, severity, safeSummary: trimmed })
+          void onSubmit({
+            reason,
+            severity,
+            safeSummary: trimmed,
+            requireIndependentReview: forces,
+            independenceNote: forces && independenceNote.trim() ? independenceNote.trim() : null,
+          })
             .then((failure) => {
               if (failure) setError(failure);
             })
@@ -380,9 +445,53 @@ export function EscalateDialog({
         <p id={`${id}-summary-help`} className="app-field-help" style={{ margin: 0 }}>
           {summary.length}/{SUMMARY_MAX} characters. Operational facts only.
         </p>
-        {describeEscalationIndependence(forcesIndependentReview) ? (
-          <p className="app-field-help" data-reviewer-escalate-independence style={{ margin: 0, overflowWrap: "anywhere" }}>
-            {describeEscalationIndependence(forcesIndependentReview)}
+        <label className="review-check-row" data-reviewer-escalate-require-independent-row>
+          <input
+            type="checkbox"
+            className="app-checkbox"
+            checked={forces}
+            disabled={busy || integrity}
+            aria-describedby={`${id}-independence`}
+            data-reviewer-escalate-require-independent
+            onChange={(e) => setRequireIndependent(e.target.checked)}
+          />
+          <span>Also require an independent second decision</span>
+        </label>
+        {integrity ? (
+          <p className="app-field-help" data-reviewer-escalate-integrity style={{ margin: 0 }}>
+            An integrity concern always requires an independent second decision; it cannot be turned off.
+          </p>
+        ) : null}
+        {forces ? (
+          <>
+            <label className="app-field-label" htmlFor={`${id}-independence-note`}>
+              Note for the second reviewer <span className="app-field-optional">(optional)</span>
+            </label>
+            <textarea
+              id={`${id}-independence-note`}
+              className="app-input app-textarea"
+              value={independenceNote}
+              onChange={(e) => setIndependenceNote(e.target.value.slice(0, INDEPENDENCE_NOTE_MAX))}
+              disabled={busy}
+              rows={2}
+              data-reviewer-escalate-independence-note
+              style={{ boxSizing: "border-box" }}
+            />
+          </>
+        ) : null}
+        {effect ? (
+          <p
+            id={`${id}-independence`}
+            className="app-field-help"
+            data-reviewer-escalate-independence={forces ? "required" : "administrative"}
+            style={{ margin: 0, overflowWrap: "anywhere" }}
+          >
+            {effect}
+          </p>
+        ) : null}
+        {staffing ? (
+          <p role="note" className="app-field-help" data-reviewer-escalate-staffing style={{ margin: 0, overflowWrap: "anywhere" }}>
+            {staffing}
           </p>
         ) : null}
         {error ? (
@@ -391,6 +500,159 @@ export function EscalateDialog({
           </p>
         ) : null}
       </form>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Request independent review (review remediation 2026-11-27, §2.1)
+// ---------------------------------------------------------------------------
+
+export const REQUEST_INDEPENDENT_REVIEW_SUCCESS =
+  "Independent review requested. The decision now needs a second reviewer.";
+
+/**
+ * POST /v1/reviewer-ops/reviews/:id/request-independent-review { teamId, note }
+ * — the explicit, auditable request. The note (1–400 characters) is required.
+ */
+export function RequestIndependentReviewDialog({
+  open,
+  onCancel,
+  onSubmit,
+  teamId = null,
+  workflowId = null,
+}: {
+  open: boolean;
+  onCancel: () => void;
+  onSubmit: (note: string) => Promise<string | null>;
+  teamId?: string | null;
+  workflowId?: string | null;
+}) {
+  const id = useId();
+  const formId = `${id}-form`;
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const otherEligible = useOtherEligibleCount(open, teamId, workflowId);
+
+  useEffect(() => {
+    if (!open) return;
+    setNote("");
+    setError(null);
+    setBusy(false);
+  }, [open]);
+
+  if (!open) return null;
+  const trimmed = note.trim();
+  const staffing = describeIndependenceStaffing(otherEligible);
+  return (
+    <Modal
+      open
+      title="Request independent review"
+      description="The decision on this review will then need a second, independent reviewer before it is final."
+      onClose={onCancel}
+      dismissDisabled={busy}
+      testid="reviewer-request-independent"
+      footer={
+        <ConfirmFooter
+          formId={formId}
+          busy={busy}
+          disabled={!trimmed}
+          label="Request independent review"
+          busyLabel="Requesting…"
+          onCancel={onCancel}
+          testAttr="request-independent-review"
+        />
+      }
+    >
+      <form
+        id={formId}
+        noValidate
+        data-reviewer-request-independent-form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!trimmed || busy) return;
+          setBusy(true);
+          setError(null);
+          void onSubmit(trimmed)
+            .then((failure) => {
+              if (failure) setError(failure);
+            })
+            .finally(() => setBusy(false));
+        }}
+        style={{ display: "grid", gap: 6, minWidth: 0 }}
+      >
+        <p className="app-field-help" style={{ margin: 0 }}>
+          {describeEscalationIndependence(true)}
+        </p>
+        <label className="app-field-label" htmlFor={`${id}-note`}>
+          Why is an independent review needed?
+        </label>
+        <textarea
+          id={`${id}-note`}
+          className="app-input app-textarea"
+          value={note}
+          onChange={(e) => setNote(e.target.value.slice(0, INDEPENDENCE_NOTE_MAX))}
+          disabled={busy}
+          rows={3}
+          required
+          aria-describedby={`${id}-note-help`}
+          data-reviewer-request-independent-note
+          style={{ boxSizing: "border-box" }}
+        />
+        <p id={`${id}-note-help`} className="app-field-help" style={{ margin: 0 }}>
+          {note.length}/{INDEPENDENCE_NOTE_MAX} characters. Required.
+        </p>
+        {staffing ? (
+          <p role="note" className="app-field-help" data-reviewer-request-independent-staffing style={{ margin: 0 }}>
+            {staffing}
+          </p>
+        ) : null}
+        {error ? (
+          <p role="alert" className="app-field-error" data-reviewer-request-independent-error style={{ margin: 0, overflowWrap: "anywhere" }}>
+            {error}
+          </p>
+        ) : null}
+      </form>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Leave with unsaved coding (F-16 in-app navigation guard)
+// ---------------------------------------------------------------------------
+
+export function LeaveUnsavedCodingDialog({
+  open,
+  onStay,
+  onLeave,
+}: {
+  open: boolean;
+  onStay: () => void;
+  onLeave: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <Modal
+      open
+      title="Leave with unsaved coding?"
+      description="Some coded values are still saving or were not saved. If you leave now, those changes may be lost."
+      onClose={onStay}
+      testid="reviewer-leave-unsaved-coding"
+      footer={
+        <>
+          <button type="button" className="app-secondary-action" onClick={onStay} data-review-leave-stay>
+            Stay on this review
+          </button>
+          <button type="button" className="app-danger-action" onClick={onLeave} data-review-leave-confirm>
+            Leave anyway
+          </button>
+        </>
+      }
+    >
+      <p className="app-field-help" style={{ margin: 0 }} data-review-leave-unsaved>
+        Wait for the coding fields to show “Saved”, or retry the ones marked “Not saved”, before leaving.
+      </p>
     </Modal>
   );
 }

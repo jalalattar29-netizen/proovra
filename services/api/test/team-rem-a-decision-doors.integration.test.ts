@@ -208,7 +208,11 @@ describe("viewer actions (T-009 / T-019 / T-020 / T-021)", () => {
     expect(action(memberView, "reject")).toMatchObject({ allowed: true });
     expect(action(memberView, "escalate")).toMatchObject({ allowed: true });
     expect(action(memberView, "reopen")).toMatchObject({ allowed: false });
-    expect(memberView.body.viewer.escalationForcesIndependentReview).toBe(true);
+    // Review remediation (2026-11-27): an ordinary Escalate is administrative
+    // and adds no second reviewer; independence is a separate, explicit request.
+    // (The former viewer.escalationForcesIndependentReview hint is gone: the
+    // Escalate dialog states the effect of the explicit choice instead.)
+    expect(memberView.body.viewer).not.toHaveProperty("escalationForcesIndependentReview");
     // The automatic escalation forces nothing (T-013), and says so.
     expect(memberView.body.openEscalation.forcesIndependentReview).toBe(false);
 
@@ -246,7 +250,7 @@ describe("T-003 — focus mode's next item", () => {
 });
 
 describe("T-023 / T-024 — the history", () => {
-  it("lists the round a request for information settled, and External Review verdicts as advisory", async () => {
+  it("lists a request for information (a workflow action, not a decision) and External Review verdicts as advisory", async () => {
     const r = await review("IN_REVIEW", T.member.userId);
     expect((await legacy(T.member, r.workflowId, "request-info", "need the original file")).status).toBe(200);
     expect(
@@ -255,9 +259,17 @@ describe("T-023 / T-024 — the history", () => {
     const res = await lineage(T.owner, r.workflowId);
     expect(res.status, res.raw).toBe(200);
     expect(res.body.state).toBe("first_required");
-    expect(res.body.rounds).toHaveLength(1);
-    expect(res.body.rounds[0]).toMatchObject({ round: 0, settledBy: "request_info" });
-    expect(res.body.rounds[0].decisions[0]).toMatchObject({ decision: "REQUEST_INFO", rationale: "need the original file" });
+    // Review remediation (F-04): no decision slot was used; the history names
+    // the request, who asked, of whom, and why.
+    expect(res.body.rounds).toHaveLength(0);
+    expect(res.body.informationRequests).toHaveLength(1);
+    expect(res.body.informationRequests[0]).toMatchObject({
+      requestedInRound: 0,
+      requestedBy: { userId: T.member.userId },
+      requestedFrom: { role: "evidence_owner" },
+      reason: "need the original file",
+      supersededDecisionId: null,
+    });
 
     // An External Review verdict on the same review.
     const issued = await invitations.issueInvitation({

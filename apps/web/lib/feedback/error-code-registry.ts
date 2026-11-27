@@ -906,6 +906,13 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
       "coding-schema authoring is not offered; the schemas page installs the " +
       "pre-built set, published on install.",
   },
+  CODING_SCHEMA_CREATE_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person (review " +
+      "remediation F-26, 2026-11-27). No surface creates a blank custom coding " +
+      "schema; the schemas page installs the pre-built set.",
+  },
   SIMILARITY_RECONCILE_RETIRED: {
     disposition: "internal",
     why:

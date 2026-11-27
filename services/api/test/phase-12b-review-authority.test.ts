@@ -47,6 +47,21 @@ vi.mock("../src/services/reviewer-ops/review-handoff.service.js", () => ({
 vi.mock("../src/services/identity/access-policy.service.js", () => ({
   evaluateMemberAccess: async () => ({ allowed: true }),
 }));
+// Review remediation 2026-11-27 — write-time eligibility and the coding policy
+// hooks have their own real-database coverage
+// (review-remediation-policy / review-remediation-coding integration suites).
+vi.mock("../src/services/review-operations/review-operations.service.js", () => ({
+  assertReviewAssigneeEligible: vi.fn(async () => undefined),
+  ReviewOperationError: class ReviewOperationError extends Error {
+    constructor(readonly code: string) {
+      super(code);
+    }
+  },
+}));
+vi.mock("../src/services/reviewer-workspace/coding-value.service.js", () => ({
+  buildCodingSnapshot: vi.fn(async () => null),
+  codingCompletenessRefusal: vi.fn(async () => null),
+}));
 
 const notifyNeedsMoreInfoMock = vi.fn(async () => null);
 vi.mock(
@@ -240,9 +255,28 @@ function makeDb(seed: {
       // Deliberately NO update / delete — the immutable log has no
       // mutation surface; any attempt would throw at runtime.
     },
+    // An open escalation that requires independence (2026-11-27: an integrity
+    // reason; administrative escalations no longer force a second decision).
     reviewEscalation: {
       findFirst: async () => (seed.openEscalation ? { id: "esc-1" } : null),
-      findMany: async () => (seed.openEscalation ? [{ id: "esc-1" }] : []),
+      findMany: async () =>
+        seed.openEscalation
+          ? [
+              {
+                id: "esc-1",
+                reason: "INTEGRITY_RISK",
+                severity: "HIGH",
+                createdByUserId: "actor-x",
+                createdAt: new Date(0),
+                requiresIndependentReview: true,
+                independenceNote: null,
+                safeSummary: "integrity",
+              },
+            ]
+          : [],
+    },
+    workspaceGovernancePolicy: {
+      findUnique: async () => null,
     },
     evidenceLegalHold: {
       count: async () => seed.legalHolds ?? 0,
@@ -685,7 +719,7 @@ describe("canonical recordReviewDecision — idempotency", () => {
       prisma,
     );
     expect(result.idempotent).toBe(true);
-    expect(result.decision.id).toBe("dec-original");
+    expect(result.decision?.id).toBe("dec-original");
     // No duplicate row, no projection churn, no audit spam.
     expect(state.decisions).toHaveLength(1);
     expect(state.workflowUpdates).toHaveLength(0);

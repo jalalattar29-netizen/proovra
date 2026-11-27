@@ -130,7 +130,7 @@ export async function reevaluateSecondReviewPolicyHolds(
     const at = ev.createdAt;
     const escalationsThen = await client.reviewEscalation.findMany({
       where: { workflowId: wf.id, teamId: wf.teamId, createdAt: { lte: at } },
-      select: { reason: true, createdByUserId: true, resolvedAtUtc: true, suppressedAtUtc: true, status: true },
+      select: { reason: true, createdByUserId: true, requiresIndependentReview: true, resolvedAtUtc: true, suppressedAtUtc: true, status: true },
     });
     const forcingThen = escalationsThen.some((e) => {
       const endedAt = e.resolvedAtUtc ?? e.suppressedAtUtc;

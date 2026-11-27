@@ -21,6 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { chooseListbox } from "./_listbox";
 
+import { notRecordedMessage } from "@proovra/shared";
 import ReviewWorkspacePage from "../../app/(app)/reviewer-ops/[reviewId]/page";
 import {
   FIRST_ONLY_MESSAGE,
@@ -33,7 +34,13 @@ const evidenceId = "e1000000-0000-4000-8000-0000000000c1";
 const PEER = "a2222222-2222-4222-8222-222222222222";
 
 const mocks = vi.hoisted(() => ({ canEscalate: true,
-  canBulk: true }));
+  canBulk: true,
+  unsavedCoding: false }));
+
+vi.mock("../../components/reviewer-workspace/CodingPanel", async (orig) => ({
+  ...(await orig<typeof import("../../components/reviewer-workspace/CodingPanel")>()),
+  hasUnsavedCoding: () => mocks.unsavedCoding,
+}));
 
 vi.mock("../../lib/platform-context", async (orig) => ({
   ...(await orig<typeof import("../../lib/platform-context")>()),
@@ -143,6 +150,7 @@ const gets = (path: string) => calls.filter((c) => c.method === "GET" && c.path 
 const posts = (path: string) => calls.filter((c) => c.method === "POST" && c.path === path);
 
 beforeEach(() => {
+  mocks.unsavedCoding = false;
   mocks.canEscalate = true;
   mocks.canBulk = true;
   // T-019 — Escalate is offered where the server's viewer.actions says so.
@@ -240,7 +248,7 @@ describe("one decision-entry flow", () => {
 
   it.each([
     ["APPROVE", "Record approval", "Review approved (internal)."],
-    ["REJECT", "Record rejection", "Review rejected (internal)."],
+    ["REJECT", "Record rejection", "Review not accepted (internal)."],
     ["REQUEST_INFO", "Request information", "Information requested. The review waits for a response."],
   ])("choosing %s posts the decisions route with that kind and one primary labelled by the choice", async (kind, label, success) => {
     postResponses[decisionsPostPath] = () => json(201, { ok: true, outcome: outcome({}) });
@@ -265,7 +273,7 @@ describe("one decision-entry flow", () => {
     await renderPage();
     fireEvent.click(choice("APPROVE")!);
     expect(document.querySelector("[data-decision-consequence]")?.textContent).toBe(
-      "Records the first review; an independent second reviewer must confirm.",
+      "Records the first review. It stays pending until a different reviewer confirms it — it is not a final approval.",
     );
     chooseListbox(form()!.querySelector("[data-decision-form-reason]"), "MISSING_CONTEXT");
     const wsBefore = gets(wsPath);
@@ -369,7 +377,8 @@ describe("refusals are mapped per reason", () => {
     await renderPage();
     const wsBefore = gets(wsPath);
     await decide("APPROVE");
-    const expected = describeRefusal({ status, code: "REVIEW_DECISION_REFUSED", reason }, "x");
+    // F-21 — every refusal reads "Not recorded: <reason>".
+    const expected = notRecordedMessage(describeRefusal({ status, code: "REVIEW_DECISION_REFUSED", reason }, "x"));
     await waitFor(() => expect(formError()).toBe(expected));
     expect(document.querySelector("[data-decision-form-error]")!.classList.contains("app-field-error")).toBe(true);
     // The typed rationale is kept for the retry, and the page rereads.
@@ -568,6 +577,8 @@ describe("Next step panel", () => {
       reason: "REVIEWER_ESCALATED",
       severity: "HIGH",
       safeSummary: "Custody gap needs a manager.",
+      // F-09 — the effect the dialog stated is sent explicitly.
+      requireIndependentReview: false,
     });
   });
 
@@ -695,5 +706,146 @@ describe("header, links and canonical controls", () => {
     for (const panel of Array.from(document.querySelectorAll(".app-panel"))) {
       expect(panel.querySelectorAll(".app-primary-action").length).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Review remediation 2026-11-27 — the page follows the server, says the
+// requirement once, keeps refused drafts and offers the new explicit actions.
+// ---------------------------------------------------------------------------
+describe("review remediation 2026-11-27 (page)", () => {
+  const withActions = (allowed: string[], extra: Record<string, unknown> = {}, reasons: Record<string, string> = {}) => {
+    const v = viewerWith(allowed, { "*": "not_started", ...reasons }) as ReturnType<typeof viewerWith> & Record<string, unknown>;
+    for (const a of ["request_independent_review", "challenge"]) {
+      v.actions.push(allowed.includes(a) ? { action: a, allowed: true } : { action: a, allowed: false, reason: reasons[a] ?? "no_challengeable_decision" });
+    }
+    return { ...v, ...extra };
+  };
+
+  it("F-01: a FIRST decision with nobody eligible for the second is submittable and posts", async () => {
+    decisions = {
+      ...decisionsBody("first_required", "submit_first", [], true),
+      secondReview: { required: true, cause: "workspace_policy", escalation: null, eligibleReviewerCount: 0, staffing: "no_eligible_second_reviewer" },
+    };
+    postResponses[decisionsPostPath] = () =>
+      json(201, {
+        ok: true,
+        decision: { id: "d1" },
+        outcome: outcome({ statusChanged: false, reviewState: "second_required", nextRequirement: "second_review", secondReview: { staffing: "no_eligible_second_reviewer", eligibleReviewerCount: 0 } }),
+      });
+    await renderPage();
+    const panel = document.querySelector("[data-decision-panel]")!;
+    // Said once, never a dead end.
+    expect(panel.textContent!.split("Two decisions are needed").length - 1).toBe(1);
+    expect(document.querySelector("[data-decision-form-blocked]")).toBeNull();
+    await decide("APPROVE");
+    await screen.findByText(/First review recorded — waiting for an independent reviewer/);
+    expect(posts(decisionsPostPath)).toHaveLength(1);
+  });
+
+  it("F-21: a stale tab keeps the draft and says 'Not recorded' beside the form, then rereads", async () => {
+    postResponses[decisionsPostPath] = () => json(409, { error: { code: "decision_not_allowed", reason: "review_is_resolved" } });
+    await renderPage();
+    const wsBefore = gets(wsPath);
+    await decide("REJECT", "Timestamp gap.");
+    await waitFor(() =>
+      expect(formError()).toBe("Not recorded: this review was already decided in another tab or by another reviewer."),
+    );
+    expect(document.querySelector("[data-decision-form-alert]")?.getAttribute("role")).toBe("alert");
+    expect((form()!.querySelector("[data-decision-form-rationale]") as HTMLTextAreaElement).value).toBe("Timestamp gap.");
+    expect(choice("REJECT")!.getAttribute("aria-checked")).toBe("true");
+    await waitFor(() => expect(gets(wsPath)).toBeGreaterThan(wsBefore));
+  });
+
+  it("F-21: coding_incomplete lists the missing field labels", async () => {
+    postResponses[decisionsPostPath] = () =>
+      json(409, {
+        error: { code: "coding_incomplete", reason: "The workspace requires complete coding.", missingFieldIds: ["f1"], missingLabels: ["Custody chain"] },
+      });
+    await renderPage();
+    await decide("APPROVE");
+    await waitFor(() => expect(formError()).toMatch(/^Not recorded: this workspace requires the coding assessment to be complete/));
+    expect(document.querySelector("[data-decision-form-missing-fields]")?.textContent).toBe("Custody chain");
+  });
+
+  it("F-08: the first reviewer in conflict sees no adjudication form and who may adjudicate", async () => {
+    workspace = workspaceBody({ lifecycle: "ESCALATED", viewer: viewerWith([], { "*": "use_adjudication" }) });
+    decisions = decisionsBody("conflict_detected", "blocked_adjudicator_not_independent", [row("d1", "FIRST", "APPROVE", "u-1"), row("d2", "SECOND", "REJECT", "b")], true);
+    await renderPage();
+    const blocked = await waitFor(() => {
+      const el = document.querySelector("[data-adjudication-blocked]");
+      expect(el).toBeTruthy();
+      return el!;
+    });
+    expect(form()).toBeNull();
+    expect(blocked.textContent).toMatch(/owner or admin/);
+  });
+
+  it("F-07: no Challenge panel without challengeable decisions; with them, only those are offered", async () => {
+    workspace = workspaceBody({ viewer: withActions(["approve", "reject", "request_info"]) });
+    await renderPage();
+    expect(document.querySelector("[data-review-challenge]")).toBeNull();
+    cleanup();
+    decisions = decisionsBody("second_required", "submit_second", [row("d1", "FIRST", "APPROVE", PEER)], true);
+    workspace = workspaceBody({
+      viewer: withActions(["approve", "reject", "request_info", "challenge"], { challengeableDecisionIds: ["d1"] }),
+    });
+    await renderPage();
+    const panel = await waitFor(() => {
+      const el = document.querySelector("[data-review-challenge]");
+      expect(el).toBeTruthy();
+      return el!;
+    });
+    fireEvent.click(panel.querySelector("[data-review-challenge-open]")!);
+    const picker = await waitFor(() => {
+      const el = panel.querySelector("[data-review-challenge-decision]");
+      expect(el).toBeTruthy();
+      return el!;
+    });
+    chooseListbox(picker, "d1");
+    fireEvent.change(panel.querySelector("[data-review-challenge-rationale]")!, { target: { value: "Missed the gap." } });
+    // Cancel collapses and keeps the draft.
+    fireEvent.click(panel.querySelector("[data-review-challenge-cancel]")!);
+    expect(panel.getAttribute("data-review-challenge-phase")).toBe("CLOSED");
+    fireEvent.click(panel.querySelector("[data-review-challenge-open]")!);
+    await waitFor(() => expect((panel.querySelector("[data-review-challenge-rationale]") as HTMLTextAreaElement | null)?.value).toBe("Missed the gap."));
+  });
+
+  it("Request independent review: offered only when allowed; posts the note and says what changed", async () => {
+    await renderPage();
+    expect(action("request_independent_review")).toBeNull();
+    cleanup();
+    workspace = workspaceBody({ viewer: withActions(["approve", "reject", "request_info", "request_independent_review"]) });
+    const path = `/v1/reviewer-ops/reviews/${workflowId}/request-independent-review`;
+    postResponses[path] = () => json(201, { escalation: { id: "e1" }, created: true });
+    await renderPage();
+    fireEvent.click(action("request_independent_review")!);
+    const dialog = await screen.findByRole("dialog", { name: "Request independent review" });
+    const confirm = within(dialog).getByRole("button", { name: "Request independent review" }) as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+    fireEvent.change(dialog.querySelector("[data-reviewer-request-independent-note]")!, { target: { value: "High-value matter." } });
+    fireEvent.click(confirm);
+    await screen.findByText("Independent review requested. The decision now needs a second reviewer.");
+    expect(posts(path)[0]!.body).toEqual({ teamId, note: "High-value matter." });
+  });
+});
+
+describe("F-16 in-app navigation guard", () => {
+  it("the back link asks in-page (no window.confirm) while coding is unsaved, and stays on Stay", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm");
+    await renderPage();
+    const back = document.querySelector("[data-review-back-link]") as HTMLAnchorElement;
+    expect(back).toBeTruthy();
+    mocks.unsavedCoding = true;
+    fireEvent.click(back);
+    const dialog = await screen.findByRole("dialog", { name: "Leave with unsaved coding?" });
+    expect(confirmSpy).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Stay on this review" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Leave with unsaved coding?" })).toBeNull());
+    // Nothing unsaved: no question.
+    mocks.unsavedCoding = false;
+    fireEvent.click(back);
+    expect(screen.queryByRole("dialog", { name: "Leave with unsaved coding?" })).toBeNull();
+    confirmSpy.mockRestore();
   });
 });

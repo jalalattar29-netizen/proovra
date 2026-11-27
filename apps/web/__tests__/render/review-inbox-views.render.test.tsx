@@ -14,7 +14,8 @@
  *   T-080  no Copilot QC panel in the Inbox.
  *   T-082  bulk coded values are tags, never bare decision verbs.
  *   T-086  the assignee is the server's identity (masked e-mail), never an id.
- *   T-088  the table opts into the ≤ 900 px card layout; the view tabs scroll.
+ *   T-088  the table opts into the ≤ 900 px card layout; the view row WRAPS
+ *          (F-10, 2026-11-27: review-remediation-inbox.render.test.tsx).
  *   T-094  the help lists exactly the keys the Inbox registered.
  *   T-095  the first paint makes no console-aggregator call and few reads.
  *   T-096  Due is the governing deadline from the SLA rollup.

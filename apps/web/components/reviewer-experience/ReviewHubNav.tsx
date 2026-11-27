@@ -12,8 +12,8 @@
  *
  * The separate Queues tab is gone (`/review/queues` redirects to the Inbox
  * view it named) and Monitoring has no second tab row: its sections are an
- * in-page segmented control. The tab row scrolls sideways on a phone, so
- * every tab stays reachable at 390 px.
+ * in-page segmented control. The tab row WRAPS (F-10, review-surfaces.css),
+ * so every tab stays visible and unclipped at 390 px.
  *
  * A tab is rendered ONLY when its destination resolves ALLOWED for this actor
  * in this workspace (`useReviewDestinationResolver`, the same two gates the
@@ -26,6 +26,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { ChevronRight } from "lucide-react";
 
 import { useReviewDestinationResolver, type ReviewDestination } from "./reviewDestination";
 import { INBOX_TITLE, inboxHref, isInboxView } from "../../lib/reviewer-workspace/inbox-views";
@@ -117,13 +118,18 @@ export function ReviewToolsPanel() {
           Review tools
         </h2>
       </div>
-      <ul className="app-panel__body review-tools">
+      {/* F-12 — each tool is ONE link card: the whole row (title + purpose)
+          is the link, with a chevron, a hover wash and a focus ring. */}
+      <ul className="app-panel__body review-tools review-tools--links">
         {tools.map((t) => (
           <li key={t.href} className="review-tools__row" data-review-tool={t.href}>
-            <Link href={t.href} className="review-rows__ref" data-review-tool-link={t.href}>
-              {t.label}
+            <Link href={t.href} className="review-tool-card" data-review-tool-link={t.href}>
+              <span className="review-tool-card__text">
+                <span className="review-tool-card__title">{t.label}</span>
+                <span className="review-tool-card__purpose">{t.purpose}</span>
+              </span>
+              <ChevronRight className="review-tool-card__chevron" aria-hidden="true" focusable="false" />
             </Link>
-            <p className="app-field-help">{t.purpose}</p>
           </li>
         ))}
       </ul>

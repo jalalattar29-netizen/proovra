@@ -160,6 +160,353 @@ export async function writeCodingValue(
 }
 
 /**
+ * Review remediation §6 (F-13) — the history value recorded when a reviewer
+ * explicitly clears a field. It is never a valid field payload, so it can
+ * never be mistaken for a coded value.
+ */
+export const CODING_VALUE_CLEARED_MARKER = Object.freeze({ cleared: true });
+
+export type ClearCodingValueInput = {
+  prisma?: PrismaClient;
+  teamId: string;
+  workflowId: string;
+  fieldId: string;
+  actorUserId: string;
+  rationale?: string;
+};
+
+export type ClearCodingValueResult =
+  | {
+      ok: true;
+      /** false when nothing was set (idempotent no-op; no history row). */
+      cleared: boolean;
+      /** The id of the removed current-value row, or null. */
+      codingValueId: string | null;
+    }
+  | { ok: false; denial: ReviewerDenialReason };
+
+/**
+ * Review remediation §6 (F-13) — explicitly clear a coded field.
+ *
+ * Same anchoring as {@link writeCodingValue}: the workflow must exist in this
+ * workspace and not be terminal (CLOSED / APPROVED_INTERNAL /
+ * REJECTED_INSUFFICIENT → WORKFLOW_CLOSED); the field must belong to this
+ * workspace (FIELD_NOT_FOUND) and to the workflow's CURRENTLY bound schema
+ * (SCHEMA_VERSION_MISMATCH). The capability check (`review.code`) and the
+ * caller's reach stay with the route, exactly as for writes.
+ *
+ * Removes the current value row and appends a history row whose value is
+ * `{ "cleared": true }`, in one transaction. Idempotent: when nothing is set
+ * it returns `{ ok: true, cleared: false }` and writes nothing.
+ */
+export async function clearCodingValue(
+  input: ClearCodingValueInput,
+): Promise<ClearCodingValueResult> {
+  const prisma = input.prisma ?? defaultPrisma;
+  const workflow = await prisma.evidenceReviewWorkflow.findFirst({
+    where: { id: input.workflowId, teamId: input.teamId },
+    select: { id: true, status: true, codingSchemaId: true },
+  });
+  if (!workflow) return deny("WORKFLOW_NOT_FOUND");
+  if (TERMINAL_WORKFLOW_STATES.has(workflow.status)) {
+    return deny("WORKFLOW_CLOSED");
+  }
+  const field = await prisma.codingField.findFirst({
+    where: { id: input.fieldId },
+    select: { id: true, schemaId: true, schema: { select: { teamId: true } } },
+  });
+  if (!field) return deny("FIELD_NOT_FOUND");
+  if (field.schema.teamId !== input.teamId) return deny("FIELD_NOT_FOUND");
+  if (workflow.codingSchemaId !== field.schemaId) {
+    return deny("SCHEMA_VERSION_MISMATCH");
+  }
+
+  const clearBoth = async (
+    client: Pick<PrismaClient, "codingValue" | "codingValueHistory">,
+  ): Promise<{ cleared: boolean; codingValueId: string | null }> => {
+    const existing = await client.codingValue.findFirst({
+      where: {
+        teamId: input.teamId,
+        workflowId: input.workflowId,
+        fieldId: input.fieldId,
+      },
+      select: { id: true },
+    });
+    if (!existing) return { cleared: false, codingValueId: null };
+    // deleteMany: a concurrent clear that removed the row first makes this
+    // one a no-op instead of a P2025.
+    const removed = await client.codingValue.deleteMany({
+      where: { id: existing.id },
+    });
+    if (removed.count === 0) return { cleared: false, codingValueId: null };
+    await client.codingValueHistory.create({
+      data: {
+        teamId: input.teamId,
+        workflowId: input.workflowId,
+        fieldId: input.fieldId,
+        value: CODING_VALUE_CLEARED_MARKER as never,
+        authorUserId: input.actorUserId,
+        rationale: input.rationale ?? null,
+      },
+      select: { id: true },
+    });
+    return { cleared: true, codingValueId: existing.id };
+  };
+  const res =
+    typeof (prisma as { $transaction?: unknown }).$transaction === "function"
+      ? await prisma.$transaction((tx) => clearBoth(tx))
+      : await clearBoth(prisma);
+  return { ok: true, ...res };
+}
+
+/**
+ * The read surface the coding helpers need. Satisfied by the PrismaClient and
+ * by an interactive-transaction client (`Prisma.TransactionClient`).
+ */
+export type CodingReadClient = Pick<
+  PrismaClient,
+  | "evidenceReviewWorkflow"
+  | "codingField"
+  | "codingValue"
+  | "codingSchema"
+  | "workspaceGovernancePolicy"
+>;
+
+export type CodingValueProjectionRow = {
+  id: string;
+  fieldId: string;
+  value: unknown;
+  rationale: string | null;
+  authorUserId: string | null;
+  updatedAt: Date;
+};
+
+export type OtherSchemaCodingValueRow = CodingValueProjectionRow & {
+  schemaId: string;
+  schemaLabel: string | null;
+  schemaVersion: number;
+  fieldSlug: string;
+  fieldLabel: string;
+  fieldType: string;
+};
+
+/**
+ * Review remediation §6 (F-26) — the coding values of a workflow, split by
+ * the schema they were coded against.
+ *
+ *   * `values` — only values whose field belongs to the CURRENTLY bound
+ *     schema (`workflow.codingSchemaId`). These are the current values.
+ *   * `otherSchemaValues` — values coded against a previously bound schema.
+ *     Kept (never deleted) and listed as history, never as current.
+ *
+ * An unbound workflow has no current values: everything is "other".
+ * Unknown workflow → both empty.
+ */
+export async function readCodingValuesPartitioned(input: {
+  prisma?: CodingReadClient;
+  teamId: string;
+  workflowId: string;
+}): Promise<{
+  boundSchemaId: string | null;
+  values: CodingValueProjectionRow[];
+  otherSchemaValues: OtherSchemaCodingValueRow[];
+}> {
+  const prisma = input.prisma ?? defaultPrisma;
+  const workflow = await prisma.evidenceReviewWorkflow.findFirst({
+    where: { id: input.workflowId, teamId: input.teamId },
+    select: { codingSchemaId: true },
+  });
+  if (!workflow) return { boundSchemaId: null, values: [], otherSchemaValues: [] };
+  const rows = await prisma.codingValue.findMany({
+    where: { teamId: input.teamId, workflowId: input.workflowId },
+    select: {
+      id: true,
+      fieldId: true,
+      value: true,
+      rationale: true,
+      authorUserId: true,
+      updatedAt: true,
+      field: {
+        select: {
+          schemaId: true,
+          slug: true,
+          label: true,
+          fieldType: true,
+          orderIndex: true,
+          schema: { select: { label: true, version: true } },
+        },
+      },
+    },
+    take: 500,
+  });
+  const boundSchemaId = workflow.codingSchemaId ?? null;
+  const values: CodingValueProjectionRow[] = [];
+  const otherSchemaValues: OtherSchemaCodingValueRow[] = [];
+  for (const r of rows) {
+    const base: CodingValueProjectionRow = {
+      id: r.id,
+      fieldId: r.fieldId,
+      value: r.value,
+      rationale: r.rationale,
+      authorUserId: r.authorUserId,
+      updatedAt: r.updatedAt,
+    };
+    if (boundSchemaId !== null && r.field.schemaId === boundSchemaId) {
+      values.push(base);
+    } else {
+      otherSchemaValues.push({
+        ...base,
+        schemaId: r.field.schemaId,
+        schemaLabel: r.field.schema.label ?? null,
+        schemaVersion: r.field.schema.version,
+        fieldSlug: r.field.slug,
+        fieldLabel: r.field.label,
+        fieldType: r.field.fieldType,
+      });
+    }
+  }
+  otherSchemaValues.sort(
+    (a, b) =>
+      a.schemaId.localeCompare(b.schemaId) ||
+      a.fieldLabel.localeCompare(b.fieldLabel),
+  );
+  return { boundSchemaId, values, otherSchemaValues };
+}
+
+export type CodingSnapshot = {
+  schemaId: string;
+  schemaVersion: number;
+  /** ISO-8601 UTC instant the snapshot was taken. */
+  capturedAtUtc: string;
+  /**
+   * One entry per field of the bound schema, in field order. `value` is the
+   * stored payload, or null when the field was not coded.
+   */
+  values: Array<{
+    fieldId: string;
+    slug: string;
+    label: string;
+    fieldType: string;
+    value: unknown;
+  }>;
+};
+
+/**
+ * Review remediation §6 (F-20) — the immutable coding snapshot stored on the
+ * finalizing DECISION_LOGGED event.
+ *
+ * Read-only. Pass the decision's transaction client so the snapshot reads the
+ * same state the decision commits. Returns null when the workflow is unknown
+ * in this workspace or no schema is bound. Only fields of the CURRENTLY bound
+ * schema are captured (values coded against an earlier schema are not part of
+ * this round's assessment).
+ */
+export async function buildCodingSnapshot(
+  client: CodingReadClient,
+  input: { teamId: string; workflowId: string; now?: Date },
+): Promise<CodingSnapshot | null> {
+  const workflow = await client.evidenceReviewWorkflow.findFirst({
+    where: { id: input.workflowId, teamId: input.teamId },
+    select: { codingSchemaId: true, codingSchemaVersion: true },
+  });
+  if (!workflow?.codingSchemaId) return null;
+  const schema = await client.codingSchema.findFirst({
+    where: { id: workflow.codingSchemaId, teamId: input.teamId },
+    select: { id: true, version: true },
+  });
+  if (!schema) return null;
+  const fields = await client.codingField.findMany({
+    where: { schemaId: schema.id },
+    orderBy: [{ orderIndex: "asc" }, { slug: "asc" }],
+    select: { id: true, slug: true, label: true, fieldType: true },
+  });
+  const stored = fields.length
+    ? await client.codingValue.findMany({
+        where: {
+          teamId: input.teamId,
+          workflowId: input.workflowId,
+          fieldId: { in: fields.map((f) => f.id) },
+        },
+        select: { fieldId: true, value: true },
+      })
+    : [];
+  const byField = new Map(stored.map((v) => [v.fieldId, v.value]));
+  return {
+    schemaId: schema.id,
+    schemaVersion: workflow.codingSchemaVersion ?? schema.version,
+    capturedAtUtc: (input.now ?? new Date()).toISOString(),
+    values: fields.map((f) => ({
+      fieldId: f.id,
+      slug: f.slug,
+      label: f.label,
+      fieldType: f.fieldType,
+      value: byField.has(f.id) ? (byField.get(f.id) ?? null) : null,
+    })),
+  };
+}
+
+export type CodingIncompleteRefusal = {
+  reason: "coding_incomplete";
+  missingFieldIds: string[];
+  missingLabels: string[];
+};
+
+/**
+ * Review remediation §6 (F-18) — the optional complete-coding policy.
+ *
+ * Returns a refusal ONLY when ALL hold:
+ *   * workspace_governance_policies.review_requires_complete_coding is true
+ *     and its `since` timestamp is set;
+ *   * `roundStartedAt` (the current round's Start) is not null and is at or
+ *     after that `since` — rounds started earlier are never refused (no
+ *     retroactive enforcement);
+ *   * `decision` is APPROVE or REJECT (REQUEST_INFO and anything else is
+ *     never refused for coding);
+ *   * at least one required field of the bound schema has no value
+ *     (evaluateRequiredFieldsCoverage).
+ * Otherwise null. Read-only; pass the decision's transaction client.
+ */
+export async function codingCompletenessRefusal(
+  client: CodingReadClient,
+  input: {
+    teamId: string;
+    workflowId: string;
+    decision: string;
+    roundStartedAt: Date | null;
+  },
+): Promise<CodingIncompleteRefusal | null> {
+  if (input.decision !== "APPROVE" && input.decision !== "REJECT") return null;
+  if (!input.roundStartedAt) return null;
+  const policy = await client.workspaceGovernancePolicy.findUnique({
+    where: { teamId: input.teamId },
+    select: {
+      reviewRequiresCompleteCoding: true,
+      reviewRequiresCompleteCodingSince: true,
+    },
+  });
+  if (!policy?.reviewRequiresCompleteCoding) return null;
+  const since = policy.reviewRequiresCompleteCodingSince;
+  if (!since) return null;
+  if (input.roundStartedAt.getTime() < since.getTime()) return null;
+  const coverage = await evaluateRequiredFieldsCoverage({
+    prisma: client,
+    teamId: input.teamId,
+    workflowId: input.workflowId,
+  });
+  if (coverage.unfulfilledFieldIds.length === 0) return null;
+  const missing = await client.codingField.findMany({
+    where: { id: { in: [...coverage.unfulfilledFieldIds] } },
+    orderBy: [{ orderIndex: "asc" }, { slug: "asc" }],
+    select: { id: true, label: true },
+  });
+  return {
+    reason: "coding_incomplete",
+    missingFieldIds: missing.map((f) => f.id),
+    missingLabels: missing.map((f) => f.label),
+  };
+}
+
+/**
  * PRO-R2-17 — every value written for a workflow's fields, oldest first
  * (bounded). The current value of a field is its latest row.
  */
@@ -209,12 +556,13 @@ export async function readCodingValuesForWorkflow(input: {
 }
 
 /**
- * Compute the "required fields fulfilled" status — used by the
- * approval gate (a non-PENDING verdict requires every required field
- * to be set).
+ * Compute the "required fields fulfilled" status of the bound schema. A
+ * missing required field means the assessment is incomplete (a warning);
+ * it refuses a decision only through {@link codingCompletenessRefusal}
+ * when the workspace policy is on.
  */
 export async function evaluateRequiredFieldsCoverage(input: {
-  prisma?: PrismaClient;
+  prisma?: CodingReadClient;
   teamId: string;
   workflowId: string;
 }): Promise<{

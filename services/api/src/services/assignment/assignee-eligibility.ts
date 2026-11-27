@@ -32,9 +32,15 @@ import { evaluateMemberAccess } from "../identity/access-policy.service.js";
 import { resolveEvidenceRecordAccess } from "../evidence/evidence-record-access.service.js";
 import { resolveCaseRecordAccess } from "../cases/case-permission.service.js";
 import { isPlacedWorkspaceMember } from "../collaboration-team/placement.js";
-import { assignmentRequiresPlacement } from "./placement-policy.js";
+import { assignmentRequiresPlacement, reviewAssignmentRequiresPlacement } from "./placement-policy.js";
 
-export { assignmentRequiresPlacement, meetsPlacementPolicy, placedUserIdsForWorkspace } from "./placement-policy.js";
+export {
+  assignmentRequiresPlacement,
+  meetsPlacementPolicy,
+  meetsReviewPlacementPolicy,
+  placedUserIdsForWorkspace,
+  reviewAssignmentRequiresPlacement,
+} from "./placement-policy.js";
 
 export type AssigneeIneligibility = "NOT_ELIGIBLE" | "NOT_PLACED";
 
@@ -66,6 +72,12 @@ export async function assertWorkAssigneeEligible(
      * so an archive landing between the two left an unplaced assignee.
      */
     inTransaction?: boolean;
+    /**
+     * Which placement rule applies (2026-11-27): "review" reads
+     * `reviewAssignmentRequiresPlacement` (Team/Pro: explicit workspace
+     * policy; Enterprise: contract); "work" (default) is unchanged.
+     */
+    placementRule?: "work" | "review";
   } = {},
 ): Promise<void> {
   const membership = await evaluateMemberAccess(
@@ -95,7 +107,11 @@ export async function assertWorkAssigneeEligible(
     if (!reach.allowed) throw new AssigneeEligibilityError("NOT_ELIGIBLE");
   }
 
-  if (await assignmentRequiresPlacement(input.workspaceId, client)) {
+  const placementRequired =
+    options.placementRule === "review"
+      ? await reviewAssignmentRequiresPlacement(input.workspaceId, client)
+      : await assignmentRequiresPlacement(input.workspaceId, client);
+  if (placementRequired) {
     const placed = options.inTransaction
       ? await isPlacedLockingPlacement(input.workspaceId, input.assigneeUserId, client)
       : await isPlacedWorkspaceMember(

@@ -620,14 +620,7 @@ export const WRITE_SWEEP_HINTS: Record<string, RouteHint> = {
     ensure: ["CriteriaVersion"],
     body: { teamId: "$Team" },
   },
-  "POST /v1/coding/schemas": {
-    body: {
-      slug: () => `sweep-${uniq()}`,
-      label: "x",
-      category: "GENERAL_EVIDENCE",
-      fields: [{ slug: "f-1", label: "x", fieldType: "TEXT", required: false, orderIndex: 0 }],
-    },
-  },
+  "POST /v1/coding/schemas": { unreachable: "Retired (Review remediation F-27): always 410 after authorization." },
   "POST /v1/reviewer/work/:p/bind-schema": {
     rows: { CodingSchema: { name: "x", slug: () => `s-${uniq()}`, status: "PUBLISHED" } },
     body: { schemaId: "$CodingSchema" },

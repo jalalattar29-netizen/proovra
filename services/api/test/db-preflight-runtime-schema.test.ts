@@ -112,6 +112,13 @@ const CLOSURE_OBJECTS: ReadonlyArray<readonly [string, string, RegExp]> = [
   ["evidence_part_derived_assets.storage_reservation_token", "20281123060000_derived_asset_storage_intent", /table_name = 'evidence_part_derived_assets'\s+AND column_name = 'storage_reservation_token'/],
   // Team remediation stage C (T-044) — the review's first decision time.
   ["evidence_review_workflows.first_decided_at_utc", "20281124010000_review_first_decided_at", /table_name = 'evidence_review_workflows'\s+AND column_name = 'first_decided_at_utc'/],
+  // Review remediation (2026-11-27) — explicit independence + Review policies.
+  ["review_escalations.requires_independent_review", "20281127120000_review_remediation_policy", /table_name = 'review_escalations'\s+AND column_name = 'requires_independent_review'/],
+  ["review_escalations.independence_note", "20281127120000_review_remediation_policy", /table_name = 'review_escalations'\s+AND column_name = 'independence_note'/],
+  ["workspace_governance_policies.review_requires_independent_approval", "20281127120000_review_remediation_policy", /table_name = 'workspace_governance_policies'\s+AND column_name = 'review_requires_independent_approval'/],
+  ["workspace_governance_policies.review_requires_team_placement", "20281127120000_review_remediation_policy", /table_name = 'workspace_governance_policies'\s+AND column_name = 'review_requires_team_placement'/],
+  ["workspace_governance_policies.review_requires_complete_coding", "20281127120000_review_remediation_policy", /table_name = 'workspace_governance_policies'\s+AND column_name = 'review_requires_complete_coding'/],
+  ["workspace_governance_policies.review_requires_complete_coding_since", "20281127120000_review_remediation_policy", /table_name = 'workspace_governance_policies'\s+AND column_name = 'review_requires_complete_coding_since'/],
 ];
 const CLOSURE_IDS = CLOSURE_OBJECTS.map(([id]) => id);
 

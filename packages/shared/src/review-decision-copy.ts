@@ -16,7 +16,7 @@ export type ReviewDecisionOutcomeCopyInput = {
   stageRecorded: "FIRST" | "SECOND" | "ADJUDICATION" | string;
   statusChanged: boolean;
   reviewState?: string;
-  nextRequirement: "second_review" | "adjudication" | null;
+  nextRequirement: "second_review" | "adjudication" | "information" | null;
   idempotent: boolean;
   secondReview?: {
     cause?: string | null;
@@ -29,7 +29,11 @@ export type ReviewOutcomeKind = "approve" | "reject" | "request_info" | "record_
 
 /** Why a second review is required, as a clause ("because …"). */
 export const SECOND_REVIEW_CAUSE_LABELS: Readonly<Record<string, string>> = {
-  workflow_escalated: "the review was escalated",
+  workflow_escalated: "the two reviews disagreed",
+  independent_review_requested: "an independent review was requested",
+  integrity_escalation: "an integrity concern was escalated",
+  legacy_escalation: "an escalation raised before 27 Nov 2026 requires it",
+  workspace_policy: "this workspace requires two reviewers for every review",
   open_escalation: "an escalation is open",
   active_legal_hold: "the evidence is under legal hold",
   redaction_required: "fields need redaction",
@@ -42,9 +46,10 @@ export function secondReviewCauseLabel(cause: string | null | undefined): string
   return SECOND_REVIEW_CAUSE_LABELS[cause] ?? null;
 }
 
-export const FIRST_ONLY_MESSAGE = "First review recorded. A second reviewer must confirm.";
+export const FIRST_ONLY_MESSAGE = "First review recorded — waiting for an independent reviewer. It is not final until a second reviewer decides.";
 export const FIRST_ONLY_NO_REVIEWER_MESSAGE =
-  "First review recorded — waiting for an independent reviewer, and nobody eligible is available. Invite or place a reviewer, or keep the review open.";
+  "First review recorded — waiting for an independent reviewer. Nobody else is eligible yet: invite a member with review permission, then assign the second review.";
+export const INFORMATION_REQUESTED_MESSAGE = "Information requested. The review waits until the response is recorded.";
 export const ADJUDICATION_NEXT_MESSAGE =
   "Decision recorded. The two reviews disagree, so an independent owner or admin must adjudicate.";
 export const ALREADY_RECORDED_MESSAGE = "This decision was already recorded. Nothing changed.";
@@ -62,9 +67,10 @@ export function describeReviewOutcome(
         : FIRST_ONLY_MESSAGE;
     }
     if (outcome.nextRequirement === "adjudication") return ADJUDICATION_NEXT_MESSAGE;
+    if (outcome.nextRequirement === "information") return INFORMATION_REQUESTED_MESSAGE;
     if (outcome.statusChanged) {
       if (kind === "approve") return "Review approved (internal).";
-      if (kind === "reject") return "Review rejected (internal).";
+      if (kind === "reject") return "Review not accepted (internal).";
       if (kind === "request_info") return "Information requested. The review waits for a response.";
       if (kind === "record_response") return "Response recorded. The review can continue.";
       if (outcome.stageRecorded === "ADJUDICATION") return "Adjudication recorded. The review is resolved.";
@@ -77,36 +83,41 @@ export function describeReviewOutcome(
   }
   // An API that predates `outcome`: say only what is certain.
   if (kind === "approve") return "Approval recorded (internal).";
-  if (kind === "reject") return "Rejection recorded (internal).";
+  if (kind === "reject") return "Not accepted — recorded (internal).";
   if (kind === "request_info") return "Information requested.";
   if (kind === "record_response") return "Response recorded.";
   return "Decision recorded.";
 }
 
 /**
- * T-015 — the requirement, its cause and reviewer availability, BEFORE the
- * reviewer submits. null when one review decides.
+ * The requirement, its cause and reviewer availability, BEFORE the reviewer
+ * submits — said ONCE (review remediation 2026-11-27, F-05/F-06). null when
+ * one review decides. A missing second reviewer never blocks recording the
+ * first decision; the sentence says what happens instead.
  */
 export function describeSecondReviewRequirement(input: {
   required: boolean;
   cause?: string | null;
-  escalation?: { reason?: string | null; severity?: string | null } | null;
+  escalation?: { reason?: string | null; severity?: string | null; requestedByName?: string | null; requestedAtLabel?: string | null } | null;
   eligibleReviewerCount?: number | null;
   state?: string | null;
 }): string | null {
   if (!input.required) return null;
   const cause = secondReviewCauseLabel(input.cause);
-  const because = cause ? ` because ${cause}` : "";
-  const lead =
-    input.state === "second_required"
-      ? `This is the second of two reviews${because}.`
-      : `Your decision is the first of two${because}; a different reviewer must confirm it.`;
+  const who = input.escalation?.requestedByName
+    ? ` (${input.escalation.requestedByName}${input.escalation.requestedAtLabel ? `, ${input.escalation.requestedAtLabel}` : ""})`
+    : "";
+  const because = cause ? ` because ${cause}${who}` : "";
+  if (input.state === "second_required") {
+    return `This is the independent second decision${because}. The reviewer who made the first decision cannot make it.`;
+  }
+  const lead = `Two decisions are needed${because}: yours is recorded first and stays pending until a different reviewer confirms it.`;
   if (input.eligibleReviewerCount === 0) {
-    return `${lead} Independent reviewer required — none eligible. Invite or place a reviewer, or keep the review open.`;
+    return `${lead} Nobody else is eligible to confirm it yet — invite a member with review permission, then assign the second review.`;
   }
   if (typeof input.eligibleReviewerCount === "number") {
     const n = input.eligibleReviewerCount;
-    return `${lead} ${n} ${n === 1 ? "reviewer is" : "reviewers are"} eligible to confirm it.`;
+    return `${lead} ${n >= 50 ? "50+" : n} ${n === 1 ? "reviewer is" : "reviewers are"} eligible to confirm it.`;
   }
   return lead;
 }
@@ -161,14 +172,14 @@ export const REVIEW_REFUSAL_MESSAGES: Readonly<Record<string, string>> = {
   duplicate_stage_decision: "A decision for this stage has already been recorded. Reload to see it.",
   forbidden_wording:
     "The note uses wording that cannot be recorded, such as a public authenticity claim. Rephrase it and try again.",
-  rationale_required: "Explain the decision — a rationale is required for every decision.",
+  rationale_required: "Explain your reason — a rationale is required for every decision and every request for information.",
   rationale_too_long: "The rationale is too long — keep it to 4000 characters.",
   resolver_is_assignee:
-    "This escalation requires an independent second review, so the reviewer it constrains cannot resolve it. Another owner or admin must.",
+    "This escalation requires an independent second decision, so the reviewer it constrains cannot resolve it. Another owner or admin must.",
   resolver_decided_this_round:
-    "You decided this review, so you cannot resolve the escalation that requires its independent second review. Another owner or admin must.",
+    "You decided this review, so you cannot resolve the escalation that requires its independent second decision. Another owner or admin must.",
   independent_resolver_required:
-    "This escalation requires an independent second review; only an owner or admin who is not the reviewer can resolve it.",
+    "This escalation requires an independent second decision; only an owner or admin who is not the reviewer can resolve it.",
   review_assign_required: "Only the assigned reviewer or an assignment manager can do this.",
   // Engine aliases for the reasons above.
   actor_not_assignee:
@@ -179,7 +190,22 @@ export const REVIEW_REFUSAL_MESSAGES: Readonly<Record<string, string>> = {
   not_awaiting_information: "No information request is waiting for a response on this review.",
   already_paused: "The review is already paused.",
   not_paused: "The review is not paused.",
+  // Review remediation 2026-11-27.
+  reviewer_not_eligible:
+    "You are no longer eligible to review this record (membership, review permission, access to the evidence or a required team placement changed). Ask an assignment manager to reassign it.",
+  coding_incomplete:
+    "This workspace requires the coding assessment to be complete before approving or rejecting. Fill the required fields listed below, or request information instead.",
+  review_is_resolved: "This review was already decided in another tab or by another reviewer.",
+  no_challengeable_decision: "There is no recorded decision you can challenge on this review.",
+  not_requester: "Only the reviewer who requested the information can withdraw the request.",
+  challenge_resolver_not_independent:
+    "You challenged or made the challenged decision, so you cannot resolve this challenge. Another owner or admin must.",
 };
+
+/** The one prefix every refused write shows ("nothing was recorded"). */
+export function notRecordedMessage(detail: string): string {
+  return `Not recorded: ${detail.replace(/^[A-Z]/, (m) => m.toLowerCase())}`;
+}
 
 export type ReviewRefusal = { status: number; code: string | null; reason: string | null };
 
@@ -211,14 +237,21 @@ export function describeReviewRefusal(r: ReviewRefusal, fallback: string): strin
 }
 
 /**
- * T-019 — the Escalate dialog's line about independence. Every escalation a
- * person raises forces an independent second review (coordinator decision
- * T-013); only the automatic overdue sweep's own escalations do not.
+ * The Escalate dialog's statement of the escalation's EFFECT (2026-11-27):
+ * an administrative escalation alerts owners and admins and changes nothing
+ * about who decides; an integrity reason or an explicit request requires an
+ * independent second decision. Kept under the T-019 name for callers.
  */
 export function describeEscalationIndependence(forces: boolean): string | null {
   return forces
-    ? "This escalation requires an independent second review: the review's decision must then be confirmed by a different reviewer, and only an owner or admin who is not the reviewer can resolve it."
-    : null;
+    ? "This escalation requires an independent second decision: the review's decision must then be confirmed by a different reviewer, and only an owner or admin who is neither reviewer can resolve the escalation."
+    : "This escalation alerts the workspace's owners and admins. It does not change who can decide the review.";
+}
+
+/** Extra line when independence is requested but nobody else is eligible (F-09). */
+export function describeIndependenceStaffing(eligibleReviewerCount: number | null | undefined): string | null {
+  if (eligibleReviewerCount !== 0) return null;
+  return "Nobody else in this workspace can give the second decision yet. The review would stay pending until you invite a member with review permission.";
 }
 
 // -----------------------------------------------------------------------------

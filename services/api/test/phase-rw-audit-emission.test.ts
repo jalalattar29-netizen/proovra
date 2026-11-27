@@ -314,13 +314,13 @@ describe("Phase 4 — reviewer-disagreement.service audit emission", () => {
       rationale: supervisorRationale,
     });
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, superseded: null });
     // The actor taking the second review passed the assignee authority first.
     expect(assertWorkAssigneeEligibleMock).toHaveBeenCalledTimes(1);
     expect(assertWorkAssigneeEligibleMock).toHaveBeenCalledWith(
       expect.objectContaining({ workspaceId: TEAM_ID, assigneeUserId: ACTOR_ID, evidenceId: "ev-1" }),
       prismaStub,
-      { inTransaction: true },
+      { inTransaction: true, placementRule: "review" },
     );
 
     const audit = findAuditCall("reviewer.disagreement.transitioned");

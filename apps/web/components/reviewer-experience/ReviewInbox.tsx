@@ -47,12 +47,14 @@ import { useActiveSpaceId, useCan, usePlanFeatureGate } from "../../lib/platform
 import { useOptionalPlatformContext } from "../../lib/platform-context/PlatformContextProvider";
 import { roleInWorkspace } from "../../lib/platform-context/actorRole";
 import { recordReference } from "../../lib/short-id";
-import { bulkAssign, bulkDecide, resolveSavedViewQueue, type BulkOutcome } from "../../lib/reviewer-workspace/reviewer-api";
+import { bulkAssign, bulkDecide, resolveSavedViewQueue } from "../../lib/reviewer-workspace/reviewer-api";
 import {
   INBOX_EMPTY_COPY,
   INBOX_TITLE,
   INBOX_VIEW_LABELS,
   MORE_INBOX_VIEWS,
+  inboxViewGroupsFor,
+  inboxViewParamIsUnknown,
   primaryInboxViewsFor,
   inboxHref,
   inboxViewFromParams,
@@ -72,7 +74,7 @@ import { assigneeLabel } from "../../lib/reviewer-workspace/reviewer-identity";
 import { AppListbox } from "../app-primitives/AppListbox";
 import { AppStatusText } from "../app-primitives/AppStatusText";
 import { Modal } from "../cases-experience/matter-modals/Modal";
-import { StepUpModal, isStepUpCancelled, stepUpCancelMessage, useStepUpAction } from "../identity-security/StepUpModal";
+import { StepUpModal, useStepUpAction } from "../identity-security/StepUpModal";
 import { RuntimeStatusBanner } from "../operational";
 import { PageShell } from "../ui";
 import { useConfirmAction } from "../ui/ConfirmActionModal";
@@ -80,7 +82,15 @@ import { EmptyState } from "../ui/EmptyState";
 import { ReviewerShortcutsHelp } from "../../app/(app)/reviewer-ops/components/ReviewerShortcutsHelp";
 import { ReviewHubNav, ReviewToolsPanel } from "./ReviewHubNav";
 import { ReviewPageHeader } from "./ReviewPageHeader";
-import { ReviewerBulkOpsBar, type BulkResult } from "./ReviewerBulkOpsBar";
+import {
+  ReviewerBulkOpsBar,
+  bulkRequestErrorMessage,
+  failedIdsOf,
+  normalizeBulkResponse,
+  selectionAfterBulk,
+  type BulkReport,
+  type BulkResult,
+} from "./ReviewerBulkOpsBar";
 import { ReviewerPickerModal, useReviewerPicker } from "./ReviewerPickerModal";
 import { QueueAttentionLine, QueueIntelligenceNotice, useQueueIntelligence } from "./queueIntelligence";
 import { isQueueRowActionable, toQueueRows, type QueueRow } from "./queueRow";
@@ -89,6 +99,7 @@ import "./review-surfaces.css";
 
 /** First page and each "Load more" (the route caps `limit` at 100). */
 const INBOX_PAGE_SIZE = 50;
+const EMPTY_ROWS: QueueRow[] = [];
 /** Bulk server cap. */
 const BULK_ACTION_CAP = 100;
 
@@ -124,6 +135,18 @@ export const BULK_TAG_LABELS: Readonly<Record<BulkTag, string>> = {
 };
 const BULK_TAGS = REVIEWER_VERDICTS.filter((v) => v !== "PENDING") as ReadonlyArray<BulkTag>;
 
+/**
+ * F-37 / BEHAVIOUR-SPEC §8 — `/v1/reviewer/bulk/decide` writes the coded
+ * assessment only; the control says so and never reads as a decision.
+ */
+export const BULK_ASSESSMENT_TAG_LABEL = "Set assessment tag";
+export const BULK_ASSESSMENT_TAG_HELP = "Tags the coded assessment only — it does not record a review decision.";
+
+/** F-36 — the saved-view duplicate-name refusal, in the person's words. */
+export function duplicateSavedViewMessage(name: string): string {
+  return `A view named “${name}” already exists. Choose another name.`;
+}
+
 /** A bulk refusal as a person reads it. */
 function bulkReasonLabel(code: string | null | undefined): string {
   switch (code) {
@@ -139,7 +162,23 @@ function bulkReasonLabel(code: string | null | undefined): string {
     case "REVIEW_CAPABILITY_NOT_INCLUDED":
       return "not included in this workspace's plan";
     case "ASSIGNEE_NOT_ELIGIBLE":
+    case "assignee_not_eligible":
+    case "assignee_not_placed":
       return "that reviewer cannot take this review";
+    case "WORKFLOW_CLOSED":
+    case "workflow_closed":
+      return "the review is closed";
+    case "SCHEMA_NOT_FOUND":
+      return "no coding schema is bound to this review";
+    case "VERDICT_REQUIRED":
+      return "the bound coding schema has no assessment field";
+    case "RATE_LIMITED":
+      return "too many reviews in one request (at most 100)";
+    case "STEP_UP_REQUIRED":
+    case "reauth_required":
+      return "identity confirmation is required";
+    case "NETWORK_ERROR":
+      return "the server could not be reached";
     default:
       return "not applied";
   }
@@ -154,6 +193,12 @@ export function ReviewInbox() {
   const searchParams = useSearchParams();
   const teamId = useActiveSpaceId();
   const view: InboxView = inboxViewFromParams(searchParams);
+  // F-30 — an unknown `?view=` is replaced by the default view, so the URL
+  // and the highlighted view never silently disagree.
+  const unknownView = inboxViewParamIsUnknown(searchParams);
+  useEffect(() => {
+    if (unknownView) router.replace(inboxHref(null));
+  }, [unknownView, router]);
 
   // Bulk eligibility (TEAM-SPEC R1): the plan's Team review tools + the role.
   const bulkPlanIncluded = usePlanFeatureGate("reviewQueuesIncluded");
@@ -163,6 +208,10 @@ export function ReviewInbox() {
   const bulkEnabled = bulkPlanIncluded && canBulk;
   const bulkAssignAllowed = bulkEnabled && canAssign;
   const bulkTagAllowed = bulkEnabled && canDecideRole;
+  // F-35 — saving a view is the server's REVIEW_TASKS_AND_QUEUES plan gate
+  // plus the reviewer capability (a Viewer is refused REVIEW_PERMISSION_DENIED),
+  // so the Save control is offered only to an actor the server would accept.
+  const canSaveViews = bulkPlanIncluded && canDecideRole;
 
   const platform = useOptionalPlatformContext();
   const viewerUserId = platform?.envelope?.user?.id ?? platform?.envelope?.account?.userId ?? null;
@@ -178,6 +227,9 @@ export function ReviewInbox() {
   const [selectionIndex, setSelectionIndex] = useState(0);
   const [selection, setSelection] = useState<ReadonlySet<string>>(() => new Set());
   const [bulkResult, setBulkResult] = useState<BulkResult | null>(null);
+  const [bulkReport, setBulkReport] = useState<BulkReport | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
   const [filterText, setFilterText] = useState("");
   const filterRef = useRef<HTMLInputElement | null>(null);
@@ -248,11 +300,15 @@ export function ReviewInbox() {
   useEffect(() => {
     setSelection(new Set());
     setBulkResult(null);
+    setBulkReport(null);
+    setBulkError(null);
     setFilterText("");
     reload();
   }, [reload]);
 
-  const rows = load.kind === "ready" ? load.rows : [];
+  // One stable array while loading, so the memos and effects below do not see
+  // a "new" row list on every render.
+  const rows = useMemo(() => (load.kind === "ready" ? load.rows : EMPTY_ROWS), [load]);
   const visibleRows = useMemo(() => {
     const q = filterText.trim().toLowerCase();
     if (!q) return rows;
@@ -263,6 +319,25 @@ export function ReviewInbox() {
         .includes(q),
     );
   }, [rows, filterText]);
+
+  // F-34 — the selection is exactly the selected rows on screen: ids that
+  // left the view after a refresh (or are hidden by the filter) are pruned,
+  // so the count and a bulk call never include a row the reviewer cannot see.
+  // Only a loaded view prunes; a reload in flight keeps the selection.
+  const loaded = load.kind === "ready";
+  useEffect(() => {
+    if (!loaded) return;
+    const visible = new Set(visibleRows.map((r) => r.id));
+    setSelection((s) => {
+      let changed = false;
+      const next = new Set<string>();
+      s.forEach((id) => {
+        if (visible.has(id)) next.add(id);
+        else changed = true;
+      });
+      return changed ? next : s;
+    });
+  }, [loaded, visibleRows]);
 
   const rowIds = useMemo(() => rows.map((r) => r.id), [rows]);
   const { state: intelligence, refresh: refreshIntelligence } = useQueueIntelligence(
@@ -360,8 +435,25 @@ export function ReviewInbox() {
   }
   const rowAssignable = (r: QueueRow) => canAssign && !r.assignedToUserId && isQueueRowActionable(r);
 
-  async function runBulkConfirmed(confirmation: NonNullable<typeof pendingConfirm>) {
-    const ids = Array.from(selection).slice(0, BULK_ACTION_CAP);
+  /**
+   * F-34 / F-37 — the Inbox's own bulk calls (assessment tag, assign to a
+   * chosen reviewer) report exactly like the bar's: counts in the live
+   * region, failed rows named with their reason, succeeded rows leave the
+   * selection, failed rows stay selected, and "Retry failed" re-sends only
+   * those ids with the same action. A whole-call refusal is an alert that
+   * nothing was changed — never a success line.
+   */
+  const selectionRef = useRef(selection);
+  selectionRef.current = selection;
+  async function runBulk(confirmation: NonNullable<typeof pendingConfirm>, onlyIds?: ReadonlyArray<string>) {
+    const ids = (onlyIds ? Array.from(onlyIds) : Array.from(selectionRef.current)).slice(0, BULK_ACTION_CAP);
+    if (ids.length === 0) return;
+    const label =
+      confirmation.kind === "TAG" ? `${BULK_ASSESSMENT_TAG_LABEL} (${BULK_TAG_LABELS[confirmation.tag]})` : "Assign";
+    setBulkError(null);
+    setBulkReport(null);
+    setBulkResult(null);
+    setBulkBusy(true);
     let res: unknown;
     try {
       if (confirmation.kind === "TAG") {
@@ -372,34 +464,27 @@ export function ReviewInbox() {
         res = await bulkAssign({ assigneeUserId: confirmation.assigneeUserId, workflowIds: ids, teamId });
       }
     } catch (err) {
-      setBanner(
-        isStepUpCancelled(err)
-          ? stepUpCancelMessage(err, "Nothing was changed: identity confirmation was cancelled.")
-          : toSafeUserError(err, { message: "The bulk action could not be completed. Nothing was changed." }).message,
-      );
+      setBulkError(bulkRequestErrorMessage(err));
+      return;
+    } finally {
+      setBulkBusy(false);
       setPendingConfirm(null);
+    }
+    const r = res as { denial?: unknown } | null;
+    if (r && typeof r === "object" && typeof r.denial === "string" && r.denial) {
+      // The client folds a 4xx refusal into `{ denial }`: nothing was changed.
+      setBulkError(`Nothing was changed: ${label} was refused — ${bulkReasonLabel(r.denial)}.`);
       return;
     }
-    const action = confirmation.kind === "TAG" ? BULK_TAG_LABELS[confirmation.tag] : "Assign";
-    const r = res as { denial?: string; succeeded?: number; total?: number; outcomes?: BulkOutcome[] } | null;
-    if (r && typeof r === "object" && "denial" in r && r.denial) {
-      setBanner(`${action} refused: ${bulkReasonLabel(r.denial)}.`);
-    } else {
-      const failed = (r?.outcomes ?? []).filter((o) => !o.ok);
-      setBanner(
-        `${action}: ${r?.succeeded ?? 0} of ${r?.total ?? ids.length} applied.` +
-          (failed.length > 0
-            ? ` Not applied: ${failed
-                .map((o) => {
-                  const row = rows.find((x) => x.id === o.workflowId);
-                  return `${row ? evidenceRef(row) : "a review"} (${bulkReasonLabel(o.denial)})`;
-                })
-                .join(", ")}.`
-            : ""),
-      );
-    }
-    setSelection(new Set());
-    setPendingConfirm(null);
+    const result = normalizeBulkResponse(res, ids, (code) => bulkReasonLabel(code));
+    const failedIds = failedIdsOf(result, ids);
+    setBulkResult(result);
+    setBulkReport({
+      label,
+      result,
+      retry: failedIds.length > 0 ? () => runBulk(confirmation, failedIds) : null,
+    });
+    setSelection(selectionAfterBulk(selectionRef.current, ids, result));
     reload();
   }
 
@@ -450,33 +535,8 @@ export function ReviewInbox() {
       <ReviewHubNav active="inbox" />
       <RuntimeStatusBanner requires={["reviewAutomation"]} />
 
-      {/* T-065 — the views. The URL decides which one is highlighted. */}
-      <div className="review-view-bar" data-inbox-views>
-        <nav className="app-tabs review-view-tabs" aria-label="Inbox views" data-inbox-view-tabs>
-          {primaryInboxViewsFor(canAssign).map((v) => {
-            const active = v === view;
-            return (
-              <Link
-                key={v}
-                href={inboxHref(v)}
-                className={active ? "app-tab is-active" : "app-tab"}
-                aria-current={active ? "page" : undefined}
-                data-inbox-view-tab={v}
-              >
-                {INBOX_VIEW_LABELS[v]}
-              </Link>
-            );
-          })}
-        </nav>
-        <AppListbox<InboxView>
-          value={MORE_INBOX_VIEWS.includes(view) ? view : null}
-          ariaLabel="More views"
-          placeholder="More views"
-          options={MORE_INBOX_VIEWS.map((v) => ({ value: v, label: INBOX_VIEW_LABELS[v] }))}
-          onChange={(v) => goToView(v)}
-          triggerProps={{ "data-inbox-more-views": "" }}
-        />
-      </div>
+      {/* T-065 / F-10 — the views. The URL decides which one is highlighted. */}
+      <InboxViewNav view={view} canAssign={canAssign} onChoose={goToView} />
 
       {qc.kind === "pending" && qcDestination?.kind === "link" ? (
         <p className="app-field-help review-inline-line" data-inbox-qc-line={qc.count}>
@@ -519,8 +579,9 @@ export function ReviewInbox() {
               ref={filterRef}
               type="search"
               className="app-input"
-              placeholder="Filter this view (press /)"
-              aria-label="Filter this view"
+              placeholder="Filter loaded reviews (press /)"
+              aria-label="Filter the loaded reviews in this view"
+              aria-describedby="inbox-filter-scope"
               value={filterText}
               onChange={(e) => {
                 setFilterText(e.target.value);
@@ -528,12 +589,18 @@ export function ReviewInbox() {
               }}
               data-inbox-filter
             />
-            <span className="app-field-help" data-inbox-count>
-              {visibleRows.length} shown{load.nextCursor ? " · more available" : ""}
+            <span className="app-field-help" data-inbox-count id="inbox-filter-scope">
+              {visibleRows.length} shown{load.nextCursor ? " · the filter covers loaded reviews only; load more to include the rest" : ""}
             </span>
           </div>
 
           <QueueIntelligenceNotice state={intelligence} onRetry={refreshIntelligence} />
+
+          {bulkError ? (
+            <p role="alert" className="app-alert app-alert--danger" data-inbox-bulk-error>
+              {bulkError}
+            </p>
+          ) : null}
 
           <ReviewerBulkOpsBar
             teamId={teamId}
@@ -541,8 +608,13 @@ export function ReviewInbox() {
             callerUserId={viewerUserId}
             enabled={bulkEnabled}
             onClearSelection={() => setSelection(new Set())}
+            onSelectionChange={(next) => setSelection(new Set(next))}
             onMutated={reload}
             onResult={setBulkResult}
+            hasRows={visibleRows.length > 0}
+            report={bulkReport}
+            onReport={setBulkReport}
+            busy={bulkBusy}
             runStepUpAction={stepUp.runStepUpAction}
             rowLabel={(id) => {
               const row = rows.find((r) => r.id === id);
@@ -564,8 +636,8 @@ export function ReviewInbox() {
                   <span className="review-bulk-code" data-inbox-bulk-tag-group>
                     <AppListbox<BulkTag>
                       value={tag}
-                      ariaLabel="Tag"
-                      placeholder="Tag"
+                      ariaLabel="Assessment tag"
+                      placeholder="Assessment tag"
                       options={BULK_TAGS.map((t) => ({ value: t, label: BULK_TAG_LABELS[t] }))}
                       onChange={(t) => setTag(t)}
                       triggerProps={{ "data-inbox-bulk-tag-select": "" }}
@@ -574,19 +646,17 @@ export function ReviewInbox() {
                       type="button"
                       className="app-secondary-action"
                       data-inbox-bulk-tag-apply
-                      disabled={tag === null}
-                      title={tag === null ? "Choose a tag first." : "Sets the tag only; it does not decide the review."}
+                      disabled={tag === null || bulkBusy}
+                      title={tag === null ? "Choose an assessment tag first." : BULK_ASSESSMENT_TAG_HELP}
                       aria-describedby="inbox-bulk-tag-help"
                       onClick={() => {
                         if (tag) setPendingConfirm({ kind: "TAG", tag });
                       }}
                     >
-                      Apply tag
+                      {BULK_ASSESSMENT_TAG_LABEL}
                     </button>
-                    <span id="inbox-bulk-tag-help" className="app-visually-hidden">
-                      {tag === null
-                        ? "Choose a tag first."
-                        : "A tag records a coded value. It does not approve, reject or close any review."}
+                    <span id="inbox-bulk-tag-help" className="app-field-help review-bulk-code__help" data-inbox-bulk-tag-help>
+                      {BULK_ASSESSMENT_TAG_HELP}
                     </span>
                   </span>
                 ) : null}
@@ -772,6 +842,7 @@ export function ReviewInbox() {
           views={savedViews}
           onChanged={() => void loadSavedViews()}
           onApply={goToView}
+          canSave={canSaveViews}
         />
       ) : null}
 
@@ -802,12 +873,112 @@ export function ReviewInbox() {
           confirmation={pendingConfirm}
           count={Math.min(selection.size, BULK_ACTION_CAP)}
           onCancel={() => setPendingConfirm(null)}
-          onConfirm={() => runBulkConfirmed(pendingConfirm)}
+          onConfirm={() => runBulk(pendingConfirm)}
         />
       ) : null}
 
       <StepUpModal control={stepUp} />
     </PageShell>
+  );
+}
+
+
+/**
+ * F-10 / F-28 (Review remediation 2026-11-27, BEHAVIOUR-SPEC §9) — the Inbox
+ * view control. No horizontal scrolling and no clipped labels:
+ *
+ *   ≥ 1024 px  the primary views as a WRAPPING row of links (aria-current on
+ *              the active one) and, in the same group, "More views" for the
+ *              secondary views — a secondary view that is active reads as the
+ *              selected value, not the placeholder;
+ *   < 1024 px  ONE labelled "View" menu listing every view, grouped
+ *              Mine / Team / Attention / Second review / More.
+ *
+ * Both are rendered so the first paint is right at any width (the CSS
+ * breakpoint in review-surfaces.css decides); once `matchMedia` answers,
+ * the inactive one is also `hidden`, so assistive technology meets one
+ * control only.
+ */
+export const INBOX_VIEW_NAV_QUERY = "(min-width: 1024px)";
+
+function useWideViewNav(): boolean | null {
+  const [wide, setWide] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia(INBOX_VIEW_NAV_QUERY);
+    const sync = () => setWide(mq.matches);
+    sync();
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", sync);
+      return () => mq.removeEventListener("change", sync);
+    }
+    mq.addListener?.(sync);
+    return () => mq.removeListener?.(sync);
+  }, []);
+  return wide;
+}
+
+export function InboxViewNav({
+  view,
+  canAssign,
+  onChoose,
+}: {
+  view: InboxView;
+  canAssign: boolean;
+  onChoose: (view: InboxView) => void;
+}) {
+  const wide = useWideViewNav();
+  const groups = inboxViewGroupsFor(canAssign);
+  const menuOptions = groups.flatMap((g) =>
+    g.views.map((v) => ({ value: v, label: INBOX_VIEW_LABELS[v], description: g.label })),
+  );
+  const secondaryActive = MORE_INBOX_VIEWS.includes(view);
+  return (
+    <div className="review-view-nav" data-inbox-views data-inbox-view-layout={wide === null ? "css" : wide ? "row" : "menu"}>
+      <div className="review-view-nav__row" hidden={wide === false || undefined}>
+        <nav className="app-tabs review-view-tabs" aria-label="Inbox views" data-inbox-view-tabs>
+          {primaryInboxViewsFor(canAssign).map((v) => {
+            const active = v === view;
+            return (
+              <Link
+                key={v}
+                href={inboxHref(v)}
+                className={active ? "app-tab is-active" : "app-tab"}
+                aria-current={active ? "page" : undefined}
+                data-inbox-view-tab={v}
+              >
+                {INBOX_VIEW_LABELS[v]}
+              </Link>
+            );
+          })}
+        </nav>
+        <AppListbox<InboxView>
+          className={secondaryActive ? "review-view-nav__more is-active" : "review-view-nav__more"}
+          value={secondaryActive ? view : null}
+          ariaLabel={secondaryActive ? `More views: ${INBOX_VIEW_LABELS[view]} (current)` : "More views"}
+          placeholder="More views"
+          options={MORE_INBOX_VIEWS.map((v) => ({ value: v, label: INBOX_VIEW_LABELS[v] }))}
+          onChange={(v) => onChoose(v)}
+          triggerProps={{
+            "data-inbox-more-views": "",
+            "data-inbox-more-views-active": secondaryActive ? "true" : "false",
+          }}
+        />
+      </div>
+      <div className="review-view-nav__menu" hidden={wide === true || undefined} data-inbox-view-menu-wrap>
+        <span className="app-field-label review-view-nav__label" id="inbox-view-menu-label">
+          View
+        </span>
+        <AppListbox<InboxView>
+          value={view}
+          ariaLabelledby="inbox-view-menu-label"
+          options={menuOptions}
+          onChange={(v) => onChoose(v)}
+          wrapValue
+          triggerProps={{ "data-inbox-view-menu": "" }}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -846,7 +1017,11 @@ function BulkConfirmModal({
   return (
     <Modal
       open
-      title={confirmation.kind === "TAG" ? `${BULK_TAG_LABELS[confirmation.tag]} on ${count} reviews?` : `Assign ${count} reviews?`}
+      title={
+        confirmation.kind === "TAG"
+          ? `${BULK_ASSESSMENT_TAG_LABEL} (${BULK_TAG_LABELS[confirmation.tag]}) on ${count} reviews?`
+          : `Assign ${count} reviews?`
+      }
       onClose={onCancel}
       dismissDisabled={applying}
       testid="inbox-bulk-confirm"
@@ -874,7 +1049,7 @@ function BulkConfirmModal({
     >
       <p className="app-field-help" data-inbox-bulk-confirm-kind={confirmation.kind}>
         {confirmation.kind === "TAG"
-          ? "A tag records a coded value on each review. No review is approved, rejected, escalated or closed."
+          ? `${BULK_ASSESSMENT_TAG_HELP} No review is approved, rejected, escalated or closed.`
           : "Each selected review is assigned to the reviewer you chose. The audit trail records every outcome."}
       </p>
     </Modal>
@@ -891,12 +1066,19 @@ export function SavedViewsPanel({
   views,
   onChanged,
   onApply,
+  canSave = true,
 }: {
   teamId: string;
   view: InboxView;
   views: ReadonlyArray<SavedViewRow>;
   onChanged: () => void;
   onApply: (view: InboxView) => void;
+  /**
+   * F-35 — the actor may create saved views (plan + reviewer capability, the
+   * gates the server applies). Without it no Save control is offered, and
+   * Delete only on the actor’s own views.
+   */
+  canSave?: boolean;
 }) {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
@@ -908,7 +1090,12 @@ export function SavedViewsPanel({
   const platform = useOptionalPlatformContext();
   const viewerUserId = platform?.envelope?.user?.id ?? null;
   const viewerRole = roleInWorkspace(platform?.envelope ?? null, teamId);
-  const savable = (INBOX_VIEW_LABELS as Record<string, string>)[view] !== undefined && !view.startsWith("AWAITING_");
+  const savable =
+    canSave && (INBOX_VIEW_LABELS as Record<string, string>)[view] !== undefined && !view.startsWith("AWAITING_");
+  const mayDelete = (v: SavedViewRow) =>
+    canSave
+      ? mayDeleteReviewerSavedView(v, viewerUserId, viewerRole)
+      : Boolean(viewerUserId && v.createdByUserId && v.createdByUserId === viewerUserId);
 
   const apply = (v: SavedViewRow) => {
     const queue = resolveSavedViewQueue(v);
@@ -920,20 +1107,29 @@ export function SavedViewsPanel({
   };
 
   const create = async () => {
-    if (!name.trim() || !savable) return;
+    const typed = name.trim();
+    if (!typed || !savable) return;
     setBusy(true);
     setError(null);
     try {
       await apiFetch("/v1/reviewer-ops/saved-views", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teamId, name: name.trim(), visibility, filter: { teamId, queue: view } }),
+        body: JSON.stringify({ teamId, name: typed, visibility, filter: { teamId, queue: view } }),
       });
       setName("");
       setCreating(false);
       onChanged();
     } catch (err) {
-      setError(toSafeUserError(err, { message: "Could not save the view." }).message);
+      const e = err as { code?: unknown; statusCode?: unknown } | null;
+      if (e?.code === "duplicate_saved_view" || (e?.statusCode === 409 && e?.code !== "teamId_mismatch")) {
+        // F-36 — the form stays open with the typed name.
+        setError(duplicateSavedViewMessage(typed));
+      } else if (e?.code === "REVIEW_PERMISSION_DENIED" || e?.statusCode === 403) {
+        setError("Your role cannot save views in this workspace.");
+      } else {
+        setError(toSafeUserError(err, { message: "Could not save the view." }).message);
+      }
     } finally {
       setBusy(false);
     }
@@ -1038,7 +1234,7 @@ export function SavedViewsPanel({
         ) : null}
         {views.length === 0 ? (
           <p className="app-field-help" data-reviewer-saved-views-empty>
-            No saved views yet. Save a view to return to it later.
+            {canSave ? "No saved views yet. Save a view to return to it later." : "No saved views yet."}
           </p>
         ) : (
           <ul className="review-tools">
@@ -1052,7 +1248,7 @@ export function SavedViewsPanel({
                     {v.name ?? `View ${idx + 1}`}
                     {queue && isInboxView(queue) ? ` · ${INBOX_VIEW_LABELS[queue]}` : ""}
                   </button>
-                  {mayDeleteReviewerSavedView(v, viewerUserId, viewerRole) ? (
+                  {mayDelete(v) ? (
                     <button
                       type="button"
                       className="app-secondary-action app-secondary-action--danger"

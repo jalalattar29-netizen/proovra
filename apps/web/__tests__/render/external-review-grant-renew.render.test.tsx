@@ -20,7 +20,11 @@ vi.mock("../../lib/platform-context/useServerProjectionGates", () => ({
 vi.mock("../../lib/platform-context", () => ({
   useCan: () => true,
   useActiveSpace: () => ({ type: "ORGANIZATION", roleLabel: "ADMIN" }),
-  useTeamId: () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  // F-33 (2026-11-27) — the team-only legacy hook answers null on a Personal
+  // workspace; the console's Renew must still work, because the page reads
+  // the canonical active workspace id.
+  useTeamId: () => null,
+  useActiveWorkspaceId: () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   // TEAM-UI-SPEC (structure) — the "← Review" back link asks the review-destination
   // resolver whether /review opens (External review is also on Pro); no envelope here.
   usePlatformContext: () => ({ envelope: null }),

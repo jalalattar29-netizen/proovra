@@ -26,7 +26,9 @@ import { bulkAssign } from "../src/services/reviewer-workspace/bulk-operations.s
 // members-unassigned-rule.integration.test.ts).
 vi.mock("../src/services/assignment/placement-policy.js", () => ({
   assignmentRequiresPlacement: async () => false,
+  reviewAssignmentRequiresPlacement: async () => false,
   meetsPlacementPolicy: async () => true,
+  meetsReviewPlacementPolicy: async () => true,
   placedUserIdsForWorkspace: async (_workspaceId: string, ids: readonly string[]) => new Set(ids),
 }));
 

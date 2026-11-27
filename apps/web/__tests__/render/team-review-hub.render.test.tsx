@@ -220,10 +220,19 @@ describe("ReviewHubNav — tabs per context", () => {
     expect(panel.classList.contains("app-panel")).toBe(true);
     expect(panel.querySelector(".app-panel__title")!.textContent).toBe("Review tools");
     const rows = Array.from(panel.querySelectorAll("[data-review-tool]")) as HTMLElement[];
-    // Each row: the tool name as a link + a one-line purpose.
+    // F-12 (2026-11-27) — each row is ONE link card: the title AND the
+    // one-line purpose sit inside the same link (the whole row is clickable),
+    // with a dedicated class (never the table-cell .review-rows__ref) and a
+    // decorative chevron.
     for (const row of rows) {
-      expect(row.querySelector("a[href]")!.textContent!.length).toBeGreaterThan(0);
-      expect(row.querySelector(".app-field-help")!.textContent!.length).toBeGreaterThan(0);
+      const links = row.querySelectorAll("a[href]");
+      expect(links).toHaveLength(1);
+      const card = links[0] as HTMLAnchorElement;
+      expect(card.classList.contains("review-tool-card")).toBe(true);
+      expect(card.classList.contains("review-rows__ref")).toBe(false);
+      expect(card.querySelector(".review-tool-card__title")!.textContent!.length).toBeGreaterThan(0);
+      expect(card.querySelector(".review-tool-card__purpose")!.textContent!.length).toBeGreaterThan(0);
+      expect(card.querySelector("svg")!.getAttribute("aria-hidden")).toBe("true");
     }
     const tools = rows.map((r) => r.getAttribute("data-review-tool"));
     // External Review stays discoverable as an operational task; QC and

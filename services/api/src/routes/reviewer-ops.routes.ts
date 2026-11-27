@@ -99,6 +99,7 @@ import {
   EscalationEngineError,
   acknowledgeEscalation,
   countEscalations,
+  escalationMoveRefusal,
   createEscalation,
   listEscalations,
   reassignEscalation,
@@ -135,6 +136,7 @@ import {
 import { evidenceVisibleThroughCasesWhere } from "../services/cases/case-visibility.js";
 import {
   GovernancePolicyVersionConflictError,
+  type GovernancePolicyPatch,
   loadWorkspaceGovernancePolicyVersion,
   updateWorkspaceGovernancePolicyWithVersion,
 } from "../services/governance.service.js";
@@ -698,6 +700,24 @@ function sendDecisionAuthorityError(
         },
       });
       return;
+    case "reviewer_not_eligible":
+      out.code(403).send({
+        error: {
+          code: "reviewer_not_eligible",
+          reason: "The actor is no longer eligible to review this record.",
+          ...(err.details ?? {}),
+        },
+      });
+      return;
+    case "coding_incomplete":
+      out.code(409).send({
+        error: {
+          code: "coding_incomplete",
+          reason: "The workspace requires complete coding before approving or rejecting.",
+          ...(err.details ?? {}),
+        },
+      });
+      return;
     case "decision_kind_not_allowed":
       out.code(400).send({
         error: {
@@ -802,6 +822,16 @@ async function runReconcileSafely(input: {
 // -----------------------------------------------------------------------------
 // Routes
 // -----------------------------------------------------------------------------
+
+/**
+ * F-06 — the name a surface shows for who requested independent review. Only
+ * a display name (never an address); an unnamed account reads as a member.
+ */
+async function displayNameOf(userId: string | null): Promise<string | null> {
+  if (!userId) return null;
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { displayName: true } }).catch(() => null);
+  return u?.displayName?.trim() || "a workspace member";
+}
 
 export async function reviewerOpsRoutes(app: FastifyInstance) {
   // ===========================================================================
@@ -1728,10 +1758,61 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         viewerUserId: ctx.actorUserId,
       };
       // `total` counts under the SAME filters, unbounded by `limit`.
-      const [escalations, total] = await Promise.all([
+      const [listed, total] = await Promise.all([
         listEscalations({ ...filters, limit: q.limit }),
         countEscalations(filters),
       ]);
+      // F-03 (2026-11-27) — each row carries the viewer's allowed moves with
+      // the SAME rule the mutations enforce (escalationMoveRefusal), so
+      // Monitoring never offers a Resolve / Suppress the server refuses.
+      const workflowIds = [...new Set(listed.map((e) => e.workflowId))];
+      const [wfs, decided] = await Promise.all([
+        prisma.evidenceReviewWorkflow.findMany({
+          where: { id: { in: workflowIds }, teamId: q.teamId },
+          select: { id: true, status: true, assignedToUserId: true, decisionRound: true },
+        }),
+        prisma.workflowReviewDecision.findMany({
+          where: { workflowId: { in: workflowIds }, reviewerUserId: ctx.actorUserId },
+          select: { workflowId: true, round: true },
+        }),
+      ]);
+      const wfById = new Map(wfs.map((w) => [w.id, w]));
+      // Who raised each escalation, by display name only (never an address).
+      const creatorIds = [...new Set(listed.map((e) => e.createdByUserId).filter((v): v is string => !!v))];
+      const creators = new Map(
+        (await prisma.user.findMany({ where: { id: { in: creatorIds } }, select: { id: true, displayName: true } })).map((u) => [
+          u.id,
+          u.displayName?.trim() || "a workspace member",
+        ]),
+      );
+      const role = provenRole(ctx);
+      const mayAssign = contextHasCapability(ctx.authorized, "review.assign");
+      const escalations = listed.map((e) => {
+        const wf = wfById.get(e.workflowId) ?? null;
+        const active = e.status === "OPEN" || e.status === "ACKNOWLEDGED" || e.status === "REASSIGNED";
+        const independence = escalationMoveRefusal({
+          escalation: { reason: e.reason, createdByUserId: e.createdByUserId, requiresIndependentReview: e.independenceCause !== null },
+          workflow: wf ? { status: String(wf.status), assignedToUserId: wf.assignedToUserId } : null,
+          actorUserId: ctx.actorUserId,
+          actorRole: role,
+          actorDecidedThisRound: !!wf && decided.some((d) => d.workflowId === wf.id && d.round === wf.decisionRound),
+        });
+        const move = (extra: string | null): { allowed: boolean; reason?: string } =>
+          !active ? { allowed: false, reason: "escalation_not_active" } : extra ? { allowed: false, reason: extra } : { allowed: true };
+        return {
+          ...e,
+          createdByName: e.createdByUserId ? creators.get(e.createdByUserId) ?? "a workspace member" : null,
+          viewerActions: [
+            { action: "acknowledge" as const, ...move(e.status !== "OPEN" ? "already_acknowledged" : null) },
+            { action: "reassign" as const, ...move(mayAssign ? null : "review_assign_required") },
+            { action: "resolve" as const, ...move(independence) },
+            {
+              action: "suppress" as const,
+              ...move(role !== "OWNER" && role !== "ADMIN" ? "owner_or_admin_required" : independence),
+            },
+          ],
+        };
+      });
       return reply.code(200).send({ escalations, total });
     },
   );
@@ -1754,6 +1835,11 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             .default("WARNING"),
           safeSummary: BoundedNote.max(400),
           assignedToUserId: z.string().uuid().nullable().optional(),
+          // 2026-11-27 — the raiser explicitly asks for an independent second
+          // decision. Integrity reasons require it regardless; administrative
+          // escalations do not unless asked (BEHAVIOUR-SPEC §2.1).
+          requireIndependentReview: z.boolean().optional(),
+          independenceNote: z.string().trim().max(400).nullable().optional(),
         })
         .parse(req.body ?? {});
       const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_ESCALATION");
@@ -1778,6 +1864,8 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           safeSummary: body.safeSummary,
           createdByUserId: ctx.actorUserId,
           assignedToUserId: body.assignedToUserId ?? null,
+          requireIndependentReview: body.requireIndependentReview === true,
+          independenceNote: body.independenceNote ?? null,
         });
       } catch (err) {
         if (sendEngineError(reply, err)) return;
@@ -1793,6 +1881,79 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       return reply
         .code(result.created ? 201 : 200)
         .send({ escalation: result.escalation, created: result.created });
+    },
+  );
+
+  // ===========================================================================
+  // POST /v1/reviewer-ops/reviews/:workflowId/request-independent-review
+  // (review remediation 2026-11-27) — the explicit, auditable way to require
+  // an independent second decision on ONE review. Stored as an escalation of
+  // reason INDEPENDENT_REVIEW_REQUESTED with requires_independent_review=true,
+  // so the requirement, its requester and its time are visible everywhere and
+  // it is lifted only by the independence rule (escalationMoveRefusal).
+  // ===========================================================================
+
+  app.post(
+    "/v1/reviewer-ops/reviews/:workflowId/request-independent-review",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { workflowId } = ParamsWorkflowId.parse(req.params);
+      const body = z
+        .object({ teamId: z.string().uuid(), note: BoundedNote.max(400) })
+        .parse(req.body ?? {});
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_ESCALATION");
+      if (!ctx) return;
+      if (!requireReviewerCapable(ctx, reply)) return;
+      if (!(await requireWorkflowInReach(ctx, reply, workflowId))) return;
+      // The same rule `computeViewerActions.request_independent_review` offers
+      // (§4): an open review whose current round does not already require, or
+      // cannot take, an independent second decision.
+      const target = await prisma.evidenceReviewWorkflow.findFirst({
+        where: { id: workflowId, teamId: body.teamId },
+        select: { id: true, teamId: true, evidenceId: true, status: true, decisionRound: true, completedAtUtc: true, closedAt: true },
+      });
+      if (!target) {
+        sendEngineError(reply, new ReviewerOpsError("REVIEW_WORKFLOW_NOT_FOUND"));
+        return reply;
+      }
+      if (!isReviewOpenDbStatus(String(target.status)) || target.completedAtUtc || target.closedAt) {
+        sendEngineError(reply, new ReviewerOpsError("REVIEW_INVALID_TRANSITION", { reason: "review_finished" }));
+        return reply;
+      }
+      const round = await loadCurrentRoundDecisionState({
+        id: target.id,
+        teamId: body.teamId,
+        evidenceId: target.evidenceId,
+        status: String(target.status),
+        decisionRound: target.decisionRound,
+      });
+      if (round.secondReviewRequired || round.state !== "first_required") {
+        sendEngineError(reply, new ReviewerOpsError("REVIEW_INVALID_TRANSITION", { reason: "independent_review_already_required" }));
+        return reply;
+      }
+      let result: Awaited<ReturnType<typeof createEscalation>>;
+      try {
+        result = await createEscalation({
+          teamId: body.teamId,
+          workflowId,
+          reason: "INDEPENDENT_REVIEW_REQUESTED",
+          severity: "WARNING",
+          safeSummary: body.note,
+          createdByUserId: ctx.actorUserId,
+          routeToWorkspaceAdmins: true,
+          requireIndependentReview: true,
+          independenceNote: body.note,
+        });
+      } catch (err) {
+        if (sendEngineError(reply, err)) return;
+        throw err;
+      }
+      if (!result.ok) {
+        return reply
+          .code(result.code === "REVIEW_WORKFLOW_NOT_FOUND" ? 404 : 403)
+          .send({ error: { code: result.code } });
+      }
+      return reply.code(result.created ? 201 : 200).send({ escalation: result.escalation, created: result.created });
     },
   );
 
@@ -2298,6 +2459,10 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
               requireStepUpForReject: z.boolean().optional(),
               requireStepUpForEscalationResolve: z.boolean().optional(),
               requireStepUpForBulk: z.boolean().optional(),
+              // Review remediation 2026-11-27 — explicit Review policies.
+              reviewRequiresIndependentApproval: z.boolean().optional(),
+              reviewRequiresTeamPlacement: z.boolean().optional(),
+              reviewRequiresCompleteCoding: z.boolean().optional(),
               reviewerInactivityHours: z
                 .number()
                 .int()
@@ -2332,10 +2497,20 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         reason: "save_policy_requires_mfa",
       });
       if (gate.sent) return;
-      const patch = {
+      const patch: GovernancePolicyPatch = {
         ...slaOverridesToPolicyPatch(body.overrides ?? {}),
         ...(body.flags ?? {}),
       };
+      // Turning complete-coding enforcement on applies to rounds started from
+      // now on (never silently to open reviews); turning it off clears it.
+      if (body.flags?.reviewRequiresCompleteCoding !== undefined) {
+        const current = await loadWorkspaceReviewerOpsFlags(body.teamId);
+        if (body.flags.reviewRequiresCompleteCoding && !current.reviewRequiresCompleteCoding) {
+          patch.reviewRequiresCompleteCodingSince = new Date();
+        } else if (!body.flags.reviewRequiresCompleteCoding) {
+          patch.reviewRequiresCompleteCodingSince = null;
+        }
+      }
       const expectedVersion =
         body.expectedVersion ?? (await loadWorkspaceGovernancePolicyVersion(body.teamId));
       let written: Awaited<ReturnType<typeof updateWorkspaceGovernancePolicyWithVersion>>;
@@ -3022,7 +3197,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       });
       if (!wf) return reply.code(404).send({ error: { code: "not_found" } });
 
-      const [allRows, current, events, external] = await Promise.all([
+      const [allRows, current, events, external, infoEvents] = await Promise.all([
         prisma.workflowReviewDecision.findMany({
           where: { workflowId, teamId: q.teamId },
           orderBy: [{ round: "asc" }, { decidedAt: "asc" }],
@@ -3055,8 +3230,38 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           take: 50,
           select: { id: true, verdict: true, rationale: true, reviewerEmail: true, reviewerDisplay: true, submittedAtUtc: true },
         }),
+        // Review remediation (F-04) — a request for information is a workflow
+        // action, not a decision row: the history lists it from its event.
+        prisma.evidenceReviewWorkflowEvent.findMany({
+          where: { workflowId, eventType: "NEEDS_MORE_INFO" },
+          orderBy: { createdAt: "asc" },
+          take: 100,
+          select: { id: true, actorUserId: true, previousValue: true, nextValue: true, note: true, createdAt: true },
+        }),
       ]);
       const rows = allRows.filter((r) => r.round === current.round);
+      const informationRequests = await Promise.all(
+        infoEvents.map(async (e) => {
+          const prev = (e.previousValue ?? {}) as { round?: unknown };
+          const next = (e.nextValue ?? {}) as {
+            round?: unknown;
+            requestedFrom?: { userId?: unknown; role?: unknown };
+            supersededDecisionId?: unknown;
+          };
+          const fromUserId = typeof next.requestedFrom?.userId === "string" ? next.requestedFrom.userId : null;
+          return {
+            id: e.id,
+            requestedInRound: typeof prev.round === "number" ? prev.round : typeof next.round === "number" ? next.round : null,
+            requestedBy: e.actorUserId ? { userId: e.actorUserId, displayName: await displayNameOf(e.actorUserId) } : null,
+            requestedFrom: fromUserId
+              ? { userId: fromUserId, displayName: await displayNameOf(fromUserId) }
+              : { role: typeof next.requestedFrom?.role === "string" ? next.requestedFrom.role : "evidence_owner" },
+            reason: e.note ?? null,
+            requestedAtUtc: e.createdAt.toISOString(),
+            supersededDecisionId: typeof next.supersededDecisionId === "string" ? next.supersededDecisionId : null,
+          };
+        }),
+      );
 
       // Denormalise reviewer identity for operator-readable display.
       const reviewerIds = Array.from(new Set(allRows.map((r) => r.reviewerUserId)));
@@ -3132,22 +3337,34 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         | "submit_adjudication"
         | "blocked_same_reviewer"
         | "blocked_not_adjudicator"
+        | "blocked_adjudicator_not_independent"
         | "no_action_resolved" = "no_action_resolved";
       if (current.state === "first_required") nextAction = "submit_first";
       else if (current.state === "second_required")
         nextAction = callerIsFirstReviewer ? "blocked_same_reviewer" : "submit_second";
       else if (current.state === "conflict_detected")
-        nextAction = isAdjudicator ? "submit_adjudication" : "blocked_not_adjudicator";
+        // F-08 — the same independence rule computeViewerActions and the
+        // decision authority apply: neither reviewer adjudicates.
+        nextAction = !isAdjudicator
+          ? "blocked_not_adjudicator"
+          : callerIsFirstReviewer || current.secondReviewerUserId === ctx.actorUserId
+            ? "blocked_adjudicator_not_independent"
+            : "submit_adjudication";
 
       // T-015 — the requirement, its cause and who could give it, BEFORE
       // anyone submits. Read-only; never reduces the requirement.
-      const eligibleSecond =
-        current.secondReviewRequired && (current.state === "first_required" || current.state === "second_required")
-          ? await countEligibleSecondReviewers(
-              { teamId: q.teamId, evidenceId: wf.evidenceId },
-              current.firstReviewerUserId ?? (current.state === "first_required" ? wf.assignedToUserId : null),
-            )
-          : null;
+      // F-09 — the same server count also answers "who else could give an
+      // independent second decision" for the Escalate / Request independent
+      // review dialogs, before any requirement exists (one rule, never a
+      // client-side recount).
+      const roundOpen = current.state === "first_required" || current.state === "second_required";
+      const independentReviewerCount = roundOpen
+        ? await countEligibleSecondReviewers(
+            { teamId: q.teamId, evidenceId: wf.evidenceId },
+            current.firstReviewerUserId ?? (current.state === "first_required" ? wf.assignedToUserId : null),
+          )
+        : null;
+      const eligibleSecond = current.secondReviewRequired ? independentReviewerCount : null;
 
       return reply.code(200).send({
         workflowId,
@@ -3155,6 +3372,8 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         state: current.state,
         round: current.round,
         continuedFrom: current.continuedFrom ?? null,
+        informationRequests,
+        independentReviewerCount,
         secondReviewRequirement: {
           required: current.secondReviewRequired,
           reason: current.secondReviewReason,
@@ -3163,7 +3382,15 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           required: current.secondReviewRequired,
           cause: current.secondReviewReason,
           escalation: current.secondReviewEscalation
-            ? { reason: current.secondReviewEscalation.reason, severity: current.secondReviewEscalation.severity }
+            ? {
+                reason: current.secondReviewEscalation.reason,
+                severity: current.secondReviewEscalation.severity,
+                // F-06 — who asked for it and when, so every surface names it once.
+                requestedByUserId: current.secondReviewEscalation.requestedByUserId ?? null,
+                requestedByName: await displayNameOf(current.secondReviewEscalation.requestedByUserId ?? null),
+                requestedAtUtc: current.secondReviewEscalation.requestedAtUtc ?? null,
+                note: current.secondReviewEscalation.note ?? null,
+              }
             : null,
           eligibleReviewerCount: eligibleSecond,
           staffing:
@@ -3295,15 +3522,18 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           state: result.state,
           idempotent: result.idempotent,
           outcome: result.outcome,
-          decision: {
-            id: result.decision.id,
-            stage: result.decision.stage,
-            decision: result.decision.decision,
-            reasonCode: result.decision.reasonCode,
-            rationale: result.decision.rationale,
-            decidedAt: result.decision.decidedAt.toISOString(),
-            reviewerUserId: result.decision.reviewerUserId,
-          },
+          // A request for information records no decision (F-04): null.
+          decision: result.decision
+            ? {
+                id: result.decision.id,
+                stage: result.decision.stage,
+                decision: result.decision.decision,
+                reasonCode: result.decision.reasonCode,
+                rationale: result.decision.rationale,
+                decidedAt: result.decision.decidedAt.toISOString(),
+                reviewerUserId: result.decision.reviewerUserId,
+              }
+            : null,
         });
       } catch (err) {
         if (!(err instanceof ReviewDecisionAuthorityError)) throw err;

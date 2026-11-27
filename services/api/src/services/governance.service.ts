@@ -55,7 +55,22 @@ import { emitTenantAudit } from "./audit/tenant-audit.service.js";
  * `POLICY_VERSION_ABSENT` (0) — see `loadWorkspaceGovernancePolicyVersion`.
  */
 export const DEFAULT_POLICY: Readonly<
-  Omit<DbPolicy, "id" | "teamId" | "updatedByUserId" | "createdAt" | "updatedAt" | "metadataRedactionDefault" | "version">
+  Omit<
+    DbPolicy,
+    | "id"
+    | "teamId"
+    | "updatedByUserId"
+    | "createdAt"
+    | "updatedAt"
+    | "metadataRedactionDefault"
+    | "version"
+    // Review remediation 2026-11-27 — Review-only policies, read through
+    // loadWorkspaceReviewerOpsFlags (sla-policy.service), not the governance gates.
+    | "reviewRequiresIndependentApproval"
+    | "reviewRequiresTeamPlacement"
+    | "reviewRequiresCompleteCoding"
+    | "reviewRequiresCompleteCodingSince"
+  >
 > = {
   defaultRetentionDays: null,
   evidenceDeletionMode: prismaPkg.EvidenceDeletionMode.ALLOWED,
@@ -169,6 +184,11 @@ export type GovernancePolicyPatch = Partial<{
   requireStepUpForEscalationResolve: boolean;
   requireStepUpForBulk: boolean;
   reviewerInactivityHours: number | null;
+  // Review remediation 2026-11-27 — explicit Review policies (default off).
+  reviewRequiresIndependentApproval: boolean;
+  reviewRequiresTeamPlacement: boolean;
+  reviewRequiresCompleteCoding: boolean;
+  reviewRequiresCompleteCodingSince: Date | null;
   // GOV-012 — owner-only (the route enforces it), with step-up.
   legalHoldDisclosure: LegalHoldDisclosure;
 }>;

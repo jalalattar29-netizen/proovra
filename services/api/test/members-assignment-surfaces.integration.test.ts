@@ -17,6 +17,14 @@
  * It also carries the behavioural proofs for re-audit defects 1-5, 10 and 20,
  * ENT-11, REV-05 and SEC-13. The unit suites that `vi.mock` placement-policy
  * point here for the placement proof.
+ *
+ * Review remediation (2026-11-27): for REVIEW work on Team / Pro, placement is
+ * required only by the workspace's explicit Review policy
+ * `review_requires_team_placement`. This suite turns that policy ON in
+ * `beforeAll` so every review writer still proves it refuses an unplaced
+ * member when placement is required; the last case proves that with the
+ * policy OFF an eligible unplaced member is assigned a review while case work
+ * still requires placement.
  */
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -48,6 +56,7 @@ describe("every assignment writer obeys the one assignee authority (live Postgre
     legal = await import("../src/legal/legal-versioning.js");
     stepUp = createStepUpCeremony({ prisma, inject: (o) => h.app.inject(o as never) as never });
     await setPlan("TEAM");
+    await setReviewPlacementPolicy(true);
   }, 900_000);
 
   afterAll(async () => {
@@ -55,6 +64,14 @@ describe("every assignment writer obeys the one assignee authority (live Postgre
   }, 300_000);
 
   const tag = () => randomUUID().slice(0, 8);
+
+  async function setReviewPlacementPolicy(on: boolean) {
+    await prisma.workspaceGovernancePolicy.upsert({
+      where: { teamId: A().teamId },
+      update: { reviewRequiresTeamPlacement: on },
+      create: { teamId: A().teamId, reviewRequiresTeamPlacement: on },
+    });
+  }
 
   async function setPlan(plan: "FREE" | "PRO" | "TEAM") {
     await prisma.team.update({ where: { id: A().teamId }, data: { billingPlan: plan, billingStatus: "ACTIVE" } as never });
@@ -698,6 +715,32 @@ describe("every assignment writer obeys the one assignee authority (live Postgre
     } finally {
       await prisma.$executeRawUnsafe(`DROP TRIGGER ${fn} ON admin_audit_logs`);
       await prisma.$executeRawUnsafe(`DROP FUNCTION ${fn}()`);
+    }
+  });
+
+  it("review remediation — without the explicit Review placement policy an eligible unplaced member is assigned a review; case work still requires placement", async () => {
+    await setPlan("TEAM");
+    await setReviewPlacementPolicy(false);
+    try {
+      const unplaced = await person("MEMBER");
+      const wf = await workflow();
+      const ok = await post(`/v1/reviewer-ops/reviews/${wf.workflowId}/assign`, A().ownerToken, {
+        teamId: A().teamId,
+        assignedToUserId: unplaced.id,
+      });
+      expect(ok.statusCode, ok.body).toBe(200);
+      expect(await assigneeOf(wf.workflowId)).toBe(unplaced.id);
+      // Capability still applies: a VIEWER is refused whatever the policy.
+      const viewer = await person("VIEWER");
+      const wf2 = await workflow();
+      const refused = await post(`/v1/reviewer-ops/reviews/${wf2.workflowId}/assign`, A().ownerToken, {
+        teamId: A().teamId,
+        assignedToUserId: viewer.id,
+      });
+      expect(refused.statusCode, refused.body).toBe(422);
+      expect(await assigneeOf(wf2.workflowId)).toBeNull();
+    } finally {
+      await setReviewPlacementPolicy(true);
     }
   });
 });

@@ -93,6 +93,7 @@ vi.mock("../src/services/identity/access-policy.service.js", () => ({
 // placed. Placement has its own suite; here every reviewer counts as placed.
 vi.mock("../src/services/assignment/placement-policy.js", () => ({
   assignmentRequiresPlacement: vi.fn(async () => false),
+  reviewAssignmentRequiresPlacement: vi.fn(async () => false),
   placedUserIdsForWorkspace: vi.fn(async (_t: string, ids: string[]) => new Set(ids)),
 }));
 

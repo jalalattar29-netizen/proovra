@@ -5,14 +5,14 @@
  *   GET   /v1/reviewer/metrics                         — team metrics
  *
  *   GET   /v1/coding/schemas                           — list workspace schemas
- *   POST  /v1/coding/schemas                           — author DRAFT schema
+ *   POST  /v1/coding/schemas                           — RETIRED (typed 410)
  *   GET   /v1/coding/schemas/:id                       — read schema + fields
  *   POST  /v1/coding/schemas/:id/publish               — RETIRED (typed 410)
  *   POST  /v1/coding/schemas/:id/archive               — → ARCHIVED
  *   POST  /v1/coding/schemas/seed-defaults             — install 6 pre-built schemas
  *
  *   GET   /v1/reviewer/work/:workflowId/coding         — current values + coverage
- *   POST  /v1/reviewer/work/:workflowId/code           — write a coding value
+ *   POST  /v1/reviewer/work/:workflowId/code           — write (or {clear:true}) a coding value
  *   POST  /v1/reviewer/work/:workflowId/disagree       — file a disagreement
  *
  *   GET   /v1/reviewer/disagreements                   — list disagreements
@@ -36,7 +36,6 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import {
-  CODING_FIELD_TYPES,
   CODING_SCHEMA_CATEGORIES,
   DISAGREEMENT_STATES,
   QC_FAILURE_REASONS,
@@ -62,18 +61,19 @@ import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
   archiveSchema,
   bindSchemaToWorkflow,
-  createSchema,
   getSchema,
   getWorkflowSchemaBinding,
   listSchemas,
   seedDefaultSchemas,
 } from "../services/reviewer-workspace/coding-schema.service.js";
 import {
+  clearCodingValue,
   evaluateRequiredFieldsCoverage,
   readCodingValueHistoryForWorkflow,
-  readCodingValuesForWorkflow,
+  readCodingValuesPartitioned,
   writeCodingValue,
 } from "../services/reviewer-workspace/coding-value.service.js";
+import { correctedFieldHelpText } from "../services/reviewer-workspace/coding-schema-defaults.js";
 import {
   fileDisagreement,
   listDisagreements,
@@ -94,6 +94,7 @@ import {
   bulkAssign,
   bulkCode,
   bulkDecide,
+  isBulkRefusal,
 } from "../services/reviewer-workspace/bulk-operations.service.js";
 import {
   callerHasCapability,
@@ -430,33 +431,76 @@ async function auditBulkAssign(input: {
   }
 }
 
+/**
+ * Review remediation F-13 — clear one coded field and answer. The caller has
+ * already passed resolveTeam, the entitlement, `review.code` and reach.
+ * 200 `{ cleared, codingValueId }` (cleared:false = nothing was set);
+ * 409 `{ denial }` with the same denials as a write.
+ */
+async function sendClearCodingValue(
+  reply: FastifyReply,
+  ctx: { teamId: string; userId: string },
+  workflowId: string,
+  fieldId: string,
+  rationale: string | undefined,
+): Promise<FastifyReply> {
+  const res = await clearCodingValue({
+    teamId: ctx.teamId,
+    workflowId,
+    fieldId,
+    actorUserId: ctx.userId,
+    rationale,
+  });
+  await auditCodingWrite({
+    action: "reviewer.code.clear",
+    actorUserId: ctx.userId,
+    teamId: ctx.teamId,
+    workflowId,
+    codingValueId: res.ok ? res.codingValueId : null,
+    denial: res.ok ? null : res.denial,
+    metadata: { fieldId, cleared: res.ok ? res.cleared : false },
+  });
+  if (!res.ok) return denyWith(reply, 409, res.denial);
+  return reply.code(200).send({ cleared: res.cleared, codingValueId: res.codingValueId });
+}
+
 // =============================================================================
 // Schemas
 // =============================================================================
-
-const CodingFieldBody = z.object({
-  slug: z.string().min(1).max(80),
-  label: z.string().min(1).max(180),
-  fieldType: z.enum(CODING_FIELD_TYPES),
-  required: z.boolean(),
-  orderIndex: z.number().int().min(0),
-  helpText: z.string().max(240).optional(),
-  options: z.record(z.string(), z.unknown()).optional(),
-});
-
-const CreateSchemaBody = z.object({
-  slug: z.string().min(1).max(80),
-  label: z.string().min(1).max(180),
-  category: z.enum(CODING_SCHEMA_CATEGORIES),
-  description: z.string().max(600).optional(),
-  fields: z.array(CodingFieldBody).min(1).max(50),
-});
 
 const WriteCodingValueBody = z.object({
   fieldId: z.string().uuid(),
   value: z.record(z.string(), z.unknown()),
   rationale: z.string().max(240).optional(),
 });
+
+/** Review remediation §6 (F-13) — an explicit clear through the write door. */
+const ClearCodingValueBody = z.object({
+  fieldId: z.string().uuid(),
+  clear: z.literal(true),
+  rationale: z.string().max(240).optional(),
+});
+
+/** Workflow states in which coding is read-only (mirrors coding-value.service). */
+const CODING_READ_ONLY_WORKFLOW_STATES = new Set<string>([
+  "CLOSED",
+  "APPROVED_INTERNAL",
+  "REJECTED_INSUFFICIENT",
+]);
+
+/**
+ * Review remediation §6 (F-20) — a schema's fields with the seeded legacy
+ * REVIEWER_VERDICT help text corrected at read time (stored rows untouched).
+ */
+function withCorrectedHelpText<T extends { fields?: ReadonlyArray<{ helpText: string | null }> }>(
+  schema: T,
+): T {
+  if (!Array.isArray(schema.fields)) return schema;
+  return {
+    ...schema,
+    fields: schema.fields.map((f) => ({ ...f, helpText: correctedFieldHelpText(f.helpText) })),
+  };
+}
 
 const FileDisagreementBody = z.object({
   originalDecisionId: z.string().uuid(),
@@ -571,18 +615,18 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
       // Two authorities over one question, and this was the one failing OPEN.
       if (await refuseWithoutReviewCapability(reply, ctx.teamId, "REVIEW_TASKS_AND_QUEUES")) return reply;
       if (!requireCap(ctx, "review.schema.author")) return denyNoPermission(reply);
-      const body = CreateSchemaBody.parse(req.body);
-      const res = await createSchema({
-        teamId: ctx.teamId,
-        authorUserId: ctx.userId,
-        slug: body.slug,
-        label: body.label,
-        category: body.category,
-        description: body.description,
-        fields: body.fields,
+      // Review remediation F-27 (2026-11-27) — custom schema authoring is
+      // retired (OWNER DECISION 2026-09-16, see the publish route below):
+      // create refuses exactly like publish. Existing drafts are untouched;
+      // the authorization and entitlement answers above are unchanged.
+      return reply.code(410).send({
+        error: {
+          code: "CODING_SCHEMA_CREATE_RETIRED",
+          message:
+            "Creating custom coding schemas is not offered. Install the pre-built schemas instead; they are published when installed.",
+        },
+        canonical: "/v1/coding/schemas/seed-defaults",
       });
-      if (!res.ok) return denyWith(reply, 409, res.denial);
-      return reply.code(201).send({ schemaId: res.schemaId, version: res.version });
     },
   );
 
@@ -598,7 +642,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const schema = await getSchema({ teamId: ctx.teamId, schemaId: id });
       if (!schema) return denyWith(reply, 404, "SCHEMA_NOT_FOUND");
-      return reply.code(200).send({ schema });
+      return reply.code(200).send({ schema: withCorrectedHelpText(schema) });
     },
   );
 
@@ -731,26 +775,47 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
       if (!(await workflowOpenToCaller(ctx, workflowId))) {
         return reply.code(200).send({
           values: [],
+          otherSchemaValues: [],
           coverage: { totalRequired: 0, fulfilled: 0, unfulfilledFieldIds: [] },
           schemaBinding: null,
           history: [],
+          // Same answer as an unbound workflow: reveals nothing.
+          writable: { allowed: false, reason: "no_schema" },
         });
       }
-      const [values, coverage, binding, history] = await Promise.all([
-        readCodingValuesForWorkflow({ teamId: ctx.teamId, workflowId }),
+      const [partition, coverage, binding, history, workflow] = await Promise.all([
+        // Review remediation F-26 — only the bound schema's values are current.
+        readCodingValuesPartitioned({ teamId: ctx.teamId, workflowId }),
         evaluateRequiredFieldsCoverage({ teamId: ctx.teamId, workflowId }),
         getWorkflowSchemaBinding({ teamId: ctx.teamId, workflowId }),
         // PRO-R2-17 — every value written, oldest first (additive).
         readCodingValueHistoryForWorkflow({ teamId: ctx.teamId, workflowId }),
+        prisma.evidenceReviewWorkflow.findFirst({
+          where: { id: workflowId, teamId: ctx.teamId },
+          select: { status: true },
+        }),
       ]);
+      // Review remediation F-15 — whether a write by this caller would be
+      // accepted now, and why not. Advisory: the write door decides.
+      const schemaBinding = binding?.schema ?? null;
+      const reason: "workflow_closed" | "no_permission" | "no_schema" | null =
+        workflow && CODING_READ_ONLY_WORKFLOW_STATES.has(workflow.status)
+          ? "workflow_closed"
+          : !requireCap(ctx, "review.code")
+            ? "no_permission"
+            : schemaBinding === null
+              ? "no_schema"
+              : null;
       // `schemaBinding` is the authoritative reread for bind-schema: which
       // schema this workflow collects coded fields for (null = unbound).
       // Additive; existing readers ignore it.
       return reply.code(200).send({
-        values,
+        values: partition.values,
+        otherSchemaValues: partition.otherSchemaValues,
         coverage,
-        schemaBinding: binding?.schema ?? null,
+        schemaBinding,
         history,
+        writable: { allowed: reason === null, reason },
       });
     },
   );
@@ -768,6 +833,11 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         .parse(req.params);
       if (!(await workflowOpenToCaller(ctx, workflowId))) {
         return denyWith(reply, 409, "WORKFLOW_NOT_FOUND");
+      }
+      // Review remediation F-13 — `{ fieldId, clear: true }` is an explicit clear.
+      if ((req.body as { clear?: unknown } | null)?.clear === true) {
+        const clearBody = ClearCodingValueBody.parse(req.body);
+        return sendClearCodingValue(reply, ctx, workflowId, clearBody.fieldId, clearBody.rationale);
       }
       const body = WriteCodingValueBody.parse(req.body);
       const res = await writeCodingValue({
@@ -878,7 +948,8 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         rationale: body.rationale,
       });
       if (!res.ok) return denyWith(reply, 409, res.denial, "code" in res ? (res as { code?: string | null }).code : null);
-      return reply.code(200).send({ ok: true });
+      // F-11 — say what an overturned / partial resolution did to the review.
+      return reply.code(200).send({ ok: true, superseded: res.superseded ?? null });
     },
   );
 
@@ -1108,7 +1179,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         rationale: body.rationale,
         workflowIds: body.workflowIds,
       });
-      if (!res.ok) return denyWith(reply, 409, res.denial);
+      if (isBulkRefusal(res)) return denyWith(reply, 409, res.denial);
       // D52 — the verdict is a coded value; it is not copied into the row.
       await auditBulkCodingWrites({
         action: "reviewer.code.bulk_decide",
@@ -1117,7 +1188,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         outcomes: res.outcomes,
         metadata: {},
       });
-      return reply.code(200).send(res);
+      return reply.code(res.httpStatus).send(res);
     },
   );
 
@@ -1146,7 +1217,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         value: body.value,
         workflowIds: body.workflowIds,
       });
-      if (!res.ok) return denyWith(reply, 409, res.denial);
+      if (isBulkRefusal(res)) return denyWith(reply, 409, res.denial);
       await auditBulkCodingWrites({
         action: "reviewer.code.bulk_write",
         actorUserId: ctx.userId,
@@ -1154,7 +1225,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         outcomes: res.outcomes,
         metadata: { fieldSlug: body.fieldSlug },
       });
-      return reply.code(200).send(res);
+      return reply.code(res.httpStatus).send(res);
     },
   );
 }

@@ -137,7 +137,7 @@ async function referenceDecisions(workflows: ReadonlyArray<Ref>, client: any): P
 
 // --- Seeding ------------------------------------------------------------------
 
-type Trigger = "none" | "escalatedStatus" | "openEsc" | "autoEsc" | "openEscOtherTeam" | "resolvedEsc" | "hold" | "holdOtherTeam" | "releasedHold" | "redaction";
+type Trigger = "none" | "escalatedStatus" | "adminEscalatedStatus" | "openEsc" | "autoEsc" | "openEscOtherTeam" | "resolvedEsc" | "hold" | "holdOtherTeam" | "releasedHold" | "redaction";
 type EventShape = "none" | "round" | "noRound" | "noRoundSettledByInfo" | "roundSettledByInfo" | "sameMs" | "noRoundBefore";
 type Spec = {
   status: string;
@@ -242,7 +242,16 @@ async function mk(spec: Spec): Promise<Ref> {
     });
   switch (spec.trigger) {
     case "escalatedStatus":
-      await prisma.evidenceReviewWorkflow.update({ where: { id }, data: { status: "ESCALATED" } });
+      // Review remediation (2026-11-27): a stored ESCALATED status forces a
+      // second review only when a reviewer disagreement put it there.
+      await prisma.evidenceReviewWorkflow.update({
+        where: { id },
+        data: { status: "ESCALATED", escalationReason: "reviewer_disagreement" },
+      });
+      break;
+    case "adminEscalatedStatus":
+      // An administrative Escalate moved the status: it adds no second reviewer.
+      await prisma.evidenceReviewWorkflow.update({ where: { id }, data: { status: "ESCALATED", escalationReason: "counsel please" } });
       break;
     case "openEsc":
       await esc(team.teamId, "ACKNOWLEDGED");
@@ -293,7 +302,7 @@ function rnd(): number {
 }
 const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(rnd() * xs.length)]!;
 
-const TRIGGERS: Trigger[] = ["none", "escalatedStatus", "openEsc", "autoEsc", "openEscOtherTeam", "resolvedEsc", "hold", "holdOtherTeam", "releasedHold", "redaction"];
+const TRIGGERS: Trigger[] = ["none", "escalatedStatus", "adminEscalatedStatus", "openEsc", "autoEsc", "openEscOtherTeam", "resolvedEsc", "hold", "holdOtherTeam", "releasedHold", "redaction"];
 const EVENTS: EventShape[] = ["none", "round", "noRound", "noRoundSettledByInfo", "roundSettledByInfo", "sameMs", "noRoundBefore"];
 
 const named: Record<string, Spec> = {};
@@ -386,7 +395,7 @@ describe("batched current-round decisions equal the per-workflow derivation", ()
     const got = await outcome.loadCurrentReviewDecisions([...refs.values()], prisma as never);
     const v = (name: string) => got.get(refs.get(name)!.id);
     // No trigger, or a trigger that does not count (another team, no longer active): the first verdict stands.
-    for (const t of ["none", "autoEsc", "openEscOtherTeam", "resolvedEsc", "holdOtherTeam", "releasedHold"]) {
+    for (const t of ["none", "adminEscalatedStatus", "autoEsc", "openEscOtherTeam", "resolvedEsc", "holdOtherTeam", "releasedHold"]) {
       expect(v(`first-APPROVE-${t}-noRound`), t).toBe("APPROVED");
       // Team remediation T-017 / binding direction 4 — a FIRST decision logged
       // for THIS round as "second review required" keeps that requirement once

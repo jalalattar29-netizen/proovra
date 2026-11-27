@@ -265,9 +265,10 @@ describe("second-review handoff — queue slice, handoff block, notification", (
       eligibleReviewerCount: 3,
       staffing: "ok",
     });
+    // Review remediation (F-36): with no requirement there is nothing to staff.
     expect((await o.workspace(T.admin, plain.workflowId)).body.handoff).toMatchObject({
       requirement: null,
-      staffing: "ok",
+      staffing: "not_required",
       eligibleReviewerCount: 0,
     });
 
@@ -405,9 +406,8 @@ describe("single-occupant TEAM personal workspace", () => {
 describe("batched current-round classification", () => {
   it("equals loadCurrentRoundDecisionState row for row, including the request-for-information rounds", async () => {
     const o = ops(T.teamId);
-    // A round settled by a request for information (no requirement then), the
-    // review still waiting for it, and a legal hold placed afterwards: the
-    // per-row reader answers from the LIVE requirement (second_required).
+    // A request for information (a workflow action — no decision row), the
+    // review still waiting for it, and a legal hold placed afterwards.
     const t = await prisma.team.findUniqueOrThrow({ where: { id: T.teamId }, select: { organizationId: true } });
     async function plainWorkflow(title: string) {
       const evidenceId = (
@@ -466,7 +466,10 @@ describe("batched current-round classification", () => {
       expect(batched.get(w.id), `workflow ${w.id} (${w.status})`).toBe(perRow.state);
       states.add(perRow.state);
     }
-    expect(batched.get(settled.workflowId)).toBe("second_required");
+    // Review remediation (F-04): the request used no decision slot, so the
+    // round still awaits its FIRST decision (the late hold will require a
+    // second one after it).
+    expect(batched.get(settled.workflowId)).toBe("first_required");
     expect(batched.get(movedOn.workflowId)).toBe("first_required");
     // The seeded rows cover every state the slices distinguish.
     for (const st of ["first_required", "second_required", "conflict_detected", "resolved"]) expect(states).toContain(st);

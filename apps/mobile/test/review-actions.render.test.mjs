@@ -125,5 +125,39 @@ test("verdicts follow the server's availableActions and a first-of-two decision 
   await r.type("Reason for rejection (required, internal only)", "Gap in custody.");
   await r.press("Submit: Reject as insufficient");
   await settle();
-  assert.ok(r.hasText("First review recorded. A second reviewer must confirm."));
+  assert.ok(r.hasText("First review recorded — waiting for an independent reviewer. It is not final until a second reviewer decides."));
+});
+
+// Review remediation 2026-11-27 (F-04) — a request for information records no
+// decision: the server answers `decision: null` and stageRecorded "NONE". The
+// panel must not crash and says what happened in the shared copy.
+test("a request for information with decision:null reads as 'Information requested'", async () => {
+  wf = {
+    teamId: "t-1",
+    status: "IN_REVIEW",
+    assignedTo: { id: "u-other-9999" },
+    availableActions: [{ action: "REQUEST_MORE_INFO", enabled: true, blockedBy: null, requiresNote: true }],
+  };
+  routes["/v1/review-operations/evidence/ev-1/decision"] = () => ({
+    ok: true,
+    decision: null,
+    outcome: { stageRecorded: "NONE", statusChanged: true, reviewState: "awaiting_information", nextRequirement: "information", idempotent: false },
+  });
+  const r = await openReview();
+  await r.press("Request more information");
+  await r.type("Information needed (required, internal only)", "Upload the original file.");
+  await r.press("Submit: Request more information");
+  await settle();
+  assert.ok(r.hasText("Information requested. The review waits until the response is recorded."));
+});
+
+test("the result message never reads `decision` and tolerates a missing outcome", async () => {
+  const RA = await loadModule("src/product/review-actions.ts");
+  assert.equal(
+    RA.reviewDecisionResultMessage("REQUEST_MORE_INFO", { decision: null, outcome: { stageRecorded: "NONE", statusChanged: true, nextRequirement: "information", idempotent: false } }),
+    "Information requested. The review waits until the response is recorded.",
+  );
+  assert.equal(RA.reviewDecisionResultMessage("REQUEST_MORE_INFO", null), "Information requested. The review waits until the response is recorded.");
+  assert.equal(RA.reviewDecisionResultMessage("APPROVE_INTERNAL", { decision: null }), null);
+  assert.equal(RA.reviewDecisionResultMessage("CLOSE", { outcome: { stageRecorded: "NONE" } }), null);
 });

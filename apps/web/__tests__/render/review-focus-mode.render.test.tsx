@@ -56,7 +56,6 @@ function viewerWith(allowed: string[], reasons: Record<string, string> = {}, isA
   return {
     userId: "u-1",
     isAssignee,
-    escalationForcesIndependentReview: true,
     actions: ALL.map((a) => (allowed.includes(a) ? { action: a, allowed: true } : { action: a, allowed: false, reason: reasons[a] ?? reasons["*"] ?? "invalid_transition" })),
   };
 }
@@ -209,7 +208,7 @@ describe("T-077 — focus mode is the Review page's layout", () => {
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(0);
     fireEvent.keyDown(window, { key: "e" });
     const dialog = await screen.findByRole("dialog", { name: "Escalate this review" });
-    expect(dialog.querySelector("[data-reviewer-escalate-independence]")?.textContent).toMatch(/independent second review/);
+    expect(dialog.querySelector("[data-reviewer-escalate-independence]")?.textContent).toMatch(/does not change who can decide the review/);
   });
 
   it("J moves to the next review of the Inbox view, staying in focus mode; K at the start says so", async () => {

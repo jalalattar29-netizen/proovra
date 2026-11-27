@@ -276,8 +276,11 @@ export function renderTransactionalTemplate(
     case "REVIEW_SECOND_REVIEWER_UNAVAILABLE":
       return renderReviewVariant(
         expectCtx(ctx, "ReviewAssigned"),
-        "No one can give the second review",
-        "A review needs an independent second reviewer and nobody eligible is available. Invite or place a reviewer, or keep the review open",
+        "No one can give the second decision yet",
+        // Review remediation (F-05) — the shared wording: the first decision is
+        // recorded and pending; the staffing path is an invitation, never
+        // "placement" (Team placement is an opt-in policy).
+        "A first decision is recorded and is waiting for an independent second decision, and nobody else in the workspace can give it yet. Invite a member with review permission, then assign the second review",
       );
     case "EXTERNAL_INTAKE_LINK_CREATED":
       return renderIntakeLinkCreated(expectCtx(ctx, "IntakeLinkCreated"));

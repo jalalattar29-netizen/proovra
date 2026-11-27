@@ -30,8 +30,7 @@
  */
 import { Prisma, type PrismaClient } from "@prisma/client";
 import {
-  SECOND_REVIEW_REEVALUATION_SOURCE,
-  decisionEventPinsSecondReview,
+  REVIEWER_DISAGREEMENT_ESCALATION_REASON,
   deriveDecisionProjection,
   escalationForcesIndependentReview,
   legacyReviewDecisionFromStatus,
@@ -40,6 +39,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { pinnedCauseFromRoundEvents } from "./second-review.service.js";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -227,9 +227,14 @@ export async function loadCurrentReviewDecisions(
  *      recording this round decides; failing one, the first DECISION_LOGGED
  *      event at or after the round's latest decision (pre-round events).
  *   2. Otherwise the live requirement (`requiresSecondReview`): the workflow
- *      is ESCALATED, it has an open escalation in its team, its evidence has
- *      an ACTIVE legal hold in its team, or a redaction-required visibility
- *      decision.
+ *      is ESCALATED by a reviewer disagreement, it has an open escalation in
+ *      its team that requires independent review (`escalationIndependenceCause`
+ *      — administrative escalations never do), its evidence has an ACTIVE
+ *      legal hold in its team, a redaction-required visibility decision, or
+ *      the workspace's explicit independent-approval policy is on.
+ *   3. Otherwise the round's pinned requirement (`pinnedCauseFromRoundEvents`
+ *      over the round's DECISION_LOGGED / STAGE_CHANGED / NEEDS_MORE_INFO
+ *      events, oldest first — the same reader the per-workflow rule uses).
  *
  * `events` are the batch's DECISION_LOGGED events, newest first, already
  * loaded by the caller for exactly these workflows.
@@ -293,11 +298,15 @@ export async function secondReviewRequiredForRounds(
 
   const ids = live.map((w) => w.id);
   const evidenceIds = [...new Set(live.map((w) => w.evidenceId))];
-  const [statuses, openEsc, holds, redactions] = await Promise.all([
-    client.evidenceReviewWorkflow.findMany({ where: { id: { in: ids } }, select: { id: true, status: true } }),
+  const teamIds = [...new Set(live.map((w) => w.teamId))];
+  const [statuses, openEsc, holds, redactions, policies, roundEvents] = await Promise.all([
+    client.evidenceReviewWorkflow.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, status: true, escalationReason: true },
+    }),
     client.reviewEscalation.findMany({
       where: { workflowId: { in: ids }, status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] } },
-      select: { workflowId: true, teamId: true, reason: true, createdByUserId: true },
+      select: { workflowId: true, teamId: true, reason: true, createdByUserId: true, requiresIndependentReview: true },
     }),
     client.evidenceLegalHold.findMany({
       where: { evidenceId: { in: evidenceIds }, status: "ACTIVE" },
@@ -308,44 +317,42 @@ export async function secondReviewRequiredForRounds(
       select: { evidenceId: true },
       distinct: ["evidenceId"],
     }),
+    client.workspaceGovernancePolicy.findMany({
+      where: { teamId: { in: teamIds }, reviewRequiresIndependentApproval: true },
+      select: { teamId: true },
+    }),
+    client.evidenceReviewWorkflowEvent.findMany({
+      where: { workflowId: { in: ids }, eventType: { in: ["DECISION_LOGGED", "STAGE_CHANGED", "NEEDS_MORE_INFO"] } },
+      orderBy: { createdAt: "asc" },
+      select: { workflowId: true, eventType: true, nextValue: true },
+    }),
   ]);
-  const escalated = new Set(statuses.filter((w) => w.status === "ESCALATED").map((w) => w.id));
-  // T-013 — only escalations that FORCE independent review count.
+  // Only a reviewer disagreement's ESCALATED status forces (an administrative
+  // Escalate that moved the status does not).
+  const escalated = new Set(
+    statuses
+      .filter((w) => w.status === "ESCALATED" && w.escalationReason === REVIEWER_DISAGREEMENT_ESCALATION_REASON)
+      .map((w) => w.id),
+  );
+  const policyTeams = new Set(policies.map((p) => p.teamId));
+  // Only escalations that FORCE independent review count (review remediation).
   const escByWf = new Set(
     openEsc.filter((e) => escalationForcesIndependentReview(e)).map((e) => `${e.workflowId}|${e.teamId}`),
   );
   const holdByEv = new Set(holds.map((h) => `${h.evidenceId}|${h.teamId}`));
   const redacted = new Set(redactions.map((r) => r.evidenceId));
-  // A round pinned by its FIRST decision (second-review.service.ts
-  // `roundPinnedToSecondReview`) keeps its requirement; an explicit
-  // re-evaluation marker (T-014) lifts the pin.
-  const pinCandidates = live.filter((wf) =>
-    (byWorkflow.get(wf.id) ?? []).some(
-      (e) =>
-        (e.nextValue as { round?: unknown } | null)?.round === wf.decisionRound && decisionEventPinsSecondReview(e.nextValue),
-    ),
-  );
-  const markers =
-    pinCandidates.length === 0
-      ? []
-      : await client.evidenceReviewWorkflowEvent.findMany({
-          where: {
-            workflowId: { in: pinCandidates.map((w) => w.id) },
-            eventType: "STAGE_CHANGED",
-            nextValue: { path: ["source"], equals: SECOND_REVIEW_REEVALUATION_SOURCE },
-          },
-          select: { workflowId: true, nextValue: true },
-        });
-  const pinned = new Set(
-    pinCandidates
-      .filter(
-        (wf) =>
-          !markers.some(
-            (m) => m.workflowId === wf.id && (m.nextValue as { round?: unknown } | null)?.round === wf.decisionRound,
-          ),
-      )
-      .map((wf) => wf.id),
-  );
+  // A round pinned by its FIRST decision, or carrying a requirement from a
+  // superseded decision (second-review.service.ts `roundPinnedToSecondReview`),
+  // keeps it; an explicit re-evaluation marker (T-014) lifts it.
+  const roundEventsByWf = new Map<string, Array<{ eventType: string; nextValue: unknown }>>();
+  const roundOf = new Map(live.map((w) => [w.id, w.decisionRound]));
+  for (const e of roundEvents) {
+    if ((e.nextValue as { round?: unknown } | null)?.round !== roundOf.get(e.workflowId)) continue;
+    const list = roundEventsByWf.get(e.workflowId) ?? [];
+    list.push({ eventType: String(e.eventType), nextValue: e.nextValue });
+    roundEventsByWf.set(e.workflowId, list);
+  }
+  const pinned = new Set(live.filter((wf) => pinnedCauseFromRoundEvents(roundEventsByWf.get(wf.id) ?? []) !== null).map((wf) => wf.id));
   for (const wf of live) {
     required.set(
       wf.id,
@@ -353,6 +360,7 @@ export async function secondReviewRequiredForRounds(
         escByWf.has(`${wf.id}|${wf.teamId}`) ||
         holdByEv.has(`${wf.evidenceId}|${wf.teamId}`) ||
         redacted.has(wf.evidenceId) ||
+        policyTeams.has(wf.teamId) ||
         pinned.has(wf.id),
     );
   }

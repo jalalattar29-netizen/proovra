@@ -68,6 +68,18 @@ describe("the one assignee authority holds for every writer, and a departure rel
     bulk = await import("../src/services/dashboard/bulk-actions.service.js");
     await setPlan("TEAM");
     await setPersonalPlan("TEAM");
+
+    // Review remediation (2026-11-27): on Team / Pro, REVIEW placement is the
+    // workspace's explicit Review policy (default off). These placement proofs
+    // run with it ON; the default (off) is proven in
+    // members-assignment-surfaces and review-remediation-policy.
+    for (const teamId of [h.fixtures.teamA.teamId, P().teamId]) {
+      await prisma.workspaceGovernancePolicy.upsert({
+        where: { teamId },
+        update: { reviewRequiresTeamPlacement: true },
+        create: { teamId, reviewRequiresTeamPlacement: true },
+      });
+    }
   }, 900_000);
 
   afterAll(async () => {
@@ -1116,7 +1128,7 @@ describe("the one assignee authority holds for every writer, and a departure rel
     expect(await secondOf(d.id)).toEqual({ state: "FILED", secondReviewerUserId: null });
     const restricted = await disputed([owner(), placed.id]);
     expect(await take(restricted.id, offCase.id)).toMatchObject({ ok: false, code: "REVIEW_ASSIGNEE_NOT_ELIGIBLE" });
-    expect(await take(d.id, placed.id)).toEqual({ ok: true });
+    expect(await take(d.id, placed.id)).toEqual({ ok: true, superseded: null });
     expect(await secondOf(d.id)).toEqual({ state: "UNDER_SECOND_REVIEW", secondReviewerUserId: placed.id });
   });
 
@@ -1132,11 +1144,11 @@ describe("the one assignee authority holds for every writer, and a departure rel
     });
     const to = (state: "UNDER_SECOND_REVIEW" | "UNDER_SUPERVISOR_REVIEW", actorUserId: string) =>
       disagreements.transitionDisagreement({ teamId: A().teamId, disagreementId: d.id, to: state, actorUserId });
-    expect(await to("UNDER_SECOND_REVIEW", second.id)).toEqual({ ok: true });
+    expect(await to("UNDER_SECOND_REVIEW", second.id)).toEqual({ ok: true, superseded: null });
     expect(await to("UNDER_SUPERVISOR_REVIEW", unplaced.id)).toMatchObject({ ok: false, code: "REVIEW_ASSIGNEE_NOT_PLACED" });
     const row = () => prisma.reviewerDisagreement.findUniqueOrThrow({ where: { id: d.id }, select: { state: true, supervisorUserId: true } });
     expect(await row()).toEqual({ state: "UNDER_SECOND_REVIEW", supervisorUserId: null });
-    expect(await to("UNDER_SUPERVISOR_REVIEW", placed.id)).toEqual({ ok: true });
+    expect(await to("UNDER_SUPERVISOR_REVIEW", placed.id)).toEqual({ ok: true, superseded: null });
     expect(await row()).toEqual({ state: "UNDER_SUPERVISOR_REVIEW", supervisorUserId: placed.id });
   });
 

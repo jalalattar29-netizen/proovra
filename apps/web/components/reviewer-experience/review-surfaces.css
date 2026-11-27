@@ -104,7 +104,7 @@
   }
 }
 
-/* ---- Review tools (My reviews, bottom panel) ----------------------------- */
+/* ---- Review tools (Inbox, bottom panel) ---------------------------------- */
 .review-tools {
   list-style: none;
   margin: 0;
@@ -119,6 +119,50 @@
 .review-tools__row:first-child { padding-top: 0; }
 .review-tools__row:last-child { border-bottom: none; padding-bottom: 0; }
 .review-tools__row .app-field-help { margin: 0; }
+
+/* F-12 — a Review tool is ONE link card: the whole row (title + purpose) is
+   the link, inset to the card padding, with a chevron, a hover wash and a
+   visible focus ring, at least 44 px tall. The title sits one step below the
+   panel heading. Deliberately not .review-rows__ref (a table cell link). */
+.review-tools--links { display: grid; gap: 4px; }
+.review-tools--links > .review-tools__row {
+  display: block;
+  padding: 0;
+  border-bottom: none;
+}
+.review-tool-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 12px;
+  min-block-size: 44px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 10px);
+  color: inherit;
+  text-decoration: none;
+}
+.review-tool-card:hover { background: var(--surface-translucent-selected); }
+.review-tool-card:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: 2px;
+}
+.review-tool-card__text { display: grid; gap: 2px; min-inline-size: 0; }
+.review-tool-card__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--app-ink-heading);
+}
+.review-tool-card__purpose {
+  font-size: 13px;
+  color: var(--app-ink-secondary);
+  overflow-wrap: anywhere;
+}
+.review-tool-card__chevron {
+  inline-size: 16px;
+  block-size: 16px;
+  color: var(--app-ink-secondary);
+}
+.review-tool-card:hover .review-tool-card__title { text-decoration: underline; }
 
 /* ---- Bulk bar / toolbars --------------------------------------------------- */
 .review-toolbar {
@@ -141,6 +185,19 @@
 .review-toolbar .app-input { flex: 1 1 220px; width: auto; }
 /* The listbox keeps a fixed working width so Apply stays beside it. */
 .review-bulk-code .app-listbox { flex: 0 1 220px; width: 220px; }
+/* "Set assessment tag" carries its visible help under the control pair. */
+.review-bulk-code { flex-wrap: wrap; }
+.review-bulk-code__help { flex: 1 1 100%; margin: 0; }
+
+/* F-34 — the bulk outcome: counts (live region), failed rows, Retry failed. */
+.review-bulk-report { display: grid; gap: 6px; padding: 0 12px 10px; min-inline-size: 0; }
+.review-bulk-report[data-reviewer-bulk-report="none"] { padding: 0; }
+.review-bulk-report__status { margin: 0; font-size: 13px; color: var(--app-ink-label); }
+.review-bulk-report__status:empty { display: none; }
+.review-bulk-report__failures { margin: 0; padding-inline-start: 18px; font-size: 13px; overflow-wrap: anywhere; }
+.review-bulk-report > .app-secondary-action { justify-self: start; }
+.review-bulk-idle { display: grid; gap: 6px; min-inline-size: 0; }
+.review-bulk-idle > .review-bulk-report { padding-inline: 0; }
 @media (max-width: 520px) {
   .review-bulk-code { flex-wrap: wrap; }
   .review-bulk-code .app-listbox { flex: 1 1 100%; width: 100%; }
@@ -365,35 +422,86 @@
  * Stage D (team remediation) — Inbox, hub tabs, plain status text.
  * ======================================================================== */
 
-/* T-088 — the hub tab row and the Inbox view row scroll sideways on a phone
-   instead of cutting "Review settings" (or a view) off. The scroll edge is
-   the overflow indicator; tabs never wrap into a second ragged row. */
+/* F-10 / F-30 (Review remediation 2026-11-27) — the hub tab row and the
+   Inbox view row WRAP: no horizontal scrolling, no edge mask, no scrollbar
+   and no clipped label at any width (1440 / 1024 / 768 / 390 px, 200 % zoom).
+   The shared .app-tabs primitive is a fixed-height scroller; these Review
+   classes lift that for the two Review rows only. */
 .review-hub-tabs,
 .review-view-tabs {
-  overflow-x: auto;
-  overflow-y: hidden;
-  flex-wrap: nowrap;
+  display: flex;
+  flex-wrap: wrap;
+  overflow: visible;
+  height: auto;
+  min-block-size: 44px;
   max-inline-size: 100%;
-  scrollbar-width: thin;
-  -webkit-overflow-scrolling: touch;
-  scroll-snap-type: x proximity;
-  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  mask-image: none;
+  -webkit-mask-image: none;
 }
 .review-hub-tabs > .app-tab,
 .review-view-tabs > .app-tab {
-  flex: 0 0 auto;
-  white-space: nowrap;
-  scroll-snap-align: start;
+  flex: 0 1 auto;
+  min-block-size: 36px;
+  max-inline-size: 100%;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.2;
 }
-.review-view-bar {
+.review-view-tabs > .app-tab.is-active,
+.review-view-tabs > .app-tab[aria-current="page"] {
+  /* The active view is unmistakable without colour alone: the shared active
+     wash plus an inset accent rule under the label. */
+  box-shadow: inset 0 -2px 0 var(--accent-500);
+}
+.review-hub-tabs > .app-tab:focus-visible,
+.review-view-tabs > .app-tab:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: 1px;
+}
+
+/* The view control is one group. At 1024 px and wider: the wrapping row plus
+   "More views". Below 1024 px: one labelled "View" menu (grouped in
+   inbox-views.ts). Both render so the first paint is right; once matchMedia
+   answers, the inactive one also carries [hidden]. */
+.review-view-nav { min-inline-size: 0; }
+.review-view-nav [hidden] { display: none !important; }
+.review-view-nav__row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
-  flex-wrap: wrap;
   min-inline-size: 0;
 }
-.review-view-bar > .review-view-tabs { flex: 1 1 320px; min-inline-size: 0; }
-.review-view-bar > .app-listbox { flex: 0 0 200px; }
+.review-view-nav__row > .review-view-tabs { flex: 1 1 auto; min-inline-size: 0; margin-bottom: 0; }
+.review-view-nav__row > .app-listbox { flex: 0 0 200px; max-inline-size: 100%; }
+.review-view-nav__menu {
+  display: grid;
+  gap: 4px;
+  min-inline-size: 0;
+  max-inline-size: 420px;
+}
+.review-view-nav__menu .app-listbox { inline-size: 100%; }
+.review-view-nav .app-listbox__trigger { min-block-size: 44px; }
+@media (min-width: 1024px) {
+  .review-view-nav__menu { display: none; }
+}
+@media (max-width: 1023.98px) {
+  .review-view-nav__row { display: none; }
+}
+/* F-28 — "More views" and the Inbox filter placeholder read at 4.5:1 or
+   better: --app-ink-secondary (#667085) on white is 4.83:1, where the shared
+   placeholder ink (#98A2B3) is 2.58:1. A current secondary view reads as the
+   selected value in heading ink, with the active accent rule. */
+.review-view-nav .app-listbox__trigger[data-placeholder="true"],
+.review-inbox__filter .app-input::placeholder {
+  color: var(--app-ink-secondary);
+  opacity: 1;
+}
+.review-view-nav__more.is-active .app-listbox__trigger {
+  color: var(--app-ink-heading);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--accent-500);
+}
 
 /* One-line hints (QC pending, Conflicts vs challenged decisions). */
 .review-inline-line { margin: 0; }
@@ -474,11 +582,25 @@
   .app-table.review-cards-900[data-escalations-table] tbody td[data-label=""]::before { content: none; }
 }
 
-/* T-089 — the assistant launcher (position: fixed, bottom-right) never covers
-   the last action row of a Review page: the page reserves the launcher's
-   clearance at its end, as Capture does with --cf-launcher-clearance. */
+/* T-089 / F-23 — the assistant launcher (position: fixed, bottom-right: a
+   3rem button 1.5rem from the edge, assistant.css) never covers an input or
+   action of a Review page. The page reserves launcher + edge + gap at its end
+   (plus the safe-area inset), so the last control always scrolls clear of it,
+   as Capture does with --cf-launcher-clearance. Review-scoped: the launcher
+   itself is not restyled anywhere. */
 .review-launcher-clearance {
-  padding-block-end: var(--review-launcher-clearance, 88px);
+  --review-launcher-clearance: calc(3rem + 1.5rem + 1rem + env(safe-area-inset-bottom, 0px));
+  /* !important: PageShell writes `padding-block` INLINE, which silently beat
+     the plain class rule, so the reserve never applied (the audit's bubble
+     overlap). Scoped to Review pages that opt in with this class. */
+  padding-block-end: var(--review-launcher-clearance) !important;
+}
+/* At 768 px and below the launcher sits over the content column itself (no
+   side gutter), so the bottom reserve grows by another half launcher. */
+@media (max-width: 768px) {
+  .review-launcher-clearance {
+    --review-launcher-clearance: calc(3rem + 1.5rem + 1.5rem + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* ---- Review page: compact header (T-072) --------------------------------- */

@@ -5347,6 +5347,11 @@ model WorkspaceGovernancePolicy {
   // pass surfaces an inactivity warning + optional escalation after
   // the threshold. Null = no inactivity detection.
   reviewerInactivityHours           Int?    @map("reviewer_inactivity_hours")
+  /// Review remediation 2026-11-27 — explicit Review policies (default off).
+  reviewRequiresIndependentApproval Boolean   @default(false) @map("review_requires_independent_approval")
+  reviewRequiresTeamPlacement       Boolean   @default(false) @map("review_requires_team_placement")
+  reviewRequiresCompleteCoding      Boolean   @default(false) @map("review_requires_complete_coding")
+  reviewRequiresCompleteCodingSince DateTime? @map("review_requires_complete_coding_since") @db.Timestamptz(6)
 
   // Phase 14 — governance approval flags. When true, the corresponding
   // action requires an additional approval step before it takes effect.
@@ -9350,6 +9355,10 @@ model ReviewEscalation {
   // the same UTC day. Routes can intentionally bypass via a manual
   // create flag.
   fingerprint String @db.VarChar(80)
+
+  /// Review remediation 2026-11-27 — explicit independence. NULL = legacy rule.
+  requiresIndependentReview Boolean? @map("requires_independent_review")
+  independenceNote          String?  @map("independence_note") @db.VarChar(400)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)

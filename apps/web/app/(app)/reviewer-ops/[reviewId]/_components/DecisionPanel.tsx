@@ -20,8 +20,14 @@
  * "Reason (optional but recommended)" control beside the rationale), the
  * one-line consequence from the lineage state, and ONE primary submit labelled
  * by the choice. A refusal keeps the choice and the typed text and shows an
- * inline alert beside the controls (T-002); `blockedReason` disables submit
- * with its reason before anything is sent (T-015).
+ * inline "Not recorded: …" alert beside the controls (T-002, F-21).
+ *
+ * Review remediation 2026-11-27 (F-01): there is NO client business gate.
+ * Submit is enabled exactly when the server's action for the chosen kind is
+ * allowed and the input is valid; a missing second reviewer never blocks the
+ * FIRST decision (the server records it as pending). The disabled-submit
+ * reason only names input problems. When the chosen verdict differs from the
+ * coded assessment, a non-blocking note says so (F-18).
  */
 
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
@@ -53,8 +59,40 @@ const REASON_CODES = [
 
 export type DecisionSubmitBody = { decision: string; reasonCode?: string; rationale: string };
 
+/**
+ * A refused submission (F-21): the one sentence to show, and — for
+ * `coding_incomplete` — the labels of the required fields still empty.
+ */
+export type DecisionSubmitFailure = { message: string; missingLabels?: string[] };
+
+/** What the host's POST resolves to: null on success, else the refusal. */
+export type DecisionSubmitResult = DecisionSubmitFailure | string | null;
+
 /** A request from the page to focus the form, optionally preselecting a choice. */
 export type DecisionFocusRequest = { choice: string | null; nonce: number };
+
+/**
+ * F-18 — the coded REVIEWER_VERDICT assessment the decision is compared with.
+ * `ownerLabel` null = the viewer's own assessment.
+ */
+export type CodedAssessment = { verdict: string; ownerLabel: string | null };
+
+const ASSESSMENT_WORDS: Readonly<Record<string, string>> = {
+  APPROVE: "approve",
+  REJECT: "reject",
+  ESCALATE: "escalate",
+  NEEDS_INFO: "needs more information",
+};
+
+/** The non-blocking mismatch note, or null when the assessment agrees or is unset. */
+export function assessmentMismatchNote(choice: string, assessment: CodedAssessment | null | undefined): string | null {
+  if (!assessment || (choice !== "APPROVE" && choice !== "REJECT")) return null;
+  const said = ASSESSMENT_WORDS[assessment.verdict];
+  if (!said || assessment.verdict === choice) return null;
+  const whose = assessment.ownerLabel ? `${assessment.ownerLabel}'s coded assessment` : "Your coded assessment";
+  const records = choice === "APPROVE" ? "approved" : "not accepted";
+  return `${whose} says “${said}”; your decision records “${records}”. The decision is what counts.`;
+}
 
 export function DecisionForm({
   mode,
@@ -64,7 +102,8 @@ export function DecisionForm({
   secondRequired,
   onSubmit,
   focusRequest,
-  blockedReason = null,
+  firstRecorded = false,
+  assessment = null,
 }: {
   mode: "decision" | "adjudication";
   /** FIRST or SECOND in decision mode; ignored for adjudication. */
@@ -73,11 +112,13 @@ export function DecisionForm({
   actions: ActionMap;
   reviewState: string | null;
   secondRequired: boolean;
-  /** The page's decisions POST. Resolves to an error message, or null on success. */
-  onSubmit: (body: DecisionSubmitBody) => Promise<string | null>;
+  /** The page's decisions POST. Resolves to the refusal, or null on success. */
+  onSubmit: (body: DecisionSubmitBody) => Promise<DecisionSubmitResult>;
   focusRequest?: DecisionFocusRequest | null;
-  /** T-015 — when set, submission is closed for this reason (shown beside the controls). */
-  blockedReason?: string | null;
+  /** A FIRST decision is already recorded in this round (request-info consequence). */
+  firstRecorded?: boolean;
+  /** F-18 — the coded assessment to compare the chosen verdict with. */
+  assessment?: CodedAssessment | null;
 }) {
   const id = useId();
   const choices: string[] = mode === "adjudication" ? ADJUDICATION_KINDS : VERDICT_CHOICES;
@@ -94,6 +135,7 @@ export function DecisionForm({
   const [rationale, setRationale] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [missingLabels, setMissingLabels] = useState<string[]>([]);
   const radioRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const rationaleRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -142,18 +184,19 @@ export function DecisionForm({
   };
 
   const trimmed = rationale.trim();
-  const ready = choice !== "" && trimmed.length > 0 && !submitting && !blockedReason;
-  // T-090 (stage D) — a disabled submit always says why.
+  // F-01 — submit follows the server's action for the chosen kind (a closed
+  // kind cannot be chosen) and the input; nothing else.
+  const ready = choice !== "" && isOpen(choice) && trimmed.length > 0 && !submitting;
+  // T-090 (stage D) — a disabled submit always says why: input problems only.
   const submitDisabledReason = submitting
     ? "Recording the decision…"
-    : blockedReason
-      ? blockedReason
-      : choice === ""
-        ? "Choose a decision first."
-        : trimmed.length === 0
-          ? "Write a rationale first."
-          : null;
-  const consequence = decisionConsequence({ state: reviewState, secondRequired, choice });
+    : choice === ""
+      ? "Choose a decision first."
+      : trimmed.length === 0
+        ? "Write a rationale first."
+        : null;
+  const consequence = decisionConsequence({ state: reviewState, secondRequired, choice, firstRecorded });
+  const mismatch = mode === "decision" ? assessmentMismatchNote(choice, assessment) : null;
   const closedReasons = choices
     .filter((c) => !isOpen(c))
     .map((c) => {
@@ -165,10 +208,6 @@ export function DecisionForm({
   const distinctReasons = Array.from(new Set(closedReasons.map((r) => r.reason as string)));
 
   const submit = async () => {
-    if (blockedReason) {
-      setError(blockedReason);
-      return;
-    }
     if (!choice) {
       setError("Choose a decision.");
       return;
@@ -180,13 +219,19 @@ export function DecisionForm({
     }
     setSubmitting(true);
     setError(null);
+    setMissingLabels([]);
     const failure = await onSubmit({
       decision: choice,
       reasonCode: reason || undefined,
       rationale: trimmed,
     });
     if (failure) {
-      setError(failure);
+      // F-21 — the draft (choice + rationale) stays for the retry.
+      if (typeof failure === "string") setError(failure);
+      else {
+        setError(failure.message);
+        setMissingLabels(failure.missingLabels ?? []);
+      }
     } else {
       setChoice("");
       setReason(mode === "adjudication" ? "REVIEWER_DISAGREEMENT" : "");
@@ -319,23 +364,30 @@ export function DecisionForm({
         </p>
       ) : null}
 
-      {blockedReason && !error ? (
-        <p role="note" className="app-field-help" data-decision-form-blocked style={{ margin: 0, overflowWrap: "anywhere" }}>
-          {blockedReason}
+      {mismatch ? (
+        <p role="note" className="app-field-help" data-decision-assessment-mismatch style={{ margin: 0, overflowWrap: "anywhere" }}>
+          {mismatch}
         </p>
       ) : null}
 
       {error ? (
-        <p
-          id={`${id}-error`}
-          role="alert"
-          className="app-field-error"
-          data-decision-form-error
-          {...(mode === "adjudication" ? { "data-adjudication-error": "" } : {})}
-          style={{ margin: 0, overflowWrap: "anywhere" }}
-        >
-          {error}
-        </p>
+        <div id={`${id}-error`} role="alert" data-decision-form-alert style={{ margin: 0, minWidth: 0 }}>
+          <p
+            className="app-field-error"
+            data-decision-form-error
+            {...(mode === "adjudication" ? { "data-adjudication-error": "" } : {})}
+            style={{ margin: 0, overflowWrap: "anywhere" }}
+          >
+            {error}
+          </p>
+          {missingLabels.length > 0 ? (
+            <ul className="app-field-error" data-decision-form-missing-fields style={{ margin: "4px 0 0 1.25rem", padding: 0 }}>
+              {missingLabels.map((label) => (
+                <li key={label}>{label}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
       ) : null}
 
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>

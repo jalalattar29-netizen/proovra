@@ -213,22 +213,82 @@ export const AUTOMATIC_SWEEP_ESCALATION_REASONS = [
 const AUTOMATIC_SWEEP_REASON_SET: ReadonlySet<string> = new Set(AUTOMATIC_SWEEP_ESCALATION_REASONS);
 
 /**
- * THE ONE forcing predicate (coordinator decision T-013): only an escalation
- * the overdue/SLA sweep raised on its own stops forcing independent review.
- * Every other active escalation — any reason, any severity, raised by a person
- * — keeps forcing it, as do a legal hold, a redaction-required decision and an
- * ESCALATED review (conflict, unresolved adjudication, a reviewer's Escalate).
+ * Escalation reasons that are INTEGRITY controls (review remediation
+ * 2026-11-27): an escalation for one of these always requires an independent
+ * second decision — it cannot be opted out of when it is raised.
  */
+export const INTEGRITY_ESCALATION_REASONS = ["INTEGRITY_RISK", "VERIFICATION_MISMATCH"] as const;
+const INTEGRITY_REASON_SET: ReadonlySet<string> = new Set(INTEGRITY_ESCALATION_REASONS);
+
+/** The explicit "Request independent review" action stores this reason. */
+export const INDEPENDENT_REVIEW_REQUESTED_REASON = "INDEPENDENT_REVIEW_REQUESTED" as const;
+
+/**
+ * What an escalation stores in `requires_independent_review` when it is
+ * created (2026-11-27): integrity reasons and explicit requests always true;
+ * every other (administrative) escalation only when the raiser asked for it.
+ */
+export function defaultRequiresIndependentReview(reason: string, explicitRequest: boolean): boolean {
+  if (INTEGRITY_REASON_SET.has(String(reason))) return true;
+  if (String(reason) === INDEPENDENT_REVIEW_REQUESTED_REASON) return true;
+  return explicitRequest === true;
+}
+
+/**
+ * Why THIS escalation requires an independent second decision, or null when it
+ * is administrative (lateness, workload, stalled work) — the ONE forcing rule
+ * (review remediation 2026-11-27, superseding T-013):
+ *   - `requiresIndependentReview === true` (stored on every new escalation):
+ *     an explicit request, or an integrity reason;
+ *   - `=== false`: administrative — never forces, EXCEPT an integrity reason,
+ *     which always forces (integrity controls are not weakened);
+ *   - `null`/absent (recorded before 2026-11-27): the legacy rule — every
+ *     escalation a person raised forces; the automatic sweep's do not. An
+ *     owner may reclassify these through the audited reconciliation.
+ */
+export function escalationIndependenceCause(escalation: {
+  reason: string;
+  createdByUserId?: string | null;
+  requiresIndependentReview?: boolean | null;
+}): "independent_review_requested" | "integrity_escalation" | "legacy_escalation" | null {
+  const reason = String(escalation.reason);
+  if (INTEGRITY_REASON_SET.has(reason)) return "integrity_escalation";
+  if (escalation.requiresIndependentReview === true) return "independent_review_requested";
+  if (escalation.requiresIndependentReview === false) return null;
+  if (escalation.createdByUserId == null && AUTOMATIC_SWEEP_REASON_SET.has(reason)) return null;
+  return escalation.createdByUserId == null ? null : "legacy_escalation";
+}
+
+/** Whether an escalation requires an independent second decision (see escalationIndependenceCause). */
 export function escalationForcesIndependentReview(escalation: {
   reason: string;
   createdByUserId?: string | null;
+  requiresIndependentReview?: boolean | null;
 }): boolean {
-  return !(escalation.createdByUserId == null && AUTOMATIC_SWEEP_REASON_SET.has(String(escalation.reason)));
+  return escalationIndependenceCause(escalation) !== null;
+}
+
+/** The stored `escalation_reason` a conflict / unresolved adjudication writes. */
+export const REVIEWER_DISAGREEMENT_ESCALATION_REASON = "reviewer_disagreement" as const;
+
+/**
+ * A person's escalation NOTE as stored in `escalation_reason`. The column also
+ * carries the disagreement marker above, which the second-review rule reads;
+ * a note can never equal it (it would otherwise force an independent review,
+ * or be mistaken for one).
+ */
+export function escalationNoteForStorage(note: string | null | undefined): string | null {
+  if (note == null) return null;
+  return note.trim().toLowerCase() === REVIEWER_DISAGREEMENT_ESCALATION_REASON ? `Note: ${note.trim()}` : note;
 }
 
 /** Why the current round needs an independent second review. */
 export type SecondReviewCause =
   | "workflow_escalated"
+  | "independent_review_requested"
+  | "integrity_escalation"
+  | "legacy_escalation"
+  | "workspace_policy"
   | "open_escalation"
   | "active_legal_hold"
   | "redaction_required"
@@ -240,10 +300,15 @@ export type SecondReviewCause =
  * invents or finalises a decision). The FIRST verdict then waits for its
  * SECOND reviewer even after the escalation is resolved. A legal hold or a
  * redaction requirement keeps the earlier rule (P2-1): once lifted, the first
- * verdict stands.
+ * verdict stands. `open_escalation` is the pre-2026-11-27 name of an
+ * escalation cause and stays sticky for recorded rounds.
  */
 export const STICKY_SECOND_REVIEW_CAUSES: ReadonlyArray<SecondReviewCause> = [
   "workflow_escalated",
+  "independent_review_requested",
+  "integrity_escalation",
+  "legacy_escalation",
+  "workspace_policy",
   "open_escalation",
   "unresolved_adjudication",
 ];

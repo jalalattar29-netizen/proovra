@@ -44,7 +44,11 @@ export const INBOX_VIEW_LABELS: Readonly<Record<InboxView, string>> = {
   COMPLETED_RECENTLY: "Completed recently",
 };
 
-/** The views shown as tabs (scrollable on a phone); the rest sit under "More views". */
+/**
+ * The views shown as the wrapping link row at ≥ 1024 px (F-10); the rest sit
+ * under "More views". Below 1024 px every view is one option of the single
+ * labelled "View" menu, grouped by {@link inboxViewGroupsFor}.
+ */
 export const PRIMARY_INBOX_VIEWS: ReadonlyArray<InboxView> = [
   "MY_REVIEWS",
   "UNASSIGNED",
@@ -71,6 +75,36 @@ export function primaryInboxViewsFor(canAssign: boolean): ReadonlyArray<InboxVie
 export const MORE_INBOX_VIEWS: ReadonlyArray<InboxView> = INBOX_VIEWS.filter(
   (v) => !PRIMARY_INBOX_VIEWS.includes(v) && !ASSIGNER_INBOX_VIEWS.includes(v),
 );
+
+export type InboxViewGroup = { label: string; views: ReadonlyArray<InboxView> };
+
+/**
+ * F-10 — the "View" menu's groups below 1024 px: Mine / Team / Attention /
+ * Second review / More. "Team" carries "All open reviews" only for a member
+ * who may act on others' reviews (the route refuses it to anyone else).
+ */
+export function inboxViewGroupsFor(canAssign: boolean): ReadonlyArray<InboxViewGroup> {
+  return [
+    { label: "Mine", views: ["MY_REVIEWS"] },
+    { label: "Team", views: canAssign ? ["ALL_OPEN", "UNASSIGNED"] : ["UNASSIGNED"] },
+    { label: "Attention", views: ["OVERDUE", "DUE_SOON", "ESCALATED"] },
+    { label: "Second review", views: ["AWAITING_SECOND_REVIEW", "AWAITING_ADJUDICATION"] },
+    { label: "More", views: MORE_INBOX_VIEWS },
+  ];
+}
+
+/**
+ * F-30 — true when the URL names a view the Inbox does not know (`?view=` or
+ * the legacy `?queue=` is present but neither is a view). The page then
+ * replaces the URL with the default view so the address and the highlighted
+ * view never disagree.
+ */
+export function inboxViewParamIsUnknown(params: ParamSource): boolean {
+  const view = params?.get("view") ?? null;
+  const queue = params?.get("queue") ?? null;
+  if (isInboxView(view) || isInboxView(queue)) return false;
+  return view !== null || queue !== null;
+}
 
 /** What a confirmed-empty view says (never shown for a failed load, T-067). */
 export const INBOX_EMPTY_COPY: Readonly<Record<InboxView, string>> = {

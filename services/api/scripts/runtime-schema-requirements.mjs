@@ -875,6 +875,44 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
     "the first-review SLA completes on the first recorded decision; the decision authority writes it",
     "20281124010000_review_first_decided_at",
   ),
+  // Review remediation (2026-11-27) — explicit independence on escalations and
+  // the explicit Review policies; the second-review rule and eligibility read them.
+  newColumn(
+    "review_escalations",
+    "requires_independent_review",
+    "the second-review rule reads whether an escalation requires an independent second decision (NULL = legacy rule)",
+    "20281127120000_review_remediation_policy",
+  ),
+  newColumn(
+    "review_escalations",
+    "independence_note",
+    "the escalation projection shows why independence was requested",
+    "20281127120000_review_remediation_policy",
+  ),
+  newColumn(
+    "workspace_governance_policies",
+    "review_requires_independent_approval",
+    "the second-review rule reads the workspace's explicit two-reviewer policy",
+    "20281127120000_review_remediation_policy",
+  ),
+  newColumn(
+    "workspace_governance_policies",
+    "review_requires_team_placement",
+    "Review eligibility reads whether placement is required on Team/Pro",
+    "20281127120000_review_remediation_policy",
+  ),
+  newColumn(
+    "workspace_governance_policies",
+    "review_requires_complete_coding",
+    "the decision authority reads the complete-coding policy",
+    "20281127120000_review_remediation_policy",
+  ),
+  newColumn(
+    "workspace_governance_policies",
+    "review_requires_complete_coding_since",
+    "complete-coding enforcement applies only to rounds started after it was enabled",
+    "20281127120000_review_remediation_policy",
+  ),
 ]);
 
 /**
@@ -1031,7 +1069,7 @@ function uniqueIndexProbe(table, index, partial = false) {
  * first), the closure migrations (20281123*, PRO-A2-02 first) and the team
  * remediation (20281124*, stage C first).
  */
-const DERIVED_PROBE_SUPPLIER = /^2028112[1234]\d{6}_/;
+const DERIVED_PROBE_SUPPLIER = /^2028112[12347]\d{6}_/; // + the review remediation (20281127*)
 
 /**
  * The catalog probes, one per requirement id.

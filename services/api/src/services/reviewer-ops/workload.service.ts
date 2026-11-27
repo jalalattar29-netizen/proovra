@@ -29,7 +29,7 @@ import { escalatedReviewWhere, openReviewWhere } from "./review-count-definition
 import { bump, setGauge } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { evaluateMemberAccess } from "../identity/access-policy.service.js";
-import { assignmentRequiresPlacement, placedUserIdsForWorkspace } from "../assignment/placement-policy.js";
+import { reviewAssignmentRequiresPlacement, placedUserIdsForWorkspace } from "../assignment/placement-policy.js";
 
 // -----------------------------------------------------------------------------
 // Workload computation
@@ -436,7 +436,8 @@ export async function listAssignableReviewers(
     }
   }
 
-  const requiresPlacement = await assignmentRequiresPlacement(input.teamId, client);
+  // Review reviewers: the Review placement rule (2026-11-27).
+  const requiresPlacement = await reviewAssignmentRequiresPlacement(input.teamId, client);
   const placed = requiresPlacement
     ? await placedUserIdsForWorkspace(input.teamId, reviewerUserIds, client)
     : new Set(reviewerUserIds);

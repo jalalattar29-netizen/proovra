@@ -3,7 +3,9 @@
  *
  * Workspace-anchored coding template registry. Provides:
  *
- *   - createSchema     — author a new DRAFT schema with fields
+ *   - createSchema     — author a new DRAFT schema with fields (used by
+ *                        seedDefaults only; the public create and publish
+ *                        routes are retired with a typed 410)
  *   - publishSchema    — flip DRAFT → PUBLISHED; bumps version
  *   - archiveSchema    — flip → ARCHIVED (cannot delete; workflows
  *                        already bound retain history)

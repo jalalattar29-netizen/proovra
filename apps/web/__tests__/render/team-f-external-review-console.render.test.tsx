@@ -24,6 +24,8 @@ vi.mock("../../lib/platform-context", () => {
     useCan: () => true,
     useActiveSpace: () => space,
     useTeamId: () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    // F-33 — the External Review page reads the canonical active workspace id.
+    useActiveWorkspaceId: () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     usePlatformContext: () => ({ envelope: null }),
     useWorkspaceFragment: () => null,
     usePersonalSpaceFragment: () => null,

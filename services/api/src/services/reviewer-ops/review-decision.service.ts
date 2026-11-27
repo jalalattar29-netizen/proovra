@@ -87,6 +87,8 @@ import { emitDecisionOutcomeSignals } from "./decision-outcome-signals.js";
 // Read-only eligibility (T-015). review-handoff reads this module's round
 // state; both sides only call each other at run time.
 import { countEligibleSecondReviewers } from "./review-handoff.service.js";
+import { assertReviewAssigneeEligible, ReviewOperationError } from "../review-operations/review-operations.service.js";
+import { buildCodingSnapshot, codingCompletenessRefusal } from "../reviewer-workspace/coding-value.service.js";
 
 // -----------------------------------------------------------------------------
 // Types + error surface
@@ -115,7 +117,10 @@ export class ReviewDecisionAuthorityError extends Error {
       | "second_review_pending"
       // T-010 — one input schema on every door.
       | "rationale_too_long"
-      | "forbidden_wording",
+      | "forbidden_wording"
+      // Review remediation 2026-11-27.
+      | "reviewer_not_eligible"
+      | "coding_incomplete",
     public readonly details?: Record<string, unknown>,
   ) {
     super(code);
@@ -226,6 +231,12 @@ export type RecordReviewDecisionInput = {
   /** Which door recorded it — audit metadata only. */
   source?: ReviewDecisionSource;
   /**
+   * REQUEST_INFO only (2026-11-27): the workspace member the information is
+   * requested from. Absent = the evidence's owner (the existing notification
+   * recipient). Recorded on the NEEDS_MORE_INFO event.
+   */
+  requestedFromUserId?: string | null;
+  /**
    * Round 2 (2026-11-25) — authorization BEFORE step-up. Runs every check of the
    * authority inside its transaction, then throws `ReviewDecisionDryRunPassed`
    * where the first immutable write would happen, so the transaction rolls back
@@ -263,7 +274,7 @@ export async function precheckReviewDecision(
   throw new Error("precheckReviewDecision: the dry run returned instead of stopping");
 }
 
-export type ReviewDecisionNextRequirement = "second_review" | "adjudication" | null;
+export type ReviewDecisionNextRequirement = "second_review" | "adjudication" | "information" | null;
 
 /**
  * TEAM-SPEC §2.3 — what a submission actually did. A FIRST decision under a
@@ -271,7 +282,8 @@ export type ReviewDecisionNextRequirement = "second_review" | "adjudication" | n
  * report THIS, never "approved", unless the status reached a terminal stage.
  */
 export type ReviewDecisionOutcome = {
-  stageRecorded: WorkflowReviewStage;
+  /** "NONE" — a request for information records no decision (2026-11-27). */
+  stageRecorded: WorkflowReviewStage | "NONE";
   statusChanged: boolean;
   reviewState: ReviewDecisionState;
   nextRequirement: ReviewDecisionNextRequirement;
@@ -297,7 +309,8 @@ export function nextRequirementFor(state: ReviewDecisionState): ReviewDecisionNe
 
 export type RecordReviewDecisionResult = {
   workflow: DbWorkflow;
-  decision: DbDecision;
+  /** null for a request for information (no decision row, 2026-11-27). */
+  decision: DbDecision | null;
   state: ReviewDecisionState;
   /** True when an identical decision was already on the immutable log. */
   idempotent: boolean;
@@ -335,6 +348,13 @@ export async function recordReviewDecision(
     client,
   );
   if (!decision.allowed) throw new ReviewDecisionAuthorityError("reviewer_required");
+
+  // F-04 (review remediation 2026-11-27) — a request for information is a
+  // workflow action, never a vote: it records no decision row and consumes no
+  // FIRST / SECOND slot. Adjudication keeps its own NEEDS_MORE_INFO outcome.
+  if (input.decision === "REQUEST_INFO") {
+    return recordInformationRequest(input, rationale, client);
+  }
 
   const result: RecordReviewDecisionResult = await client.$transaction(async (tx): Promise<RecordReviewDecisionResult> => {
     // (i) Workspace isolation — cross-workspace probes are
@@ -610,6 +630,43 @@ export async function recordReviewDecision(
       });
     }
 
+    // Review remediation 2026-11-27 — eligibility is re-checked at WRITE time
+    // with the one assignee authority (capability + reach + placement when an
+    // explicit policy requires it), so a member who lost eligibility after the
+    // assignment cannot decide. Adjudicators are checked by role above.
+    if (targetStage !== "ADJUDICATION") {
+      try {
+        await assertReviewAssigneeEligible(wf, input.actorUserId, tx as unknown as PrismaClient, { inTransaction: true });
+      } catch (err) {
+        if (err instanceof ReviewOperationError) {
+          throw new ReviewDecisionAuthorityError("reviewer_not_eligible", { detail: err.code });
+        }
+        throw err;
+      }
+      // F-18 — complete coding is required only under the explicit workspace
+      // policy, only for rounds started after it was enabled, and never for a
+      // request for information (handled above).
+      if (input.decision === "APPROVE" || input.decision === "REJECT") {
+        const started = await tx.evidenceReviewWorkflowEvent.findFirst({
+          where: { workflowId: wf.id, eventType: "REVIEW_STARTED" },
+          orderBy: { createdAt: "desc" },
+          select: { createdAt: true },
+        });
+        const refusal = await codingCompletenessRefusal(tx as unknown as PrismaClient, {
+          teamId: input.teamId,
+          workflowId: wf.id,
+          decision: String(input.decision),
+          roundStartedAt: started?.createdAt ?? null,
+        });
+        if (refusal) {
+          throw new ReviewDecisionAuthorityError("coding_incomplete", {
+            missingFieldIds: refusal.missingFieldIds,
+            missingLabels: refusal.missingLabels,
+          });
+        }
+      }
+    }
+
     // T-010 — ONE input schema, here, so every door inherits it: a non-empty
     // rationale for EVERY kind (an approval included), at most 4000 characters,
     // screened for public-authenticity overclaims. Checked where the rationale
@@ -713,6 +770,15 @@ export async function recordReviewDecision(
       throw new ReviewDecisionAuthorityError("stale_decision", { reason: "concurrent_change" });
     }
     const updated = await tx.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: wf.id } });
+    // F-20 — the round's coding, frozen with the decision that FINISHES it
+    // (immutable on the event log; a reopened review keeps it and its next
+    // finalizing decision records a new one).
+    const finalStage = mapDbStatusToReviewStage(String(updated.status));
+    const codingSnapshot =
+      String(updated.status) !== String(wf.status) &&
+      (finalStage === "APPROVED_INTERNAL" || finalStage === "REJECTED_INSUFFICIENT")
+        ? await buildCodingSnapshot(tx as unknown as PrismaClient, { teamId: input.teamId, workflowId: wf.id })
+        : null;
     // Every recorded submission is on the reviewer audit + tenant audit, in
     // this transaction: a verdict as a decision, a request for information as
     // what it is. Never forensic custody (owner decision 2026-10-24); never
@@ -761,6 +827,7 @@ export async function recordReviewDecision(
               }
             : { secondReviewCause: null }),
           ...(input.source ? { source: input.source } : {}),
+          ...(codingSnapshot ? { codingSnapshot } : {}),
         } as Prisma.InputJsonValue,
         note: rationale.slice(0, 1000) || null,
       },
@@ -822,7 +889,7 @@ export async function recordReviewDecision(
   // (never the first reviewer). After commit, best-effort: a failed send never
   // undoes the decision. A replay notifies nobody; the helper is also
   // idempotent per workflow + round against the delivery log.
-  if (result.outcome.stageRecorded === "FIRST" && result.outcome.nextRequirement === "second_review") {
+  if (result.decision && result.outcome.stageRecorded === "FIRST" && result.outcome.nextRequirement === "second_review") {
     // T-015 — who could give the second review, from THE assignee authority
     // the reassignment applies. Read-only; never reduces the requirement.
     const eligible = await countEligibleSecondReviewers(result.workflow, input.actorUserId, client).catch(() => 0);
@@ -897,6 +964,194 @@ export async function recordReviewDecision(
   return result;
 }
 
+/**
+ * F-04 (review remediation 2026-11-27) — REQUEST FOR INFORMATION, as a
+ * workflow action through the ONE authority (every door: the Review page, the
+ * lifecycle /request-info route, bulk, the Evidence page and mobile).
+ *
+ *   - No `workflow_review_decisions` row: it is not an approval or rejection
+ *     vote and never takes a FIRST / SECOND slot.
+ *   - Allowed for the current assignee of an open round that waits for its
+ *     FIRST or SECOND decision (not during a disagreement: adjudication has its
+ *     own NEEDS_MORE_INFO outcome), with the same rationale rules and the same
+ *     write-time eligibility as a verdict.
+ *   - The stage moves to NEEDS_MORE_INFO and a NEEDS_MORE_INFO event records
+ *     the reason, the requester and who it is requested from.
+ *   - After a FIRST decision (`second_required`) the request SUPERSEDES that
+ *     decision for the round: the round advances (the earlier decision stays on
+ *     the log), and the requirement's cause is CARRIED into the new round so
+ *     the eventual verdict still needs an independent second decision.
+ *   - The same requester repeating it while the review waits is a replay.
+ */
+async function recordInformationRequest(
+  input: RecordReviewDecisionInput,
+  rationale: string,
+  client: PrismaClient,
+): Promise<RecordReviewDecisionResult> {
+  const result = await client.$transaction(async (tx): Promise<RecordReviewDecisionResult> => {
+    const wf = await tx.evidenceReviewWorkflow.findFirst({
+      where: { id: input.workflowId, teamId: input.teamId, evidence: evidenceVisibleThroughCasesWhere(input.actorUserId) },
+    });
+    if (!wf) throw new ReviewDecisionAuthorityError("workflow_not_found");
+    if (input.expectedStatus != null && (wf.status as string) !== input.expectedStatus) {
+      throw new ReviewDecisionAuthorityError("stale_decision", { expectedStatus: input.expectedStatus, currentStatus: wf.status });
+    }
+    const currentStage = mapDbStatusToReviewStage(wf.status as string);
+    if (currentStage === "NEEDS_MORE_INFO") {
+      const last = await tx.evidenceReviewWorkflowEvent.findFirst({
+        where: { workflowId: wf.id, eventType: "NEEDS_MORE_INFO" },
+        orderBy: { createdAt: "desc" },
+        select: { actorUserId: true },
+      });
+      if (last?.actorUserId === input.actorUserId) {
+        if (input.dryRun) throw new ReviewDecisionDryRunPassed();
+        return {
+          workflow: wf,
+          decision: null,
+          state: "first_required",
+          idempotent: true,
+          previousStatus: String(wf.status),
+          outcome: { stageRecorded: "NONE", statusChanged: false, reviewState: "first_required", nextRequirement: "information", idempotent: true },
+        };
+      }
+      throw new ReviewDecisionAuthorityError("decision_not_from_stage", { currentStage, reason: "already_awaiting_information" });
+    }
+    const stageRefusal = verdictStageRefusal(currentStage, "REQUEST_INFO");
+    if (stageRefusal === "review_already_resolved") throw new ReviewDecisionAuthorityError("review_already_resolved", { currentStage });
+    if (stageRefusal) throw new ReviewDecisionAuthorityError("decision_not_from_stage", { currentStage, verdictStage: "NEEDS_MORE_INFO" });
+
+    const round = wf.decisionRound;
+    const rows = await tx.workflowReviewDecision.findMany({
+      where: { workflowId: wf.id, teamId: input.teamId, round },
+      orderBy: { decidedAt: "asc" },
+    });
+    const requirement = await secondReviewForRound(
+      { workflowId: wf.id, teamId: input.teamId, evidenceId: wf.evidenceId, round },
+      tx,
+    );
+    // A legacy round settled by an old REQUEST_INFO decision row has moved on:
+    // read it as a fresh round (its decisions no longer govern).
+    const legacyContinued =
+      rows.length > 0 && roundContinuesInNewRound(rows, deriveDecisionProjection(rows, requirement.required), currentStage) !== null;
+    const liveRows = legacyContinued ? [] : rows;
+    const state = deriveReviewState({ decisions: liveRows, requiresSecond: requirement.required });
+    if (state === "resolved") throw new ReviewDecisionAuthorityError("review_already_resolved", { currentState: state });
+    if (state === "conflict_detected" || state === "adjudication_required") {
+      throw new ReviewDecisionAuthorityError("use_adjudication", { reason: "use_adjudication", reviewState: state });
+    }
+    if (wf.assignedToUserId !== input.actorUserId) {
+      throw new ReviewDecisionAuthorityError(state === "second_required" ? "second_stage_needs_reassignment" : "not_assignee", {
+        reason: state === "second_required" ? "second_stage_needs_reassignment" : "not_assignee",
+      });
+    }
+    try {
+      await assertReviewAssigneeEligible(wf, input.actorUserId, tx as unknown as PrismaClient, { inTransaction: true });
+    } catch (err) {
+      if (err instanceof ReviewOperationError) throw new ReviewDecisionAuthorityError("reviewer_not_eligible", { detail: err.code });
+      throw err;
+    }
+    if (rationale.length === 0) throw new ReviewDecisionAuthorityError("rationale_required", { decision: "REQUEST_INFO" });
+    if (rationale.length > REVIEW_DECISION_RATIONALE_MAX) {
+      throw new ReviewDecisionAuthorityError("rationale_too_long", { decision: "REQUEST_INFO", max: REVIEW_DECISION_RATIONALE_MAX });
+    }
+    if (stringContainsForbiddenOverclaim(rationale)) throw new ReviewDecisionAuthorityError("forbidden_wording", { reason: "forbidden_wording" });
+    let requestedFromUserId: string | null = null;
+    if (input.requestedFromUserId) {
+      const member = await tx.teamMember.findFirst({
+        where: { teamId: input.teamId, userId: input.requestedFromUserId, status: "ACTIVE" },
+        select: { userId: true },
+      });
+      // Never disclose who is (not) a member: an unknown recipient falls back to the owner.
+      requestedFromUserId = member?.userId ?? null;
+    }
+    if (input.dryRun) throw new ReviewDecisionDryRunPassed();
+
+    // After a FIRST decision: supersede it for this round and carry the cause.
+    const first = liveRows.find((r) => r.stage === "FIRST") ?? null;
+    let nextRound = round;
+    if (first) {
+      const bumped = await tx.evidenceReviewWorkflow.updateMany({
+        where: { id: wf.id, decisionRound: round },
+        data: { decisionRound: round + 1 },
+      });
+      if (bumped.count !== 1) throw new ReviewDecisionAuthorityError("stale_decision", { reason: "round_moved" });
+      nextRound = round + 1;
+    }
+    // The request is the reviewer's first substantive response: it completes
+    // the FIRST_REVIEW deadline (T-044) exactly as a first decision does, but
+    // it records no decision and uses no FIRST / SECOND slot.
+    const requestedAt = new Date();
+    const moved = await tx.evidenceReviewWorkflow.updateMany({
+      where: { id: wf.id, status: wf.status, assignedToUserId: wf.assignedToUserId },
+      data: {
+        status: stageToDbStatus("NEEDS_MORE_INFO"),
+        lastReviewedAt: requestedAt,
+        ...(wf.firstDecidedAtUtc ? {} : { firstDecidedAtUtc: requestedAt }),
+      },
+    });
+    if (moved.count !== 1) throw new ReviewDecisionAuthorityError("stale_decision", { reason: "concurrent_change" });
+    const updated = await tx.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: wf.id } });
+    await recordReviewActivityTx(tx, {
+      evidenceId: wf.evidenceId,
+      workflowId: wf.id,
+      teamId: input.teamId,
+      actorUserId: input.actorUserId,
+      code: "REVIEW_INFORMATION_REQUESTED",
+      previousState: String(wf.status),
+      resultingState: String(updated.status),
+      decision: "REQUEST_INFO",
+    });
+    await tx.evidenceReviewWorkflowEvent.create({
+      data: {
+        workflowId: wf.id,
+        evidenceId: wf.evidenceId,
+        actorUserId: input.actorUserId,
+        eventType: "NEEDS_MORE_INFO",
+        previousValue: { stage: currentStage, round } as Prisma.InputJsonValue,
+        nextValue: {
+          stage: "NEEDS_MORE_INFO",
+          round: nextRound,
+          requestedByUserId: input.actorUserId,
+          requestedFrom: requestedFromUserId ? { userId: requestedFromUserId } : { role: "evidence_owner" },
+          ...(first
+            ? {
+                supersededDecisionId: first.id,
+                supersededRound: round,
+                carriedSecondReviewCause: requirement.required ? requirement.reason ?? "recorded_requirement" : null,
+              }
+            : {}),
+          ...(input.source ? { source: input.source } : {}),
+        } as Prisma.InputJsonValue,
+        note: rationale.slice(0, 1000) || null,
+      },
+    });
+    return {
+      workflow: updated,
+      decision: null,
+      state: "first_required",
+      idempotent: false,
+      previousStatus: String(wf.status),
+      outcome: { stageRecorded: "NONE", statusChanged: true, reviewState: "first_required", nextRequirement: "information", idempotent: false },
+    };
+  });
+  if (!result.idempotent) {
+    notifyReviewNeedsMoreInfo({ workflow: result.workflow, actorUserId: input.actorUserId }, client).catch(() => null);
+  }
+  await emitDecisionOutcomeSignals(
+    {
+      teamId: input.teamId,
+      actorUserId: input.actorUserId,
+      workflowId: result.workflow.id,
+      decision: "REQUEST_INFO",
+      workflowStatusAfter: String(result.workflow.status),
+      outcome: result.outcome,
+      source: input.source ?? null,
+    },
+    client,
+  ).catch(() => null);
+  return result;
+}
+
 // -----------------------------------------------------------------------------
 // TEAM-SPEC R3 — the decision state the NEXT submission would meet.
 // -----------------------------------------------------------------------------
@@ -907,7 +1162,14 @@ export type CurrentRoundDecisionState = {
   secondReviewRequired: boolean;
   secondReviewReason: string | null;
   /** The forcing escalation, when one is the cause (T-015). */
-  secondReviewEscalation?: { id: string; reason: string; severity: string } | null;
+  secondReviewEscalation?: {
+    id: string;
+    reason: string;
+    severity: string;
+    requestedByUserId?: string | null;
+    requestedAtUtc?: string | null;
+    note?: string | null;
+  } | null;
   firstReviewerUserId: string | null;
   secondReviewerUserId: string | null;
   /** The previous round finished this way and the next submission opens a new round. */

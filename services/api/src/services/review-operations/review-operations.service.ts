@@ -12,7 +12,7 @@
  * more.
  */
 
-import { legacyReviewDecisionFromStatus, presentReviewOutcome, type ReviewDecision } from "@proovra/shared";
+import { escalationNoteForStorage, legacyReviewDecisionFromStatus, presentReviewOutcome, type ReviewDecision } from "@proovra/shared";
 import type {
   EvidenceReviewWorkflow as DbWorkflow,
   EvidenceReviewWorkflowEvent as DbEvent,
@@ -129,7 +129,7 @@ export async function assertReviewAssigneeEligible(
         evidenceId: workflow.evidenceId,
       },
       client,
-      options,
+      { ...options, placementRule: "review" },
     );
   } catch (err) {
     if (err instanceof AssigneeEligibilityError) {
@@ -366,7 +366,8 @@ async function applyTransition(
   if (patch.escalatedByUserId !== undefined)
     data.escalatedByUserId = patch.escalatedByUserId;
   if (patch.escalationReason !== undefined)
-    data.escalationReason = patch.escalationReason?.slice(0, 400) ?? null;
+    // Free text: never the disagreement marker the second-review rule reads.
+    data.escalationReason = escalationNoteForStorage(patch.escalationReason)?.slice(0, 400) ?? null;
   if (patch.rejectionReason !== undefined)
     data.rejectionReason = patch.rejectionReason?.slice(0, 400) ?? null;
   if (typeof patch.reopenCount === "number")

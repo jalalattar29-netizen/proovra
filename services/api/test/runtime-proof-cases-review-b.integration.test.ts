@@ -15,8 +15,9 @@
  *   - apps/web/lib/reviewer-workspace/reviewer-api.ts              (writeCodingValue, bulkCode)
  *   - apps/web/app/(app)/search/page.tsx                           (search saved views)
  *   - apps/web/app/(app)/cases/components/SiuWorklistPanel.tsx     (SIU saved views)
- * POST /v1/coding/schemas has no current web consumer; its contract is the
- * route's zod schema.
+ * POST /v1/coding/schemas is retired (Review remediation F-27, 2026-11-27):
+ * it answers a typed 410 like the publish route; drafts are created here
+ * through the service, the way seed-defaults creates them.
  *
  * Fire-and-forget sinks (`safeEmitSecurityEvent`) are read with `expect.poll` — a bounded wait for a write the product already
  * dispatched, never a retry of the action under test.
@@ -475,11 +476,17 @@ describe("K4-B — reviewer and saved views (live PostgreSQL 16)", () => {
      * retired (owner decision 2026-09-16), and installed schemas are published
      * by the service seed-defaults calls — the same function used here.
      */
+    async function draftSchema(slug: string) {
+      const a = h.fixtures.teamA;
+      const { createSchema } = await import("../src/services/reviewer-workspace/coding-schema.service.js");
+      const created = await createSchema({ teamId: a.teamId, authorUserId: a.ownerUserId, ...schemaBody(slug) } as never);
+      expect(created).toMatchObject({ ok: true });
+      return (created as { schemaId: string }).schemaId;
+    }
+
     async function publishedSchema(slug: string) {
       const a = h.fixtures.teamA;
-      const created = await call({ method: "POST", url: `/v1/coding/schemas?teamId=${a.teamId}`, token: a.ownerToken, payload: schemaBody(slug) });
-      expect(created.statusCode, created.body).toBe(201);
-      const schemaId = created.json().schemaId as string;
+      const schemaId = await draftSchema(slug);
       const { publishSchema } = await import("../src/services/reviewer-workspace/coding-schema.service.js");
       expect(await publishSchema({ teamId: a.teamId, schemaId })).toMatchObject({ ok: true });
       const fields = await prisma.codingField.findMany({ where: { schemaId }, orderBy: { orderIndex: "asc" } });
@@ -497,36 +504,19 @@ describe("K4-B — reviewer and saved views (live PostgreSQL 16)", () => {
       expect(res.statusCode, res.body).toBe(200);
     }
 
-    it("POST /v1/coding/schemas — the workspace OWNER (REVIEW_ADMIN) creates a DRAFT schema with its fields; audited", async () => {
+    it("POST /v1/coding/schemas — retired (F-27): the workspace OWNER gets 410 CODING_SCHEMA_CREATE_RETIRED; nothing written, nothing audited", async () => {
       const a = h.fixtures.teamA;
       const slug = `claims-${tag()}`;
       const res = await call({ method: "POST", url: `/v1/coding/schemas?teamId=${a.teamId}`, token: a.ownerToken, payload: schemaBody(slug) });
-      expect(res.statusCode, res.body).toBe(201);
-      expect(res.json().version).toBe(1);
-      const schemaId = res.json().schemaId as string;
-      const row = await prisma.codingSchema.findUniqueOrThrow({
-        where: { id: schemaId },
-        include: { fields: { orderBy: { orderIndex: "asc" } } },
+      expect(res.statusCode, res.body).toBe(410);
+      expect(res.json()).toMatchObject({
+        error: { code: "CODING_SCHEMA_CREATE_RETIRED" },
+        canonical: "/v1/coding/schemas/seed-defaults",
       });
-      expect(row).toMatchObject({
-        teamId: a.teamId,
-        slug,
-        label: "Claims photo coding",
-        category: "INSURANCE_REVIEW",
-        status: "DRAFT",
-        version: 1,
-        createdByUserId: a.ownerUserId,
-      });
-      expect(row.fields.map((f) => [f.slug, f.fieldType, f.required, f.teamId])).toEqual([
-        ["damage-summary", "TEXT", true, a.teamId],
-        ["estimate", "NUMERIC", false, a.teamId],
-      ]);
-      expect(await auditRow("reviewer.coding_schema.created", schemaId)).toMatchObject({
-        userId: a.ownerUserId,
-        workspaceId: a.teamId,
-        outcome: "success",
-        resourceType: "coding_schema",
-      });
+      expect(await prisma.codingSchema.count({ where: { slug } })).toBe(0);
+      expect(
+        await prisma.adminAuditLog.count({ where: { action: "reviewer.coding_schema.created", workspaceId: a.teamId, metadata: { path: ["slug"], equals: slug } } }),
+      ).toBe(0);
     });
 
     it("POST /v1/coding/schemas — an ADMIN (SUPERVISOR), a MEMBER, a FREE workspace and another tenant are refused; nothing written", async () => {
@@ -554,9 +544,7 @@ describe("K4-B — reviewer and saved views (live PostgreSQL 16)", () => {
 
     it("POST /v1/coding/schemas/:id/publish — retired: the owner gets 410 and the draft stays a draft", async () => {
       const a = h.fixtures.teamA;
-      const created = await call({ method: "POST", url: `/v1/coding/schemas?teamId=${a.teamId}`, token: a.ownerToken, payload: schemaBody(`retired-${tag()}`) });
-      expect(created.statusCode, created.body).toBe(201);
-      const schemaId = created.json().schemaId as string;
+      const schemaId = await draftSchema(`retired-${tag()}`);
       const res = await call({ method: "POST", url: `/v1/coding/schemas/${schemaId}/publish?teamId=${a.teamId}`, token: a.ownerToken });
       expect(res.statusCode, res.body).toBe(410);
       expect(res.json()).toMatchObject({
@@ -692,16 +680,26 @@ describe("K4-B — reviewer and saved views (live PostgreSQL 16)", () => {
         token: a.adminToken,
         payload: { fieldSlug: "estimate", value: { number: 1200 }, workflowIds: [w1, w2, unbound], teamId: a.teamId },
       });
-      expect(res.statusCode, res.body).toBe(200);
+      // Review remediation (F-30): a partial batch is a 207 with counts, the
+      // per-item reasons a person reads, and a statement that it records no verdict.
+      expect(res.statusCode, res.body).toBe(207);
       expect(res.json()).toEqual({
         ok: true,
         total: 3,
         succeeded: 2,
+        failed: 1,
         outcomes: [
           { workflowId: w1, ok: true },
           { workflowId: w2, ok: true },
           { workflowId: unbound, ok: false, denial: "SCHEMA_NOT_FOUND" },
         ],
+        items: [
+          { workflowId: w1, ok: true },
+          { workflowId: w2, ok: true },
+          { workflowId: unbound, ok: false, errorCode: "SCHEMA_NOT_FOUND", message: "No coding schema is bound to this review." },
+        ],
+        recordsDecision: false,
+        httpStatus: 207,
       });
       const estimate = fields.find((f) => f.slug === "estimate")!;
       const values = await prisma.codingValue.findMany({ where: { fieldId: estimate.id }, orderBy: { workflowId: "asc" } });
@@ -740,7 +738,9 @@ describe("K4-B — reviewer and saved views (live PostgreSQL 16)", () => {
       const bPlan = await asTeamPlan(b.teamId);
       const ownTeam = await call({ method: "POST", url: `/v1/reviewer/bulk/code?teamId=${b.teamId}`, token: b.ownerToken, payload: body });
       await bPlan.restore();
-      expect(ownTeam.statusCode).toBe(200);
+      // Review remediation (F-30): an all-failed batch is never a success.
+      expect(ownTeam.statusCode).toBe(207);
+      expect(ownTeam.json()).toMatchObject({ ok: false, succeeded: 0, failed: 1 });
       expect(ownTeam.json().outcomes).toEqual([{ workflowId: w, ok: false, denial: "SCHEMA_NOT_FOUND" }]);
       expect(await prisma.codingValue.count({ where: { workflowId: w } })).toBe(0);
     });

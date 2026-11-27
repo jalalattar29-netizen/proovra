@@ -137,7 +137,7 @@ describe("assignSample", () => {
         evidenceId: EVIDENCE,
       },
       prismaStub,
-      { inTransaction: true },
+      { inTransaction: true, placementRule: "review" },
     );
     expect(prismaStub.evidenceReviewWorkflow.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: WORKFLOW, teamId: TEAM } }),
@@ -280,7 +280,8 @@ describe("route wiring", () => {
 
   it("GET coding returns the authoritative schema binding", () => {
     expect(REVIEWER).toMatch(/getWorkflowSchemaBinding\(\{ teamId: ctx\.teamId, workflowId \}\)/);
-    expect(REVIEWER).toMatch(/schemaBinding: binding\?\.schema \?\? null/);
+    // 2026-11-27 — the projection names the bound schema (or null) as \`schemaBinding\`.
+    expect(REVIEWER).toMatch(/const schemaBinding = binding\?\.schema \?\? null/);
   });
 
   it("the portal decisions read passes the session grant and never projects reviewer emails", () => {

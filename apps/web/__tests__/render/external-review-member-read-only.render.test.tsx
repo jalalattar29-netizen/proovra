@@ -33,6 +33,8 @@ vi.mock("../../lib/platform-context", async (orig) => ({
       ? { type: "PERSONAL", id: "ws-1", displayName: "Personal Space", roleLabel: "Owner", plan: "TEAM" }
       : { type: "PERSONAL", id: "ws-1", displayName: "Dana's workspace", roleLabel: H.role, shared: true, plan: "TEAM" },
   useTeamId: () => "11111111-1111-4111-8111-111111111111",
+  // F-33 — the External Review page reads the canonical active workspace id.
+  useActiveWorkspaceId: () => "11111111-1111-4111-8111-111111111111",
   usePlatformContext: () => ({ envelope: null }),
   useWorkspaceFragment: () => null,
   usePersonalSpaceFragment: () => null,

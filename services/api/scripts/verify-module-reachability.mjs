@@ -131,6 +131,10 @@ const ENTRYPOINTS = Object.freeze({
     // repairs sweep-stamped deadlines, drifted escalation pointers and the
     // first-decision time. `pnpm --filter proovra-api ops:repair-review-sla-truth`.
     "services/api/src/scripts/repair-review-sla-truth.ts",
+    // REVIEW REMEDIATION (2026-11-27) — the existing-record reconciliation,
+    // dry-run by default; applies only named categories with --apply.
+    // `pnpm --filter proovra-api ops:review-remediation-reconcile`.
+    "services/api/src/scripts/review-remediation-reconcile.ts",
     // PRO-A2-02 (WS-ORG) — dry-run by default; classifies legacy Organization
     // identity links on self-serve accounts by evidence. Run in the API image,
     // `node dist/scripts/remediate-admin-manual-identity-links.js [--apply]`.

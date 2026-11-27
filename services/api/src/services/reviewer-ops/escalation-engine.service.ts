@@ -36,6 +36,9 @@ import {
   REVIEW_ESCALATION_REASONS,
   compareReviewEscalationsBySeverity,
   escalationForcesIndependentReview,
+  escalationIndependenceCause,
+  REVIEWER_DISAGREEMENT_ESCALATION_REASON,
+  defaultRequiresIndependentReview,
   isAllowedEscalationStatusTransition,
   isReviewOpenDbStatus,
   isTerminalReviewEscalationStatus,
@@ -83,7 +86,7 @@ async function assertEscalationAssigneeEligible(
         evidenceId: input.evidenceId,
       },
       client,
-      { inTransaction: true },
+      { inTransaction: true, placementRule: "review" },
     );
   } catch (err) {
     if (err instanceof AssigneeEligibilityError) {
@@ -155,6 +158,15 @@ export type EscalationProjection = {
   updatedAt: string;
   /** T-013/T-019 — whether this escalation forces an independent second review. */
   forcesIndependentReview: boolean;
+  /** 2026-11-27 — why it requires independence (null = administrative). */
+  independenceCause: "independent_review_requested" | "integrity_escalation" | "legacy_escalation" | null;
+  independenceNote: string | null;
+  /**
+   * The viewer's allowed moves on this escalation, computed with the same rule
+   * the mutation enforces (escalationMoveRefusal). Present when a route stated
+   * who is viewing.
+   */
+  viewerActions?: Array<{ action: "acknowledge" | "reassign" | "resolve" | "suppress"; allowed: boolean; reason?: string }>;
 };
 
 export function projectEscalation(row: DbEscalation): EscalationProjection {
@@ -181,6 +193,8 @@ export function projectEscalation(row: DbEscalation): EscalationProjection {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     forcesIndependentReview: escalationForcesIndependentReview(row),
+    independenceCause: escalationIndependenceCause(row),
+    independenceNote: (row as { independenceNote?: string | null }).independenceNote ?? null,
   };
 }
 
@@ -247,6 +261,15 @@ export type CreateEscalationInput = {
   evidenceId?: string | null;
   createdByUserId?: string | null;
   assignedToUserId?: string | null;
+  /**
+   * Review remediation 2026-11-27 — the raiser explicitly asked for an
+   * independent second decision. Integrity reasons and the explicit
+   * INDEPENDENT_REVIEW_REQUESTED reason always store true; every other
+   * (administrative) escalation stores this value (default false).
+   */
+  requireIndependentReview?: boolean;
+  /** Why independence was requested (bounded to 400 chars). */
+  independenceNote?: string | null;
   /** Bypass fingerprint dedup. Routes pass `false`; the reconcile job
    *  passes `false` too. The only legitimate `true` case is the
    *  manual operator route. */
@@ -307,6 +330,8 @@ export async function createEscalation(
       evidenceId: true,
       assignedToUserId: true,
       escalationLevel: true,
+      status: true,
+      escalationReason: true,
       // Phase 6 — workflow-row template trio (Phase 4 stamped). Read
       // here so escalation traceability does NOT need an extra join.
       templateSlug: true,
@@ -442,6 +467,8 @@ export async function createEscalation(
         createdByUserId: input.createdByUserId ?? null,
         assignedToUserId,
         fingerprint,
+        requiresIndependentReview: defaultRequiresIndependentReview(String(input.reason), input.requireIndependentReview === true),
+        independenceNote: input.independenceNote ? input.independenceNote.trim().slice(0, 400) || null : null,
       },
     });
   });
@@ -474,7 +501,15 @@ export async function createEscalation(
       data: {
         escalationLevel: workflow.escalationLevel + 1,
         escalatedAtUtc: now,
-        escalationReason: input.reason,
+        // A review held ESCALATED by a reviewer disagreement keeps that marker:
+        // a later (e.g. overdue) escalation never lifts the disagreement's
+        // independent-review requirement.
+        escalationReason:
+          workflow.status === "ESCALATED" && workflow.escalationReason === REVIEWER_DISAGREEMENT_ESCALATION_REASON
+            ? workflow.escalationReason
+            : input.reason,
+        // F-29 — who raised it (null for the automatic sweep).
+        escalatedByUserId: input.createdByUserId ?? null,
       },
     });
   }
@@ -753,8 +788,28 @@ export async function reassignEscalation(
  *
  * Refusals are audited (`reviewer.escalation.resolve_refused`, outcome denied).
  */
+/**
+ * The pure form of the rule below (review remediation 2026-11-27): the reason
+ * this actor may not resolve / suppress this escalation, or null. Projections
+ * (Monitoring, the Review page) and the mutation use the same function.
+ */
+export function escalationMoveRefusal(input: {
+  escalation: { reason: string; createdByUserId?: string | null; requiresIndependentReview?: boolean | null };
+  workflow: { status: string; assignedToUserId: string | null } | null;
+  actorUserId: string;
+  actorRole: string | null;
+  actorDecidedThisRound: boolean;
+}): "independent_resolver_required" | "resolver_is_assignee" | "resolver_decided_this_round" | null {
+  if (!escalationForcesIndependentReview(input.escalation)) return null;
+  if (!input.workflow || !isReviewOpenDbStatus(String(input.workflow.status))) return null;
+  if (input.actorRole !== "OWNER" && input.actorRole !== "ADMIN") return "independent_resolver_required";
+  if (input.workflow.assignedToUserId === input.actorUserId) return "resolver_is_assignee";
+  if (input.actorDecidedThisRound) return "resolver_decided_this_round";
+  return null;
+}
+
 export async function assertEscalationActorIndependent(
-  row: Pick<DbEscalation, "id" | "teamId" | "workflowId" | "reason" | "createdByUserId">,
+  row: Pick<DbEscalation, "id" | "teamId" | "workflowId" | "reason" | "createdByUserId"> & { requiresIndependentReview?: boolean | null },
   actor: { userId: string; role?: string | null; move: "resolve" | "suppress" },
   client: PrismaClient | Prisma.TransactionClient = defaultPrisma,
 ): Promise<void> {
@@ -772,16 +827,17 @@ export async function assertEscalationActorIndependent(
     });
     role = member?.role ?? null;
   }
-  let reason: string | null = null;
-  if (role !== "OWNER" && role !== "ADMIN") reason = "independent_resolver_required";
-  else if (wf.assignedToUserId === actor.userId) reason = "resolver_is_assignee";
-  else {
-    const decided = await client.workflowReviewDecision.findFirst({
-      where: { workflowId: row.workflowId, round: wf.decisionRound, reviewerUserId: actor.userId },
-      select: { stage: true },
-    });
-    if (decided) reason = "resolver_decided_this_round";
-  }
+  const decided = await client.workflowReviewDecision.findFirst({
+    where: { workflowId: row.workflowId, round: wf.decisionRound, reviewerUserId: actor.userId },
+    select: { stage: true },
+  });
+  const reason = escalationMoveRefusal({
+    escalation: row,
+    workflow: { status: String(wf.status), assignedToUserId: wf.assignedToUserId },
+    actorUserId: actor.userId,
+    actorRole: role ?? null,
+    actorDecidedThisRound: !!decided,
+  });
   if (!reason) return;
   await emitTenantAudit(
     {

@@ -8,11 +8,7 @@ import React, { useState } from "react";
 import { View } from "react-native";
 import { useRouter } from "expo-router";
 
-import {
-  describeReviewOutcome,
-  reauthRequiredSentence,
-  type ReviewDecisionOutcomeCopyInput,
-} from "@proovra/shared";
+import { reauthRequiredSentence } from "@proovra/shared";
 
 import { apiFetch } from "../api";
 import { toSafeUserError } from "../errors/safe-error";
@@ -28,6 +24,7 @@ import {
   buildReviewDecisionPath,
   canClaimReview,
   isPlacementRefusal,
+  reviewDecisionResultMessage,
   reviewDecisionAllowed,
   reviewDecisionBlockedReason,
   reviewNoteLabel,
@@ -96,13 +93,13 @@ export function ReviewActionsPanel({
           ...(headers ? { headers } : {}),
           body: JSON.stringify(buildReviewDecisionBody(d, n)),
         }),
-      )) as { outcome?: ReviewDecisionOutcomeCopyInput | null } | null;
+      )) as unknown;
       setNoteFor(null);
       setNote("");
       // T-165 — what the decision actually did, in the copy every surface shares
       // (a first-of-two decision is never shown as an approval).
-      const kind = d === "APPROVE_INTERNAL" ? "approve" : d === "REJECT_INSUFFICIENT" ? "reject" : d === "REQUEST_MORE_INFO" ? "request_info" : null;
-      setResult(kind && resp?.outcome ? describeReviewOutcome(kind, resp.outcome) : null);
+      // Null-safe: a request for information answers `decision: null`.
+      setResult(reviewDecisionResultMessage(d, resp));
       onChanged();
     } catch (err) {
       const e = err as { code?: string; details?: Record<string, unknown> };

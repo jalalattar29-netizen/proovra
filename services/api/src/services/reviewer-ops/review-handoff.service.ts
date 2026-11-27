@@ -40,7 +40,7 @@ export const REVIEWER_OPS_HANDOFF_QUEUE_TYPES = ["AWAITING_SECOND_REVIEW", "AWAI
 export type ReviewerOpsHandoffQueueType = (typeof REVIEWER_OPS_HANDOFF_QUEUE_TYPES)[number];
 
 export type ReviewHandoffRequirement = "second_review" | "adjudication" | null;
-export type ReviewHandoffStaffing = "ok" | "no_eligible_reviewer" | "no_eligible_adjudicator";
+export type ReviewHandoffStaffing = "ok" | "not_required" | "no_eligible_reviewer" | "no_eligible_adjudicator";
 
 export type ReviewHandoff = {
   requirement: ReviewHandoffRequirement;
@@ -76,17 +76,37 @@ export function handoffRequirementFor(state: CurrentRoundDecisionState["state"])
   return null;
 }
 
-/** Bounded pool, like the assignable-reviewers picker. */
-const MEMBER_POOL = 200;
+/**
+ * F-32 (review remediation 2026-11-27) — EVERY active member is considered,
+ * page by page (a 200-member sample by id used to miss eligible reviewers in
+ * large organizations and report "nobody eligible"). Counting stops once
+ * ELIGIBLE_COUNT_CAP are found; surfaces show "50+".
+ */
+const MEMBER_PAGE = 200;
+export const ELIGIBLE_COUNT_CAP = 50;
 
-async function activeMemberIds(teamId: string, exclude: ReadonlyArray<string>, client: PrismaClient): Promise<string[]> {
-  const rows = await client.teamMember.findMany({
-    where: { teamId, status: "ACTIVE", userId: { notIn: [...exclude] } },
-    select: { userId: true },
-    orderBy: { userId: "asc" },
-    take: MEMBER_POOL,
-  });
-  return rows.map((r) => r.userId);
+async function* activeMemberIdPages(
+  teamId: string,
+  exclude: ReadonlyArray<string>,
+  client: PrismaClient,
+): AsyncGenerator<string[]> {
+  let cursor: string | null = null;
+  for (;;) {
+    const rows: Array<{ userId: string }> = await client.teamMember.findMany({
+      where: {
+        teamId,
+        status: "ACTIVE",
+        userId: cursor ? { notIn: [...exclude], gt: cursor } : { notIn: [...exclude] },
+      },
+      select: { userId: true },
+      orderBy: { userId: "asc" },
+      take: MEMBER_PAGE,
+    });
+    if (rows.length === 0) return;
+    yield rows.map((r) => r.userId);
+    if (rows.length < MEMBER_PAGE) return;
+    cursor = rows[rows.length - 1]!.userId;
+  }
 }
 
 /** Members (other than the first reviewer) the SECOND review could be reassigned to. */
@@ -96,14 +116,16 @@ export async function countEligibleSecondReviewers(
   client: PrismaClient = defaultPrisma,
 ): Promise<number> {
   if (!workflow.teamId) return 0;
-  const candidates = await activeMemberIds(workflow.teamId, firstReviewerUserId ? [firstReviewerUserId] : [], client);
   let count = 0;
-  for (const userId of candidates) {
-    try {
-      await assertReviewAssigneeEligible(workflow, userId, client);
-      count += 1;
-    } catch (err) {
-      if (!(err instanceof ReviewOperationError)) throw err;
+  for await (const page of activeMemberIdPages(workflow.teamId, firstReviewerUserId ? [firstReviewerUserId] : [], client)) {
+    for (const userId of page) {
+      try {
+        await assertReviewAssigneeEligible(workflow, userId, client);
+        count += 1;
+        if (count >= ELIGIBLE_COUNT_CAP) return count;
+      } catch (err) {
+        if (!(err instanceof ReviewOperationError)) throw err;
+      }
     }
   }
   return count;
@@ -116,9 +138,10 @@ export async function countEligibleAdjudicators(
   client: PrismaClient = defaultPrisma,
 ): Promise<number> {
   if (!workflow.teamId) return 0;
-  const candidates = await activeMemberIds(workflow.teamId, participantUserIds, client);
   let count = 0;
-  for (const userId of candidates) {
+  for await (const page of activeMemberIdPages(workflow.teamId, participantUserIds, client))
+  for (const userId of page) {
+    if (count >= ELIGIBLE_COUNT_CAP) return count;
     const { decision, snapshot } = await evaluateMemberAccessWithSnapshot(
       {
         teamId: workflow.teamId,
@@ -155,7 +178,8 @@ export async function computeReviewHandoff(
     secondReviewerUserId: decision.secondReviewerUserId,
   };
   if (requirement === null) {
-    return { ...base, awaitingAssignment: false, eligibleReviewerCount: 0, staffing: "ok" };
+    // F-29 — nothing is being staffed yet: say so, never "ok" with 0 eligible.
+    return { ...base, awaitingAssignment: false, eligibleReviewerCount: 0, staffing: "not_required" };
   }
   if (decision.firstReviewerUserId) {
     const user = await client.user

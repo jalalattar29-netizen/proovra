@@ -39,6 +39,33 @@ export async function assignmentRequiresPlacement(
 }
 
 
+/**
+ * REVIEW assignment placement (review remediation 2026-11-27). Placement in a
+ * Collaboration Team is NOT an unexplained extra prerequisite for ordinary
+ * Team review: on Team / Pro it applies only when the workspace's explicit
+ * Review policy `review_requires_team_placement` is on (default off). An
+ * Enterprise workspace keeps its contract term exactly as
+ * `assignmentRequiresPlacement` reads it. Case / work assignment outside
+ * Review keeps `assignmentRequiresPlacement` unchanged.
+ */
+export async function reviewAssignmentRequiresPlacement(
+  workspaceId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<boolean> {
+  const workspace = await client.team.findUnique({
+    where: { id: workspaceId },
+    select: { id: true, ownerUserId: true, organizationId: true },
+  });
+  if (!workspace) return true;
+  const context = await resolveWorkspaceCommercialContext(workspace, client);
+  if (context.plan === "ENTERPRISE") return assignmentRequiresPlacement(workspaceId, client);
+  const policy = await client.workspaceGovernancePolicy.findUnique({
+    where: { teamId: workspaceId },
+    select: { reviewRequiresTeamPlacement: true },
+  });
+  return policy?.reviewRequiresTeamPlacement === true;
+}
+
 /** The placed subset of `userIds` in a workspace (owner always placed) — one query, for pickers. */
 export async function placedUserIdsForWorkspace(
   workspaceId: string,
@@ -63,5 +90,14 @@ export async function meetsPlacementPolicy(
   client: PrismaClient = defaultPrisma,
 ): Promise<boolean> {
   if (!(await assignmentRequiresPlacement(input.workspaceId, client))) return true;
+  return isPlacedWorkspaceMember(input, client);
+}
+
+/** The Review form of meetsPlacementPolicy (2026-11-27): reviewAssignmentRequiresPlacement. */
+export async function meetsReviewPlacementPolicy(
+  input: { workspaceId: string; userId: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<boolean> {
+  if (!(await reviewAssignmentRequiresPlacement(input.workspaceId, client))) return true;
   return isPlacedWorkspaceMember(input, client);
 }

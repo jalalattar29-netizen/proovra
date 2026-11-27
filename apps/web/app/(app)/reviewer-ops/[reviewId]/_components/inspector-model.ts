@@ -20,6 +20,8 @@
 import {
   ADJUDICATION_NEXT_MESSAGE,
   FIRST_ONLY_MESSAGE,
+  INFORMATION_REQUESTED_MESSAGE,
+  REVIEW_DECISION_LABELS,
   SECOND_REVIEW_CAUSE_LABELS,
   describeReviewOutcome,
   describeReviewRefusal,
@@ -60,7 +62,10 @@ export type ViewerActionName =
   | "archive"
   // Team remediation — T-009 / T-019.
   | "reopen"
-  | "escalate";
+  | "escalate"
+  // Review remediation 2026-11-27 — explicit independence and challenge (F-07).
+  | "request_independent_review"
+  | "challenge";
 
 export type ViewerAction = {
   action: ViewerActionName;
@@ -72,12 +77,13 @@ export type Viewer = {
   userId: string;
   isAssignee: boolean;
   actions: ViewerAction[];
-  /** T-019 — whether an escalation this viewer raises forces an independent second review. */
-  escalationForcesIndependentReview?: boolean;
+  /** F-07 — current-round decisions by others that this viewer may challenge. */
+  challengeableDecisionIds?: string[];
 };
 
 export type DecisionOutcome = ReviewDecisionOutcomeCopyInput & {
-  stageRecorded: "FIRST" | "SECOND" | "ADJUDICATION";
+  /** "NONE": a request for information records no decision (F-04). */
+  stageRecorded: "FIRST" | "SECOND" | "ADJUDICATION" | "NONE";
   reviewState: string;
 };
 
@@ -97,6 +103,8 @@ export const ACTION_LABELS: Record<ViewerActionName, string> = {
   archive: "Archive",
   reopen: "Reopen review",
   escalate: "Escalate",
+  request_independent_review: "Request independent review",
+  challenge: "Challenge a decision",
 };
 
 const ALL_ACTIONS: ViewerActionName[] = [
@@ -112,6 +120,8 @@ const ALL_ACTIONS: ViewerActionName[] = [
   "archive",
   "reopen",
   "escalate",
+  "request_independent_review",
+  "challenge",
 ];
 
 /**
@@ -174,6 +184,10 @@ const REASON_SENTENCES: Record<string, string> = {
   already_started: "The review has already started.",
   review_not_finished: "Only a finished review can be reopened.",
   review_escalation_not_included: "Escalations are not included in this workspace's plan.",
+  // Review remediation 2026-11-27.
+  independent_review_already_required: "This review already needs an independent second decision.",
+  no_challengeable_decision: "There is no recorded decision you can challenge on this review.",
+  reviewer_not_eligible: "You are no longer eligible to review this record.",
 };
 
 const GENERIC_DISABLED = "Not available at this stage of the review.";
@@ -266,6 +280,9 @@ function fallbackActions(lifecycle: LifecycleState, paused: boolean): ActionMap 
     archive: closed(GENERIC_DISABLED),
     reopen: TERMINAL.includes(lifecycle) ? { allowed: true, reason: null } : closed("Only a finished review can be reopened."),
     escalate: terminal ? closed(terminalReason) : { allowed: true, reason: null },
+    // An API without the 2026-11-27 actions offers neither (never assumed open).
+    request_independent_review: closed(GENERIC_DISABLED),
+    challenge: closed("There is no recorded decision you can challenge on this review."),
   };
 }
 
@@ -372,29 +389,42 @@ export function decisionSubmitLabel(choice: string | null | undefined): string {
 
 /**
  * The one-line consequence shown before submit, from the lineage state the
- * decisions panel last read. Internal wording only.
+ * decisions panel last read. Internal wording only, and truthful: the first of
+ * two decisions is never described as final (F-05), and a request for
+ * information is a workflow action, not a vote (F-04).
  */
+export const FIRST_OF_TWO_CONSEQUENCE =
+  "Records the first review. It stays pending until a different reviewer confirms it — it is not a final approval.";
+export const REQUEST_INFO_CONSEQUENCE = `${INFORMATION_REQUESTED_MESSAGE} No decision is recorded.`;
+export const REQUEST_INFO_SUPERSEDES_SUFFIX =
+  " After a first decision, that decision is superseded and the review starts a new round once the response is recorded.";
+
 export function decisionConsequence(input: {
   state: string | null;
   secondRequired: boolean;
   choice: string | null | undefined;
+  /** A FIRST decision is already recorded in the current round. */
+  firstRecorded?: boolean;
 }): string | null {
   const { state, secondRequired, choice } = input;
   if (!choice) return null;
   if (choice === "REQUEST_INFO") {
-    return "Asks for more information — the review waits until the response is recorded.";
+    return input.firstRecorded || state === "second_required"
+      ? `${REQUEST_INFO_CONSEQUENCE}${REQUEST_INFO_SUPERSEDES_SUFFIX}`
+      : REQUEST_INFO_CONSEQUENCE;
   }
   if ((ADJUDICATION_KINDS as string[]).includes(choice)) {
     return "Records the adjudication — the final decision for this round.";
   }
   if (state === "first_required" && secondRequired) {
-    return "Records the first review; an independent second reviewer must confirm.";
+    return FIRST_OF_TWO_CONSEQUENCE;
   }
   if (state === "second_required") {
     return "Records the second review. If it matches the first, the review is decided; if it differs, it goes to adjudication.";
   }
   if (choice === "APPROVE") return "Final decision — approved.";
-  if (choice === "REJECT") return "Final decision — rejected.";
+  // F-29 — the decision vocabulary (REVIEW_DECISION_LABELS): "Not accepted".
+  if (choice === "REJECT") return `Final decision — ${REVIEW_DECISION_LABELS.NOT_ACCEPTED.toLowerCase()}.`;
   return null;
 }
 
@@ -538,9 +568,14 @@ export function slaDimensionLabel(dimension: string): string {
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : "SLA";
 }
 
+/**
+ * F-29 — a recorded verdict reads in the decision vocabulary Evidence Detail
+ * uses (REVIEW_DECISION_LABELS: "Approved" / "Not accepted"); only the
+ * lifecycle stage word may read "Rejected".
+ */
 export const DECISION_KIND_LABELS: Record<string, string> = {
-  APPROVE: "Approved",
-  REJECT: "Rejected",
+  APPROVE: REVIEW_DECISION_LABELS.APPROVED,
+  REJECT: REVIEW_DECISION_LABELS.NOT_ACCEPTED,
   REQUEST_INFO: "Information requested",
   NEEDS_MORE_INFO: "Needs more information",
   UPHOLD_FIRST: "Upheld the first decision",

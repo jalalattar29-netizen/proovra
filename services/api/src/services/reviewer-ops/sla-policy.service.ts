@@ -73,6 +73,13 @@ export type WorkspaceReviewerOpsFlags = {
   requireStepUpForEscalationResolve: boolean;
   requireStepUpForBulk: boolean;
   reviewerInactivityHours: number | null;
+  /** 2026-11-27 — every review needs an independent second decision. */
+  reviewRequiresIndependentApproval: boolean;
+  /** 2026-11-27 — Team/Pro: reviewers must be placed in a Collaboration Team. */
+  reviewRequiresTeamPlacement: boolean;
+  /** 2026-11-27 — APPROVE/REJECT need complete coding (rounds started after `since`). */
+  reviewRequiresCompleteCoding: boolean;
+  reviewRequiresCompleteCodingSince: string | null;
 };
 
 export async function loadWorkspaceReviewerOpsFlags(
@@ -87,6 +94,10 @@ export async function loadWorkspaceReviewerOpsFlags(
       requireStepUpForEscalationResolve: true,
       requireStepUpForBulk: true,
       reviewerInactivityHours: true,
+      reviewRequiresIndependentApproval: true,
+      reviewRequiresTeamPlacement: true,
+      reviewRequiresCompleteCoding: true,
+      reviewRequiresCompleteCodingSince: true,
     },
   });
   return {
@@ -96,6 +107,10 @@ export async function loadWorkspaceReviewerOpsFlags(
       row?.requireStepUpForEscalationResolve ?? false,
     requireStepUpForBulk: row?.requireStepUpForBulk ?? false,
     reviewerInactivityHours: row?.reviewerInactivityHours ?? null,
+    reviewRequiresIndependentApproval: row?.reviewRequiresIndependentApproval ?? false,
+    reviewRequiresTeamPlacement: row?.reviewRequiresTeamPlacement ?? false,
+    reviewRequiresCompleteCoding: row?.reviewRequiresCompleteCoding ?? false,
+    reviewRequiresCompleteCodingSince: row?.reviewRequiresCompleteCodingSince?.toISOString() ?? null,
   };
 }
 

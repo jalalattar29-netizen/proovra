@@ -11,9 +11,16 @@
  *
  * Named "Challenge a decision" (T-081): a filed challenge is a different thing
  * from a Conflict (two reviews that differ, waiting for adjudication).
+ *
+ * Review remediation 2026-11-27 (F-07): the host renders this only when the
+ * server allows `challenge`, and the chooser lists ONLY the decisions the
+ * server named challengeable (`viewer.challengeableDecisionIds`: recorded in
+ * the current round, not by the viewer). Cancel collapses and keeps the draft;
+ * a filed challenge links to Challenged decisions.
  */
 
 import { reviewerDenialMessage } from "@proovra/shared";
+import Link from "next/link";
 import { useCallback, useId, useState } from "react";
 
 import { formatUserDateTime } from "../../lib/date";
@@ -45,11 +52,14 @@ export function ChallengeDecision({
   teamId,
   workflowId,
   viewerUserId,
+  challengeableDecisionIds,
   onFiled,
 }: {
   teamId: string;
   workflowId: string;
   viewerUserId: string | null;
+  /** The server's challengeable decisions; absent (older API) = every recorded one. */
+  challengeableDecisionIds?: ReadonlyArray<string> | null;
   onFiled?: () => void;
 }) {
   const id = useId();
@@ -57,18 +67,24 @@ export function ChallengeDecision({
   const [selectedId, setSelectedId] = useState("");
   const [rationale, setRationale] = useState("");
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  const [notice, setNotice] = useState<{ ok: boolean; text: string; filed?: boolean } | null>(null);
   const trimmed = rationale.trim();
   const tooLong = trimmed.length > MAX;
 
   const open = useCallback(async () => {
     setNotice(null);
     setState({ phase: "LOADING" });
-    const rows = await listWorkflowDecisions({ workflowId, teamId });
+    const all = await listWorkflowDecisions({ workflowId, teamId });
+    const allowed = challengeableDecisionIds ? new Set(challengeableDecisionIds) : null;
+    const rows = all === null ? null : allowed ? all.filter((d) => allowed.has(d.id)) : all;
     if (rows === null) setState({ phase: "ERROR" });
     else if (rows.length === 0) setState({ phase: "EMPTY" });
-    else setState({ phase: "READY", decisions: rows });
-  }, [teamId, workflowId]);
+    else {
+      setState({ phase: "READY", decisions: rows });
+      // A kept selection that is no longer challengeable is dropped.
+      setSelectedId((prev) => (rows.some((d) => d.id === prev) ? prev : ""));
+    }
+  }, [teamId, workflowId, challengeableDecisionIds]);
 
   const submit = async () => {
     if (state.phase !== "READY" || !selectedId || !trimmed || tooLong || busy) return;
@@ -76,7 +92,7 @@ export function ChallengeDecision({
     try {
       const res = await fileDisagreement({ workflowId, originalDecisionId: selectedId, rationale: trimmed, teamId });
       if (res.ok) {
-        setNotice({ ok: true, text: "Challenge filed. It is listed under Challenged decisions." });
+        setNotice({ ok: true, text: "Challenge filed. An owner or admin who made neither decision resolves it.", filed: true });
         setState({ phase: "CLOSED" });
         setSelectedId("");
         setRationale("");
@@ -96,7 +112,7 @@ export function ChallengeDecision({
     state.phase === "LOADING"
       ? "Recorded decisions are still loading."
       : state.phase === "EMPTY"
-        ? "No decision is recorded on this review yet."
+        ? "There is no recorded decision you can challenge."
         : state.phase === "ERROR"
           ? "Recorded decisions could not be loaded."
           : !selectedId
@@ -123,6 +139,14 @@ export function ChallengeDecision({
         {notice ? (
           <p role={notice.ok ? "status" : "alert"} className={notice.ok ? "app-field-help" : "app-field-error"} data-review-challenge-notice style={{ margin: 0 }}>
             {notice.text}
+            {notice.filed ? (
+              <>
+                {" "}
+                <Link href="/review/disagreements" data-review-challenge-filed-link>
+                  Open Challenged decisions
+                </Link>
+              </>
+            ) : null}
           </p>
         ) : null}
         {state.phase === "CLOSED" ? (
@@ -137,7 +161,7 @@ export function ChallengeDecision({
         ) : null}
         {state.phase === "EMPTY" ? (
           <p className="app-field-help" style={{ margin: 0 }} data-review-challenge-empty>
-            No decision is recorded on this review yet, so there is nothing to challenge.
+            There is no recorded decision you can challenge on this review.
           </p>
         ) : null}
         {state.phase === "ERROR" ? (
@@ -184,6 +208,7 @@ export function ChallengeDecision({
                 {disabledReason}
               </span>
             ) : null}
+            {/* Cancel collapses the form; the chosen decision and the typed text are kept. */}
             <button type="button" className="app-ghost-action" onClick={() => setState({ phase: "CLOSED" })} data-review-challenge-cancel>
               Cancel
             </button>

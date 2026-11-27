@@ -34,6 +34,16 @@
  *   This page still keeps the table focused on progression controls +
  *   challenger context instead of rendering every lifecycle detail
  *   inline.
+ *
+ * Review remediation 2026-11-27 (F-11 / F-22):
+ *   - a resolution always collects the required verdict and rationale, and
+ *     says what an OVERTURNED / PARTIAL resolution does before it is recorded;
+ *   - the server's `superseded` answer is said in plain words afterwards
+ *     (reopened for a new round / round restarted / already superseded);
+ *   - the challenger is never offered second review, supervisor review or a
+ *     resolution (independence); when a move is refused for independence or
+ *     role the page names who can resolve and the staffing path. The server
+ *     still decides every move.
  */
 
 import { PLAN_REFUSAL_COPY, isPlanRefusal } from "../../../../lib/feedback/plan-refusal";
@@ -60,7 +70,7 @@ import { OperationalEmptyState } from "../../../../components/operational";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import { useActiveSpaceId, useOptionalPlatformContext } from "../../../../lib/platform-context";
-import { transitionDisagreement } from "../../../../lib/reviewer-workspace/reviewer-api";
+import { transitionDisagreement, type DisagreementSuperseded } from "../../../../lib/reviewer-workspace/reviewer-api";
 import { reviewerIdentityLabel } from "../../../../lib/reviewer-workspace/reviewer-identity";
 import { recordReference } from "../../../../lib/short-id";
 import { AppStatusText } from "../../../../components/app-primitives/AppStatusText";
@@ -83,6 +93,9 @@ type DisagreementRow = {
   resolvedAtUtc: string | null;
   resolution?: ReviewerVerdict | null;
   resolvedByUserId?: string | null;
+  /** §4 — the server's independence answer for the reader (older API: absent). */
+  viewerIndependent?: boolean;
+  viewerNotIndependentReason?: "filed_challenge" | "made_challenged_decision" | null;
   /** T-085 / T-086 — names the API may project beside the ids. */
   people?: Record<string, { displayName?: string | null; maskedEmail?: string | null }> | null;
 };
@@ -117,6 +130,26 @@ const STATE_LABELS: Record<DisagreementState, string> = {
   WITHDRAWN: "Withdrawn",
 };
 
+/** F-11 — what the server did to the challenged outcome, in plain words. */
+function supersededMessage(to: DisagreementState, superseded: DisagreementSuperseded): string {
+  const verb = to === "RESOLVED_PARTIAL" ? "partially overturned" : "overturned";
+  if (superseded === "reopen") {
+    return `The challenged outcome was ${verb}: the review was reopened for a new round. The earlier decisions and the challenge stay on the record.`;
+  }
+  if (superseded === "advance_round") {
+    return `The challenged outcome was ${verb}: the review's round restarted, so the decision is taken again. The earlier decisions stay on the record.`;
+  }
+  if (superseded === "already_superseded") {
+    return "The challenge is resolved. The challenged decision was already superseded by a later round, so nothing else changed.";
+  }
+  if (to === "RESOLVED_UPHELD") return "The challenge is resolved: the challenged outcome stands.";
+  return `Moved to ${STATE_LABELS[to] ?? "the next stage"}.`;
+}
+
+/** F-22 — who can resolve a challenge, and what to do when nobody can. */
+const RESOLVER_INDEPENDENCE_COPY =
+  "Only a workspace owner or admin who neither filed this challenge nor made the challenged decision can review or resolve it. If nobody in this workspace qualifies, invite one from Members & access.";
+
 const RATIONALE_MAX = 600;
 const CHALLENGER_RATIONALE_PREVIEW_MAX = 300;
 
@@ -131,7 +164,7 @@ export default function DisagreementsPage() {
 function DisagreementsShell() {
   const teamId = useActiveSpaceId();
   const [rows, setRows] = useState<DisagreementRow[] | null>(null);
-  const [banner, setBanner] = useState<string | null>(null);
+  const [banner, setBanner] = useState<{ text: string; staffing?: boolean } | null>(null);
   // PRO-R2-15 — a failed read is an error with Retry, never "no disagreements".
   const [loadFailure, setLoadFailure] = useState<"denied" | "plan" | "failed" | null>(null);
   /**
@@ -219,11 +252,15 @@ function DisagreementsShell() {
           teamId,
         });
         if (res.ok) {
-          setBanner(`Moved to ${STATE_LABELS[to] ?? to}.`);
+          setBanner({ text: supersededMessage(to, res.superseded) });
           setPickerArmed(null);
           await refresh();
+        } else if (res.denial === "DISAGREEMENT_RESOLVER_NOT_INDEPENDENT" || res.denial === "NOT_PERMITTED") {
+          // F-22 — why not, who can, and the staffing path. The picker and its
+          // text stay open for whoever may retry.
+          setBanner({ text: `Not recorded: ${reviewerDenialMessage(res.denial)} ${RESOLVER_INDEPENDENCE_COPY}`, staffing: true });
         } else {
-          setBanner(reviewerDenialMessage(res.denial));
+          setBanner({ text: `Not recorded: ${reviewerDenialMessage(res.denial)}` });
         }
       } finally {
         setBusyDisagreementId(null);
@@ -271,7 +308,17 @@ function DisagreementsShell() {
       </div>
       {banner ? (
         <div data-disagreement-banner role="status" className="app-panel">
-          <div className="app-panel__body">{banner}</div>
+          <div className="app-panel__body">
+            {banner.text}
+            {banner.staffing ? (
+              <>
+                {" "}
+                <a href="/people" data-disagreement-staffing-link>
+                  Open Members & access
+                </a>
+              </>
+            ) : null}
+          </div>
         </div>
       ) : null}
       {loadFailure ? (
@@ -489,10 +536,17 @@ function TransitionButtons({
       DISAGREEMENT_STATES.filter(
         (to) =>
           isPlausibleTransition(row.state, to) &&
-          (to !== "WITHDRAWN" || (viewerUserId !== null && row.challengerUserId === viewerUserId)),
+          (to === "WITHDRAWN"
+            ? viewerUserId !== null && row.challengerUserId === viewerUserId
+            : // F-22 — independence, as the server decides it (viewerIndependent);
+              // an older API without it falls back to the challenger check.
+              row.viewerIndependent ?? !(viewerUserId !== null && row.challengerUserId === viewerUserId)),
       ),
-    [row.state, row.challengerUserId, viewerUserId],
+    [row.state, row.challengerUserId, row.viewerIndependent, viewerUserId],
   );
+  const isChallenger = viewerUserId !== null && row.challengerUserId === viewerUserId;
+  const notIndependent = row.viewerIndependent === false || isChallenger;
+  const open = !row.state.startsWith("RESOLVED_") && row.state !== "WITHDRAWN";
   return (
     <div className="app-table__actions" style={{ flexWrap: "wrap", justifyContent: "flex-start" }}>
       {targets.map((to) => {
@@ -532,7 +586,13 @@ function TransitionButtons({
           </CanonicalActionButton>
         );
       })}
-      {targets.length === 0 ? (
+      {notIndependent && open ? (
+        <span className="app-field-help" data-disagreement-not-independent style={{ margin: 0 }}>
+          {row.viewerNotIndependentReason === "made_challenged_decision"
+            ? "You made the challenged decision, so another owner or admin reviews and resolves it."
+            : "You filed this challenge, so another owner or admin reviews and resolves it."}
+        </span>
+      ) : targets.length === 0 ? (
         <span className="app-table__muted">
           No further transitions.
         </span>
@@ -591,6 +651,11 @@ function ResolveVerdictPicker({
         Resolve disagreement → {STATE_LABELS[to] ?? to}. Choose a
         verdict and explain.
       </div>
+      <p className="app-field-help" data-disagreement-resolve-effect style={{ margin: 0 }}>
+        {to === "RESOLVED_UPHELD"
+          ? "Upholding keeps the challenged outcome as it is."
+          : "Overturning supersedes the challenged outcome: a finished review is reopened for a new round, an open one restarts its round. The earlier decisions and this challenge stay on the record."}
+      </p>
       <label
         className="app-field-label"
         style={{ display: "flex", flexDirection: "column", gap: 4 }}

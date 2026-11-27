@@ -41,6 +41,17 @@ describe("the unassigned-member rule (live PostgreSQL)", () => {
     fixtures = await import("./point7/product-fixtures.js");
     ({ signJwt } = await import("../src/services/jwt.js"));
     await setPlan("TEAM");
+    // Review remediation (2026-11-27): on Team / Pro, REVIEW placement is the
+    // workspace's explicit Review policy (default off). These placement proofs
+    // run with it ON; the default (off) is proven in
+    // members-assignment-surfaces and review-remediation-policy.
+    for (const teamId of [h.fixtures.teamA.teamId, W().teamId]) {
+      await prisma.workspaceGovernancePolicy.upsert({
+        where: { teamId },
+        update: { reviewRequiresTeamPlacement: true },
+        create: { teamId, reviewRequiresTeamPlacement: true },
+      });
+    }
   }, 900_000);
 
   afterAll(async () => {

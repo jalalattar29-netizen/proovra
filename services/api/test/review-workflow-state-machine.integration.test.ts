@@ -240,7 +240,11 @@ describe("4 — request more information is not final", () => {
     expect(reject.status).toBe(200);
     const wf = await workflowOf(ev);
     expect(wf.status).toBe("REJECTED_INSUFFICIENT");
-    expect(wf.decisionRound).toBe(1);
+    // Review remediation (F-04): the request used no decision slot and opened
+    // no round; the verdict is the round's FIRST (and only) decision.
+    expect(wf.decisionRound).toBe(0);
+    const rows = await prisma.workflowReviewDecision.findMany({ where: { workflowId: wf.id } });
+    expect(rows.map((r) => [r.round, r.stage, r.decision])).toEqual([[0, "FIRST", "REJECT"]]);
   });
 });
 

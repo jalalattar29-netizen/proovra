@@ -78,7 +78,9 @@ import {
   AssigneeEligibilityError,
   assertWorkAssigneeEligible,
 } from "../assignment/assignee-eligibility.js";
-import { releaseTeamTasksTx } from "../assignment/release-held-work.js";
+import { releaseReviewWorkflowsHeldByTx, releaseTeamTasksTx } from "../assignment/release-held-work.js";
+import { reviewAssignmentRequiresPlacement } from "../assignment/placement-policy.js";
+import { isPlacedWorkspaceMember } from "./placement.js";
 import { revokeGrantsOfCreatorsWithoutReachTx } from "../cases/case-reach-share-revocation.js";
 
 /**
@@ -2251,6 +2253,20 @@ export async function suspendMember(
       actorUserId: input.actorUserId,
       reason: "group_member_suspended",
     });
+    // F-31 (2026-11-27) — under an explicit Review placement policy, a member
+    // no longer placed in ANY Collaboration Team loses Review eligibility: the
+    // reviews they hold go back to the queue (decision history kept).
+    if (
+      (await reviewAssignmentRequiresPlacement(team.workspaceId, tx as unknown as PrismaClient)) &&
+      !(await isPlacedWorkspaceMember({ workspaceId: team.workspaceId, userId: member.userId }, tx as unknown as PrismaClient))
+    ) {
+      await releaseReviewWorkflowsHeldByTx(tx, {
+        teamId: team.workspaceId,
+        userIds: [member.userId],
+        actorUserId: input.actorUserId,
+        reason: "review_placement_lost",
+      });
+    }
     await revokeGrantsLostWithGroupReachTx(tx, { teamId: input.teamId, actorUserId: input.actorUserId });
     if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, undefined);
   });
@@ -2402,6 +2418,20 @@ export async function removeMember(
       actorUserId: input.actorUserId,
       reason: "group_member_removed",
     });
+    // F-31 (2026-11-27) — under an explicit Review placement policy, a member
+    // no longer placed in ANY Collaboration Team loses Review eligibility: the
+    // reviews they hold go back to the queue (decision history kept).
+    if (
+      (await reviewAssignmentRequiresPlacement(team.workspaceId, tx as unknown as PrismaClient)) &&
+      !(await isPlacedWorkspaceMember({ workspaceId: team.workspaceId, userId: member.userId }, tx as unknown as PrismaClient))
+    ) {
+      await releaseReviewWorkflowsHeldByTx(tx, {
+        teamId: team.workspaceId,
+        userIds: [member.userId],
+        actorUserId: input.actorUserId,
+        reason: "review_placement_lost",
+      });
+    }
     await revokeGrantsLostWithGroupReachTx(tx, { teamId: input.teamId, actorUserId: input.actorUserId });
     if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, undefined);
   });
@@ -3019,7 +3049,8 @@ async function assertTaskAssigneeEligible(
           evidenceId: workflow.evidenceId,
         },
         client,
-        { inTransaction: options.inTransaction === true },
+        // The Review placement rule, exactly as a direct reviewer assignment.
+        { inTransaction: options.inTransaction === true, placementRule: "review" },
       );
     } catch (err) {
       if (err instanceof AssigneeEligibilityError) throw E.assigneeNotEligible();

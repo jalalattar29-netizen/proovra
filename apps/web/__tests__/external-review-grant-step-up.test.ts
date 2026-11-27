@@ -64,10 +64,13 @@ describe("Pin 2 — reuses the EXISTING step-up flow (no parallel impl)", () => 
 
   it("instantiates the hook with the active workspace teamId", () => {
     const src = read(PAGE);
+    // F-33 (2026-11-27) — the canonical active workspace id (Personal Team
+    // workspaces included), never the team-only `useTeamId`.
     assert.match(
       src,
-      /import\s+\{[^}]*useTeamId[^}]*\}\s+from\s+["'][^"']*platform-context["']/s,
+      /import\s+\{[^}]*useActiveWorkspaceId[^}]*\}\s+from\s+["'][^"']*platform-context["']/s,
     );
+    assert.doesNotMatch(src, /useTeamId\(/);
     assert.match(src, /useStepUpAction\(\{\s*teamId\s*\}\)/);
   });
 

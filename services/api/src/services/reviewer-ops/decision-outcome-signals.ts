@@ -28,10 +28,10 @@ import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { warn as logWarn } from "../../utils/logger.js";
 
 export type DecisionOutcomeForSignals = {
-  stageRecorded: "FIRST" | "SECOND" | "ADJUDICATION";
+  stageRecorded: "FIRST" | "SECOND" | "ADJUDICATION" | "NONE";
   statusChanged: boolean;
   reviewState: string;
-  nextRequirement: "second_review" | "adjudication" | null;
+  nextRequirement: "second_review" | "adjudication" | "information" | null;
   idempotent: boolean;
 };
 

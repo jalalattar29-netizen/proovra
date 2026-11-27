@@ -227,7 +227,7 @@ describe("T-015 / T-160 / T-016 — a person's escalation in a one-person worksp
     expect(before.status, before.raw).toBe(200);
     expect(before.body.secondReview).toMatchObject({
       required: true,
-      cause: "open_escalation",
+      cause: "integrity_escalation",
       escalation: { reason: "INTEGRITY_RISK", severity: "HIGH" },
       eligibleReviewerCount: 0,
       staffing: "no_eligible_second_reviewer",
@@ -239,7 +239,7 @@ describe("T-015 / T-160 / T-016 — a person's escalation in a one-person worksp
       stageRecorded: "FIRST",
       statusChanged: false,
       nextRequirement: "second_review",
-      secondReview: { cause: "open_escalation", eligibleReviewerCount: 0, staffing: "no_eligible_second_reviewer" },
+      secondReview: { cause: "integrity_escalation", eligibleReviewerCount: 0, staffing: "no_eligible_second_reviewer" },
     });
     expect(String((await wfRow(r.workflowId)).status)).toBe("IN_REVIEW");
 
@@ -313,7 +313,7 @@ describe("T-016 / T-017 — in a team", () => {
     ]);
     // The governing requirement is described from the record (T-022).
     const done = await o.lineage(T.owner, r.workflowId);
-    expect(done.body.governing).toMatchObject({ reviewers: 2, secondReviewRequired: true, cause: "open_escalation" });
+    expect(done.body.governing).toMatchObject({ reviewers: 2, secondReviewRequired: true, cause: "integrity_escalation" });
   });
 });
 

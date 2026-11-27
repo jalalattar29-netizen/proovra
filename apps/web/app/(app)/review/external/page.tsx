@@ -33,7 +33,7 @@
 
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { reviewerDenialMessage } from "@proovra/shared";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   BULK_INVITATION_MAX_ROWS,
@@ -77,7 +77,7 @@ import {
 } from "../../../../lib/labels/governanceReviewLabels";
 import {
   useActiveSpace,
-  useTeamId,
+  useActiveWorkspaceId,
 } from "../../../../lib/platform-context";
 import { EXTERNAL_REVIEW_MANAGE_EXPLANATION } from "../../../../components/external-review/ExternalReviewSubjectPanel";
 
@@ -342,7 +342,12 @@ export default function ExternalInvitationsPage() {
 }
 
 function ExternalReviewManagementConsole() {
-  const teamId = useTeamId();
+  // F-33 (Review remediation 2026-11-27) — the CANONICAL active workspace id,
+  // Personal Team workspaces included. The team-only hook answers null for a
+  // Personal workspace, which left the scope picker "still loading" and made
+  // Renew bail out on a Team-entitled Personal workspace. Permissions and
+  // step-up are unchanged: the server decides every action.
+  const teamId = useActiveWorkspaceId();
   // Reuse the canonical step-up flow (same hook + modal as
   // admin/provisioning). Sensitive external-review mutations (bulk
   // issue, break-glass token reveal) run through `runStepUpAction` so a
@@ -373,13 +378,21 @@ function ExternalReviewManagementConsole() {
     text: string;
   } | null>(null);
 
+  // F-33 — a list read answers for the workspace that asked: a response that
+  // lands after a workspace switch is dropped.
+  const activeTeamRef = useRef<string | null>(teamId);
+  activeTeamRef.current = teamId;
+
   // Resolves true only when the list was actually reread, so a caller can
   // tell a confirmed change apart from one it could not confirm.
   const refresh = useCallback(async (): Promise<boolean> => {
+    const askedFor = activeTeamRef.current;
+    const stale = () => askedFor !== activeTeamRef.current;
     try {
       const res = await apiFetch("/v1/external-review/invitations", {
         method: "GET",
       });
+      if (stale()) return false;
       setRows((res?.invitations ?? []) as InvitationRow[]);
       setListCanIssue(typeof res?.viewerCanIssue === "boolean" ? res.viewerCanIssue : undefined);
       setListDenied(false);
@@ -393,6 +406,7 @@ function ExternalReviewManagementConsole() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         code: (err as any)?.code ?? "UNKNOWN",
       });
+      if (stale()) return false;
       const denial = denialFromError(err);
       setListDenied(denial === "NOT_PERMITTED");
       // T-158 — the rows already shown stay; a first read that failed leaves
@@ -403,9 +417,20 @@ function ExternalReviewManagementConsole() {
     }
   }, []);
 
+  // F-33 — switching the active workspace resets everything the old one
+  // showed (rows, selection, open drawer, invite form, banner) and rereads.
   useEffect(() => {
+    setRows(null);
+    setListCanIssue(undefined);
+    setListDenied(false);
+    setListError(false);
+    setSelected(null);
+    setMultiSelected(new Set());
+    setInviting(false);
+    setBanner(null);
+    setTab("active");
     void refresh();
-  }, [refresh]);
+  }, [refresh, teamId]);
 
   const filtered = useMemo(
     () => (rows ? filterRowsForTab(rows, tab) : []),
@@ -505,6 +530,7 @@ function ExternalReviewManagementConsole() {
 
   return (
     <PageShell
+      className="review-launcher-clearance"
       data-external-review-console
       header={
         <ReviewPageHeader

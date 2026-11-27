@@ -71,7 +71,7 @@ import {
 } from "../../../../components/reviewer-experience/ReviewPageHeader";
 import "../../../../components/reviewer-experience/review-surfaces.css";
 import { EmptyState } from "../../../../components/ui/EmptyState";
-import { identifierLabel } from "@proovra/shared";
+import { identifierLabel, notRecordedMessage } from "@proovra/shared";
 import { recordReference } from "../../../../lib/short-id";
 import { AppStatusText } from "../../../../components/app-primitives/AppStatusText";
 import {
@@ -98,14 +98,31 @@ import { ChallengeDecision } from "../../../../components/reviewer-experience/Ch
 import { EVIDENCE_LIBRARY_LEGAL_BOUNDARY } from "../../evidence/lib/evidence-library-formatters";
 import { CopyIdButton } from "./_components/CopyIdButton";
 import { DECISION_ANCHOR_ID, InspectorActions } from "./_components/InspectorActions";
-import { type DecisionFocusRequest, type DecisionSubmitBody } from "./_components/DecisionPanel";
+import {
+  type CodedAssessment,
+  type DecisionFocusRequest,
+  type DecisionSubmitBody,
+  type DecisionSubmitResult,
+} from "./_components/DecisionPanel";
 import {
   ReviewerDecisionLineagePanel,
+  decisionRefusal,
   refusalMessage,
+  reviewerName,
   type DecisionsSummary,
 } from "./_components/DecisionLineagePanel";
-import { ArchiveDialog, EscalateDialog, ReassignDialog, type EscalateInput } from "./_components/InspectorDialogs";
-import { HandoffBanner, handoffAwaitsManager, type ReviewHandoff } from "./_components/HandoffBanner";
+import {
+  ArchiveDialog,
+  EscalateDialog,
+  LeaveUnsavedCodingDialog,
+  REQUEST_INDEPENDENT_REVIEW_SUCCESS,
+  ReassignDialog,
+  RequestIndependentReviewDialog,
+  type EscalateInput,
+} from "./_components/InspectorDialogs";
+import { CODING_UNSAVED_EVENT, hasUnsavedCoding } from "../../../../components/reviewer-workspace/CodingPanel";
+import { fetchCodingState } from "../../../../lib/reviewer-workspace/reviewer-api";
+import { HandoffBanner, MembersAccessLink, handoffAwaitsManager, type ReviewHandoff } from "./_components/HandoffBanner";
 import {
   VERDICT_ACTION,
   VERDICT_CHOICES,
@@ -241,7 +258,13 @@ function deriveSignature(r: WorkspaceResponse | null): string | null {
   ].join("|");
 }
 
-type InspectorDialog = "reassign" | "assign_second_reviewer" | "escalate" | "archive" | null;
+type InspectorDialog =
+  | "reassign"
+  | "assign_second_reviewer"
+  | "escalate"
+  | "archive"
+  | "request_independent_review"
+  | null;
 
 function ReviewWorkspacePageInner() {
   const params = useParams<{ reviewId: string }>();
@@ -300,6 +323,16 @@ function ReviewWorkspacePageInner() {
   // A verdict, an escalation and an archive take the shared step-up challenge
   // when the workspace policy (or the adaptive gate) asks for one.
   const stepUp = useStepUpAction({ teamId });
+  // F-16 — an in-app move away while coding has pending or failed writes asks
+  // first (in-page dialog). Holds the move to make on "Leave anyway".
+  const [leaveTarget, setLeaveTarget] = useState<null | (() => void)>(null);
+  const guardedLeave = useCallback((go: () => void) => {
+    if (hasUnsavedCoding()) setLeaveTarget(() => go);
+    else go();
+  }, []);
+  // F-18 — the coded REVIEWER_VERDICT assessments on this review (value
+  // `{ verdict }`), compared with the chosen decision. Advisory only.
+  const [codedVerdicts, setCodedVerdicts] = useState<Array<{ verdict: string; authorUserId: string; updatedAt: string }>>([]);
 
   const load = useCallback(() => {
     if (!teamId || !workflowId) return;
@@ -324,6 +357,37 @@ function ReviewWorkspacePageInner() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!teamId || !workflowId) return;
+    let live = true;
+    const read = () => {
+      fetchCodingState(workflowId, teamId)
+        .then((r) => {
+          if (!live) return;
+          const rows = Array.isArray(r?.values) ? r.values : [];
+          setCodedVerdicts(
+            rows
+              .filter((v) => v && typeof v.value === "object" && v.value !== null && typeof (v.value as { verdict?: unknown }).verdict === "string")
+              .map((v) => ({ verdict: String((v.value as { verdict: string }).verdict), authorUserId: v.authorUserId, updatedAt: v.updatedAt })),
+          );
+        })
+        .catch(() => {
+          // Advisory: without the coding read there is simply no mismatch note.
+          if (live) setCodedVerdicts([]);
+        });
+    };
+    read();
+    const onCoding = (e: Event) => {
+      const detail = (e as CustomEvent<{ hasUnsaved?: boolean }>).detail;
+      if (!detail?.hasUnsaved) read();
+    };
+    window.addEventListener(CODING_UNSAVED_EVENT, onCoding);
+    return () => {
+      live = false;
+      window.removeEventListener(CODING_UNSAVED_EVENT, onCoding);
+    };
+  }, [teamId, workflowId, panelsVersion]);
 
   /** Reload the workspace AND the lineage / notes panels. */
   const reloadAll = useCallback(() => {
@@ -465,8 +529,8 @@ function ReviewWorkspacePageInner() {
       help: () => setShortcutsOpen((o) => !o),
     };
     if (fromView) {
-      h.next = () => void moveInView(1);
-      h.previous = () => void moveInView(-1);
+      h.next = () => guardedLeave(() => void moveInView(1));
+      h.previous = () => guardedLeave(() => void moveInView(-1));
     }
     if (actions && mayDecide) {
       if (actions.approve.allowed) h.approve = () => goToDecision("APPROVE");
@@ -479,8 +543,8 @@ function ReviewWorkspacePageInner() {
       : envelopeMayEscalate && Boolean(data) && !TERMINAL_LIFECYCLE.includes(data!.projection.lifecycleState) && !data!.openEscalation;
     if (escalateOpen) h.escalate = () => setDialog("escalate");
     return h;
-  }, [toggleFocus, fromView, moveInView, actions, mayDecide, goToDecision, post, data, envelopeMayEscalate]);
-  const keysEnabled = reasonModal === null && dialog === null && busy === null;
+  }, [toggleFocus, fromView, moveInView, guardedLeave, actions, mayDecide, goToDecision, post, data, envelopeMayEscalate]);
+  const keysEnabled = reasonModal === null && dialog === null && busy === null && leaveTarget === null;
   const helpRows = useKeymap(REVIEW_PAGE_KEYMAP, keyHandlers, keysEnabled);
 
   /**
@@ -489,7 +553,7 @@ function ReviewWorkspacePageInner() {
    * challenge as approve / reject. Resolves to an error message, or null.
    */
   const postDecision = useCallback(
-    async (body: DecisionSubmitBody): Promise<string | null> => {
+    async (body: DecisionSubmitBody): Promise<DecisionSubmitResult> => {
       if (!teamId) return "No active workspace.";
       setNotice(null);
       setError(null);
@@ -517,8 +581,10 @@ function ReviewWorkspacePageInner() {
         // T-027 (stage B) — closing the enrolment or re-sign-in state is not
         // "cancelling a confirmation"; the line says what is needed instead.
         if (isStepUpCancelled(err)) return stepUpCancelMessage(err, STEP_UP_CANCELLED);
+        // F-21 — "Not recorded: <reason>" beside the form; the form keeps the
+        // draft and the page rereads the current state.
         reloadAll();
-        return refusalMessage(err, "The decision could not be recorded. Nothing was changed.");
+        return decisionRefusal(err, "The decision could not be recorded.");
       }
     },
     [teamId, workflowId, reloadAll, stepUp],
@@ -562,6 +628,9 @@ function ReviewWorkspacePageInner() {
             reason: input.reason,
             severity: input.severity,
             safeSummary: input.safeSummary,
+            // F-09 — the effect the dialog stated: explicit independence.
+            requireIndependentReview: input.requireIndependentReview,
+            ...(input.independenceNote ? { independenceNote: input.independenceNote } : {}),
           }),
         });
         setError(null);
@@ -571,6 +640,32 @@ function ReviewWorkspacePageInner() {
         return null;
       } catch (err) {
         return refusalMessage(err, "The escalation could not be raised. Nothing was changed.");
+      }
+    },
+    [teamId, workflowId, reloadAll],
+  );
+
+  /**
+   * 2026-11-27 — the explicit "Request independent review" (BEHAVIOUR-SPEC
+   * §2.1): stored as an escalation that requires an independent second decision.
+   */
+  const postRequestIndependent = useCallback(
+    async (note: string): Promise<string | null> => {
+      if (!teamId) return "No active workspace.";
+      try {
+        await apiFetch(`/v1/reviewer-ops/reviews/${encodeURIComponent(workflowId)}/request-independent-review`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ teamId, note }),
+        });
+        setError(null);
+        setNotice(REQUEST_INDEPENDENT_REVIEW_SUCCESS);
+        setDialog(null);
+        reloadAll();
+        return null;
+      } catch (err) {
+        reloadAll();
+        return notRecordedMessage(refusalMessage(err, "The request could not be recorded."));
       }
     },
     [teamId, workflowId, reloadAll],
@@ -711,7 +806,28 @@ function ReviewWorkspacePageInner() {
   // older API falls back to the envelope rule.
   const canEscalate =
     envelopeMayEscalate && !TERMINAL_LIFECYCLE.includes(p.lifecycleState) && !data.openEscalation;
-  const escalationForcesIndependence = data.viewer?.escalationForcesIndependentReview ?? true;
+  // F-18 — the assessment the decision is compared with: the viewer's own
+  // coded verdict, else the latest one (named by whose it is).
+  const ownVerdict = viewerUserId ? codedVerdicts.find((v) => v.authorUserId === viewerUserId) ?? null : null;
+  const latestVerdict =
+    ownVerdict ?? [...codedVerdicts].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0))[0] ?? null;
+  const assessment: CodedAssessment | null = latestVerdict
+    ? {
+        verdict: latestVerdict.verdict,
+        ownerLabel:
+          ownVerdict || latestVerdict.authorUserId === viewerUserId
+            ? null
+            : (() => {
+                const decided = decisions?.decisions.find((d) => d.reviewer.userId === latestVerdict.authorUserId);
+                return decided ? reviewerName(decided.reviewer) : "Another reviewer";
+              })(),
+      }
+    : null;
+  // F-07 — the challenge panel only where the server offers a challengeable decision.
+  const mayChallenge = Boolean(data.viewer && actions.challenge.allowed && (data.viewer.challengeableDecisionIds?.length ?? 0) > 0);
+  const handoffShown = Boolean(
+    data.handoff && data.handoff.requirement === "second_review" && data.handoff.awaitingAssignment,
+  );
   const deadline = governingDeadlineText(p.slaDimensions);
   const deadlineRows = presentDeadlines(p.slaDimensions);
   const escalationText = data.openEscalation
@@ -740,6 +856,7 @@ function ReviewWorkspacePageInner() {
         escalate: () => setDialog("escalate"),
         archive: () => setDialog("archive"),
         reopen: () => openReason("REOPEN"),
+        request_independent_review: () => setDialog("request_independent_review"),
         go_to_decision: () => goToDecision(null),
       }}
     />
@@ -757,6 +874,10 @@ function ReviewWorkspacePageInner() {
       mayAdjudicate={mayAdjudicate}
       adjudicationBlockedReason={adjudicationBlockedReason}
       focusRequest={focusRequest}
+      handoffShown={handoffShown}
+      onAssignSecondReviewer={mayReassign ? () => setDialog("assign_second_reviewer") : null}
+      staffingLink={<MembersAccessLink testId="review-decision-people-link" />}
+      assessment={assessment}
     />
   );
 
@@ -767,7 +888,7 @@ function ReviewWorkspacePageInner() {
         className="app-secondary-action"
         data-review-previous-item
         disabled={moveState === "loading"}
-        onClick={() => void moveInView(-1)}
+        onClick={() => guardedLeave(() => void moveInView(-1))}
       >
         Previous
       </button>
@@ -776,7 +897,7 @@ function ReviewWorkspacePageInner() {
         className="app-secondary-action"
         data-review-next-item
         disabled={moveState === "loading"}
-        onClick={() => void moveInView(1)}
+        onClick={() => guardedLeave(() => void moveInView(1))}
       >
         Next item
       </button>
@@ -799,12 +920,24 @@ function ReviewWorkspacePageInner() {
       data-review-page
       data-review-mode={focusMode ? "focus" : "standard"}
       header={
-        /* T-072 (stage D) — the compact header: the evidence reference, the
+        /* F-16 — the back link to the Inbox asks first while coding is unsaved. */
+        <div
+          style={{ display: "contents" }}
+          onClickCapture={(e) => {
+            const link = (e.target as HTMLElement | null)?.closest?.("a[data-review-back-link]");
+            if (!link || !hasUnsavedCoding()) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const href = link.getAttribute("href");
+            if (href) setLeaveTarget(() => () => router.push(href));
+          }}
+        >
+        {/* T-072 (stage D) — the compact header: the evidence reference, the
            lifecycle word, the governing deadline, the assignee, the active
            escalation (linking to it in Monitoring) and Open evidence. The
            standalone "Assignment & SLA" card is gone: "Assigned at" is in the
            history, per-deadline detail in Monitoring → Deadlines. Every status
-           is plain text (T-071). */
+           is plain text (T-071). */}
         <ReviewPageHeader
           back={back}
           title={<span data-reviewer-evidence-title>{evidenceName}</span>}
@@ -886,6 +1019,7 @@ function ReviewWorkspacePageInner() {
             </div>
           }
         />
+        </div>
       }
     >
       {notice ? (
@@ -1000,7 +1134,15 @@ function ReviewWorkspacePageInner() {
           {/* Phase B.1-1 — structured reviewer notes. */}
           <ReviewerNotesPanel workflowId={workflowId} teamId={teamId} refreshKey={panelsVersion} />
 
-          <ChallengeDecision teamId={teamId} workflowId={workflowId} viewerUserId={viewerUserId} onFiled={() => reloadAll()} />
+          {mayChallenge ? (
+            <ChallengeDecision
+              teamId={teamId}
+              workflowId={workflowId}
+              viewerUserId={viewerUserId}
+              challengeableDecisionIds={data.viewer?.challengeableDecisionIds ?? []}
+              onFiled={() => reloadAll()}
+            />
+          ) : null}
 
           {/* Phase D3 — Reviewer Copilot (advisory only; final decision stays human). */}
           <div style={{ marginBottom: 12, minWidth: 0 }}>
@@ -1080,7 +1222,24 @@ function ReviewWorkspacePageInner() {
         open={dialog === "escalate"}
         onCancel={() => setDialog(null)}
         onSubmit={postEscalate}
-        forcesIndependentReview={escalationForcesIndependence}
+        teamId={teamId}
+        workflowId={workflowId}
+      />
+      <RequestIndependentReviewDialog
+        open={dialog === "request_independent_review"}
+        onCancel={() => setDialog(null)}
+        onSubmit={postRequestIndependent}
+        teamId={teamId}
+        workflowId={workflowId}
+      />
+      <LeaveUnsavedCodingDialog
+        open={leaveTarget !== null}
+        onStay={() => setLeaveTarget(null)}
+        onLeave={() => {
+          const go = leaveTarget;
+          setLeaveTarget(null);
+          go?.();
+        }}
       />
       <ArchiveDialog open={dialog === "archive"} onCancel={() => setDialog(null)} onSubmit={postArchive} />
 

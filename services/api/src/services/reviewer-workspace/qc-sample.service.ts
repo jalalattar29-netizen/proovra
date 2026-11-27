@@ -233,7 +233,7 @@ export async function assignSample(input: {
           evidenceId: workflow.evidenceId,
         },
         tx,
-        { inTransaction: true },
+        { inTransaction: true, placementRule: "review" },
       );
     } catch (err) {
       if (err instanceof AssigneeEligibilityError) return err.reason;

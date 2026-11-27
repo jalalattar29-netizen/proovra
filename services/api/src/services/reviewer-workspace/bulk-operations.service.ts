@@ -83,6 +83,86 @@ function assignRefusal(workflowId: string, err: unknown): BulkItemOutcome {
 
 const MAX_BULK = 100;
 
+/**
+ * Review remediation 2026-11-27 (F-37, BEHAVIOUR-SPEC §8) — the coded-value
+ * bulk envelope. Bulk decide and bulk code write CODING ONLY (a
+ * `CodingValue` + its `CodingValueHistory` row through `writeCodingValue`);
+ * neither writes a `WorkflowReviewDecision`, so the envelope says
+ * `recordsDecision: false`.
+ *
+ *   - `ok` is false when nothing was written (`succeeded === 0` on a
+ *     non-empty selection): an all-failed batch is never a success.
+ *   - `failed` and `items` (`{workflowId, ok, errorCode, message}`) are the
+ *     common bulk shape the Inbox reads; `outcomes` stays for the audit
+ *     writer and older readers.
+ *   - `httpStatus` is the route's status hint: 200 when every item was
+ *     written, otherwise 207 (partial or all-failed).
+ */
+export type BulkEnvelopeItem = {
+  workflowId: string;
+  ok: boolean;
+  errorCode?: string;
+  message?: string;
+};
+
+export type BulkCodingEnvelope = {
+  ok: boolean;
+  total: number;
+  succeeded: number;
+  failed: number;
+  outcomes: BulkItemOutcome[];
+  items: BulkEnvelopeItem[];
+  recordsDecision: false;
+  httpStatus: 200 | 207;
+};
+
+/** A whole-call refusal (nothing was attempted). */
+export type BulkRefusal = { ok: false; denial: ReviewerDenialReason };
+
+/** True for a whole-call refusal, false for a per-item envelope. */
+export function isBulkRefusal(res: BulkCodingEnvelope | BulkRefusal): res is BulkRefusal {
+  return "denial" in res;
+}
+
+/** A refused row as a person reads it (never exception text). */
+function bulkItemMessage(o: BulkItemOutcome): string {
+  switch (o.denial) {
+    case "WORKFLOW_NOT_FOUND":
+      return "Review not found in this workspace.";
+    case "SCHEMA_NOT_FOUND":
+      return "No coding schema is bound to this review.";
+    case "VERDICT_REQUIRED":
+      return "The bound coding schema has no assessment field.";
+    case "FIELD_NOT_FOUND":
+      return "The bound coding schema has no such field.";
+    case "WORKFLOW_CLOSED":
+      return "The review is closed.";
+    case "NOT_PERMITTED":
+      return "Your role cannot change this review.";
+    default:
+      return "Not changed.";
+  }
+}
+
+export function codingEnvelope(outcomes: BulkItemOutcome[]): BulkCodingEnvelope {
+  const succeeded = outcomes.filter((o) => o.ok).length;
+  const failed = outcomes.length - succeeded;
+  return {
+    ok: outcomes.length === 0 || succeeded > 0,
+    total: outcomes.length,
+    succeeded,
+    failed,
+    outcomes,
+    items: outcomes.map((o) =>
+      o.ok
+        ? { workflowId: o.workflowId, ok: true }
+        : { workflowId: o.workflowId, ok: false, errorCode: o.code ?? o.denial, message: bulkItemMessage(o) },
+    ),
+    recordsDecision: false,
+    httpStatus: failed === 0 ? 200 : 207,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // bulkAssign
 // ---------------------------------------------------------------------------
@@ -167,6 +247,12 @@ export async function bulkAssign(input: {
  * field fall through with `VERDICT_REQUIRED`. The actual workflow
  * status transition continues to run through the existing
  * review-operations service.
+ *
+ * F-37 — this is "Set assessment tag" in the UI. It writes a coded value
+ * only (CodingValue + CodingValueHistory via `writeCodingValue`) and NEVER a
+ * WorkflowReviewDecision: the envelope says `recordsDecision: false`, `ok`
+ * is false when nothing was written, and `httpStatus` is 207 unless every
+ * item was written.
  */
 export async function bulkDecide(input: {
   prisma?: PrismaClient;
@@ -175,12 +261,9 @@ export async function bulkDecide(input: {
   verdict: ReviewerVerdict;
   workflowIds: ReadonlyArray<string>;
   rationale?: string;
-}): Promise<
-  | { ok: true; total: number; succeeded: number; outcomes: BulkItemOutcome[] }
-  | { ok: false; denial: ReviewerDenialReason }
-> {
+}): Promise<BulkCodingEnvelope | BulkRefusal> {
   if (input.workflowIds.length === 0) {
-    return { ok: true, total: 0, succeeded: 0, outcomes: [] };
+    return codingEnvelope([]);
   }
   if (input.workflowIds.length > MAX_BULK) {
     return { ok: false, denial: "RATE_LIMITED" };
@@ -230,12 +313,7 @@ export async function bulkDecide(input: {
       outcomes.push({ workflowId: id, ok: false, denial: wrote.denial });
     }
   }
-  return {
-    ok: true,
-    total: outcomes.length,
-    succeeded: outcomes.filter((o) => o.ok).length,
-    outcomes,
-  };
+  return codingEnvelope(outcomes);
 }
 
 // ---------------------------------------------------------------------------
@@ -249,12 +327,9 @@ export async function bulkCode(input: {
   fieldSlug: string;
   value: Record<string, unknown>;
   workflowIds: ReadonlyArray<string>;
-}): Promise<
-  | { ok: true; total: number; succeeded: number; outcomes: BulkItemOutcome[] }
-  | { ok: false; denial: ReviewerDenialReason }
-> {
+}): Promise<BulkCodingEnvelope | BulkRefusal> {
   if (input.workflowIds.length === 0) {
-    return { ok: true, total: 0, succeeded: 0, outcomes: [] };
+    return codingEnvelope([]);
   }
   if (input.workflowIds.length > MAX_BULK) {
     return { ok: false, denial: "RATE_LIMITED" };
@@ -296,10 +371,5 @@ export async function bulkCode(input: {
         : { workflowId: id, ok: false, denial: res.denial },
     );
   }
-  return {
-    ok: true,
-    total: outcomes.length,
-    succeeded: outcomes.filter((o) => o.ok).length,
-    outcomes,
-  };
+  return codingEnvelope(outcomes);
 }

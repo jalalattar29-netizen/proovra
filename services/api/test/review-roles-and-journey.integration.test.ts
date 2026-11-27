@@ -97,6 +97,45 @@ const allCustody = (ev: string) => prisma.custodyEvent.count({ where: { evidence
 /** Review activity is in the tenant audit, keyed to the workflow. */
 const reviewAudits = async (ev: string, action: string) =>
   prisma.adminAuditLog.count({ where: { resourceId: (await workflowOf(ev)).id, action } });
+/**
+ * Review remediation (2026-11-27) — COMPATIBILITY: before the remediation a
+ * request for information was recorded as a FIRST decision row (REQUEST_INFO)
+ * that settled its round. Existing records keep that meaning; this seeds one
+ * exactly as an earlier build wrote it (optionally without a round on its
+ * event, as builds before rounds were logged did).
+ */
+async function legacyRequestInfo(ev: string, opts: { withRound: boolean }): Promise<void> {
+  const wf = await workflowOf(ev);
+  const row = await prisma.workflowReviewDecision.create({
+    data: {
+      workflowId: wf.id,
+      teamId: wf.teamId as string,
+      stage: "FIRST",
+      reviewerUserId: A.memberUserId,
+      decision: "REQUEST_INFO",
+      rationale: "need the original",
+      round: wf.decisionRound,
+    } as never,
+  });
+  await prisma.evidenceReviewWorkflowEvent.create({
+    data: {
+      workflowId: wf.id,
+      evidenceId: ev,
+      actorUserId: A.memberUserId,
+      eventType: "DECISION_LOGGED",
+      previousValue: { stage: "IN_REVIEW" },
+      nextValue: {
+        decisionId: row.id,
+        decision: "REQUEST_INFO",
+        decisionStage: "FIRST",
+        state: "resolved",
+        stage: "NEEDS_MORE_INFO",
+        ...(opts.withRound ? { round: wf.decisionRound } : {}),
+      },
+    } as never,
+  });
+  await prisma.evidenceReviewWorkflow.update({ where: { id: wf.id }, data: { status: "NEEDS_INFO" } as never });
+}
 async function offered(token: string, ev: string) {
   const res = await call(token, "GET", `/v1/evidence/${ev}/review-workspace`);
   if (res.status !== 200) return { status: res.status, actions: null, attention: null };
@@ -306,16 +345,15 @@ describe("one journey: rounds, concurrency, escalation routing, Close and the le
     const item1 = (adminInbox.body.items as Array<{ id: string; title: string }>).find((i) => i.id === `review_escalation:${esc1.id}`);
     expect(item1?.title).toMatch(/^Review escalated to your workspace's admins/);
 
-    // An escalated review takes a second, independent verdict: the reviewer
-    // rejects (FIRST, round 1) and the review waits; the admin rejects
-    // (SECOND) and the round resolves — which resolves the escalation.
+    // Review remediation (2026-11-27): an ADMINISTRATIVE escalation (the
+    // reviewer asked the admins to look) adds no second reviewer. The
+    // assignee's verdict finishes the round — which resolves the escalation —
+    // and a replay records nothing. (The independent path, an explicit request
+    // or an integrity reason, is proven in review-remediation-policy.)
+    expect(esc1.requiresIndependentReview).toBe(false);
     expect((await decide(A.memberToken, ev, "REJECT_INSUFFICIENT", "insufficient")).status).toBe(200);
-    expect((await workflowOf(ev)).status).toBe("ESCALATED");
-    expect((await decide(A.memberToken, ev, "REJECT_INSUFFICIENT", "again")).status).toBe(200); // idempotent replay
-    await reassignTo(ev, A.adminUserId); // TEAM-SPEC R3: the SECOND reviewer is the reassigned one
-    const second = await decide(A.adminToken, ev, "REJECT_INSUFFICIENT", "agreed, insufficient");
-    expect(second.status).toBe(200);
     expect((await workflowOf(ev)).status).toBe("REJECTED_INSUFFICIENT");
+    expect((await decide(A.memberToken, ev, "REJECT_INSUFFICIENT", "again")).status).toBe(200); // idempotent replay
     expect((await prisma.reviewEscalation.findUniqueOrThrow({ where: { id: esc1.id } })).status).toBe("RESOLVED");
 
     // Reopen → round 2; escalate again; Close resolves that escalation.
@@ -334,7 +372,6 @@ describe("one journey: rounds, concurrency, escalation routing, Close and the le
     expect(decisions.map((d) => [d.round, d.stage, d.decision, d.reviewerUserId])).toEqual([
       [0, "FIRST", "APPROVE", A.memberUserId],
       [1, "FIRST", "REJECT", A.memberUserId],
-      [1, "SECOND", "REJECT", A.adminUserId],
     ]);
     const events = (await prisma.evidenceReviewWorkflowEvent.findMany({ where: { evidenceId: ev }, orderBy: { createdAt: "asc" } })).map((e) => e.eventType);
     expect(events.filter((e) => e === "CREATED")).toHaveLength(1);
@@ -342,7 +379,7 @@ describe("one journey: rounds, concurrency, escalation routing, Close and the le
     expect(events.filter((e) => e === "REOPENED")).toHaveLength(2);
     expect(events.filter((e) => e === "ESCALATED")).toHaveLength(2);
     expect(events.filter((e) => e === "CLOSED")).toHaveLength(1);
-    expect(events.filter((e) => e === "DECISION_LOGGED")).toHaveLength(3);
+    expect(events.filter((e) => e === "DECISION_LOGGED")).toHaveLength(2);
     expect(await prisma.reviewEscalation.count({ where: { workflowId: wf.id } })).toBe(2);
     expect(await prisma.reviewEscalation.count({ where: { workflowId: wf.id, status: "OPEN" } })).toBe(0);
     // The stale edit and the refused verdicts left no trace.
@@ -377,15 +414,20 @@ describe("audit findings — second review, reconcile, races, editor Close, Begi
     await begin(A.memberToken, ev);
   };
 
-  it("F1/F2 — under a legal hold a request for information is the FIRST of two reviews: the second reviewer is offered a verdict, the first waits, and a disagreement goes to adjudication in the SAME round", async () => {
+  it("F1/F2 (review remediation 2026-11-27) — under a legal hold a request for information is a workflow action, not one of the two reviews: the verdicts after it are the FIRST and the independent SECOND", async () => {
     await setPlan(A, "TEAM");
     const ev = await freshEvidence(A, "f1-second-review");
     await holdOn(ev);
     await claimed(ev);
     expect((await decide(A.memberToken, ev, "REQUEST_MORE_INFO", "need the original")).status).toBe(200);
     let wf = await workflowOf(ev);
-    // The round is not finished: a second review is required.
+    // No decision slot was consumed; the review waits for information.
+    expect(wf.status).toBe("NEEDS_INFO");
     expect(wf.decisionRound).toBe(0);
+    expect(await prisma.workflowReviewDecision.count({ where: { workflowId: wf.id } })).toBe(0);
+    await begin(A.memberToken, ev); // information received; the review resumes
+    expect((await decide(A.memberToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
+    // The hold requires an independent second decision: the first waits.
     expect((await offered(A.memberToken, ev)).actions!.APPROVE_INTERNAL.blockedBy).toBe("AWAITING_SECOND_REVIEWER");
     await reassignTo(ev, A.adminUserId); // TEAM-SPEC R3
     expect((await offered(A.adminToken, ev)).actions!.APPROVE_INTERNAL.enabled).toBe(true);
@@ -393,11 +435,11 @@ describe("audit findings — second review, reconcile, races, editor Close, Begi
     wf = await workflowOf(ev);
     const rows = await prisma.workflowReviewDecision.findMany({ where: { workflowId: wf.id }, orderBy: { decidedAt: "asc" } });
     expect(rows.map((r) => [r.round, r.stage, r.decision])).toEqual([
-      [0, "FIRST", "REQUEST_INFO"],
+      [0, "FIRST", "APPROVE"],
       [0, "SECOND", "APPROVE"],
     ]);
     expect(wf.decisionRound).toBe(0);
-    expect((await offered(A.memberToken, ev)).actions!.APPROVE_INTERNAL.enabled).toBe(false);
+    expect(wf.status).toBe("APPROVED_INTERNAL");
   });
 
   it("F3 — reconcile never undoes a review that continued after a request for information", async () => {
@@ -582,31 +624,42 @@ describe("second audit — escalation atomicity, settled requests, repeated requ
     }
   });
 
-  it("#2 — a request that settled its round stays settled when the review is escalated: the next verdict opens a new round, never a 'disagreement'", async () => {
+  it("#2 — a LEGACY request that settled its round stays settled when the review is escalated: the next verdict opens a new round, never a 'disagreement'", async () => {
     await setPlan(A, "TEAM");
     const ev = await freshEvidence(A, "audit2-settled");
     await claimed(ev);
-    expect((await decide(A.memberToken, ev, "REQUEST_MORE_INFO", "need the original")).status).toBe(200);
-    expect((await workflowOf(ev)).status).toBe("NEEDS_INFO");
+    await legacyRequestInfo(ev, { withRound: true });
     expect((await decide(A.memberToken, ev, "ESCALATE", "counsel please")).status).toBe(200);
     // The page offers the admin a verdict — not adjudication.
     await reassignTo(ev, A.adminUserId); // TEAM-SPEC R3
     expect((await offered(A.adminToken, ev)).actions!.APPROVE_INTERNAL.enabled).toBe(true);
     expect((await decide(A.adminToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
-    let wf = await workflowOf(ev);
+    const wf = await workflowOf(ev);
     expect(wf.decisionRound).toBe(1);
     const rows = await prisma.workflowReviewDecision.findMany({ where: { workflowId: wf.id }, orderBy: { decidedAt: "asc" } });
     expect(rows.map((r) => [r.round, r.stage, r.decision])).toEqual([
       [0, "FIRST", "REQUEST_INFO"],
       [1, "FIRST", "APPROVE"],
     ]);
-    // An escalated review takes a second review: the admin waits, the member decides.
-    expect(wf.status).toBe("ESCALATED");
-    expect((await offered(A.adminToken, ev)).actions!.APPROVE_INTERNAL.blockedBy).toBe("AWAITING_SECOND_REVIEWER");
-    await reassignTo(ev, A.memberUserId); // TEAM-SPEC R3: the independent SECOND reviewer
-    expect((await offered(A.memberToken, ev)).actions!.APPROVE_INTERNAL.enabled).toBe(true);
-    expect((await decide(A.memberToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
-    wf = await workflowOf(ev);
+    // Review remediation: the escalation was administrative, so the verdict
+    // finishes the round and resolves it.
+    expect(wf.status).toBe("APPROVED_INTERNAL");
+    expect(await openEscalations(ev)).toBe(0);
+  });
+
+  it("#2b (review remediation) — a request for information followed by an administrative escalation: the next verdict is the round's FIRST and finishes it", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "audit2-settled-new");
+    await claimed(ev);
+    expect((await decide(A.memberToken, ev, "REQUEST_MORE_INFO", "need the original")).status).toBe(200);
+    expect((await workflowOf(ev)).status).toBe("NEEDS_INFO");
+    expect((await decide(A.memberToken, ev, "ESCALATE", "counsel please")).status).toBe(200);
+    await reassignTo(ev, A.adminUserId);
+    expect((await decide(A.adminToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
+    const wf = await workflowOf(ev);
+    expect(wf.decisionRound).toBe(0);
+    const rows = await prisma.workflowReviewDecision.findMany({ where: { workflowId: wf.id } });
+    expect(rows.map((r) => [r.round, r.stage, r.decision])).toEqual([[0, "FIRST", "APPROVE"]]);
     expect(wf.status).toBe("APPROVED_INTERNAL");
     expect(await openEscalations(ev)).toBe(0);
   });
@@ -618,16 +671,20 @@ describe("second audit — escalation atomicity, settled requests, repeated requ
     expect((await decide(A.memberToken, ev, "REQUEST_MORE_INFO", "first ask")).status).toBe(200);
     const replay = await decide(A.memberToken, ev, "REQUEST_MORE_INFO", "first ask");
     expect(replay.status).toBe(200);
+    const asked = async () =>
+      prisma.evidenceReviewWorkflowEvent.count({ where: { evidenceId: ev, eventType: "NEEDS_MORE_INFO" } });
+    expect(await asked()).toBe(1); // the replay recorded nothing
     expect((await workflowOf(ev)).decisionRound).toBe(0);
     await begin(A.memberToken, ev); // resumed
     expect((await offered(A.memberToken, ev)).actions!.REQUEST_MORE_INFO.enabled).toBe(true);
     expect((await decide(A.memberToken, ev, "REQUEST_MORE_INFO", "second ask")).status).toBe(200);
     const wf = await workflowOf(ev);
     expect(wf.status).toBe("NEEDS_INFO");
-    expect(wf.decisionRound).toBe(1);
-    expect(
-      await prisma.workflowReviewDecision.count({ where: { workflowId: wf.id, decision: "REQUEST_INFO" } }),
-    ).toBe(2);
+    // Review remediation: a request is not a decision — no slot used, no new
+    // round (there was no first decision to supersede).
+    expect(wf.decisionRound).toBe(0);
+    expect(await prisma.workflowReviewDecision.count({ where: { workflowId: wf.id } })).toBe(0);
+    expect(await asked()).toBe(2);
   });
 
   it("#4 — Close resolves EVERY open escalation on the review, not only the newest", async () => {
@@ -705,8 +762,12 @@ describe("Review activity is audited exactly once, in the action's own transacti
     const custodyBefore = await allCustody(ev);
     expect((await decide(A.memberToken, ev, "ESCALATE", "counsel")).status).toBe(200);
     expect(await reviewAudits(ev, "review.escalation.created")).toBe(1);
-    // Escalated → a second review is required: the FIRST verdict moves no
-    // stage, but it is still a recorded decision.
+    // A legal hold requires a second review (review remediation: an
+    // administrative Escalate alone no longer does): the FIRST verdict moves
+    // no stage, but it is still a recorded decision.
+    await prisma.evidenceLegalHold.create({
+      data: { scope: "EVIDENCE", evidenceId: ev, teamId: A.teamId, status: "ACTIVE", title: "Litigation hold", placedByUserId: A.ownerUserId } as never,
+    });
     expect((await decide(A.memberToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
     expect((await workflowOf(ev)).status).toBe("ESCALATED");
     expect(await reviewAudits(ev, "review.decision.recorded")).toBe(1);
@@ -805,17 +866,12 @@ describe("third audit — side effects after commit, legacy rounds, console, cus
     expect(await securityNow()).toBe(securityBefore + 1);
   });
 
-  it("a request recorded before rounds were logged still settles its round (legacy event without a round)", async () => {
+  it("a LEGACY request recorded before rounds were logged still settles its round (legacy event without a round)", async () => {
     await setPlan(A, "TEAM");
     const ev = await freshEvidence(A, "audit3-legacy");
     await claimed(ev);
-    expect((await decide(A.memberToken, ev, "REQUEST_MORE_INFO", "need the original")).status).toBe(200);
-    const wf0 = await workflowOf(ev);
-    // As an earlier build wrote it: the same event, with no round.
-    await prisma.$executeRawUnsafe(
-      `UPDATE evidence_review_workflow_events SET next_value = next_value - 'round' WHERE workflow_id = $1::uuid AND event_type = 'DECISION_LOGGED'`,
-      wf0.id,
-    );
+    // As an earlier build wrote it: a REQUEST_INFO decision row and its event, with no round.
+    await legacyRequestInfo(ev, { withRound: false });
     expect((await decide(A.memberToken, ev, "ESCALATE", "counsel please")).status).toBe(200);
     await reassignTo(ev, A.adminUserId); // TEAM-SPEC R3
     expect((await offered(A.adminToken, ev)).actions!.APPROVE_INTERNAL.enabled).toBe(true);
@@ -829,18 +885,27 @@ describe("third audit — side effects after commit, legacy rounds, console, cus
 
   it("the reviewer console reads a settled round as the authority does", async () => {
     await setPlan(A, "TEAM");
+    // Legacy: a round settled by a REQUEST_INFO decision row continues in a fresh round.
     const ev = await freshEvidence(A, "audit3-console");
     await claimed(ev);
-    expect((await decide(A.memberToken, ev, "REQUEST_MORE_INFO", "need more")).status).toBe(200);
+    await legacyRequestInfo(ev, { withRound: true });
     expect((await decide(A.memberToken, ev, "ESCALATE", "counsel")).status).toBe(200);
     const wf = await workflowOf(ev);
     const res = await call(A.adminToken, "GET", `/v1/reviewer-ops/workspace/${wf.id}/decisions?teamId=${A.teamId}`);
     expect(res.status, JSON.stringify(res.body)).toBe(200);
-    // Settled by the request: the next verdict opens a new round, never
-    // "second" — the lineage reads the CURRENT round as the authority does
-    // (Team remediation: loadCurrentRoundDecisionState), i.e. a fresh round.
     expect(res.body.state).toBe("first_required");
     expect(res.body.continuedFrom).toBe("request_info");
+
+    // Review remediation: a request now is a workflow action — the round is
+    // still awaiting its FIRST decision and the history lists the request.
+    const ev2 = await freshEvidence(A, "audit3-console-new");
+    await claimed(ev2);
+    expect((await decide(A.memberToken, ev2, "REQUEST_MORE_INFO", "need more")).status).toBe(200);
+    const wf2 = await workflowOf(ev2);
+    const res2 = await call(A.adminToken, "GET", `/v1/reviewer-ops/workspace/${wf2.id}/decisions?teamId=${A.teamId}`);
+    expect(res2.status, JSON.stringify(res2.body)).toBe(200);
+    expect(res2.body.state).toBe("first_required");
+    expect(res2.body.informationRequests).toHaveLength(1);
   });
 
   it("Review edits write no custody; the audit records only a real change (no status, the same status, bulk Mark in review on a review in review)", async () => {
