@@ -394,12 +394,12 @@ describe("Review / Custody / Artifact boundary (Postgres + Redis + MinIO, real w
     expect((await call("PATCH", `/v1/evidence/${evidenceId}/reviewer-workflow`, A().memberToken, { status: "IN_REVIEW", expectedUpdatedAt: wf2.updatedAt.toISOString() })).statusCode).toBe(200);
     expect((await decide("ESCALATE", SENTINEL_NOTE)).statusCode).toBe(200);
     // TEAM-SPEC R3 (2026-11-23) — each decision is the current assignee's: the
-    // review is handed to the admin (FIRST of round 1), then back to the member
-    // (the independent SECOND).
+    // review is handed to the admin. Review remediation (2026-11-27): the
+    // Escalate above is administrative and adds no second reviewer, so the
+    // admin's decision finishes the review; a second approval is refused.
     await prisma.evidenceReviewWorkflow.update({ where: { evidenceId }, data: { assignedToUserId: A().adminUserId } });
     expect((await call("POST", `/v1/review-operations/evidence/${evidenceId}/decision`, A().adminToken, { decision: "APPROVE_INTERNAL", note: "Looks complete" })).statusCode).toBe(200);
-    await prisma.evidenceReviewWorkflow.update({ where: { evidenceId }, data: { assignedToUserId: A().memberUserId } });
-    expect((await call("POST", `/v1/review-operations/evidence/${evidenceId}/decision`, A().memberToken, { decision: "APPROVE_INTERNAL", note: "Looks complete" })).statusCode).toBe(200);
+    expect((await prisma.evidenceReviewWorkflow.findUniqueOrThrow({ where: { evidenceId } })).status).toBe("APPROVED_INTERNAL");
     expect((await call("POST", `/v1/review-operations/evidence/${evidenceId}/decision`, A().adminToken, { decision: "CLOSE", note: "closing" })).statusCode).toBe(200);
     expect((await call("POST", `/v1/review-operations/evidence/${evidenceId}/decision`, A().adminToken, { decision: "REOPEN", note: "again" })).statusCode).toBe(200);
 
@@ -411,8 +411,10 @@ describe("Review / Custody / Artifact boundary (Postgres + Redis + MinIO, real w
     const st = await status();
     expect(st.outputs.freshness?.hasNewerFacts ?? false).toBe(false);
     // Durable in Review history and the tenant audit.
+    // claim, start, information request, resume, escalate, decision, close, reopen.
     expect(await prisma.evidenceReviewWorkflowEvent.count({ where: { workflowId: wf0.id, createdAt: { gt: wf0.updatedAt } } })).toBeGreaterThanOrEqual(8);
-    expect(await prisma.workflowReviewDecision.count({ where: { workflowId: wf0.id } })).toBeGreaterThanOrEqual(3);
+    // The request for information is a workflow action (no decision row); the approval is one.
+    expect(await prisma.workflowReviewDecision.count({ where: { workflowId: wf0.id } })).toBeGreaterThanOrEqual(1);
     const audit = await prisma.adminAuditLog.findMany({
       where: { workspaceId: A().teamId, action: { startsWith: "review" }, createdAt: { gt: wf0.updatedAt } } as never,
       select: { action: true },
