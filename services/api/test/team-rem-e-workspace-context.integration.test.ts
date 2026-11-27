@@ -133,7 +133,15 @@ afterAll(async () => {
 }, 300_000);
 
 describe("T-097 / T-098 — the placement prerequisite is visible before a refusal", () => {
-  it("the picker marks an unplaced member not assignable; the claim refusal uses the canonical code", async () => {
+  it("the picker marks an unplaced member not assignable; the claim refusal uses the canonical code (Review placement policy on)", async () => {
+    // Review remediation (2026-11-27): on Team / Pro, Review placement is
+    // required only by the workspace's explicit Review policy. This proof runs
+    // with it ON; the default (off) is the next case.
+    await prisma.workspaceGovernancePolicy.upsert({
+      where: { teamId: T.teamId },
+      update: { reviewRequiresTeamPlacement: true },
+      create: { teamId: T.teamId, reviewRequiresTeamPlacement: true },
+    });
     const H = { "x-proovra-workspace-id": T.teamId };
     const placed = await member(T.teamId, T.owner.userId, "MEMBER", "placed", true);
     const unplaced = await member(T.teamId, T.owner.userId, "MEMBER", "unplaced", false);
@@ -152,6 +160,27 @@ describe("T-097 / T-098 — the placement prerequisite is visible before a refus
     expect(claim.status, claim.raw).toBe(422);
     expect(claim.body.error.code).toBe("REVIEW_ASSIGNEE_NOT_PLACED");
     expect(claim.body.error.details.reason).toBe("assignee_not_placed");
+    await prisma.workspaceGovernancePolicy.update({ where: { teamId: T.teamId }, data: { reviewRequiresTeamPlacement: false } });
+  });
+
+  it("with the Review placement policy off (the default) an unplaced member is assignable and may claim", async () => {
+    await prisma.workspaceGovernancePolicy.upsert({
+      where: { teamId: T.teamId },
+      update: { reviewRequiresTeamPlacement: false },
+      create: { teamId: T.teamId, reviewRequiresTeamPlacement: false },
+    });
+    const H = { "x-proovra-workspace-id": T.teamId };
+    const unplaced = await member(T.teamId, T.owner.userId, "MEMBER", "unplaced-off", false);
+    const res = await call(T.owner.token, "GET", `/v1/reviewer-ops/assignable-reviewers?teamId=${T.teamId}&limit=200`, undefined, H);
+    expect(res.status, res.raw).toBe(200);
+    const row = (res.body.reviewers as Array<{ userId: string; placed: boolean; notAssignableReason: string | null }>).find((r) => r.userId === unplaced.userId);
+    expect(row).toMatchObject({ notAssignableReason: null });
+    const evidenceId = await evidenceIn(T.teamId, T.owner.userId);
+    await prisma.evidenceReviewWorkflow.create({
+      data: { evidenceId, teamId: T.teamId, status: "QUEUED", workspaceType: "TEAM" } as never,
+    });
+    const claim = await call(unplaced.token, "POST", `/v1/review-operations/evidence/${evidenceId}/claim`, { teamId: T.teamId }, H);
+    expect(claim.status, claim.raw).toBe(200);
   });
 
   it("Enterprise: a contract that does not require placement lists an unplaced member as placed", async () => {

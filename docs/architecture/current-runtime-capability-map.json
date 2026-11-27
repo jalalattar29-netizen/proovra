@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "3ec8d4aa2d9f8dfbc5182e2a95e1cc01ccb639be6bf6d5ea953fdf27a7f29538",
-  "consumerInventoryHash": "883e6cc17546814ad8709d155d86b676a8174a53a94583c73a6a729beb42a12c",
+  "consumerInventoryHash": "a917c951aefd183616a770cf551ca7d7c13358d7a4701b85e6fa4c3b230442fe",
   "dispositionsHash": "5472155ec04ac336267e75a6cb759f22ce11dced779d3370d0c8d1f974d1651f",
   "totals": {
     "RegisteredRoutes": 1278,
@@ -14416,7 +14416,7 @@
       "method": "POST",
       "route": "/v1/reviewer-ops/reviews/bulk",
       "registeringFile": "services/api/src/routes/reviewer-ops.routes.ts",
-      "productConsumer": "apps/web/components/reviewer-experience/ReviewerBulkOpsBar.tsx:400",
+      "productConsumer": "apps/web/components/reviewer-experience/ReviewerBulkOpsBar.tsx:412",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -206557,7 +206557,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/reviewer-experience/ReviewerBulkOpsBar.tsx",
-          "line": 400,
+          "line": 412,
           "caller": "send",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -206567,7 +206567,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/reviewer-experience/ReviewerBulkOpsBar.tsx:400 (send, WEB)",
+      "dispositionEvidence": "apps/web/components/reviewer-experience/ReviewerBulkOpsBar.tsx:412 (send, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

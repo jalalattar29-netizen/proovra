@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 401,
-    "classifiedMigrations": 401,
+    "filesystemMigrations": 402,
+    "classifiedMigrations": 402,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 401,
+    "productionSnapshotUnknown": 402,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 401,
-    "classifiedMigrations": 401,
+    "filesystemMigrations": 402,
+    "classifiedMigrations": 402,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 401,
+    "productionSnapshotUnknown": 402,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 162,
+      "EXPAND": 163,
       "BACKFILL": 36,
       "CONTRACT_DROP": 12,
       "REPAIR": 6
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 183,
+      "SAFE_TO_APPLY_NOW": 184,
       "WAIT_FOR_BACKFILL_READINESS": 14,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 7
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 401
+    "ProductionMigrationStateUnknown": 402
   },
   "gateFailures": [],
   "migrations": [
@@ -29807,8 +29807,78 @@
       "evidence": "Team remediation stage C (T-044, 2026-11-24). One nullable evidence_review_workflows.first_decided_at_utc TIMESTAMPTZ(6): no default, no index, no backfill in the migration (metadata-only lock). The decision authority writes it with a review's first recorded decision; the presented first-review SLA dimension completes on it instead of on Start. Older rows are filled from the immutable decision log by the idempotent, audited repair job ops:repair-review-sla-truth --apply. An older image never reads or writes it. Order: migration, then worker (its schema head names this migration) and API. Rollback: leave the column."
     },
     {
-      "name": "email_password_auth",
+      "name": "20281127120000_review_remediation_policy",
       "order": 400,
+      "sqlPresent": true,
+      "byteLength": 1267,
+      "checksumSha256": "4602e61a7b9aebadba2e2d786ed53b75a746fa0e5e21122e6b64a26ee3791d07",
+      "checksumSha256Raw": "4602e61a7b9aebadba2e2d786ed53b75a746fa0e5e21122e6b64a26ee3791d07",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": "d1592449e8c6187af4fd061e0f1a3fd65adb70ac",
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:6 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "review_escalations",
+          "workspace_governance_policies"
+        ],
+        "addedColumns": [
+          "independence_note",
+          "requires_independent_review",
+          "review_requires_complete_coding",
+          "review_requires_complete_coding_since",
+          "review_requires_independent_approval",
+          "review_requires_team_placement"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260517100000_add_governance_phase9",
+        "20260601100000_add_reviewer_operations_phase25"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='review_escalations' AND column_name IN ('requires_independent_review','independence_note')) = 2 AND (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='workspace_governance_policies' AND column_name IN ('review_requires_independent_approval','review_requires_team_placement','review_requires_complete_coding','review_requires_complete_coding_since')) = 4;\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "Review remediation (2026-11-27). Two nullable columns on review_escalations (requires_independent_review BOOLEAN, independence_note VARCHAR(400)) and four on workspace_governance_policies (three BOOLEAN NOT NULL DEFAULT false, one nullable TIMESTAMPTZ). No index, no backfill (metadata-only on PostgreSQL 11+). NULL requires_independent_review is read with the legacy rule, so existing escalations keep their behaviour until an owner approves the scoped reconciliation (services/api/src/scripts/review-remediation-reconcile.ts). Order: migration, then worker (its schema head names this migration) and API. An older image never reads or writes the columns. Rollback: leave the columns."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 401,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

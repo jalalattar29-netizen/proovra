@@ -1,6 +1,6 @@
 {
   "contractVersion": 1,
-  "routeEpoch": 6,
+  "routeEpoch": 7,
   "routes": [
     "DELETE /v1/admin/identity/scim/groups/projections/:id",
     "DELETE /v1/auth/saml/:connectionId/certificate-next",
@@ -1105,6 +1105,7 @@
     "POST /v1/reviewer-ops/reviews/:workflowId/pause",
     "POST /v1/reviewer-ops/reviews/:workflowId/reassign",
     "POST /v1/reviewer-ops/reviews/:workflowId/reject",
+    "POST /v1/reviewer-ops/reviews/:workflowId/request-independent-review",
     "POST /v1/reviewer-ops/reviews/:workflowId/request-info",
     "POST /v1/reviewer-ops/reviews/:workflowId/response-received",
     "POST /v1/reviewer-ops/reviews/:workflowId/resume",

@@ -77,7 +77,7 @@
       "machineOnlyConsumerRoutes": 7,
       "noConsumerRoutes": 209,
       "wrongOriginConsumers": 0,
-      "consumerInventoryHash": "883e6cc17546814ad8709d155d86b676a8174a53a94583c73a6a729beb42a12c"
+      "consumerInventoryHash": "a917c951aefd183616a770cf551ca7d7c13358d7a4701b85e6fa4c3b230442fe"
     },
     "capabilities": {
       "totalRoutes": 1278,
@@ -223,7 +223,7 @@
       "problemCount": 0
     },
     "auditGovernance": {
-      "AuditFilesInventoried": 540,
+      "AuditFilesInventoried": 541,
       "AuditFilesUnclassified": 0,
       "AuditArtifactProducersUnknown": 0,
       "AuditArtifactConsumersUnknown": 0,
@@ -272,7 +272,7 @@
       "ProductionRuntimeFilesModifiedByPhase0": 0,
       "ProductBehaviorTestsRemoved": 0,
       "HistoricalMigrationsModifiedByPhase0": 0,
-      "ProductBehaviorTestsInventoried": 447
+      "ProductBehaviorTestsInventoried": 448
     },
     "proofFreshness": {
       "domainProofsRead": 10,
@@ -343,8 +343,8 @@
       "binding": "CONTENT_ONLY",
       "bindingValue": null,
       "schemaVersion": null,
-      "contentHash": "7e2afb7cc8141f7b588acd328fdb771b9e57e447660edcdb4f0a981c55ec905e",
-      "byteLength": 1453846,
+      "contentHash": "ec1dad3166ad9dcd4ad562bc1d616b8668d87b1adf21d0d3c6aa3219c04cc1ac",
+      "byteLength": 1457690,
       "present": true,
       "freshness": "BOUND_BY_CONTENT",
       "why": "One record per migration directory on disk. The source engine never classifies migrations; this is the database domain's own authority."

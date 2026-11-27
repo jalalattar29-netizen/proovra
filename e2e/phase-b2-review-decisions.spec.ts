@@ -259,7 +259,11 @@ test.describe("Phase B.2 — multi-stage review governance @critical", () => {
     expect(src).toContain("duplicate_stage_decision");
     // Policy triggers for second review
     expect(secondReview).toContain("workflow_escalated");
-    expect(secondReview).toContain("open_escalation");
+    // Review remediation (2026-11-27): an escalation forces through the one
+    // shared rule (explicit / integrity / legacy cause); `open_escalation`
+    // remains the recorded pre-change cause name in shared.
+    expect(secondReview).toContain("escalationIndependenceCause");
+    expect(stateMachine).toContain("\"open_escalation\"");
     expect(secondReview).toContain("active_legal_hold");
     expect(secondReview).toContain("redaction_required");
     // Audit emission per stage

@@ -225,7 +225,19 @@ export function BulkResultReport({
       ? ""
       : `${report!.label}: ${result.succeeded} updated${result.failed > 0 ? ` · ${result.failed} not changed` : ""}`;
   return (
-    <div className="review-bulk-report" data-reviewer-bulk-report={result ? (allFailed ? "failed" : result.failed > 0 ? "partial" : "ok") : "none"}>
+    <div
+      className="review-bulk-report"
+      data-reviewer-bulk-report={result ? (allFailed ? "failed" : result.failed > 0 ? "partial" : "ok") : "none"}
+      // The stable marker of the last bulk result (Phase B-1 contract), with its counts.
+      data-reviewer-bulk-last-result
+      {...(result
+        ? {
+            "data-reviewer-bulk-last-total": result.total,
+            "data-reviewer-bulk-last-succeeded": result.succeeded,
+            "data-reviewer-bulk-last-failed": result.failed,
+          }
+        : {})}
+    >
       <p role="status" aria-live="polite" className="review-bulk-report__status" data-reviewer-bulk-status>
         {summary}
       </p>
