@@ -400,6 +400,8 @@ describe("Review / Custody / Artifact boundary (Postgres + Redis + MinIO, real w
     await prisma.evidenceReviewWorkflow.update({ where: { evidenceId }, data: { assignedToUserId: A().adminUserId } });
     expect((await call("POST", `/v1/review-operations/evidence/${evidenceId}/decision`, A().adminToken, { decision: "APPROVE_INTERNAL", note: "Looks complete" })).statusCode).toBe(200);
     expect((await prisma.evidenceReviewWorkflow.findUniqueOrThrow({ where: { evidenceId } })).status).toBe("APPROVED_INTERNAL");
+    // Handed back to the member, who holds the review in the next test (as before).
+    await prisma.evidenceReviewWorkflow.update({ where: { evidenceId }, data: { assignedToUserId: A().memberUserId } });
     expect((await call("POST", `/v1/review-operations/evidence/${evidenceId}/decision`, A().adminToken, { decision: "CLOSE", note: "closing" })).statusCode).toBe(200);
     expect((await call("POST", `/v1/review-operations/evidence/${evidenceId}/decision`, A().adminToken, { decision: "REOPEN", note: "again" })).statusCode).toBe(200);
 
