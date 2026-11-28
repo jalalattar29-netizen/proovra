@@ -2508,7 +2508,10 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
   it("F-14 closure: the leak check is semantic — a signing instant of 00:52:52.520Z (Main's failure) is not a coordinate", async () => {
     // The exact condition of the clean-db failure: every timestamp in the
     // package reads "…:52:52.520Z". The package still carries no location.
-    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-22T00:52:52.520Z"), shouldAdvanceTime: true });
+    // The clock is frozen, not advancing: with shouldAdvanceTime the first stamp
+    // landed 160 ms late on a loaded CI runner ("…52.680Z"), the precondition
+    // below failed, and the case did not exercise the collision it exists for.
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-22T00:52:52.520Z"), shouldAdvanceTime: false });
     let entries: Map<string, Buffer>;
     try {
       entries = await externalPackageEntries({});

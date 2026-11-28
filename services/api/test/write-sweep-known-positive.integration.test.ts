@@ -17,6 +17,14 @@ import type { IntegrationHarness } from "./integration-harness.js";
 import { buildSweepWorld } from "./support/write-sweep-world.js";
 import { WRITE_METHODS, liveRoutes, type RouteResult, type WriteSweep } from "./support/write-sweep-engine.js";
 
+// The same kill switch as the full sweep (write-route-authorization-sweep): since
+// T-038 every session is anchored to its workspace, and the sampled heartbeat
+// (auth.ts, fire-and-forget, not a route handler) stamps the caller's own session
+// and membership rows. Landing inside an attack's window, it read as that attack's
+// write (REFUSED_BUT_WROTE on authenticated_sessions/team_members) and turned the
+// disposition red at random under CI load. It is bookkeeping, not the route's effect.
+process.env.SESSION_HEARTBEAT_ENABLED = "false";
+
 const GUARD_REMOVED = process.env.SWEEP_REMOVE_GOV001_GUARD === "1";
 
 describe(`GOV-001 known positive (guard ${GUARD_REMOVED ? "removed" : "in place"})`, () => {
@@ -61,7 +69,7 @@ describe(`GOV-001 known positive (guard ${GUARD_REMOVED ? "removed" : "in place"
         expect(sent.length, variant).toBeGreaterThan(0);
         expect(sent.every((a) => a.outcome === "REFUSED"), JSON.stringify(sent)).toBe(true);
       }
-      expect(result.disposition).toBe("PROVEN_REAL_ROWS");
+      expect(result.disposition, JSON.stringify(result.attacks)).toBe("PROVEN_REAL_ROWS");
     });
   }
 });
