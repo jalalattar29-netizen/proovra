@@ -40,7 +40,7 @@
  */
 
 import { AppListbox } from "../app-primitives/AppListbox";
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import {
   CONFIDENCE_SCORE_RANGE,
@@ -151,6 +151,134 @@ export async function flushPendingCoding(): Promise<CodingFlushResult> {
   const results = await Promise.all(Array.from(panelFlushers.values(), (f) => f()));
   const fields = results.flatMap((r) => (r.ok ? [] : r.fields));
   return fields.length === 0 ? { ok: true } : { ok: false, fields };
+}
+
+// -----------------------------------------------------------------------------
+// IR-02 (closure, 2026-11-28) — the decision-submission boundary.
+//
+// From the moment a verdict / adjudication is submitted until it is recorded,
+// held, refused or cancelled, Coding is paused: every mounted panel renders its
+// fields inside a disabled fieldset, so no edit can enter the UI and then be
+// left out of the round's coding snapshot. The interval covers the coding
+// flush, the identity confirmation (step-up) and the decision request. Edits
+// accepted BEFORE the boundary are saved first (flush); a failed, conflicting
+// or timed-out save holds the decision and releases the pause with every draft
+// kept. After a recorded decision the pause lasts until Coding has been re-read
+// (the panel then shows the server's state: read-only once the review is
+// closed). Only one submission can be active at a time.
+// -----------------------------------------------------------------------------
+
+/** Where an active decision submission is (null = none). */
+export type CodingSubmissionPhase = "saving" | "recording" | "recorded";
+type SubmissionState = { id: number; phase: CodingSubmissionPhase } | null;
+
+let submissionState: SubmissionState = null;
+let submissionSeq = 0;
+let codingReadSeq = 0;
+let recordedAtRead = 0;
+let recordedTimer: ReturnType<typeof setTimeout> | null = null;
+const submissionListeners = new Set<() => void>();
+
+/** Safety net: a recorded submission never pauses Coding longer than this. */
+export const CODING_RECORDED_RELEASE_MS = 10_000;
+
+function setSubmission(next: SubmissionState) {
+  submissionState = next;
+  for (const l of Array.from(submissionListeners)) l();
+}
+
+function getSubmissionSnapshot(): SubmissionState {
+  return submissionState;
+}
+
+function getServerSubmissionSnapshot(): SubmissionState {
+  return null;
+}
+
+function subscribeSubmission(l: () => void): () => void {
+  submissionListeners.add(l);
+  return () => {
+    submissionListeners.delete(l);
+  };
+}
+
+/** The active submission's phase, or null. */
+export function codingSubmissionPhase(): CodingSubmissionPhase | null {
+  return submissionState?.phase ?? null;
+}
+
+export type CodingSubmission = {
+  /** Save every entry made before the boundary; wait until settled. */
+  flush(): Promise<CodingFlushResult>;
+  /** Coding is stored: the decision (with any step-up) is being sent. */
+  recording(): void;
+  /** The decision was recorded: stay paused until Coding is re-read. */
+  recorded(): void;
+  /** Held, refused, failed or cancelled: Coding is editable again. */
+  release(): void;
+};
+
+/**
+ * Start the decision-submission boundary. Returns null while another
+ * submission is active (a repeated click never starts an overlapping one).
+ */
+export function beginCodingSubmission(): CodingSubmission | null {
+  if (submissionState) return null;
+  const id = ++submissionSeq;
+  setSubmission({ id, phase: "saving" });
+  const mine = () => submissionState?.id === id;
+  const release = () => {
+    if (!mine()) return;
+    if (recordedTimer !== null) {
+      clearTimeout(recordedTimer);
+      recordedTimer = null;
+    }
+    setSubmission(null);
+  };
+  return {
+    flush: () => flushPendingCoding(),
+    recording: () => {
+      if (mine()) setSubmission({ id, phase: "recording" });
+    },
+    recorded: () => {
+      if (!mine()) return;
+      if (panelFlushers.size === 0) {
+        release();
+        return;
+      }
+      recordedAtRead = codingReadSeq;
+      setSubmission({ id, phase: "recorded" });
+      recordedTimer = setTimeout(release, CODING_RECORDED_RELEASE_MS);
+    },
+    release,
+  };
+}
+
+/** The coding host starts reading the stored coding; pass the token back when settled. */
+export function codingReadStarted(): number {
+  return ++codingReadSeq;
+}
+
+/** A coding read finished (applied or failed): a read started after a recorded decision ends the pause. */
+export function codingReadSettled(token: number): void {
+  if (submissionState?.phase !== "recorded" || token <= recordedAtRead) return;
+  if (recordedTimer !== null) {
+    clearTimeout(recordedTimer);
+    recordedTimer = null;
+  }
+  setSubmission(null);
+}
+
+/** The line a paused panel shows. */
+export function codingSubmissionNote(phase: CodingSubmissionPhase): string {
+  switch (phase) {
+    case "saving":
+      return "Saving your coding before the decision is recorded. Coding is paused until the decision is recorded or held.";
+    case "recording":
+      return "Recording the decision. Coding is paused until it is recorded or cancelled.";
+    case "recorded":
+      return "Decision recorded. Updating Coding…";
+  }
 }
 
 /** The line a held decision shows (IR-02). */
@@ -589,10 +717,17 @@ export function CodingPanel({
         idleWaitersRef.current.add(done);
       });
     }
+    // An entry still being edited at this point (one the boundary did not
+    // capture) is reported too: never ok while the UI holds an unsaved draft.
     const notStored = fieldsRef.current.filter((f) => {
       const st = statusRef.current[f.id];
       const lane = lanesRef.current.get(f.id);
-      return st?.kind === "failed" || st?.kind === "queued" || Boolean(lane?.inFlight || lane?.pending);
+      return (
+        st?.kind === "failed" ||
+        st?.kind === "queued" ||
+        Boolean(editingRef.current[f.id]) ||
+        Boolean(lane?.inFlight || lane?.pending)
+      );
     });
     return notStored.length === 0 ? { ok: true } : { ok: false, fields: notStored.map((f) => f.label) };
   }, [allLanesIdle]);
@@ -645,6 +780,8 @@ export function CodingPanel({
   );
 
   const readOnly = writable ? !writable.allowed : false;
+  const submission = useSyncExternalStore(subscribeSubmission, getSubmissionSnapshot, getServerSubmissionSnapshot);
+  const paused = !readOnly && submission !== null;
 
   return (
     <section
@@ -672,6 +809,24 @@ export function CodingPanel({
           {codingReadOnlyMessage(writable?.reason ?? null)}
         </p>
       ) : null}
+      {paused ? (
+        <p
+          role="status"
+          data-coding-submission-note={submission!.phase}
+          style={{ margin: 0, fontSize: 12, color: "#334155", overflowWrap: "anywhere" }}
+        >
+          {codingSubmissionNote(submission!.phase)}
+        </p>
+      ) : null}
+      {/* IR-02 — a disabled fieldset pauses every control (inputs, Retry,
+          Reload) during a decision submission; drafts stay as entered. */}
+      <fieldset
+        disabled={paused}
+        data-coding-fields
+        data-coding-paused={paused ? "true" : "false"}
+        aria-busy={paused || undefined}
+        style={{ display: "flex", flexDirection: "column", gap: 12, border: 0, padding: 0, margin: 0, minWidth: 0 }}
+      >
       {fields.map((f) => {
         const current = valueMap.get(f.id);
         const isMissing = f.required && unfulfilledFieldIds.has(f.id);
@@ -699,6 +854,7 @@ export function CodingPanel({
           />
         );
       })}
+      </fieldset>
       <p
         role="status"
         aria-live="polite"

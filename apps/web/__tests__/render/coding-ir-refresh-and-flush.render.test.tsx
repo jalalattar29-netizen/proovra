@@ -25,7 +25,14 @@ vi.mock("../../app/(app)/reviewer-ops/components/CodingSchemaBindingPanel", () =
 }));
 
 import { ReviewCodingSection } from "../../components/reviewer-experience/ReviewCodingSection";
-import { codingHoldMessage, flushPendingCoding } from "../../components/reviewer-workspace/CodingPanel";
+import {
+  beginCodingSubmission,
+  codingHoldMessage,
+  codingSubmissionPhase,
+  flushPendingCoding,
+} from "../../components/reviewer-workspace/CodingPanel";
+import { DecisionForm } from "../../app/(app)/reviewer-ops/[reviewId]/_components/DecisionPanel";
+import { deriveActions } from "../../app/(app)/reviewer-ops/[reviewId]/_components/inspector-model";
 import type { CodingFieldRow } from "../../lib/reviewer-workspace/reviewer-api";
 
 const TEAM = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -409,5 +416,128 @@ describe("IR-02 — flushPendingCoding saves what is entered and reports what is
 
   it("the hold message names several fields readably", () => {
     expect(codingHoldMessage(["Notes", "Risk level", "Count"])).toContain("your coding for Notes, Risk level and Count are not saved");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// IR-02 closure — the decision-submission boundary (independent review of
+// 507c726f9): Coding stays editable during the flush wait, and the final
+// check ignored a field still being edited, so an edit made while another
+// field was saving could be left out of the decision's snapshot.
+// ---------------------------------------------------------------------------
+
+describe("IR-02 closure — no edit can enter Coding during a decision submission and be left out", () => {
+  it("the reported case: field A saving, field B edited (not blurred) during the wait — the flush is NOT ok and names B", async () => {
+    await mount();
+    typeInto(count(), "7"); // field A is saving
+    let result: unknown = null;
+    const p = flushPendingCoding().then((r) => (result = r));
+    // During the wait the reviewer types into B without leaving it.
+    fireEvent.change(notes(), { target: { value: "typed during the wait" } });
+    await release(0);
+    await p;
+    expect(result).toEqual({ ok: false, fields: ["Notes"] });
+    expect(notes().value).toBe("typed during the wait");
+  });
+
+  it("a submission pauses every field (a disabled fieldset with a plain reason) and saves what was entered before it", async () => {
+    await mount();
+    fireEvent.change(notes(), { target: { value: "entered before" } });
+    const sub = beginCodingSubmission()!;
+    expect(sub).toBeTruthy();
+    let result: unknown = null;
+    const p = sub.flush().then((r) => (result = r));
+    await waitFor(() => expect(document.querySelector('[data-coding-paused="true"]')).toBeTruthy());
+    const fieldset = document.querySelector("[data-coding-fields]") as HTMLFieldSetElement;
+    expect(fieldset.disabled).toBe(true);
+    expect(notes().matches(":disabled")).toBe(true);
+    expect(count().matches(":disabled")).toBe(true);
+    expect(document.querySelector('[data-coding-submission-note="saving"]')?.textContent).toContain("Coding is paused");
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]!.body.value).toEqual({ text: "entered before" });
+    await release(0);
+    await p;
+    expect(result).toEqual({ ok: true });
+    sub.recording();
+    await waitFor(() => expect(document.querySelector('[data-coding-submission-note="recording"]')).toBeTruthy());
+    expect(fieldset.disabled).toBe(true);
+    sub.release();
+    await waitFor(() => expect(fieldset.disabled).toBe(false));
+    expect(document.querySelector("[data-coding-submission-note]")).toBeNull();
+  });
+
+  it("only one submission at a time: a second start while one is active is refused", async () => {
+    await mount();
+    const a = beginCodingSubmission();
+    expect(a).toBeTruthy();
+    expect(beginCodingSubmission()).toBeNull();
+    a!.release();
+    const b = beginCodingSubmission();
+    expect(b).toBeTruthy();
+    b!.release();
+  });
+
+  it("a held submission (failed save) releases the pause with every draft kept", async () => {
+    await mount();
+    fireEvent.change(notes(), { target: { value: "will fail" } });
+    const sub = beginCodingSubmission()!;
+    const p = sub.flush();
+    await waitFor(() => expect(writes).toHaveLength(1));
+    await act(async () => writes[0]!.fail());
+    await expect(p).resolves.toEqual({ ok: false, fields: ["Notes"] });
+    sub.release();
+    await waitFor(() => expect(notes().matches(":disabled")).toBe(false));
+    expect(notes().value).toBe("will fail");
+    expect(screen.getByRole("button", { name: "Retry saving Notes" })).toBeTruthy();
+  });
+
+  it("a recorded decision keeps Coding paused until a read started AFTER it has landed", async () => {
+    const { reread } = await mount();
+    const sub = beginCodingSubmission()!;
+    await expect(sub.flush()).resolves.toEqual({ ok: true });
+    sub.recording();
+    sub.recorded();
+    await waitFor(() => expect(document.querySelector('[data-coding-submission-note="recorded"]')).toBeTruthy());
+    expect(notes().matches(":disabled")).toBe(true);
+    holdReads = true;
+    await reread();
+    expect(notes().matches(":disabled")).toBe(true);
+    await act(async () => heldReads.forEach((r) => r.release()));
+    await waitFor(() => expect(notes().matches(":disabled")).toBe(false));
+    expect(codingSubmissionPhase()).toBeNull();
+  });
+
+  it("a recorded decision with no coding panel mounted ends the submission at once", () => {
+    const sub = beginCodingSubmission()!;
+    sub.recording();
+    sub.recorded();
+    expect(codingSubmissionPhase()).toBeNull();
+  });
+});
+
+describe("IR-02 closure — the decision form never starts overlapping submissions", () => {
+  it("a second submit while the first is pending does not call onSubmit again; a failure keeps the draft", async () => {
+    const actions = deriveActions({
+      viewer: {
+        userId: "u-1",
+        isAssignee: true,
+        actions: ["approve", "reject", "request_info"].map((a) => ({ action: a as never, allowed: true as const })),
+      } as never,
+      lifecycleState: "IN_REVIEW",
+      paused: false,
+    });
+    let finish!: (v: string | null) => void;
+    const onSubmit = vi.fn(() => new Promise<string | null>((r) => (finish = r)));
+    render(<DecisionForm mode="decision" stage="FIRST" actions={actions} reviewState="first_required" secondRequired={false} onSubmit={onSubmit} />);
+    fireEvent.click(document.querySelector('[data-decision-choice="APPROVE"]')!);
+    fireEvent.change(document.querySelector("[data-decision-form-rationale]")!, { target: { value: "consistent" } });
+    const form = document.querySelector("[data-decision-form]") as HTMLFormElement;
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    await act(async () => finish("Not recorded yet: your coding for Notes is not saved."));
+    expect((document.querySelector("[data-decision-form-rationale]") as HTMLTextAreaElement).value).toBe("consistent");
+    expect(document.querySelector("[data-decision-form-error]")?.textContent).toContain("Not recorded yet");
   });
 });

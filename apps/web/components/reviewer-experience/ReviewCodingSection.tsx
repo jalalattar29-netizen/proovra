@@ -49,6 +49,8 @@ import {
 import {
   CODING_CONFLICT_MESSAGE,
   CodingPanel,
+  codingReadSettled,
+  codingReadStarted,
   formatCodingValue,
   type CodingWritable,
   type CodingWriteOutcome,
@@ -135,13 +137,7 @@ export function ReviewCodingSection({
     };
   }, []);
 
-  const read = useCallback(async () => {
-    // Only the latest read may land (writes trigger reads that can overlap).
-    const seq = ++readSeq.current;
-    const madeFor = `${teamId}:${workflowId}`;
-    // A read lands only for the review it was made for (a write's follow-up
-    // read of a previous review never replaces the current one).
-    const current = () => alive.current && seq === readSeq.current && contextRef.current === madeFor;
+  const readOnce = useCallback(async (current: () => boolean, madeFor: string) => {
     try {
       const res = (await apiFetch(
         `/v1/reviewer/work/${encodeURIComponent(workflowId)}/coding?teamId=${encodeURIComponent(teamId)}`,
@@ -173,6 +169,23 @@ export function ReviewCodingSection({
       if (current()) setLoad({ kind: "failed" });
     }
   }, [teamId, workflowId]);
+
+  const read = useCallback(async () => {
+    // Only the latest read may land (writes trigger reads that can overlap).
+    const seq = ++readSeq.current;
+    const madeFor = `${teamId}:${workflowId}`;
+    // A read lands only for the review it was made for (a write's follow-up
+    // read of a previous review never replaces the current one).
+    const current = () => alive.current && seq === readSeq.current && contextRef.current === madeFor;
+    // IR-02 — a read started after a recorded decision ends Coding's pause once
+    // it has landed (or failed); a superseded read leaves that to the newer one.
+    const token = codingReadStarted();
+    try {
+      await readOnce(current, madeFor);
+    } finally {
+      if (!alive.current || seq === readSeq.current) codingReadSettled(token);
+    }
+  }, [readOnce, teamId, workflowId]);
 
   // A new review / workspace: nothing of the previous one stays editable
   // while the new one loads.

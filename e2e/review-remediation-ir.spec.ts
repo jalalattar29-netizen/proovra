@@ -15,12 +15,17 @@
  *    adjudication); a save that fails or conflicts holds the decision with
  *    the reason, keeps both drafts and records nothing until it is resolved
  *    (rejection after a network failure; approval after a conflict).
+ *  - IR-02 boundary (second review): from Record decision until recorded / held /
+ *    refused / cancelled, Coding is paused (A: edit during a delayed save; B: edit
+ *    while identity confirmation is pending; C: cancelled confirmation releases it;
+ *    D: failed and timed-out saves send no decision; F: adjudication).
  *  - Media: a real MP4 (VP9) plays, pauses and steps frames; a real PNG and a
  *    real PDF preview; a record with no stored file says so; Back returns to
  *    the Inbox view the review was opened from.
  */
 
 import { spawnSync } from "node:child_process";
+import { createHmac } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
@@ -315,7 +320,8 @@ test("IR-02 — approval while a coding save is delayed and a newer edit is pend
 
   const form = await fillDecision(page, "APPROVE", "IR-02: consistent; coding saved first.");
   await form.locator("[data-decision-form-submit]").click();
-  await page.waitForTimeout(1500);
+  await expect(form.locator("[data-decision-form-submit]")).toHaveAttribute("aria-busy", "true");
+  await expect(page.locator('[data-coding-paused="true"]')).toBeVisible();
   expect(posts.count(), "no decision is sent while the coding save is pending").toBe(0);
   await shot(page, "ir02-decision-waits-for-coding");
 
@@ -425,12 +431,284 @@ test("IR-02 — adjudication while the adjudicator's coding save is delayed: rec
 
   const form = await fillDecision(page, "UPHOLD_SECOND", "IR-02: the gap holds.");
   await form.locator("[data-decision-form-submit]").click();
-  await page.waitForTimeout(1500);
+  await expect(form.locator("[data-decision-form-submit]")).toHaveAttribute("aria-busy", "true");
+  // IR-02 boundary F — an edit attempted while the adjudication waits.
+  const accepted = await tryEdit(confidenceInput(page), "55");
   expect(posts.count()).toBe(0);
   hold.release();
   await expect.poll(() => statusOf(r.workflowId), { timeout: 30_000 }).toBe("REJECTED_INSUFFICIENT");
   expect(decisionRows(r.workflowId).map((d) => `${d.stage}:${d.decision}`)).toEqual(["FIRST:APPROVE", "SECOND:REJECT", "ADJUDICATION:UPHOLD_SECOND"]);
   expect(snapshotNotes(r.workflowId)).toBe("adjudicator final note");
+  expect((snapshotValue(r.workflowId, "confidence")?.confidence as number | undefined) ?? null).toBe(accepted ? 55 : null);
+  expect(accepted, "Coding is paused while the adjudication is recorded").toBe(false);
+  await ctx.close();
+});
+
+// ============================================================================
+// IR-02 closure — the decision-submission boundary (2026-11-28)
+//
+// From the click on Record decision until the decision is recorded, held,
+// refused or cancelled, an edit must never enter Coding and then be left out
+// of the round's snapshot. Each journey states the OUTCOME first (whatever the
+// UI accepted is what the snapshot holds), then that the pause refused it.
+// Barriers are explicit request gates, never sleeps.
+// ============================================================================
+
+/** The stored snapshot value of a field (by slug) on the newest finalizing decision event. */
+function snapshotValue(workflowId: string, slug: string): Record<string, unknown> | null {
+  const row = one(
+    `SELECT next_value FROM evidence_review_workflow_events
+      WHERE workflow_id = $1 AND event_type::text = 'DECISION_LOGGED' AND next_value ? 'codingSnapshot'
+      ORDER BY created_at DESC LIMIT 1`,
+    [workflowId],
+  ) as { next_value?: { codingSnapshot?: { values?: Array<{ slug: string; value: Record<string, unknown> | null }> } } };
+  return row.next_value?.codingSnapshot?.values?.find((v) => v.slug === slug)?.value ?? null;
+}
+
+/** Try to type into a control; true only when the UI accepted the edit. */
+async function tryEdit(field: ReturnType<Page["locator"]>, text: string): Promise<boolean> {
+  try {
+    await field.fill(text, { timeout: 2_000 });
+    return (await field.inputValue()) === text;
+  } catch {
+    return false;
+  }
+}
+
+/** fixture (API): the workspace requires identity confirmation for approvals (the Review policy checkbox). */
+function requireStepUpForApprove(teamId: string): void {
+  sql(
+    `INSERT INTO workspace_governance_policies (team_id, require_step_up_for_approve, updated_at) VALUES ($1, true, now())
+     ON CONFLICT (team_id) DO UPDATE SET require_step_up_for_approve = true`,
+    [teamId],
+  );
+}
+
+function b32(input: string): Buffer {
+  const a = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = 0;
+  let value = 0;
+  const out: number[] = [];
+  for (const c of input.replace(/=+$/, "").toUpperCase()) {
+    value = (value << 5) | a.indexOf(c);
+    bits += 5;
+    if (bits >= 8) {
+      out.push((value >>> (bits - 8)) & 255);
+      bits -= 8;
+    }
+  }
+  return Buffer.from(out);
+}
+function totp(secret: Buffer, step: number): string {
+  const c = Buffer.alloc(8);
+  c.writeUInt32BE(Math.floor(step / 0x100000000), 0);
+  c.writeUInt32BE(step >>> 0, 4);
+  const h = createHmac("sha1", secret).update(c).digest();
+  const o = h[h.length - 1]! & 15;
+  return String((h.readUInt32BE(o) & 0x7fffffff) % 1_000_000).padStart(6, "0");
+}
+/** fixture (API): enrol the test authenticator; each call returns the next accepted code. */
+async function enrolTotp(s: GuestSession): Promise<() => Promise<string>> {
+  const st = await jsonOf(await s.api.post("/v1/identity/mfa/enroll/start", { data: { label: "E2E authenticator" } }));
+  expect(st?.secretBase32 ?? st?.body?.secretBase32, JSON.stringify(st)).toBeTruthy();
+  const body = st?.secretBase32 ? st : st.body;
+  const secret = b32(body.secretBase32);
+  let last = Math.floor(Date.now() / 1000 / 30);
+  const ver = await s.api.post("/v1/identity/mfa/enroll/verify", { data: { factorId: body.factorId, code: totp(secret, last) } });
+  expect(ver.ok(), await ver.text()).toBe(true);
+  return async () => {
+    for (;;) {
+      const cur = Math.floor(Date.now() / 1000 / 30);
+      if (cur > last) {
+        last = cur;
+        return totp(secret, cur);
+      }
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  };
+}
+
+const confidenceInput = (page: Page) => page.locator('[data-coding-confidence] input[type="number"]');
+
+test("IR-02 boundary A — approval while field A's save is delayed: an edit to field B during the wait is refused by the pause, never left out of the snapshot", async ({ browser }) => {
+  const t = await makeTeam(1);
+  const r = seedReview(t.teamId, t.owner.userId, "IR-02 boundary A");
+  await assignAndStart(t, r.workflowId, t.owner); // fixture (API)
+  const notesId = await bindNotesSchema(t, r.workflowId); // fixture (API)
+  const { ctx, page } = await signedInPage(browser, t.owner);
+  await openReview(page, r.workflowId);
+  const posts = countDecisionPosts(page);
+  const hold = await holdCodingWrites(page);
+  const notes = page.locator(`[data-coding-field-id="${notesId}"] textarea`);
+
+  // Field A (confidence) is saving behind the barrier.
+  await confidenceInput(page).fill("70");
+  await expect.poll(() => hold.held.length, { timeout: 10_000 }).toBe(1);
+
+  const form = await fillDecision(page, "APPROVE", "IR-02 boundary A: consistent.");
+  await form.locator("[data-decision-form-submit]").click();
+  await expect(form.locator("[data-decision-form-submit]")).toHaveAttribute("aria-busy", "true");
+  // While the page waits for A, the reviewer tries to type into field B (no blur).
+  const typed = "typed while the decision waited";
+  const accepted = await tryEdit(notes, typed);
+  await shot(page, "ir02-boundary-a-paused");
+  expect(posts.count(), "no decision is sent while field A is saving").toBe(0);
+
+  hold.release();
+  await expect.poll(() => statusOf(r.workflowId), { timeout: 30_000 }).toBe("APPROVED_INTERNAL");
+  // OUTCOME: whatever the UI accepted is in the decision's snapshot.
+  expect(snapshotValue(r.workflowId, "notes")?.text ?? null, "an edit the UI accepted must be in the snapshot").toBe(accepted ? typed : null);
+  // The pause refused the edit; A's value is in the snapshot.
+  expect(accepted, "Coding is paused during the submission").toBe(false);
+  expect(snapshotValue(r.workflowId, "confidence")).toEqual({ confidence: 70 });
+  expect(posts.count()).toBe(1);
+  // E — finished: the panel shows the stored state, read-only, no pause line.
+  await expect(page.locator("[data-coding-panel]")).toHaveAttribute("data-coding-read-only", "true", { timeout: 20_000 });
+  await expect(page.locator("[data-coding-submission-note]")).toHaveCount(0);
+  await ctx.close();
+});
+
+test("IR-02 boundary B+E — an edit after the coding flush while identity confirmation is pending is refused; the confirmed approval records the pre-boundary entry", async ({ browser }) => {
+  const t = await makeTeam(1);
+  const r = seedReview(t.teamId, t.owner.userId, "IR-02 boundary B");
+  await assignAndStart(t, r.workflowId, t.owner); // fixture (API)
+  const notesId = await bindNotesSchema(t, r.workflowId); // fixture (API)
+  requireStepUpForApprove(t.teamId); // fixture
+  // Sign in first: once a factor is enrolled, sign-in itself asks for it.
+  const { ctx, page } = await signedInPage(browser, t.owner);
+  const next = await enrolTotp(t.owner); // fixture (API): the test authenticator
+  await openReview(page, r.workflowId);
+  const notes = page.locator(`[data-coding-field-id="${notesId}"] textarea`);
+
+  // Entered before the boundary, still focused (never blurred).
+  await notes.fill("entered before the decision");
+  const form = await fillDecision(page, "APPROVE", "IR-02 boundary B: consistent.");
+  await form.locator("[data-decision-form-submit]").click();
+  // The flush stored the entry; identity confirmation is now pending.
+  const modal = page.locator("[data-step-up-modal]");
+  await expect(modal).toBeVisible({ timeout: 20_000 });
+  await expect.poll(() => codedText(r.workflowId, notesId)).toBe("entered before the decision");
+  const typed = "typed while confirming identity";
+  const accepted = await tryEdit(notes, typed);
+  await shot(page, "ir02-boundary-b-step-up-pending");
+
+  const input = modal.locator("[data-step-up-code-input]");
+  await expect(input).toBeVisible({ timeout: 20_000 });
+  await input.fill(await next());
+  await modal.locator("[data-step-up-verify]").click();
+  await expect.poll(() => statusOf(r.workflowId), { timeout: 60_000 }).toBe("APPROVED_INTERNAL");
+  expect(snapshotValue(r.workflowId, "notes")?.text ?? null, "an edit the UI accepted must be in the snapshot").toBe(
+    accepted ? typed : "entered before the decision",
+  );
+  expect(accepted, "Coding is paused while identity confirmation is pending").toBe(false);
+  await expect(page.locator("[data-coding-panel]")).toHaveAttribute("data-coding-read-only", "true", { timeout: 20_000 });
+  await ctx.close();
+});
+
+test("IR-02 boundary C — cancelling identity confirmation releases the pause: Coding and the decision form are usable again with both drafts kept", async ({ browser }) => {
+  const t = await makeTeam(1);
+  const r = seedReview(t.teamId, t.owner.userId, "IR-02 boundary C");
+  await assignAndStart(t, r.workflowId, t.owner); // fixture (API)
+  const notesId = await bindNotesSchema(t, r.workflowId); // fixture (API)
+  requireStepUpForApprove(t.teamId); // fixture
+  // Sign in first: once a factor is enrolled, sign-in itself asks for it.
+  const { ctx, page } = await signedInPage(browser, t.owner);
+  const next = await enrolTotp(t.owner); // fixture (API): the test authenticator
+  await openReview(page, r.workflowId);
+  const posts = countDecisionPosts(page);
+  const row = page.locator(`[data-coding-field-id="${notesId}"]`);
+  const notes = row.locator("textarea");
+
+  await notes.fill("draft before cancel");
+  const form = await fillDecision(page, "APPROVE", "IR-02 boundary C: consistent.");
+  await form.locator("[data-decision-form-submit]").click();
+  const modal = page.locator("[data-step-up-modal]");
+  await expect(modal).toBeVisible({ timeout: 20_000 });
+  await expect(notes).toBeDisabled();
+  await modal.locator("[data-step-up-cancel]").first().click();
+  await expect(form).toContainText("cancelled", { timeout: 20_000 });
+  // Released: both drafts are there and editable.
+  await expect(form.locator("[data-decision-form-rationale]")).toHaveValue("IR-02 boundary C: consistent.");
+  await expect(form.locator("[data-decision-form-rationale]")).toBeEnabled();
+  await expect(notes).toBeEnabled();
+  await expect(notes).toHaveValue("draft before cancel");
+  await expect(page.locator("[data-coding-submission-note]")).toHaveCount(0);
+  expect(decisionRows(r.workflowId)).toEqual([]);
+  await shot(page, "ir02-boundary-c-cancelled-released");
+
+  // Edit again, then confirm: the new entry is recorded.
+  await notes.fill("edited after cancel");
+  await notes.blur();
+  await expect(row.locator('[data-coding-field-status="saved"]')).toBeVisible({ timeout: 20_000 });
+  await form.locator("[data-decision-form-submit]").click();
+  await expect(modal).toBeVisible({ timeout: 20_000 });
+  const input = modal.locator("[data-step-up-code-input]");
+  await expect(input).toBeVisible({ timeout: 20_000 });
+  await input.fill(await next());
+  await modal.locator("[data-step-up-verify]").click();
+  await expect.poll(() => statusOf(r.workflowId), { timeout: 60_000 }).toBe("APPROVED_INTERNAL");
+  expect(snapshotValue(r.workflowId, "notes")).toEqual({ text: "edited after cancel" });
+  expect(posts.count()).toBeGreaterThanOrEqual(2); // the step-up challenge answer + the confirmed decision
+  await ctx.close();
+});
+
+test("IR-02 boundary D — rejection: a coding save that fails inside the boundary holds the decision (no decision POST), releases the pause and keeps both drafts; a save that never settles holds at the timeout", async ({ browser }) => {
+  test.setTimeout(240_000);
+  const t = await makeTeam(1);
+  const r = seedReview(t.teamId, t.owner.userId, "IR-02 boundary D");
+  await assignAndStart(t, r.workflowId, t.owner); // fixture (API)
+  const notesId = await bindNotesSchema(t, r.workflowId); // fixture (API)
+  const { ctx, page } = await signedInPage(browser, t.owner);
+  await openReview(page, r.workflowId);
+  const posts = countDecisionPosts(page);
+  const row = page.locator(`[data-coding-field-id="${notesId}"]`);
+  const notes = row.locator("textarea");
+
+  // (1) The save the flush sends fails at the barrier.
+  let failNext = true;
+  let releaseHang!: () => void;
+  let hang = false;
+  const hung = new Promise<void>((res) => (releaseHang = res));
+  await page.route("**/v1/reviewer/work/*/code*", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    if (failNext) {
+      failNext = false;
+      return route.abort("internetdisconnected");
+    }
+    if (hang) {
+      await hung;
+      return route.continue();
+    }
+    return route.continue();
+  });
+  await notes.fill("entered, then the save fails");
+  const form = await fillDecision(page, "REJECT", "IR-02 boundary D: the log is missing.");
+  await form.locator("[data-decision-form-submit]").click();
+  await expect(form).toContainText("is not saved", { timeout: 30_000 });
+  expect(posts.count(), "no decision POST after a failed save").toBe(0);
+  expect(decisionRows(r.workflowId)).toEqual([]);
+  await expect(notes).toBeEnabled();
+  await expect(notes).toHaveValue("entered, then the save fails");
+  await expect(form.locator("[data-decision-form-rationale]")).toHaveValue("IR-02 boundary D: the log is missing.");
+  await shot(page, "ir02-boundary-d-failed-held");
+
+  // (2) A save that never settles: held at the flush timeout, nothing sent.
+  hang = true;
+  await notes.fill("entered, then the save hangs");
+  await form.locator("[data-decision-form-submit]").click();
+  await expect(page.locator('[data-coding-submission-note="saving"]')).toBeVisible();
+  await expect(form).toContainText("is not saved", { timeout: 45_000 });
+  expect(posts.count(), "no decision POST after the timeout").toBe(0);
+  await expect(notes).toBeEnabled();
+  await expect(notes).toHaveValue("entered, then the save hangs");
+  releaseHang();
+  await expect(row.locator('[data-coding-field-status="saved"]')).toBeVisible({ timeout: 20_000 });
+
+  // Resolved: the rejection records with the stored entry.
+  await form.locator("[data-decision-form-submit]").click();
+  await expect.poll(() => statusOf(r.workflowId), { timeout: 30_000 }).toBe("REJECTED_INSUFFICIENT");
+  expect(posts.count()).toBe(1);
+  expect(snapshotValue(r.workflowId, "notes")).toEqual({ text: "entered, then the save hangs" });
   await ctx.close();
 });
 

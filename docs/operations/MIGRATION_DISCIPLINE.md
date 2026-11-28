@@ -113,6 +113,14 @@ codes that let CI branch on the failure mode:
 | 5 | one or more PENDING migrations not yet applied |
 | 6 | DRIFT detected (schema vs DB out of sync) |
 | 7 | prisma itself exited non-zero for an unrelated reason |
+| 2 | no database target resolved |
+| 3 | an explicit `--database-url` / `DRIFT_CHECK_DATABASE_URL` names a non-local host |
+| 8 | a non-local `DATABASE_URL` without BOTH `MIGRATE_ALLOW_REMOTE=1` and `--allow-remote` (nothing was read) |
+| 12 | the Prisma CLI cannot be resolved |
+
+Reading a deployed database's status is read-only but still needs both
+acknowledgements, from `services/api` (the release image's working directory):
+`MIGRATE_ALLOW_REMOTE=1 node scripts/drift-check.mjs --allow-remote`.
 
 The CI workflow `schema-reproducibility.yml` runs this on the
 freshly-migrated DB and fails if exit code is non-zero. This

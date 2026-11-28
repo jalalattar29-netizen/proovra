@@ -127,6 +127,9 @@ The server projection `viewer.actions[]` (`computeViewerActions`) carries `allow
   - This covers an edited field still focused, a debounced confidence change, and a save in flight with a newer edit queued behind it.
   - If an entry cannot be stored (no connection, refused, conflict, or still saving after 20 s), the decision is **held**: "Not recorded yet: your coding for <field> is not saved. Retry or reload that field in Coding (your entry is kept), then record the decision again." The decision draft and the coding draft both stay.
   - Coding stays optional: untouched and cleared fields hold nothing. A request for information is never held (it finalizes nothing).
+  - **Submission boundary (IR-02, second review):** from the click on Record decision until the decision is recorded, held, refused or cancelled, Coding is paused. Every field, Retry and Reload are disabled, with "Saving your coding before the decision is recorded. Coding is paused until the decision is recorded or held." and then "Recording the decision. Coding is paused until it is recorded or cancelled." The pause covers the coding save, the identity confirmation and the decision request.
+  - A held decision, a cancelled confirmation, a failed request and a refusal end the pause with every draft as entered. A recorded decision keeps the pause until Coding has been re-read ("Decision recorded. Updating Coding…"), then shows the stored state (read-only once the review is closed).
+  - One submission at a time: a repeated click never sends a second decision. Requesting information is never paused.
 - **Autosave:**
   - Inputs are controlled and show the server state.
   - Each field shows `Saving… / Saved / Not saved — Retry`, announced through a live region.

@@ -134,6 +134,7 @@ export function DecisionForm({
   const [reason, setReason] = useState<string>(mode === "adjudication" ? "REVIEWER_DISAGREEMENT" : "");
   const [rationale, setRationale] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [missingLabels, setMissingLabels] = useState<string[]>([]);
   const radioRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -237,14 +238,25 @@ export function DecisionForm({
       rationaleRef.current?.focus();
       return;
     }
+    // IR-02 — one submission at a time, even for a repeated click or Enter
+    // that lands before the disabled state renders.
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     setError(null);
     setMissingLabels([]);
-    const failure = await onSubmit({
-      decision: choice,
-      reasonCode: reason || undefined,
-      rationale: trimmed,
-    });
+    let failure: Awaited<ReturnType<typeof onSubmit>>;
+    try {
+      failure = await onSubmit({
+        decision: choice,
+        reasonCode: reason || undefined,
+        rationale: trimmed,
+      });
+    } catch {
+      failure = "The decision could not be recorded.";
+    } finally {
+      submittingRef.current = false;
+    }
     if (failure) {
       // F-21 — the draft (choice + rationale) stays for the retry.
       if (typeof failure === "string") setError(failure);

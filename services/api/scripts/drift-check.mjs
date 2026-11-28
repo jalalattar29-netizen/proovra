@@ -17,9 +17,16 @@
  *
  * Hard rules:
  *   - Does not run any migration. Read-only.
- *   - Does not require --allow-remote because it does not mutate.
+ *   - A NON-LOCAL database needs both acknowledgements even though
+ *     nothing is written: `MIGRATE_ALLOW_REMOTE=1` and `--allow-remote`
+ *     (the prisma.config.ts hook refuses every `migrate` verb otherwise).
+ *     Without them it exits 8 before reading the status.
  *   - Prints the same target banner as safe-migrate.mjs for
  *     visibility, so operators can see which DB the status reflects.
+ *
+ * Other exits: 2 no target resolved; 3 an explicit --database-url /
+ * DRIFT_CHECK_DATABASE_URL on a non-local host; 7 prisma failed for
+ * another reason; 12 the Prisma CLI cannot be resolved.
  */
 
 import { spawnSync } from "node:child_process";

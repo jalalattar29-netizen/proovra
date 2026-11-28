@@ -122,8 +122,8 @@ import {
 } from "./_components/InspectorDialogs";
 import {
   CODING_UNSAVED_EVENT,
+  beginCodingSubmission,
   codingHoldMessage,
-  flushPendingCoding,
   hasUnsavedCoding,
 } from "../../../../components/reviewer-workspace/CodingPanel";
 import { fetchCodingState } from "../../../../lib/reviewer-workspace/reviewer-api";
@@ -583,38 +583,57 @@ function ReviewWorkspacePageInner() {
       // hold the decision with the reason: the decision draft and the coding
       // drafts stay, nothing is discarded silently. Requesting information
       // closes nothing, so it is never held by coding.
-      if (body.decision !== "REQUEST_INFO") {
-        const coding = await flushPendingCoding();
-        if (!coding.ok) return codingHoldMessage(coding.fields);
-      }
+      //
+      // IR-02 (closure) — the whole submission is one boundary: Coding is
+      // paused from here until the decision is recorded, held, refused or
+      // cancelled (the flush, the identity confirmation and the request), so
+      // no edit can enter the UI and be left out of the round's snapshot.
+      const final = body.decision !== "REQUEST_INFO";
+      const submission = final ? beginCodingSubmission() : null;
+      if (final && !submission) return "A decision is already being recorded. Wait until it finishes.";
+      let recorded = false;
       try {
-        const resp = (await stepUp.runStepUpAction((headers) =>
-          apiFetch(`/v1/reviewer-ops/workspace/${encodeURIComponent(workflowId)}/decisions`, {
-            method: "POST",
-            headers: { "content-type": "application/json", ...(headers ?? {}) },
-            body: JSON.stringify({ teamId, ...body }),
-          }),
-        )) as { outcome?: DecisionOutcome | null } | null;
-        const outcome = resp?.outcome ?? null;
-        const kind: LifecycleActionKind =
-          body.decision === "APPROVE"
-            ? "approve"
-            : body.decision === "REJECT"
-              ? "reject"
-              : body.decision === "REQUEST_INFO"
-                ? "request_info"
-                : "decision";
-        setNotice(outcome || kind !== "decision" ? describeOutcome(kind, outcome) : "Decision recorded.");
-        reloadAll();
-        return null;
-      } catch (err) {
-        // T-027 (stage B) — closing the enrolment or re-sign-in state is not
-        // "cancelling a confirmation"; the line says what is needed instead.
-        if (isStepUpCancelled(err)) return stepUpCancelMessage(err, STEP_UP_CANCELLED);
-        // F-21 — "Not recorded: <reason>" beside the form; the form keeps the
-        // draft and the page rereads the current state.
-        reloadAll();
-        return decisionRefusal(err, "The decision could not be recorded.");
+        if (submission) {
+          const coding = await submission.flush();
+          if (!coding.ok) return codingHoldMessage(coding.fields);
+          submission.recording();
+        }
+        try {
+          const resp = (await stepUp.runStepUpAction((headers) =>
+            apiFetch(`/v1/reviewer-ops/workspace/${encodeURIComponent(workflowId)}/decisions`, {
+              method: "POST",
+              headers: { "content-type": "application/json", ...(headers ?? {}) },
+              body: JSON.stringify({ teamId, ...body }),
+            }),
+          )) as { outcome?: DecisionOutcome | null } | null;
+          const outcome = resp?.outcome ?? null;
+          const kind: LifecycleActionKind =
+            body.decision === "APPROVE"
+              ? "approve"
+              : body.decision === "REJECT"
+                ? "reject"
+                : body.decision === "REQUEST_INFO"
+                  ? "request_info"
+                  : "decision";
+          setNotice(outcome || kind !== "decision" ? describeOutcome(kind, outcome) : "Decision recorded.");
+          // Coding stays paused until it has been re-read (reloadAll below).
+          recorded = true;
+          submission?.recorded();
+          reloadAll();
+          return null;
+        } catch (err) {
+          // T-027 (stage B) — closing the enrolment or re-sign-in state is not
+          // "cancelling a confirmation"; the line says what is needed instead.
+          if (isStepUpCancelled(err)) return stepUpCancelMessage(err, STEP_UP_CANCELLED);
+          // F-21 — "Not recorded: <reason>" beside the form; the form keeps the
+          // draft and the page rereads the current state.
+          reloadAll();
+          return decisionRefusal(err, "The decision could not be recorded.");
+        }
+      } finally {
+        // Held, refused, failed or cancelled: Coding is editable again, with
+        // every draft as entered.
+        if (!recorded) submission?.release();
       }
     },
     [teamId, workflowId, reloadAll, stepUp],
