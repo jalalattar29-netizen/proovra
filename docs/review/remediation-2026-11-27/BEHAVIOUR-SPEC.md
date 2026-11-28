@@ -75,6 +75,11 @@ A user is eligible when **all** of these hold:
 - Demoted members: unchanged.
 - **New:** when placement is required and a member leaves their last Collaboration Team, their held reviews are released to the queue (decision history kept).
 - A decision attempt by someone no longer eligible is refused with `reviewer_not_eligible` and a reason.
+- **Lock order (IR-06, 2026-11-28):** every transaction that writes a review takes the review row first and the deciding member's Collaboration Team membership second (`FOR SHARE`).
+  - This covers verdicts, requests for information and coding.
+  - Suspending or removing a member under a placement rule locks the reviews they hold (`lockReviewWorkflowsHeldByTx`, in id order) before it writes the membership.
+  - Outcome of a race between a decision and a placement loss: the decision is recorded and the loss then releases the review if it is still open; or the decision is refused (`reviewer_not_eligible`) and the review is released.
+  - It is never a deadlock or a raw error. A transaction PostgreSQL aborts to break a lock cycle is retried as a whole, at most 3 times.
 
 ## 4. One authority for actions
 
@@ -117,13 +122,19 @@ The server projection `viewer.actions[]` (`computeViewerActions`) carries `allow
 - **Required fields** mean the assessment is incomplete (a warning).
   - Enforcement only applies when the workspace policy `review_requires_complete_coding` is on, and only to rounds whose **current Start happened after** the policy's `since` timestamp.
   - Then APPROVE/REJECT are refused with `coding_incomplete` and the missing field ids. REQUEST_INFO is never refused for this.
+  - **Adjudication (IR-03):** the policy applies to every decision that finishes a review with an approval or a rejection. `UPHOLD_FIRST` / `UPHOLD_SECOND` are checked with the verdict they uphold, under the same pre-policy round exemption. Adjudicated `NEEDS_MORE_INFO` and `UNRESOLVED` are never refused for this. There is no adjudicator override.
+- **Recording a decision saves Coding first (IR-02):** before a verdict or an adjudication is sent, the Review page saves what the reviewer has entered in Coding and waits until each field's save has settled.
+  - This covers an edited field still focused, a debounced confidence change, and a save in flight with a newer edit queued behind it.
+  - If an entry cannot be stored (no connection, refused, conflict, or still saving after 20 s), the decision is **held**: "Not recorded yet: your coding for <field> is not saved. Retry or reload that field in Coding (your entry is kept), then record the decision again." The decision draft and the coding draft both stay.
+  - Coding stays optional: untouched and cleared fields hold nothing. A request for information is never held (it finalizes nothing).
 - **Autosave:**
   - Inputs are controlled and show the server state.
   - Each field shows `Saving… / Saved / Not saved — Retry`, announced through a live region.
   - Values can be cleared explicitly (`DELETE` value).
   - Booleans are a Yes/No/not-set choice.
   - Confidence shows "Not set" until chosen.
-  - A per-field sequence number discards out-of-order responses.
+  - Each field has one save queue: at most one request in flight and one pending latest intent. Every request carries the field revision it is based on; a stale change is refused (409 `CODING_VALUE_CONFLICT`) and offers Reload / Keep mine (source review A).
+  - "Saved" means the server holds this session's latest entry for the field. When a newer stored value is read in page (another tab or reviewer), that value is the field's state: the old "Saved" is cleared, and editing back to an earlier value is saved on the new revision (IR-01).
   - Leaving the page while a save is pending asks for confirmation.
   - When writes would be refused (closed review, no permission), the fields are read-only and show the reason.
   - Values are re-read immediately after the schema is bound.
@@ -136,7 +147,7 @@ The server projection `viewer.actions[]` (`computeViewerActions`) carries `allow
 - **Conflict** (two independent decisions differ) is resolved by an independent OWNER/ADMIN adjudicator (unchanged rule). The adjudication form appears only when `viewer.actions.adjudicate` is allowed.
 - **Challenge:** a formal challenge to a specific recorded decision.
   - Offered only when the projection lists challengeable decisions: recorded, not by the viewer, and the viewer holds `review.disagree`.
-  - Resolution outcomes:
+  - Resolution outcomes (resolution and supersede are one transaction; a supersede failure records nothing):
     - `RESOLVED_UPHELD`: the outcome stands.
     - `RESOLVED_OVERTURNED` and `RESOLVED_PARTIAL`: the challenged outcome is **superseded**. The workflow reopens into a new round through the canonical reopen transition, with a REOPENED event that references the challenge. Original decisions and the challenge are kept. Projections and report/package eligibility are recomputed by the existing derivation; previously issued artifacts are untouched.
   - When nobody is eligible to resolve, the page explains why and names the staffing path.
@@ -177,9 +188,9 @@ Review-scoped CSS only; no global primitive restyle.
 | Open reviews whose stored status is ESCALATED (not a reviewer disagreement), set before this change | **Unchanged** (source review E.2): the status keeps forcing (`legacy_escalated_status`). The plan lists each one: `legacy_escalated_status` (the setting escalation is known; the owner may approve reclassifying it) or `legacy_escalated_status_unknown` (report only). |
 | Creator-less escalations recorded before this change with a non-sweep, non-integrity reason | **Unchanged** (source review E.1): they keep forcing. Listed as `legacy_creatorless_escalations`. |
 | Historical REQUEST_INFO decision rows | Read as before. |
-| Challenges already resolved OVERTURNED | Not retro-applied; the dry-run lists them. |
+| Challenges already resolved OVERTURNED / PARTIAL without a supersede record | Not retro-applied. The plan lists each one (`overturned_challenges_before_change`, report only), decided per challenge from supersede evidence, not by date (IR-05). |
 | Coding values | Untouched. There are no snapshots for past rounds. |
 | Seeded help text | Corrected at read time; optional data update. |
 | Older mobile/API clients | Still receive `viewer.actions` (superset) and `outcome` fields. REQUEST_INFO responses carry `stageRecorded:"NONE"`, `reviewState:"first_required"` and `nextRequirement:"information"`, and `decision: null`. |
 
-The reconciliation is `services/api/src/scripts/review-remediation-reconcile.ts` (`plan` → `apply` → `compensate`), documented in `RECONCILIATION.md`. `plan` is read-only and lists every affected record with its precondition and effect, identified by a content hash. `apply` is bound to that hash, touches only listed records (compare-and-set), writes a durable audit row per change, reports records changed since planning, and is idempotent. `compensate` restores the captured values of exactly what the plan applied.
+The reconciliation is `services/api/src/scripts/review-remediation-reconcile.ts` (`plan` → `apply` → `compensate`), documented in `RECONCILIATION.md`. `plan` is read-only and lists every affected record with its precondition and effect, identified by a content hash. `apply` is bound to that hash, touches only listed records (compare-and-set), re-checks each item's reviewed context under row locks and refuses an item whose context changed (IR-04), writes a durable audit row per change, reports records changed since planning, and is idempotent. `compensate` restores the captured values of exactly what the plan applied.
