@@ -19,6 +19,21 @@
  *      reported (`changed_since_plan`) and left alone. Re-applying the same
  *      plan is idempotent (`already_applied`).
  *
+ *      IR-04 (2026-11-28) — the hash proves WHICH plan was approved; the
+ *      item's `precondition` proves the reviewed CONTEXT is still current.
+ *      Every escalation item carries the facts its before/after behaviour was
+ *      derived from: the escalation's status, reason, creator and review; the
+ *      review's status, decision round, round pin, setter escalation and the
+ *      other causes that keep a second decision required. Attribution items
+ *      carry the escalation the creator was taken from. At apply time the
+ *      review row (then the escalation row) is locked — the same order every
+ *      decision and coding write uses — the facts are recomputed, and any
+ *      difference refuses the item as `changed_since_plan` with the names of
+ *      the facts that changed (`changedFacts`). No contextual change is
+ *      treated as harmless: re-plan and re-approve instead. Help-text items
+ *      have no context beyond the stored text, which the compare-and-set
+ *      already checks.
+ *
  *   3. COMPENSATE (`compensateReconciliationPlan`) undoes exactly what a plan
  *      applied. It uses the before/after values captured in its audit rows,
  *      with the same compare-and-set (only when the record still holds the
@@ -53,7 +68,11 @@
  *    escalation id). They keep forcing; resolving one needs a normal Review
  *    action by an owner.
  *  - overturned_challenges_before_change (REPORT ONLY) — challenges resolved
- *    OVERTURNED/PARTIAL before 2026-11-27 left the review unchanged.
+ *    OVERTURNED/PARTIAL whose resolution left NO supersede evidence: no
+ *    resolution audit row stating what it did to the review (`superseded`)
+ *    and no REOPENED / STAGE_CHANGED event referencing the challenge. IR-05
+ *    (2026-11-28): decided per challenge, never by a fixed date — the old
+ *    behaviour stayed in production until this change is deployed.
  */
 import { createHash } from "node:crypto";
 
@@ -91,9 +110,6 @@ export const APPLICABLE_CATEGORIES: ReadonlySet<ReviewRemediationCategory> = new
   "seeded_verdict_help_text",
 ]);
 
-/** Challenges resolved before this instant predate the supersede behaviour. */
-export const REVIEW_REMEDIATION_CUTOVER = new Date("2026-11-27T00:00:00.000Z");
-
 export const RECONCILE_SERVICE_ACTOR = "ops.review-remediation-reconcile";
 const AUDIT_APPLIED = "review.remediation.reconcile.applied";
 const AUDIT_COMPENSATED = "review.remediation.reconcile.compensated";
@@ -110,6 +126,33 @@ export type PlanChange =
   | { table: "evidence_review_workflows"; field: "escalated_by_user_id"; from: null; to: string }
   | { table: "coding_fields"; field: "help_text"; from: string; to: string };
 
+/**
+ * IR-04 — the facts an item's before/after behaviour was derived from. Apply
+ * recomputes them under row locks; any difference refuses the item.
+ */
+export type PlanPrecondition = {
+  escalation?: { status: string; reason: string; createdByUserId: string | null; workflowId: string };
+  workflow?: {
+    status: string;
+    decisionRound: number;
+    roundPinned: boolean;
+    /** The escalation that set the stored ESCALATED status (newest ESCALATED event), if any. */
+    setterEscalationId: string | null;
+    /** Sorted non-escalation causes: active legal hold, redaction, workspace policy. */
+    causes: string[];
+    /**
+     * The review's OTHER active escalations, by id. Their
+     * `requires_independent_review` flag is deliberately not a fact: it is
+     * written only when an escalation is created and by this job, so a
+     * sibling item of the same plan never makes this item stale. A new
+     * escalation, or a sibling's status / reason / creator changing, does.
+     */
+    otherActiveEscalations: Array<{ id: string; status: string; reason: string; createdByUserId: string | null }>;
+  };
+  /** escalated_by_backfill: the person-raised escalation the creator is taken from. */
+  attribution?: { escalationId: string; createdByUserId: string };
+};
+
 export type PlanItem = {
   category: ReviewRemediationCategory;
   /** The record the change targets (escalation / workflow / coding field id). */
@@ -118,6 +161,8 @@ export type PlanItem = {
   workflowId: string | null;
   /** null for report-only categories. */
   change: PlanChange | null;
+  /** IR-04 — the reviewed context (absent for help text and report-only items). */
+  precondition?: PlanPrecondition;
   /** Effective behaviour, for the owner's review (bounded, ids and codes only). */
   effect: {
     before: string;
@@ -131,7 +176,8 @@ export type PlanItem = {
 
 export type ReconciliationPlan = {
   kind: "review-remediation-plan";
-  version: 1;
+  /** 2 since IR-04 (preconditions). Version-1 plans are refused: re-plan. */
+  version: 2;
   teamId: string | null;
   items: PlanItem[];
 };
@@ -191,10 +237,146 @@ async function escalationEffect(
   return { roundPinned: pinned !== null, otherCauses, workflowStatus: String(wf.status) };
 }
 
+/** IR-04 — the escalation facts an item depends on (null when the row is gone). */
+async function escalationFacts(client: Db, escalationId: string): Promise<PlanPrecondition["escalation"] | null> {
+  const e = await client.reviewEscalation.findUnique({
+    where: { id: escalationId },
+    select: { status: true, reason: true, createdByUserId: true, workflowId: true },
+  });
+  return e ? { status: String(e.status), reason: String(e.reason), createdByUserId: e.createdByUserId, workflowId: e.workflowId } : null;
+}
+
+/** IR-04 — the review facts an escalation item depends on (null when the review is gone). */
+async function workflowFacts(
+  client: Db,
+  input: { workflowId: string; teamId: string; excludeEscalationId: string },
+): Promise<PlanPrecondition["workflow"] | null> {
+  const wf = await client.evidenceReviewWorkflow.findUnique({
+    where: { id: input.workflowId },
+    select: { id: true, evidenceId: true, status: true, decisionRound: true },
+  });
+  if (!wf) return null;
+  const pinned = await roundPinnedToSecondReview({ workflowId: wf.id, round: wf.decisionRound }, client);
+  const [holds, redactions, policy, others] = await Promise.all([
+    client.evidenceLegalHold.count({ where: { teamId: input.teamId, evidenceId: wf.evidenceId, status: "ACTIVE" } }),
+    client.evidenceWorkflowVisibilityDecision.count({ where: { evidenceId: wf.evidenceId, requiresRedaction: true } }),
+    client.workspaceGovernancePolicy.findUnique({ where: { teamId: input.teamId }, select: { reviewRequiresIndependentApproval: true } }),
+    client.reviewEscalation.findMany({
+      where: { workflowId: wf.id, teamId: input.teamId, status: { in: ACTIVE }, NOT: { id: input.excludeEscalationId } },
+      orderBy: { id: "asc" },
+      select: { id: true, status: true, reason: true, createdByUserId: true },
+    }),
+  ]);
+  const causes: string[] = [];
+  if (holds > 0) causes.push("active_legal_hold");
+  if (redactions > 0) causes.push("redaction_required");
+  if (policy?.reviewRequiresIndependentApproval) causes.push("workspace_policy");
+  const ev = await client.evidenceReviewWorkflowEvent.findFirst({
+    where: { workflowId: input.workflowId, eventType: "ESCALATED" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { nextValue: true },
+  });
+  const setter = (ev?.nextValue as { escalationId?: unknown } | null)?.escalationId;
+  return {
+    status: String(wf.status),
+    decisionRound: wf.decisionRound,
+    roundPinned: pinned !== null,
+    setterEscalationId: typeof setter === "string" ? setter : null,
+    causes: causes.sort(),
+    otherActiveEscalations: others.map((o) => ({
+      id: o.id,
+      status: String(o.status),
+      reason: String(o.reason),
+      createdByUserId: o.createdByUserId,
+    })),
+  };
+}
+
+/** IR-04 — the escalation the attribution backfill takes its creator from. */
+async function attributionFacts(client: Db, workflowId: string): Promise<PlanPrecondition["attribution"] | null> {
+  const esc = await client.reviewEscalation.findFirst({
+    where: { workflowId, createdByUserId: { not: null } },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { id: true, createdByUserId: true },
+  });
+  return esc?.createdByUserId ? { escalationId: esc.id, createdByUserId: esc.createdByUserId } : null;
+}
+
+/** IR-04 — recompute an item's precondition with the same readers the plan used. */
+async function currentPrecondition(client: Db, item: PlanItem): Promise<PlanPrecondition> {
+  const want = item.precondition ?? {};
+  const now: PlanPrecondition = {};
+  if (want.escalation) now.escalation = (await escalationFacts(client, item.recordId)) ?? undefined;
+  if (want.workflow && item.workflowId) {
+    now.workflow = (await workflowFacts(client, { workflowId: item.workflowId, teamId: item.teamId, excludeEscalationId: item.recordId })) ?? undefined;
+  }
+  if (want.attribution && item.workflowId) now.attribution = (await attributionFacts(client, item.workflowId)) ?? undefined;
+  return now;
+}
+
+/** The names of the facts that differ between the planned and the current precondition. */
+function changedFacts(planned: PlanPrecondition, now: PlanPrecondition): string[] {
+  const out: string[] = [];
+  for (const group of ["escalation", "workflow", "attribution"] as const) {
+    const a = planned[group] as Record<string, unknown> | undefined;
+    if (!a) continue;
+    const b = now[group] as Record<string, unknown> | undefined;
+    if (!b) {
+      out.push(`${group}:missing`);
+      continue;
+    }
+    for (const k of Object.keys(a).sort()) if (canonical(a[k]) !== canonical(b[k])) out.push(`${group}.${k}`);
+  }
+  return out;
+}
+
 function afterText(e: { roundPinned: boolean; otherCauses: string[] }): string {
   if (e.roundPinned) return "the current round stays pinned: its FIRST decision still waits for an independent second decision";
   if (e.otherCauses.length > 0) return "a second decision is still required by the other causes listed";
   return "no second decision is required by this record; the next FIRST decision can finish the review";
+}
+
+/**
+ * IR-05 — overturned / partially overturned challenges with NO supersede
+ * evidence. The supersede behaviour records, in the resolution's transaction,
+ * a `reviewer.disagreement.transitioned` audit row whose metadata states
+ * what it did to the review (`superseded`: reopen / advance_round /
+ * already_superseded) and, for a reopen or a round advance, a REOPENED /
+ * STAGE_CHANGED event naming the challenge (`disagreementId`). A challenge
+ * resolved by the earlier code has neither, whenever it was resolved.
+ */
+async function overturnedWithoutSupersede(
+  client: Db,
+  teamFilter: { teamId?: string },
+): Promise<Array<{ id: string; teamId: string; workflowId: string | null; state: string }>> {
+  const overturned = await client.reviewerDisagreement.findMany({
+    where: { ...teamFilter, state: { in: ["RESOLVED_OVERTURNED", "RESOLVED_PARTIAL"] } },
+    orderBy: { id: "asc" },
+    select: { id: true, teamId: true, workflowId: true, state: true },
+  });
+  if (overturned.length === 0) return [];
+  const ids = overturned.map((d) => d.id);
+  const audits = await client.adminAuditLog.findMany({
+    where: { action: "reviewer.disagreement.transitioned", resourceId: { in: ids } },
+    select: { resourceId: true, metadata: true },
+  });
+  const evidenced = new Set<string>();
+  for (const a of audits) {
+    const m = a.metadata as Record<string, unknown> | null;
+    if (a.resourceId && m && typeof m === "object" && "superseded" in m) evidenced.add(a.resourceId);
+  }
+  const workflowIds = [...new Set(overturned.map((d) => d.workflowId).filter((w): w is string => !!w))];
+  if (workflowIds.length > 0) {
+    const events = await client.evidenceReviewWorkflowEvent.findMany({
+      where: { workflowId: { in: workflowIds }, eventType: { in: ["REOPENED", "STAGE_CHANGED"] } },
+      select: { nextValue: true },
+    });
+    for (const e of events) {
+      const id = (e.nextValue as { disagreementId?: unknown } | null)?.disagreementId;
+      if (typeof id === "string") evidenced.add(id);
+    }
+  }
+  return overturned.filter((d) => !evidenced.has(d.id)).map((d) => ({ ...d, state: String(d.state) }));
 }
 
 /**
@@ -222,6 +404,7 @@ export async function buildReconciliationPlan(input: { teamId?: string | null },
         teamId: e.teamId,
         workflowId: e.workflowId,
         change: { table: "review_escalations", field: "requires_independent_review", from: null, to: true },
+        precondition: { escalation: (await escalationFacts(client, e.id))! },
         effect: { before: "forces an independent second decision (integrity reason)", after: "unchanged: forces (integrity reason)" },
       });
       continue;
@@ -235,12 +418,14 @@ export async function buildReconciliationPlan(input: { teamId?: string | null },
           : "legacy_creatorless_escalations";
     if (!category) continue;
     const eff = await escalationEffect(client, e);
+    const wfFacts = await workflowFacts(client, { workflowId: e.workflowId, teamId: e.teamId, excludeEscalationId: e.id });
     items.push({
       category,
       recordId: e.id,
       teamId: e.teamId,
       workflowId: e.workflowId,
       change: { table: "review_escalations", field: "requires_independent_review", from: null, to: false },
+      precondition: { escalation: (await escalationFacts(client, e.id))!, ...(wfFacts ? { workflow: wfFacts } : {}) },
       effect: {
         before: "forces an independent second decision (pre-change rule)",
         after: `stops forcing: ${afterText(eff)}`,
@@ -301,12 +486,14 @@ export async function buildReconciliationPlan(input: { teamId?: string | null },
       continue;
     }
     const live = await requiresSecondReview({ workflowId: wf.id, teamId: wf.teamId, evidenceId: wf.evidenceId }, client);
+    const statusFacts = await workflowFacts(client, { workflowId: wf.id, teamId: wf.teamId, excludeEscalationId: setter.id });
     items.push({
       category: "legacy_escalated_status",
       recordId: setter.id,
       teamId: wf.teamId,
       workflowId: wf.id,
       change: { table: "review_escalations", field: "requires_independent_review", from: null, to: false },
+      precondition: { escalation: (await escalationFacts(client, setter.id))!, ...(statusFacts ? { workflow: statusFacts } : {}) },
       effect: {
         before: `the stored ESCALATED status forces an independent second decision (pre-change rule; live cause ${live.reason ?? "none"})`,
         after: `the status stops forcing by itself${pinned ? "; the current round stays pinned" : ""}`,
@@ -323,18 +510,15 @@ export async function buildReconciliationPlan(input: { teamId?: string | null },
   });
   for (const wf of unattributed) {
     if (!wf.teamId) continue;
-    const esc = await client.reviewEscalation.findFirst({
-      where: { workflowId: wf.id, createdByUserId: { not: null } },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      select: { createdByUserId: true },
-    });
-    if (!esc?.createdByUserId) continue;
+    const attribution = await attributionFacts(client, wf.id);
+    if (!attribution) continue;
     items.push({
       category: "escalated_by_backfill",
       recordId: wf.id,
       teamId: wf.teamId,
       workflowId: wf.id,
-      change: { table: "evidence_review_workflows", field: "escalated_by_user_id", from: null, to: esc.createdByUserId },
+      change: { table: "evidence_review_workflows", field: "escalated_by_user_id", from: null, to: attribution.createdByUserId },
+      precondition: { attribution },
       effect: { before: "escalation shown without who raised it", after: "attribution only; no behaviour change" },
     });
   }
@@ -356,25 +540,24 @@ export async function buildReconciliationPlan(input: { teamId?: string | null },
     });
   }
 
-  // Report only: challenges overturned before the change.
-  const overturned = await client.reviewerDisagreement.findMany({
-    where: { ...teamFilter, state: { in: ["RESOLVED_OVERTURNED", "RESOLVED_PARTIAL"] }, resolvedAtUtc: { lt: REVIEW_REMEDIATION_CUTOVER } },
-    orderBy: { id: "asc" },
-    select: { id: true, teamId: true, workflowId: true },
-  });
-  for (const d of overturned) {
+  // Report only: overturned / partially overturned challenges whose
+  // resolution left no supersede evidence (IR-05: per challenge, no date).
+  for (const d of await overturnedWithoutSupersede(client, teamFilter)) {
     items.push({
       category: "overturned_challenges_before_change",
       recordId: d.id,
       teamId: d.teamId,
       workflowId: d.workflowId,
       change: null,
-      effect: { before: "resolved as overturned without reopening the review", after: "unchanged (report only): reopen through the normal Reopen action if wanted" },
+      effect: {
+        before: `resolved as ${d.state === "RESOLVED_PARTIAL" ? "partially overturned" : "overturned"} without superseding the review (no supersede record)`,
+        after: "unchanged (report only): reopen through the normal Reopen action if wanted",
+      },
     });
   }
 
   items.sort((a, b) => (a.category === b.category ? a.recordId.localeCompare(b.recordId) : a.category.localeCompare(b.category)));
-  const plan: ReconciliationPlan = { kind: "review-remediation-plan", version: 1, teamId: input.teamId ?? null, items };
+  const plan: ReconciliationPlan = { kind: "review-remediation-plan", version: 2, teamId: input.teamId ?? null, items };
   const counts = Object.fromEntries(
     REVIEW_REMEDIATION_CATEGORIES.map((c) => [c, { count: items.filter((i) => i.category === c).length, applicable: APPLICABLE_CATEGORIES.has(c) }]),
   ) as PlanWithHash["counts"];
@@ -386,6 +569,8 @@ export type ApplyItemResult = {
   recordId: string;
   outcome: "applied" | "already_applied" | "changed_since_plan" | "not_found" | "failed" | "not_selected";
   current?: Scalar;
+  /** IR-04 — which reviewed facts changed since planning. */
+  changedFacts?: string[];
   error?: string;
 };
 
@@ -398,7 +583,14 @@ export type ApplyReport = {
 };
 
 export class ReconcilePlanError extends Error {
-  constructor(public readonly code: "plan_hash_mismatch" | "category_not_applicable" | "unknown_category" | "operator_required") {
+  constructor(
+    public readonly code:
+      | "plan_hash_mismatch"
+      | "plan_version_unsupported"
+      | "category_not_applicable"
+      | "unknown_category"
+      | "operator_required",
+  ) {
     super(code);
   }
 }
@@ -499,6 +691,7 @@ async function appliedByPlan(client: Db, planHash: string, recordId: string, act
 
 function validateApplyInput(plan: ReconciliationPlan, expectedHash: string, categories: ReadonlyArray<string>, operator: string) {
   if (planHashOf(plan) !== expectedHash) throw new ReconcilePlanError("plan_hash_mismatch");
+  if (plan.version !== 2) throw new ReconcilePlanError("plan_version_unsupported");
   if (!operator || !operator.trim()) throw new ReconcilePlanError("operator_required");
   for (const c of categories) {
     if (!(REVIEW_REMEDIATION_CATEGORIES as ReadonlyArray<string>).includes(c)) throw new ReconcilePlanError("unknown_category");
@@ -532,6 +725,26 @@ export async function applyReconciliationPlan(
     const change = item.change;
     try {
       const outcome = await client.$transaction(async (tx) => {
+        if (item.precondition) {
+          // IR-04 — lock the review row first (the order every decision and
+          // coding write uses), then the escalation row, and recompute the
+          // reviewed facts; any difference refuses the item.
+          if (item.workflowId) {
+            await tx.$queryRaw`SELECT "id" FROM "evidence_review_workflows" WHERE "id" = ${item.workflowId}::uuid FOR UPDATE`;
+          }
+          if (change.table === "review_escalations") {
+            await tx.$queryRaw`SELECT "id" FROM "review_escalations" WHERE "id" = ${item.recordId}::uuid FOR UPDATE`;
+          }
+          const diff = changedFacts(item.precondition, await currentPrecondition(tx, item));
+          if (diff.length > 0) {
+            const cur = await readCurrent(tx, change, item.recordId);
+            if (!cur.found) return { outcome: "not_found" as const };
+            if (cur.value === change.to && (await appliedByPlan(tx, input.expectedPlanHash, item.recordId, AUDIT_APPLIED))) {
+              return { outcome: "already_applied" as const, current: cur.value };
+            }
+            return { outcome: "changed_since_plan" as const, current: cur.value, changedFacts: diff };
+          }
+        }
         const n = await casWrite(tx, change, item.recordId, change.from, change.to);
         if (n === 1) {
           await auditChange(tx, AUDIT_APPLIED, { planHash: input.expectedPlanHash, operator: input.operator, item, from: change.from, to: change.to });

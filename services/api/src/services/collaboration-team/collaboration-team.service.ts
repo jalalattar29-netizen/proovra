@@ -78,7 +78,8 @@ import {
   AssigneeEligibilityError,
   assertWorkAssigneeEligible,
 } from "../assignment/assignee-eligibility.js";
-import { releaseReviewWorkflowsHeldByTx, releaseTeamTasksTx } from "../assignment/release-held-work.js";
+import { lockReviewWorkflowsHeldByTx, releaseReviewWorkflowsHeldByTx, releaseTeamTasksTx } from "../assignment/release-held-work.js";
+import { withDeadlockRetry } from "../assignment/deadlock-retry.js";
 import { reviewAssignmentRequiresPlacement } from "../assignment/placement-policy.js";
 import { isPlacedWorkspaceMember } from "./placement.js";
 import { revokeGrantsOfCreatorsWithoutReachTx } from "../cases/case-reach-share-revocation.js";
@@ -2215,7 +2216,14 @@ export async function suspendMember(
    *
    * The count is taken inside the same transaction as the write below.
    */
-  await client.$transaction(async (tx) => {
+  // IR-06 — under a Review placement rule the member's held reviews may be
+  // released below: lock them FIRST (the order a verdict uses), then the
+  // membership. The whole transaction is retried after a lock-cycle abort.
+  const releasesReviews = await reviewAssignmentRequiresPlacement(team.workspaceId, client);
+  await withDeadlockRetry(() => client.$transaction(async (tx) => {
+    if (releasesReviews) {
+      await lockReviewWorkflowsHeldByTx(tx as unknown as PrismaClient, { teamId: team.workspaceId, userIds: [member.userId] });
+    }
     await lockCollaborationTeamMembership(tx, input.teamId);
     if (member.role === "LEAD") {
       const remainingLeads = await tx.collaborationTeamMember.count({
@@ -2269,7 +2277,7 @@ export async function suspendMember(
     }
     await revokeGrantsLostWithGroupReachTx(tx, { teamId: input.teamId, actorUserId: input.actorUserId });
     if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, undefined);
-  });
+  }));
 }
 
 /**
@@ -2385,7 +2393,12 @@ export async function removeMember(
     actorRole,
     targetRole: String(member.role),
   });
-  await client.$transaction(async (tx) => {
+  // IR-06 — same lock order and retry as suspendMember.
+  const releasesReviews = await reviewAssignmentRequiresPlacement(team.workspaceId, client);
+  await withDeadlockRetry(() => client.$transaction(async (tx) => {
+    if (releasesReviews) {
+      await lockReviewWorkflowsHeldByTx(tx as unknown as PrismaClient, { teamId: team.workspaceId, userIds: [member.userId] });
+    }
     await lockCollaborationTeamMembership(tx, input.teamId);
     // Same correction as `changeMemberRole` above: counted outside the
     // transaction, written inside it. Two concurrent removals of the last two
@@ -2434,7 +2447,7 @@ export async function removeMember(
     }
     await revokeGrantsLostWithGroupReachTx(tx, { teamId: input.teamId, actorUserId: input.actorUserId });
     if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, undefined);
-  });
+  }));
 }
 
 // -----------------------------------------------------------------------------

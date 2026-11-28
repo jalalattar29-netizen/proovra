@@ -89,6 +89,7 @@ import { emitDecisionOutcomeSignals } from "./decision-outcome-signals.js";
 import { countEligibleSecondReviewers } from "./review-handoff.service.js";
 import { assertReviewAssigneeEligible, ReviewOperationError } from "../review-operations/review-operations.service.js";
 import { buildCodingSnapshot, codingCompletenessRefusal } from "../reviewer-workspace/coding-value.service.js";
+import { withDeadlockRetry } from "../assignment/deadlock-retry.js";
 
 // -----------------------------------------------------------------------------
 // Types + error surface
@@ -197,6 +198,11 @@ export { requiresSecondReview, secondReviewForRound } from "../evidence-review/s
 // -----------------------------------------------------------------------------
 
 export type RecordReviewDecisionInput = {
+  /**
+   * TEST ONLY (IR-06 lock-order barrier tests): awaited inside the decision
+   * transaction right after the workflow row lock. Never set by a route.
+   */
+  testHooks?: { afterWorkflowLock?: () => Promise<void> };
   workflowId: string;
   teamId: string;
   actorUserId: string;
@@ -356,7 +362,10 @@ export async function recordReviewDecision(
     return recordInformationRequest(input, rationale, client);
   }
 
-  const result: RecordReviewDecisionResult = await client.$transaction(async (tx): Promise<RecordReviewDecisionResult> => {
+  // IR-06 (2026-11-28) — the decision transaction writes only to the database
+  // (notifications and signals run after commit), so after a lock-cycle abort
+  // it is run again from the start and answers with the ordinary outcome.
+  const result: RecordReviewDecisionResult = await withDeadlockRetry(() => client.$transaction(async (tx): Promise<RecordReviewDecisionResult> => {
     // Review remediation C (2026-11-27) — the workflow row lock FIRST, the
     // same statement coding write/clear, bulk coding and schema rebind take
     // (coding-value.service `lockReviewWorkflowRow`; written inline so this
@@ -364,6 +373,7 @@ export async function recordReviewDecision(
     // either committed before this (and the completeness check and the
     // snapshot below see it) or waits and then sees the finalized status.
     await tx.$queryRaw`SELECT "id" FROM "evidence_review_workflows" WHERE "id" = ${input.workflowId}::uuid AND "team_id" = ${input.teamId}::uuid FOR UPDATE`;
+    await input.testHooks?.afterWorkflowLock?.();
     // (i) Workspace isolation — cross-workspace probes are
     // indistinguishable from missing workflows. So is a record closed to the
     // actor by a restricted case (WORKFLOW-003).
@@ -650,27 +660,43 @@ export async function recordReviewDecision(
         }
         throw err;
       }
-      // F-18 — complete coding is required only under the explicit workspace
-      // policy, only for rounds started after it was enabled, and never for a
-      // request for information (handled above).
-      if (input.decision === "APPROVE" || input.decision === "REJECT") {
-        const started = await tx.evidenceReviewWorkflowEvent.findFirst({
-          where: { workflowId: wf.id, eventType: "REVIEW_STARTED" },
-          orderBy: { createdAt: "desc" },
-          select: { createdAt: true },
+    }
+
+    // F-18 — complete coding is required only under the explicit workspace
+    // policy, only for rounds started after it was enabled, and never for a
+    // request for information (handled above).
+    //
+    // Review remediation IR-03 (2026-11-28) — the policy is a requirement on
+    // FINISHING a review with an approval or a rejection, whoever finishes it.
+    // An adjudication that upholds a reviewer's APPROVE / REJECT finishes the
+    // review with that verdict, so it is checked exactly like a verdict (with
+    // the same pre-policy round exemption). Adjudicated NEEDS_MORE_INFO and
+    // UNRESOLVED record no final approval or rejection and stay exempt.
+    const finishingVerdict: string | null =
+      targetStage === "ADJUDICATION"
+        ? input.decision === "UPHOLD_FIRST"
+          ? String(rows.find((d) => d.stage === "FIRST")?.decision ?? "")
+          : input.decision === "UPHOLD_SECOND"
+            ? String(rows.find((d) => d.stage === "SECOND")?.decision ?? "")
+            : null
+        : String(input.decision);
+    if (finishingVerdict === "APPROVE" || finishingVerdict === "REJECT") {
+      const started = await tx.evidenceReviewWorkflowEvent.findFirst({
+        where: { workflowId: wf.id, eventType: "REVIEW_STARTED" },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true },
+      });
+      const refusal = await codingCompletenessRefusal(tx as unknown as PrismaClient, {
+        teamId: input.teamId,
+        workflowId: wf.id,
+        decision: finishingVerdict,
+        roundStartedAt: started?.createdAt ?? null,
+      });
+      if (refusal) {
+        throw new ReviewDecisionAuthorityError("coding_incomplete", {
+          missingFieldIds: refusal.missingFieldIds,
+          missingLabels: refusal.missingLabels,
         });
-        const refusal = await codingCompletenessRefusal(tx as unknown as PrismaClient, {
-          teamId: input.teamId,
-          workflowId: wf.id,
-          decision: String(input.decision),
-          roundStartedAt: started?.createdAt ?? null,
-        });
-        if (refusal) {
-          throw new ReviewDecisionAuthorityError("coding_incomplete", {
-            missingFieldIds: refusal.missingFieldIds,
-            missingLabels: refusal.missingLabels,
-          });
-        }
       }
     }
 
@@ -875,7 +901,7 @@ export async function recordReviewDecision(
         idempotent: false,
       },
     };
-  });
+  }));
 
   // Post-commit operational notification — best-effort, never undoes
   // the decision. Mirrors the pre-convergence Phase 13 behaviour for
@@ -1011,7 +1037,14 @@ async function recordInformationRequest(
   rationale: string,
   client: PrismaClient,
 ): Promise<RecordReviewDecisionResult> {
-  const result = await client.$transaction(async (tx): Promise<RecordReviewDecisionResult> => {
+  // IR-06 (2026-11-28) — the review row FIRST, as a verdict: the write-time
+  // eligibility below share-locks the requester's placement, and a
+  // placement-loss transaction locks the member's reviews before their
+  // membership, so taking the membership first here would form a cycle with
+  // it. Retried as a whole after a lock-cycle abort (database writes only).
+  const result = await withDeadlockRetry(() => client.$transaction(async (tx): Promise<RecordReviewDecisionResult> => {
+    await tx.$queryRaw`SELECT "id" FROM "evidence_review_workflows" WHERE "id" = ${input.workflowId}::uuid AND "team_id" = ${input.teamId}::uuid FOR UPDATE`;
+    await input.testHooks?.afterWorkflowLock?.();
     const wf = await tx.evidenceReviewWorkflow.findFirst({
       where: { id: input.workflowId, teamId: input.teamId, evidence: evidenceVisibleThroughCasesWhere(input.actorUserId) },
     });
@@ -1162,7 +1195,7 @@ async function recordInformationRequest(
       previousStatus: String(wf.status),
       outcome: { stageRecorded: "NONE", statusChanged: true, reviewState: "first_required", nextRequirement: "information", idempotent: false },
     };
-  });
+  }));
   if (!result.idempotent) {
     notifyReviewNeedsMoreInfo({ workflow: result.workflow, actorUserId: input.actorUserId }, client).catch(() => null);
   }

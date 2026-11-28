@@ -11,3 +11,17 @@ Head inspected: `d1592449e8c6187af4fd061e0f1a3fd65adb70ac`. No later commit exis
 | E | Legacy changes not fully reported; apply not bound to the reviewed scope; no audit record | 1. `escalationIndependenceCause` makes creator-less, non-sweep, non-integrity legacy escalations (NULL) non-forcing; the base rule forced them, and no dry-run category lists them. 2. Reviews held ESCALATED by a pre-change administrative Escalate stop forcing at deployment (`second-review.service.ts`, `review-outcome.service.ts`). 3. `--apply` re-selects at apply time, reports ≤50 sample ids, writes no audit row, and compensation is "set back to NULL". | 1: **code defect** (unintended weakening). 2: **policy compatibility decision**: the new owner direction is to preserve legacy requirements by default, so it is now treated as a defect. 3: **missing safety and verification** |
 
 Not refuted on the basis of passing tests: each of these paths passed the existing suites, which is why each fix adds a regression test that fails on `d1592449e`.
+
+# Independent review of 0344e3bd2 (2026-11-28) — verification before correction
+
+| ID | Finding | Verified on the call path | Classification |
+|---|---|---|---|
+| IR-01 | A newer in-page reread can make editing back to a saved value skip persistence | `CodingPanel.tsx` `knownValue()` returned `status.op` while the status was "saved", regardless of a newer server revision adopted by the lane; `TextWidget`/`NumericWidget` returned early on `draft === known`. `alreadySent()` had the same blind spot. Reproduced on the mounted panel (4 render tests fail on 0344e3bd2). | **Code defect** |
+| IR-02 | A decision does not drain or acknowledge pending Coding | `postDecision` (Review page) sent the decision directly; `DecisionPanel` readiness ignored coding. The server serialized correctly, so the snapshot was the stored state, not the latest entry. | **Code defect** (end-to-end intent) |
+| IR-03 | Complete-coding policy bypassed by adjudication | `review-decision.service.ts`: `codingCompletenessRefusal` nested under `targetStage !== "ADJUDICATION"`. Reproduced with the route (fails on 0344e3bd2). | **Code defect** |
+| IR-04 | Stale-plan protection checked only the target scalar | `applyReconciliationPlan` → `casWrite` with `{ id, requiresIndependentReview: from }` only. Reproduced (OPEN → RESOLVED applied on 0344e3bd2). | **Missing safety** |
+| IR-05 | Fixed historical cutover | `REVIEW_REMEDIATION_CUTOVER = 2026-11-27T00:00Z` filtered `resolvedAtUtc <`; the old behaviour ran after it. | **Code defect** (reporting) |
+| IR-06 | Opposite lock orders: verdict vs placement loss | Verdict: workflow `FOR UPDATE` → `isPlacedWorkspaceMember` `FOR SHARE OF ctm, ct`. `suspendMember` / `removeMember`: membership `UPDATE` → `releaseReviewWorkflowsHeldByTx` workflow `UPDATE`. **Observed**: PostgreSQL `deadlock detected` in a two-connection barrier test on 0344e3bd2 (Team suspension, Team removal, Enterprise suspension). Assign and claim were checked and form no cycle: they check the assignee, and a review being assigned is not among the member's held reviews. Challenge resolution already locked the review first. | **Code defect** (confirmed) |
+
+Corrections and evidence: `IMPLEMENTATION-REGISTER.md`, "Independent review corrections".
+

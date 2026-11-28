@@ -13,6 +13,12 @@
  *    each one, writes a durable audit row per change, is idempotent, refuses a
  *    tampered plan, reports records changed after planning, rolls back on a
  *    failure, and compensation undoes exactly what was applied.
+ *  - IR-04 (2026-11-28): every item carries the reviewed context; apply
+ *    recomputes it under the review / escalation row locks and refuses an
+ *    item whose context changed (status, round, causes, escalations,
+ *    attribution source), naming the facts. Sibling items never conflict.
+ *  - IR-05: the overturned-challenge report is decided per challenge from
+ *    supersede evidence, not from a fixed date.
  */
 import { randomUUID } from "node:crypto";
 
@@ -376,5 +382,159 @@ describe("the plan-bound, audited reconciliation (E.3)", () => {
     expect(item.effect.roundPinned).toBe(true);
     await svc.applyReconciliationPlan({ plan, expectedPlanHash: plan.planHash, categories: ["legacy_administrative_escalations"], operator: "QA operator" }, prisma);
     expect(await required(r)).toMatchObject({ required: true, reason: "legacy_escalation" });
+  });
+});
+
+describe("IR-04 — apply refuses an item whose reviewed context changed since planning", () => {
+  const itemOf = (plan: { items: Array<{ recordId: string }> }, id: string) => plan.items.find((i) => i.recordId === id)!;
+  const apply = (plan: Awaited<ReturnType<typeof svc.buildReconciliationPlan>>, categories: string[]) =>
+    svc.applyReconciliationPlan({ plan, expectedPlanHash: plan.planHash, categories, operator: "QA operator" }, prisma);
+  const auditCount = (recordId: string, planHash: string) =>
+    prisma.adminAuditLog.count({
+      where: { resourceId: recordId, action: "review.remediation.reconcile.applied", metadata: { path: ["planHash"], equals: planHash } },
+    });
+
+  it("every escalation item carries its precondition (escalation + review facts); attribution items carry their source escalation", async () => {
+    const helper = await newUserId("pre");
+    const r = await review();
+    const e = await escalation(r, { reason: "WORKFLOW_STALLED", createdByUserId: helper, requiresIndependentReview: null });
+    const plan = await svc.buildReconciliationPlan({ teamId }, prisma);
+    expect(plan.version).toBe(2);
+    expect(itemOf(plan, e)).toMatchObject({
+      precondition: {
+        escalation: { status: "OPEN", reason: "WORKFLOW_STALLED", createdByUserId: helper, workflowId: r.workflowId },
+        workflow: { status: "IN_REVIEW", decisionRound: 0, roundPinned: false, setterEscalationId: null, causes: [], otherActiveEscalations: [] },
+      },
+    });
+  });
+
+  it("an escalation that moved OPEN → RESOLVED after planning (flag still NULL) is changed_since_plan, untouched, unaudited", async () => {
+    const helper = await newUserId("res");
+    const r = await review();
+    const e = await escalation(r, { reason: "WORKFLOW_STALLED", createdByUserId: helper, requiresIndependentReview: null });
+    const plan = await svc.buildReconciliationPlan({ teamId }, prisma);
+    await prisma.reviewEscalation.update({ where: { id: e }, data: { status: "RESOLVED" } as never });
+    const res = await apply(plan, ["legacy_administrative_escalations"]);
+    expect(res.results.find((x) => x.recordId === e)).toMatchObject({ outcome: "changed_since_plan", current: null, changedFacts: ["escalation.status"] });
+    expect((await prisma.reviewEscalation.findUniqueOrThrow({ where: { id: e } })).requiresIndependentReview).toBeNull();
+    expect(await auditCount(e, plan.planHash)).toBe(0);
+  });
+
+  it("the review's round advanced, a legal hold was placed, or another escalation was raised after planning: each refuses the item and names the fact", async () => {
+    const helper = await newUserId("ctx");
+    const roundR = await review();
+    const roundE = await escalation(roundR, { reason: "WORKFLOW_STALLED", createdByUserId: helper, requiresIndependentReview: null });
+    const holdR = await review();
+    const holdE = await escalation(holdR, { reason: "WORKFLOW_STALLED", createdByUserId: helper, requiresIndependentReview: null });
+    const newEscR = await review();
+    const newEscE = await escalation(newEscR, { reason: "WORKFLOW_STALLED", createdByUserId: helper, requiresIndependentReview: null });
+    const statusR = await review();
+    const statusE = await escalation(statusR, { reason: "WORKFLOW_STALLED", createdByUserId: helper, requiresIndependentReview: null });
+    const plan = await svc.buildReconciliationPlan({ teamId }, prisma);
+
+    await prisma.evidenceReviewWorkflow.update({ where: { id: roundR.workflowId }, data: { decisionRound: 1 } });
+    await prisma.evidenceLegalHold.create({
+      data: { scope: "EVIDENCE", evidenceId: holdR.evidenceId, teamId, status: "ACTIVE", title: "Hold", placedByUserId: ownerId } as never,
+    });
+    await escalation(newEscR, { reason: "REVIEW_OVERDUE", createdByUserId: helper, requiresIndependentReview: false });
+    await prisma.evidenceReviewWorkflow.update({ where: { id: statusR.workflowId }, data: { status: "APPROVED_INTERNAL" } as never });
+
+    const res = await apply(plan, ["legacy_administrative_escalations"]);
+    const by = (id: string) => res.results.find((x) => x.recordId === id);
+    expect(by(roundE)).toMatchObject({ outcome: "changed_since_plan", changedFacts: ["workflow.decisionRound"] });
+    expect(by(holdE)).toMatchObject({ outcome: "changed_since_plan", changedFacts: ["workflow.causes"] });
+    expect(by(newEscE)).toMatchObject({ outcome: "changed_since_plan", changedFacts: ["workflow.otherActiveEscalations"] });
+    expect(by(statusE)).toMatchObject({ outcome: "changed_since_plan", changedFacts: ["workflow.status"] });
+    for (const id of [roundE, holdE, newEscE, statusE]) {
+      expect((await prisma.reviewEscalation.findUniqueOrThrow({ where: { id } })).requiresIndependentReview).toBeNull();
+      expect(await auditCount(id, plan.planHash)).toBe(0);
+    }
+    // A fresh plan lists them again with the current context; that plan applies.
+    const replan = await svc.buildReconciliationPlan({ teamId }, prisma);
+    const again = await apply(replan, ["legacy_administrative_escalations"]);
+    expect(again.results.find((x) => x.recordId === holdE)).toMatchObject({ outcome: "applied" });
+  });
+
+  it("two listed escalations on ONE review: applying one never makes its sibling stale (both apply)", async () => {
+    const helper = await newUserId("sib");
+    const r = await review();
+    const a = await escalation(r, { reason: "WORKFLOW_STALLED", createdByUserId: helper, requiresIndependentReview: null });
+    const b = await escalation(r, { reason: "REVIEW_OVERDUE", createdByUserId: helper, requiresIndependentReview: null });
+    const plan = await svc.buildReconciliationPlan({ teamId }, prisma);
+    expect(itemOf(plan, a)).toBeTruthy();
+    expect(itemOf(plan, b)).toBeTruthy();
+    const res = await apply(plan, ["legacy_administrative_escalations"]);
+    expect(res.results.find((x) => x.recordId === a)).toMatchObject({ outcome: "applied" });
+    expect(res.results.find((x) => x.recordId === b)).toMatchObject({ outcome: "applied" });
+    expect((await required(r)).required).toBe(false);
+  });
+
+  it("attribution backfill: a newer person-raised escalation after planning changes the source; the item is refused", async () => {
+    const first = await newUserId("attr1");
+    const later = await newUserId("attr2");
+    const r = await review();
+    await prisma.evidenceReviewWorkflow.update({ where: { id: r.workflowId }, data: { escalatedAtUtc: new Date(), escalatedByUserId: null } });
+    await escalation(r, { reason: "REVIEW_OVERDUE", createdByUserId: first, requiresIndependentReview: false, status: "RESOLVED" });
+    const plan = await svc.buildReconciliationPlan({ teamId }, prisma);
+    await new Promise((res) => setTimeout(res, 5));
+    await escalation(r, { reason: "WORKFLOW_STALLED", createdByUserId: later, requiresIndependentReview: false, status: "RESOLVED" });
+    const res = await apply(plan, ["escalated_by_backfill"]);
+    expect(res.results.find((x) => x.recordId === r.workflowId)).toMatchObject({
+      outcome: "changed_since_plan",
+      changedFacts: ["attribution.createdByUserId", "attribution.escalationId"],
+    });
+    expect((await prisma.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: r.workflowId } })).escalatedByUserId).toBeNull();
+  });
+
+  it("a version-1 plan (no preconditions) is refused even with a matching hash", async () => {
+    const plan = await svc.buildReconciliationPlan({ teamId }, prisma);
+    const v1 = { kind: plan.kind, version: 1 as never, teamId: plan.teamId, items: plan.items.map((i) => ({ ...i, precondition: undefined })) };
+    await expect(
+      svc.applyReconciliationPlan({ plan: v1, expectedPlanHash: svc.planHashOf(v1), categories: ["legacy_integrity_escalations"], operator: "x" }, prisma),
+    ).rejects.toMatchObject({ code: "plan_version_unsupported" });
+  });
+});
+
+describe("IR-05 — the historical overturned-challenge report is decided per challenge, never by a fixed date", () => {
+  async function challenge(r: { workflowId: string }, state: string, resolvedAtUtc: Date) {
+    return (
+      await prisma.reviewerDisagreement.create({
+        data: { workflowId: r.workflowId, teamId, state, resolvedAtUtc, challengerUserId: ownerId, reason: "fixture" },
+        select: { id: true },
+      })
+    ).id;
+  }
+
+  it("lists overturned challenges with no supersede record (26 Nov, 27 Nov, after deployment); omits those with a supersede event or a supersede audit row; changes no history", async () => {
+    const { emitTenantAudit } = await import("../src/services/audit/tenant-audit.service.js");
+    const r = await review();
+    const before26 = await challenge(r, "RESOLVED_OVERTURNED", new Date("2026-11-26T12:00:00Z"));
+    const on27 = await challenge(r, "RESOLVED_PARTIAL", new Date("2026-11-27T12:00:00Z"));
+    const justBeforeDeploy = await challenge(r, "RESOLVED_OVERTURNED", new Date(Date.now() - 60_000));
+    // The earlier code also audited the transition, without saying what it did to the review.
+    await emitTenantAudit(
+      { action: "reviewer.disagreement.transitioned", outcome: "success", sourceApp: "API", actorUserId: ownerId, workspaceId: teamId, resourceType: "reviewer_disagreement", resourceId: justBeforeDeploy, metadata: { disagreementId: justBeforeDeploy, toState: "RESOLVED_OVERTURNED" } },
+      prisma as never,
+    );
+    // Superseded by the new behaviour on 27 Nov: a REOPENED event naming the challenge.
+    const reopened = await challenge(r, "RESOLVED_OVERTURNED", new Date("2026-11-27T13:00:00Z"));
+    await prisma.evidenceReviewWorkflowEvent.create({
+      data: { workflowId: r.workflowId, evidenceId: r.evidenceId, actorUserId: ownerId, eventType: "REOPENED", nextValue: { source: "challenge_overturned", disagreementId: reopened } } as never,
+    });
+    // New behaviour, nothing left to supersede: the audit row says so.
+    const alreadySuperseded = await challenge(r, "RESOLVED_OVERTURNED", new Date("2026-11-27T14:00:00Z"));
+    await emitTenantAudit(
+      { action: "reviewer.disagreement.transitioned", outcome: "success", sourceApp: "API", actorUserId: ownerId, workspaceId: teamId, resourceType: "reviewer_disagreement", resourceId: alreadySuperseded, metadata: { disagreementId: alreadySuperseded, superseded: "already_superseded" } },
+      prisma as never,
+    );
+    const upheld = await challenge(r, "RESOLVED_UPHELD", new Date("2026-11-26T12:00:00Z"));
+    const snapshot = await prisma.reviewerDisagreement.findMany({ where: { workflowId: r.workflowId }, orderBy: { id: "asc" } });
+
+    const plan = await svc.buildReconciliationPlan({ teamId }, prisma);
+    const listed = plan.items.filter((i) => i.category === "overturned_challenges_before_change").map((i) => i.recordId);
+    expect(listed).toEqual(expect.arrayContaining([before26, on27, justBeforeDeploy]));
+    for (const id of [reopened, alreadySuperseded, upheld]) expect(listed).not.toContain(id);
+    expect(plan.items.find((i) => i.recordId === on27)).toMatchObject({ change: null });
+    expect(await prisma.reviewerDisagreement.findMany({ where: { workflowId: r.workflowId }, orderBy: { id: "asc" } })).toEqual(snapshot);
   });
 });

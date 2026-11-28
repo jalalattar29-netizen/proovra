@@ -22,6 +22,8 @@ The simplified rule applies only to **new** escalations: a new administrative es
    - Writes, clears, schema rebinding and finalization serialize on the review's row lock.
    - Writes against a review that closed, or for a schema that is no longer bound, are refused (`WORKFLOW_CLOSED`, `SCHEMA_VERSION_MISMATCH`).
    - Clients that send `expectedRevision` (the web Coding panel) get 409 `CODING_VALUE_CONFLICT` when another tab or reviewer changed the field; older clients and bulk keep last-writer-wins.
+   - Recording a verdict or adjudication on the Review page first saves what the reviewer entered in Coding and waits for it. If an entry cannot be stored, the decision is held with the reason and both drafts stay (IR-02). A request for information is never held.
+   - An adjudication that upholds an APPROVE / REJECT is held to the explicit complete-coding policy, like a verdict (IR-03). Policy off, or a pre-policy round: unchanged.
    - Seeded verdict help text is shown corrected.
    - Snapshots are written only by decisions that finalize after deployment.
    - `POST /v1/coding/schemas` answers 410.
@@ -29,7 +31,7 @@ The simplified rule applies only to **new** escalations: a new administrative es
    - Resolving OVERTURNED/PARTIAL after deployment supersedes the outcome in the same transaction (Reopen, or a round advance).
    - A challenge whose decision is no longer current resolves with `already_superseded` and no workflow change.
    - A failure answers 409 `DISAGREEMENT_SUPERSEDE_FAILED` with nothing changed.
-   - Challenges resolved before deployment are unchanged (report-only category).
+   - Challenges resolved before deployment are unchanged. The report-only category lists every overturned challenge with no supersede record, whenever it was resolved (IR-05).
 6. **API contracts.**
    - Bulk coding and tagging answer 207 when any item fails, with `ok:false` when all fail.
    - The REQUEST_INFO decision response carries `decision: null` and `stageRecorded: "NONE"`.
@@ -43,8 +45,9 @@ The simplified rule applies only to **new** escalations: a new administrative es
    - "Review not accepted (internal)" and "First review recorded — waiting for an independent reviewer…".
    - Refusals say "second decision".
    - The REVIEW_SECOND_REVIEWER_UNAVAILABLE email text has changed.
-9. **Second-reviewer counts** scan every member (previously the first 200), shown capped as "50+".
-10. **Free-text escalation notes** equal to `reviewer_disagreement` are stored as `Note: reviewer_disagreement`.
+9. **Lock order.** Suspending or removing a Collaboration Team member under a Review placement rule locks the reviews they hold before the membership. Requests for information lock the review first. A transaction aborted to break a lock cycle is retried as a whole, up to 3 times (IR-06). There is no user-visible change, except that the earlier raw 500 or failed suspension in that interleaving no longer happens.
+10. **Second-reviewer counts** scan every member (previously the first 200), shown capped as "50+".
+11. **Free-text escalation notes** equal to `reviewer_disagreement` are stored as `Note: reviewer_disagreement`.
 
 ## Preservation
 - No historical decision row, DECISION_LOGGED event or escalation row is rewritten.

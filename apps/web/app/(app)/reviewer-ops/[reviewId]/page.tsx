@@ -120,7 +120,12 @@ import {
   RequestIndependentReviewDialog,
   type EscalateInput,
 } from "./_components/InspectorDialogs";
-import { CODING_UNSAVED_EVENT, hasUnsavedCoding } from "../../../../components/reviewer-workspace/CodingPanel";
+import {
+  CODING_UNSAVED_EVENT,
+  codingHoldMessage,
+  flushPendingCoding,
+  hasUnsavedCoding,
+} from "../../../../components/reviewer-workspace/CodingPanel";
 import { fetchCodingState } from "../../../../lib/reviewer-workspace/reviewer-api";
 import { HandoffBanner, MembersAccessLink, handoffAwaitsManager, type ReviewHandoff } from "./_components/HandoffBanner";
 import {
@@ -572,6 +577,16 @@ function ReviewWorkspacePageInner() {
       if (!teamId) return "No active workspace.";
       setNotice(null);
       setError(null);
+      // Review remediation IR-02 — a verdict / adjudication closes the round
+      // with a snapshot of the stored coding, so first save what the reviewer
+      // has entered in Coding and wait for it. If an entry cannot be stored,
+      // hold the decision with the reason: the decision draft and the coding
+      // drafts stay, nothing is discarded silently. Requesting information
+      // closes nothing, so it is never held by coding.
+      if (body.decision !== "REQUEST_INFO") {
+        const coding = await flushPendingCoding();
+        if (!coding.ok) return codingHoldMessage(coding.fields);
+      }
       try {
         const resp = (await stepUp.runStepUpAction((headers) =>
           apiFetch(`/v1/reviewer-ops/workspace/${encodeURIComponent(workflowId)}/decisions`, {

@@ -105,11 +105,40 @@ const NOTE: Record<ReleaseReason, string> = {
  * Used when a Collaboration Team departure ends Review eligibility under an
  * explicit placement policy; other held work follows its own group rules.
  */
+/**
+ * Review remediation IR-06 (2026-11-28) — THE LOCK ORDER for releasing held
+ * reviews: review rows FIRST (in id order), membership rows after. A verdict
+ * locks its review row and then reads the decider's Collaboration Team
+ * membership FOR SHARE; a placement-loss transaction (suspend / remove a
+ * member) that updated the membership first and locked the reviews second
+ * formed a cycle with it. Every transaction that may release a member's
+ * reviews calls this BEFORE it writes any membership row, so both sides take
+ * the review row first. Returns the locked ids.
+ */
+export async function lockReviewWorkflowsHeldByTx(
+  tx: Pick<PrismaClient, "$queryRaw">,
+  input: { teamId: string; userIds: readonly string[] },
+): Promise<string[]> {
+  if (input.userIds.length === 0) return [];
+  const rows = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT "id" FROM "evidence_review_workflows"
+     WHERE "team_id" = ${input.teamId}::uuid
+       AND "assigned_to_user_id" = ANY(${[...input.userIds]}::uuid[])
+       AND "status"::text NOT IN ('CLOSED', 'REJECTED_INSUFFICIENT', 'APPROVED_INTERNAL')
+     ORDER BY "id"
+       FOR UPDATE`;
+  return rows.map((r) => r.id);
+}
+
 export async function releaseReviewWorkflowsHeldByTx(
   tx: ReleaseTx,
   input: { teamId: string; userIds: readonly string[]; actorUserId: string | null; reason: ReleaseReason },
 ): Promise<number> {
   if (input.userIds.length === 0) return 0;
+  // IR-06 — the rows are locked in id order before any is changed (already
+  // held when the caller pre-locked them; a review assigned in between is
+  // locked here, and the caller's bounded retry covers that rare cycle).
+  await lockReviewWorkflowsHeldByTx(tx as unknown as Pick<PrismaClient, "$queryRaw">, input);
   const workflows = await tx.evidenceReviewWorkflow.findMany({
     where: heldWorkWhere.reviewWorkflows(input.teamId, [...input.userIds]) as never,
     select: { id: true, evidenceId: true, status: true, assignedToUserId: true },

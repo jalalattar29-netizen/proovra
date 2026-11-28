@@ -129,6 +129,36 @@ export const CODING_UNSAVED_EVENT = "proovra:coding-unsaved";
 
 const unsavedPanels = new Set<string>();
 
+/** The result of {@link flushPendingCoding}. */
+export type CodingFlushResult = { ok: true } | { ok: false; fields: string[] };
+
+const panelFlushers = new Map<string, () => Promise<CodingFlushResult>>();
+
+/** How long a decision waits for coding saves to settle before holding. */
+export const CODING_FLUSH_TIMEOUT_MS = 20_000;
+
+/**
+ * Review remediation IR-02 (2026-11-28) — before a decision is recorded, the
+ * page asks every mounted coding panel to save what the reviewer has entered:
+ * an edited text / number field is committed, a debounced confidence change
+ * is sent at once, and the call waits until each field's save has settled.
+ * `ok: false` names the fields whose latest entry is NOT stored (a failed,
+ * refused or conflicting save, or one still saving at the timeout); the page
+ * then holds the decision and says why, and the panel keeps those drafts.
+ * Coding stays optional: an untouched or cleared field never holds anything.
+ */
+export async function flushPendingCoding(): Promise<CodingFlushResult> {
+  const results = await Promise.all(Array.from(panelFlushers.values(), (f) => f()));
+  const fields = results.flatMap((r) => (r.ok ? [] : r.fields));
+  return fields.length === 0 ? { ok: true } : { ok: false, fields };
+}
+
+/** The line a held decision shows (IR-02). */
+export function codingHoldMessage(fields: readonly string[]): string {
+  const names = fields.length === 1 ? fields[0] : `${fields.slice(0, -1).join(", ")} and ${fields[fields.length - 1]}`;
+  return `Not recorded yet: your coding for ${names} ${fields.length === 1 ? "is" : "are"} not saved. Retry or reload ${fields.length === 1 ? "that field" : "those fields"} in Coding (your entry is kept), then record the decision again.`;
+}
+
 /** True while any mounted coding panel has a pending, failed or edited field. */
 export function hasUnsavedCoding(): boolean {
   return unsavedPanels.size > 0;
@@ -279,6 +309,12 @@ export function CodingPanel({
   const [resync, setResync] = useState<Record<string, number>>({});
   const [announcement, setAnnouncement] = useState("");
   const lanesRef = useRef(new Map<string, Lane>());
+  /** Synchronous mirrors of the save states / editing flags (IR-02 flush). */
+  const statusRef = useRef<Record<string, FieldStatus>>({});
+  const editingRef = useRef<Record<string, boolean>>({});
+  /** Each text / number / confidence widget's "save what is entered now". */
+  const commitRef = useRef(new Map<string, () => void>());
+  const idleWaitersRef = useRef(new Set<() => void>());
   /** Each widget's current intended operation (for Retry). */
   const intentRef = useRef(new Map<string, () => SaveOp | null>());
   const alive = useRef(true);
@@ -307,18 +343,34 @@ export function CodingPanel({
     lanesRef.current = new Map();
   }
   useEffect(() => {
+    statusRef.current = {};
+    editingRef.current = {};
     setStatuses({});
     setEditing({});
   }, [contextKey]);
 
   const setStatus = useCallback((fieldId: string, status: FieldStatus) => {
     if (!alive.current) return;
+    statusRef.current = { ...statusRef.current, [fieldId]: status };
     setStatuses((prev) => ({ ...prev, [fieldId]: status }));
   }, []);
 
   const setFieldEditing = useCallback((fieldId: string, on: boolean) => {
+    editingRef.current = { ...editingRef.current, [fieldId]: on };
     setEditing((prev) => (Boolean(prev[fieldId]) === on ? prev : { ...prev, [fieldId]: on }));
   }, []);
+
+  const allLanesIdle = useCallback(() => {
+    for (const lane of lanesRef.current.values()) if (lane.inFlight || lane.pending) return false;
+    return true;
+  }, []);
+
+  const notifyIfIdle = useCallback(() => {
+    if (!allLanesIdle()) return;
+    const waiters = Array.from(idleWaitersRef.current);
+    idleWaitersRef.current.clear();
+    for (const w of waiters) w();
+  }, [allLanesIdle]);
 
   const laneOf = useCallback((fieldId: string): Lane => {
     let lane = lanesRef.current.get(fieldId);
@@ -359,6 +411,7 @@ export function CodingPanel({
         outcome = { ok: true, revision: outcome.current.revision };
       }
       lane.inFlight = null;
+      try {
       // The context changed while this was in flight: its lane is detached;
       // nothing more is sent from it and no state of the new context changes.
       const detached = lanes !== lanesRef.current;
@@ -406,8 +459,13 @@ export function CodingPanel({
           ? `${label}: not saved — no connection. Retry when you are back online.`
           : `${label}: not saved — ${outcome.message}`,
       );
+      } finally {
+        // IR-02 — a waiting decision learns when every field has settled (a
+        // chained request above has already marked its lane in flight).
+        notifyIfIdle();
+      }
     },
-    [setStatus],
+    [setStatus, notifyIfIdle],
   );
 
   /** Record the reviewer's latest intent for a field and save it in order. */
@@ -482,9 +540,69 @@ export function CodingPanel({
       const s = statuses[f.id];
       if (editing[f.id] || s?.kind === "failed" || s?.kind === "queued") continue;
       const rev = serverRevRef.current(f.id);
-      if (rev !== undefined && (lane.revision === undefined || rev > lane.revision)) lane.revision = rev;
+      if (rev !== undefined && (lane.revision === undefined || rev > lane.revision)) {
+        lane.revision = rev;
+        // IR-01 — "Saved" stood for this session's last save; a NEWER stored
+        // value (another tab, another reviewer) replaces it, so the old save
+        // no longer describes the field and must not suppress the next send.
+        if (s?.kind === "saved" && !storedMatches(s.op, valueMap.get(f.id)?.value)) setStatus(f.id, IDLE);
+      }
     }
-  }, [fields, values, revisions, statuses, editing]);
+  }, [fields, values, valueMap, revisions, statuses, editing, setStatus]);
+
+  /**
+   * IR-01 — True when the value the panel was given is at least as new as the
+   * revision this session last saved or adopted: it then IS the acknowledged
+   * stored state, and a no-op check must compare with it (not with an older
+   * operation of this session). False when revisions are unknown.
+   */
+  const isCurrent = useCallback((fieldId: string): boolean => {
+    const lane = lanesRef.current.get(fieldId);
+    const rev = serverRevRef.current(fieldId);
+    return lane?.revision !== undefined && rev !== undefined && rev >= lane.revision;
+  }, []);
+
+  const registerCommit = useCallback((fieldId: string, commit: (() => void) | null) => {
+    if (commit) commitRef.current.set(fieldId, commit);
+    else commitRef.current.delete(fieldId);
+  }, []);
+
+  const fieldsRef = useRef(fields);
+  fieldsRef.current = fields;
+
+  /** IR-02 — save everything entered, wait until settled, report what is not stored. */
+  const flushAll = useCallback(async (): Promise<CodingFlushResult> => {
+    for (const [fieldId, commit] of commitRef.current) {
+      const st = statusRef.current[fieldId];
+      if (editingRef.current[fieldId] || st?.kind === "queued") commit();
+    }
+    if (!allLanesIdle()) {
+      await new Promise<void>((resolve) => {
+        const done = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+        const timer = setTimeout(() => {
+          idleWaitersRef.current.delete(done);
+          resolve();
+        }, CODING_FLUSH_TIMEOUT_MS);
+        idleWaitersRef.current.add(done);
+      });
+    }
+    const notStored = fieldsRef.current.filter((f) => {
+      const st = statusRef.current[f.id];
+      const lane = lanesRef.current.get(f.id);
+      return st?.kind === "failed" || st?.kind === "queued" || Boolean(lane?.inFlight || lane?.pending);
+    });
+    return notStored.length === 0 ? { ok: true } : { ok: false, fields: notStored.map((f) => f.label) };
+  }, [allLanesIdle]);
+
+  useEffect(() => {
+    panelFlushers.set(panelKey, flushAll);
+    return () => {
+      panelFlushers.delete(panelKey);
+    };
+  }, [panelKey, flushAll]);
 
   /** True when the server's value for a field is older than what this session saved. */
   const isStale = useCallback((fieldId: string): boolean => {
@@ -567,6 +685,7 @@ export function CodingPanel({
             canClear={Boolean(onClear)}
             status={statuses[f.id] ?? IDLE}
             stale={isStale(f.id)}
+            serverCurrent={isCurrent(f.id)}
             resyncToken={resync[f.id] ?? 0}
             canReload={Boolean(onReload)}
             send={send}
@@ -576,6 +695,7 @@ export function CodingPanel({
             retry={retry}
             reload={reload}
             registerIntent={registerIntent}
+            registerCommit={registerCommit}
           />
         );
       })}
@@ -613,6 +733,8 @@ type RowApi = {
   setEditing: (fieldId: string, on: boolean) => void;
   /** Register the widget's CURRENT intended op (Retry sends it). */
   registerIntent: (fieldId: string, get: (() => SaveOp | null) | null) => void;
+  /** IR-02 — register "save what is entered now" (a decision flushes it). */
+  registerCommit: (fieldId: string, commit: (() => void) | null) => void;
 };
 
 type StatusApi = {
@@ -628,6 +750,7 @@ function FieldRow({
   canClear,
   status,
   stale,
+  serverCurrent,
   resyncToken,
   canReload,
   send,
@@ -637,6 +760,7 @@ function FieldRow({
   retry,
   reload,
   registerIntent,
+  registerCommit,
 }: {
   field: CodingFieldRow;
   current: CodingValueRow | undefined;
@@ -646,6 +770,8 @@ function FieldRow({
   status: FieldStatus;
   /** The server value is older than what this session saved: not shown. */
   stale: boolean;
+  /** IR-01 — the server value is the acknowledged stored state. */
+  serverCurrent: boolean;
   resyncToken: number;
   canReload: boolean;
 } & RowApi &
@@ -685,6 +811,7 @@ function FieldRow({
           current={current}
           status={status}
           stale={stale}
+          serverCurrent={serverCurrent}
           resyncToken={resyncToken}
           canClear={canClear}
           send={send}
@@ -692,6 +819,7 @@ function FieldRow({
           failLocally={failLocally}
           setEditing={setEditing}
           registerIntent={registerIntent}
+          registerCommit={registerCommit}
         />
       )}
       {isMissing ? (
@@ -872,6 +1000,7 @@ function FieldWidget({
   current,
   status,
   stale,
+  serverCurrent,
   resyncToken,
   canClear,
   send,
@@ -879,18 +1008,20 @@ function FieldWidget({
   failLocally,
   setEditing,
   registerIntent,
+  registerCommit,
 }: {
   field: CodingFieldRow;
   current: CodingValueRow | undefined;
   status: FieldStatus;
   stale: boolean;
+  serverCurrent: boolean;
   resyncToken: number;
   canClear: boolean;
 } & RowApi) {
   const v = (current?.value ?? {}) as Record<string, unknown>;
   const labelId = codingLabelId(field.id);
-  const sync: DraftSync = { stale, resyncToken };
-  const props = { field, v, labelId, status, sync, canClear, send, queue, failLocally, setEditing, registerIntent };
+  const sync: DraftSync = { stale, current: serverCurrent, resyncToken };
+  const props = { field, v, labelId, status, sync, canClear, send, queue, failLocally, setEditing, registerIntent, registerCommit };
   switch (field.fieldType) {
     case "TEXT":
       return <TextWidget {...props} />;
@@ -947,7 +1078,12 @@ function FieldWidget({
 }
 
 /** How a widget's draft follows the server value (review remediation A). */
-type DraftSync = { stale: boolean; resyncToken: number };
+type DraftSync = {
+  stale: boolean;
+  /** IR-01 — the server value is the acknowledged stored state (not older). */
+  current: boolean;
+  resyncToken: number;
+};
 
 type WidgetProps = {
   field: CodingFieldRow;
@@ -969,17 +1105,42 @@ function selectOptions(field: CodingFieldRow): Array<{ value: string; label: str
  * re-read yet), otherwise the server value. Review remediation A: emptying a
  * field whose first value is still saving must send a clear, not nothing.
  */
-function knownValue(status: FieldStatus, key: string, server: string, format: (v: unknown) => string): string {
-  if (status.kind !== "saved" && status.kind !== "saving") return server;
-  return status.op.kind === "clear" ? "" : format(status.op.value[key]);
+function knownValue(
+  status: FieldStatus,
+  key: string,
+  server: string,
+  format: (v: unknown) => string,
+  serverCurrent: boolean,
+): string {
+  // IR-01 — once the server value is at least as new as this session's last
+  // save, IT is what is stored: a "saved" operation of this session may have
+  // been replaced since (another tab), so it never stands in for the server.
+  if (status.kind === "saving" || (status.kind === "saved" && !serverCurrent)) {
+    return status.op.kind === "clear" ? "" : format(status.op.value[key]);
+  }
+  return server;
 }
 
-/** Skip a send identical to the one already saving / saved for this field. */
-function alreadySent(status: FieldStatus, op: SaveOp): boolean {
-  return (status.kind === "saving" || status.kind === "saved") && opKey(status.op) === opKey(op);
+/**
+ * Skip a send identical to the one already saving, or saved when nothing
+ * newer has been read since (IR-01: a newer stored value makes it obsolete).
+ */
+function alreadySent(status: FieldStatus, op: SaveOp, serverCurrent: boolean): boolean {
+  if (status.kind === "saving") return opKey(status.op) === opKey(op);
+  return status.kind === "saved" && !serverCurrent && opKey(status.op) === opKey(op);
 }
 
-function TextWidget({ field, v, labelId, status, sync, canClear, send, setEditing, registerIntent }: WidgetProps) {
+/** IR-02 — register the widget's "save what is entered now" (latest closure). */
+function useCommit(fieldId: string, register: RowApi["registerCommit"], commit: () => void) {
+  const ref = useRef(commit);
+  ref.current = commit;
+  useEffect(() => {
+    register(fieldId, () => ref.current());
+    return () => register(fieldId, null);
+  }, [fieldId, register]);
+}
+
+function TextWidget({ field, v, labelId, status, sync, canClear, send, setEditing, registerIntent, registerCommit }: WidgetProps) {
   const serverText = typeof v["text"] === "string" ? (v["text"] as string) : "";
   const { draft, setDraft, settle } = useDraft(serverText, serverText, status, sync);
   useIntent(field.id, registerIntent, () =>
@@ -988,20 +1149,21 @@ function TextWidget({ field, v, labelId, status, sync, canClear, send, setEditin
   function commit() {
     settle();
     setEditing(field.id, false);
-    const known = knownValue(status, "text", serverText, (x) => (typeof x === "string" ? x : ""));
+    const known = knownValue(status, "text", serverText, (x) => (typeof x === "string" ? x : ""), sync.current);
     if (draft.trim().length === 0) {
       // An emptied field is an explicit clear (when something was stored).
       if (known.length === 0 && status.kind !== "failed") return;
       if (!canClear) return;
       const op: SaveOp = { kind: "clear" };
-      if (!alreadySent(status, op)) void send(field, op);
+      if (!alreadySent(status, op, sync.current)) void send(field, op);
       return;
     }
     const op: SaveOp = { kind: "write", value: { text: draft } };
     if (draft === known && status.kind !== "failed") return;
-    if (alreadySent(status, op)) return;
+    if (alreadySent(status, op, sync.current)) return;
     void send(field, op);
   }
+  useCommit(field.id, registerCommit, commit);
   return (
     <textarea
       aria-labelledby={labelId}
@@ -1017,7 +1179,7 @@ function TextWidget({ field, v, labelId, status, sync, canClear, send, setEditin
   );
 }
 
-function NumericWidget({ field, v, labelId, status, sync, canClear, send, failLocally, setEditing, registerIntent }: WidgetProps) {
+function NumericWidget({ field, v, labelId, status, sync, canClear, send, failLocally, setEditing, registerIntent, registerCommit }: WidgetProps) {
   const serverNum = typeof v["number"] === "number" ? String(v["number"] as number) : "";
   const { draft, setDraft, settle } = useDraft(serverNum, serverNum, status, sync);
   useIntent(field.id, registerIntent, () => {
@@ -1030,12 +1192,12 @@ function NumericWidget({ field, v, labelId, status, sync, canClear, send, failLo
     settle();
     setEditing(field.id, false);
     const raw = draft.trim();
-    const known = knownValue(status, "number", serverNum, (x) => (typeof x === "number" ? String(x) : ""));
+    const known = knownValue(status, "number", serverNum, (x) => (typeof x === "number" ? String(x) : ""), sync.current);
     if (raw.length === 0) {
       if (known.length === 0 && status.kind !== "failed") return;
       if (!canClear) return;
       const op: SaveOp = { kind: "clear" };
-      if (!alreadySent(status, op)) void send(field, op);
+      if (!alreadySent(status, op, sync.current)) void send(field, op);
       return;
     }
     const next = Number(raw);
@@ -1045,9 +1207,10 @@ function NumericWidget({ field, v, labelId, status, sync, canClear, send, failLo
     }
     const op: SaveOp = { kind: "write", value: { number: next } };
     if (known !== "" && Number(known) === next && status.kind !== "failed") return;
-    if (alreadySent(status, op)) return;
+    if (alreadySent(status, op, sync.current)) return;
     void send(field, op);
   }
+  useCommit(field.id, registerCommit, commit);
   return (
     <input
       aria-labelledby={labelId}
@@ -1106,7 +1269,7 @@ function BooleanWidget({ field, v, labelId, status, sync, canClear, send }: Widg
 
 const CONFIDENCE_DEBOUNCE_MS = 400;
 
-function ConfidenceWidget({ field, v, labelId, status, sync, canClear, send, queue, setEditing, registerIntent }: WidgetProps) {
+function ConfidenceWidget({ field, v, labelId, status, sync, canClear, send, queue, setEditing, registerIntent, registerCommit }: WidgetProps) {
   const serverConf = typeof v["confidence"] === "number" ? (v["confidence"] as number) : null;
   const { draft, setDraft, settle } = useDraft<number | null>(serverConf, String(serverConf), status, sync);
   useIntent(field.id, registerIntent, () =>
@@ -1126,6 +1289,7 @@ function ConfidenceWidget({ field, v, labelId, status, sync, canClear, send, que
     if (value === null) return;
     void send(field, { kind: "write", value: { confidence: value } });
   }, [field, send, settle, setEditing]);
+  useCommit(field.id, registerCommit, flush);
 
   useEffect(
     () => () => {

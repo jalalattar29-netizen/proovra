@@ -13,11 +13,15 @@ Tests: `services/api/test/review-remediation-reconcile.integration.test.ts`, on 
 
    `plan --out plan.json [--team <uuid>]`
 
-   Writes the complete plan and prints its `planHash`, the SHA-256 of the canonical plan content. Each record is one item with:
+   Writes the complete plan (version 2) and prints its `planHash`, the SHA-256 of the canonical plan content. Each record is one item with:
    - its category;
    - the record id, workspace and review;
    - the exact change: table, field, `from`, `to`;
-   - the effect: before/after behaviour, whether the review's current round is pinned, and the other causes that keep a second decision required.
+   - the effect: before/after behaviour, whether the review's current round is pinned, and the other causes that keep a second decision required;
+   - its **precondition** (IR-04): the facts the effect was derived from.
+     - Escalation items: the escalation's status, reason, creator and review, and the review's status, decision round, round pin, setter escalation, non-escalation causes (legal hold, redaction, workspace policy) and other active escalations.
+     - Attribution items: the escalation the creator was taken from.
+     - Help-text items: none beyond the stored text, which the compare-and-set checks.
 
    There is no sampling: every affected record is listed.
 
@@ -25,7 +29,7 @@ Tests: `services/api/test/review-remediation-reconcile.integration.test.ts`, on 
 
    `apply --plan plan.json --plan-hash <sha256> --categories a,b --operator "<name>"`
 
-   - Refuses a plan whose content does not hash to `--plan-hash`, an unknown or report-only category, and a missing operator.
+   - Refuses a plan whose content does not hash to `--plan-hash`, a version-1 plan (no preconditions: re-plan), an unknown or report-only category, and a missing operator.
    - Applies only the named categories, and only to records listed in the plan; records created after planning are never touched.
    - Each record runs in its own transaction: a compare-and-set on the planned `from`, plus a durable tenant audit row in the same transaction. The audit row records:
      - action `review.remediation.reconcile.applied`;
@@ -34,6 +38,9 @@ Tests: `services/api/test/review-remediation-reconcile.integration.test.ts`, on 
      - operator, category, table, field, record, review;
      - bounded before/after values.
    - A record whose value changed after planning is reported as `changed_since_plan` and left alone.
+   - **The reviewed context must still hold (IR-04).** Before the compare-and-set, the review row and then the escalation row are locked, in the order every decision and coding write uses. The precondition is recomputed, and any difference is reported as `changed_since_plan` with `changedFacts` (for example `escalation.status`, `workflow.decisionRound`, `workflow.causes`). No contextual change is treated as harmless: re-plan and re-approve instead.
+     - A sibling escalation's `requires_independent_review` flag is deliberately not a fact. It is written only when an escalation is created and by this job, so two items of one plan on the same review never make each other stale.
+     - A new legal hold committed while an item is being applied can only make its stated "after" more conservative: a second decision is still required.
    - A failure rolls back that record's change together with its audit row.
    - Re-applying the same plan reports `already_applied` and writes nothing.
 
@@ -56,7 +63,7 @@ Tests: `services/api/test/review-remediation-reconcile.integration.test.ts`, on 
 | escalated_by_backfill | yes | `evidence_review_workflows.escalated_by_user_id` NULL → the newest person-raised escalation's creator | — | attribution only |
 | seeded_verdict_help_text | yes | coding field help text: legacy text → corrected text | already corrected when read | stored corrected text |
 | legacy_escalated_status_unknown | **report only** | — | the status forces; the setting escalation cannot be identified | unchanged; an owner resolves it through normal Review actions |
-| overturned_challenges_before_change | **report only** | — | challenge resolved overturned without reopening | unchanged; reopen through the normal Reopen action if wanted |
+| overturned_challenges_before_change | **report only** | — | challenge resolved overturned/partial whose resolution left **no supersede record** (IR-05: decided per challenge, not by date; the old code ran until deployment) | unchanged; reopen through the normal Reopen action if wanted |
 
 ## What changes on deployment without reconciliation
 See `IMMEDIATE-CHANGES.md`. Since the source-review corrections, no category of existing escalations or escalated reviews changes its second-review behaviour on deployment.
